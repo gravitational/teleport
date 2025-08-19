@@ -2,10 +2,32 @@
 title: "Get Started with Teleport"
 description: "Shows you how to set up a Teleport Enterprise (Cloud) account and protect your first resource with Teleport."
 tocDepth: 3
+labels:
+ - platform-wide
+ - get-started
 ---
 
 Teleport Enterprise helps organizations provide secure access to their
 infrastructure with minimal configuration and cluster management. 
+
+After you start a [free trial](https://goteleport.com/signup) of Teleport
+Enterprise (Cloud), you can set up role-based access control (RBAC), enable
+single sign-on, and prevent unauthorized use of organization resources.
+
+This guide explains how to register a local server with a Teleport Enterprise
+(Cloud) account. After you register the server, you can access it through the
+Teleport Web UI in a browser or using the terminal. You can also record your
+sessions, so you can review them later.
+
+<Admonition type="tip">
+
+You can also set up a Teleport cluster on a self-hosted virtual machine with
+Teleport Community Edition. For instructions, read [Run a Self-Hosted Demo
+Cluster](linux-demo.mdx).
+
+</Admonition>
+
+## How it works
 
 With Teleport Enterprise (Cloud), the Teleport Auth Service and Teleport Proxy
 Service are managed for you as cloud-based services. These services provide you
@@ -13,15 +35,6 @@ with immediate access to a scalable and fault-tolerant certificate authority and
 reverse proxy that you don't need to manage or maintain. You can focus on
 enrolling the resources you want to protect and configuring secure role-based
 access for private and public networks across the globe.
-
-After you start a [free trial](https://goteleport.com/signup) of Teleport
-Enterprise (Cloud), you can set up role-based access control (RBAC), enable
-single sign-on, and prevent unauthorized use of organization resources.
-
-This guide explains how to register a local server with a Teleport Enterprise
-(Cloud) account.  After you register the server, you can access it through the
-Teleport Web UI in a browser or using the terminal. You can also record your
-sessions, so you can review them later.
 
 ## Prerequisites
 
@@ -45,7 +58,7 @@ sessions, so you can review them later.
   [server access](enroll-resources/server-access/getting-started.mdx).
 
 - The `tsh` client tool. `tsh` is included in the same packages and archives as
-  the `teleport` binary. See the [Installation Guide](installation.mdx) for how
+  the `teleport` binary. See the [Installation Guide](installation/installation.mdx) for how
   to install Teleport on your operating system.
   
   This guide only requires the `tsh` client tool to access a server from a
@@ -185,8 +198,10 @@ To access the server using commands in a terminal:
 
 1. Open a new terminal window.
 
-1. Sign in to your Teleport cluster by running the `tsh login` command  with the URL 
-of your cluster and the name of your Teleport user:
+1. Sign in to your Teleport cluster by running the `tsh login` command  with the
+   URL of your cluster and the name of your Teleport user, assigning 
+   <Var name="example" /> to your account subdomain and <Var name="username" /> to
+   your Teleport username:
    
    ```code
    $ tsh login --proxy=<Var name="example" />.teleport.sh --user=<Var name="username" />
@@ -220,7 +235,8 @@ of your cluster and the name of your Teleport user:
    b6c1072b5af5 ⟵ Tunnel  
    ```
 
-1. Access your server as the `root` user:
+1. Access your server as the `root` user, assigning <Var name="node-name" /> to
+   the name of the server as displayed by `tsh ls`:
 
    ```code
    $ tsh ssh root@<Var name="node-name" />
@@ -242,4 +258,4 @@ Role-based access control ensures that only authorized users are allowed access
 to those resources.
 
 To learn more information about deploying agents, see [Deploy Teleport Agents 
-with Terraform](admin-guides/infrastructure-as-code/terraform-starter/enroll-resources.mdx).
+with Terraform](zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources.mdx).

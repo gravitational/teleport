@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/semaphore"
@@ -64,7 +65,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 		return trace.Wrap(err)
 	}
 
-	if !resp.ServerFeatures.AutomaticUpgrades {
+	if !resp.GetServerFeatures().GetAutomaticUpgrades() {
 		return nil
 	}
 
@@ -73,7 +74,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 		return trace.Wrap(err)
 	}
 
-	clusterNameConfig, err := authClient.GetClusterName()
+	clusterNameConfig, err := authClient.GetClusterName(process.GracefulExitContext())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -197,12 +198,9 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// stableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-	stableVersion = strings.TrimPrefix(stableVersion, "v")
-
 	// minServerVersion specifies the minimum version of the cluster required for
 	// updated AWS OIDC deploy service to remain compatible with the cluster.
-	minServerVersion, err := utils.MajorSemver(stableVersion)
+	minServerVersion, err := utils.MajorSemver(stableVersion.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -221,7 +219,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	// for AWS OIDC deploy services to update. In order to reduce the number of api
 	// calls, the aws regions are first reduced to only the regions containing
 	// an RDS database.
-	awsRegions := make(map[string]interface{})
+	awsRegions := make(map[string]any)
 	for _, database := range databases {
 		if database.IsAWSHosted() && database.IsRDS() {
 			awsRegions[database.GetAWS().Region] = nil
@@ -253,10 +251,13 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	return trace.Wrap(sem.Acquire(ctx, maxConcurrentUpdates))
 }
 
-func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx context.Context, integration types.Integration, awsRegion, teleportVersion string) error {
+func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx context.Context, integration types.Integration, awsRegion string, teleportVersion *semver.Version) error {
 	// Do not attempt update if integration is not an AWS OIDC integration.
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
 		return nil
+	}
+	if teleportVersion == nil {
+		return trace.BadParameter("teleport version is required")
 	}
 
 	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, integration.GetName())
@@ -313,7 +314,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	)
 	if err := awsoidc.UpdateDeployService(ctx, awsOIDCDeployServiceClient, updater.Log, awsoidc.UpdateServiceRequest{
 		TeleportClusterName: updater.TeleportClusterName,
-		TeleportVersionTag:  teleportVersion,
+		TeleportVersionTag:  teleportVersion.String(),
 		OwnershipTags:       ownershipTags,
 	}); err != nil {
 

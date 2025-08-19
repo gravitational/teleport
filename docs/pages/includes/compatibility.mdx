@@ -3,9 +3,6 @@ include a major version, minor version, and patch version, separated by dots.
 When running multiple `teleport` binaries within a cluster, the following rules
 apply:
 
-- **Patch and minor** versions are always compatible, for example, any 8.0.1
-  component will work with any 8.0.3 component and any 8.1.0 component will work
-  with any 8.3.0 component.
 - Servers support clients that are one major version behind, but do not support
   clients that are on a newer major version. For example, an 8.x.x Proxy Service
   instance is compatible with 7.x.x agents and 7.x.x `tsh`, but we don't
@@ -14,5 +11,5 @@ apply:
   You must upgrade to 7.x.x first.
 - Proxy Service instances and agents do not support Auth Service instances that
   are on an older major version, and will fail to connect to older Auth Service
-  instances by default. You can override version checks by passing
-  `--skip-version-check` when starting agents and Proxy Service instances.
+  instances by default. For example, an 8.x.x Proxy Service or agent is not
+  compatible with an 7.x.x Auth Service.

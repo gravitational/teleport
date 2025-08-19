@@ -145,6 +145,9 @@ type Database interface {
 	// IsUsernameCaseInsensitive returns true if the database username is case
 	// insensitive.
 	IsUsernameCaseInsensitive() bool
+	// IsAutoUsersEnabled returns true if the database has auto user
+	// provisioning enabled.
+	IsAutoUsersEnabled() bool
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -1128,6 +1131,12 @@ func (d *DatabaseV3) IsUsernameCaseInsensitive() bool {
 	// CockroachDB usernames are case-insensitive:
 	// https://www.cockroachlabs.com/docs/stable/create-user#user-names
 	return d.GetProtocol() == DatabaseProtocolCockroachDB
+}
+
+// IsAutoUsersEnabled returns true if the database has auto user
+// provisioning enabled.
+func (d *DatabaseV3) IsAutoUsersEnabled() bool {
+	return d.SupportsAutoUsers() && d.GetAdminUser().Name != ""
 }
 
 const (

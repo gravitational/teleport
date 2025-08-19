@@ -25,7 +25,9 @@ import (
 	"os"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/oauth2"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/utils"
@@ -61,42 +63,60 @@ func (tc *TeleportClient) ssoRedirectorConfig(ctx context.Context, connectorDisp
 
 func (tc *TeleportClient) ssoLoginInitFn(keyRing *KeyRing, connectorID, connectorType string) sso.CeremonyInit {
 	return func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
-		sshLogin, err := tc.NewSSHLogin(keyRing)
+		redirectURL, _ /* postform */, err = tc.loginInitFn(ctx, keyRing, clientCallbackURL, connectorID, connectorType)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
+		return redirectURL, nil
+	}
+}
 
-		// initiate SSO login through the Proxy.
-		req := SSOLoginConsoleReq{
-			RedirectURL: clientCallbackURL,
-			SSOUserPublicKeys: SSOUserPublicKeys{
-				SSHPubKey:               sshLogin.SSHPubKey,
-				TLSPubKey:               sshLogin.TLSPubKey,
-				SSHAttestationStatement: sshLogin.SSHAttestationStatement,
-				TLSAttestationStatement: sshLogin.TLSAttestationStatement,
-			},
-			CertTTL:           sshLogin.TTL,
-			ConnectorID:       connectorID,
-			Compatibility:     sshLogin.Compatibility,
-			RouteToCluster:    sshLogin.RouteToCluster,
-			KubernetesCluster: sshLogin.KubernetesCluster,
-		}
+func (tc *TeleportClient) loginInitFn(ctx context.Context, keyRing *KeyRing, clientCallbackURL string, connectorID, connectorType string) (redirectURL string, postForm string, err error) {
+	sshLogin, err := tc.NewSSHLogin(keyRing)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
 
-		clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
+	codeVerifier := oauth2.GenerateVerifier()
 
-		out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", connectorType, "login", "console"), req)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
+	// initiate SSO login through the Proxy.
+	req := SSOLoginConsoleReq{
+		RedirectURL: clientCallbackURL,
+		UserPublicKeys: UserPublicKeys{
+			SSHPubKey:               sshLogin.SSHPubKey,
+			TLSPubKey:               sshLogin.TLSPubKey,
+			SSHAttestationStatement: sshLogin.SSHAttestationStatement,
+			TLSAttestationStatement: sshLogin.TLSAttestationStatement,
+		},
+		CertTTL:           sshLogin.TTL,
+		ConnectorID:       connectorID,
+		Compatibility:     sshLogin.Compatibility,
+		RouteToCluster:    sshLogin.RouteToCluster,
+		KubernetesCluster: sshLogin.KubernetesCluster,
+		PKCEVerifier:      codeVerifier,
+		ClientVersion:     teleport.Version,
+	}
 
-		var re SSOLoginConsoleResponse
-		if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-			return "", trace.Wrap(err)
-		}
+	clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
 
-		return re.RedirectURL, nil
+	out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", connectorType, "login", "console"), req)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+
+	var re SSOLoginConsoleResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return "", "", trace.Wrap(err)
+	}
+
+	return re.RedirectURL, re.PostForm, nil
+}
+
+func (tc *TeleportClient) samlSSOLoginInitFn(keyRing *KeyRing, connectorID, connectorType string) sso.SAMLCeremonyInit {
+	return func(ctx context.Context, clientCallbackURL string) (redirectURL string, postForm string, err error) {
+		return tc.loginInitFn(ctx, keyRing, clientCallbackURL, connectorID, connectorType)
 	}
 }

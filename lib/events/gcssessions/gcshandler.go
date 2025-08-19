@@ -37,6 +37,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -234,10 +235,32 @@ func (h *Handler) Close() error {
 	return h.gcsClient.Close()
 }
 
-// Upload uploads object to GCS bucket, reads the contents of the object from reader
-// and returns the target GCS bucket path in case of successful upload.
+// Upload reads the content of a session recording from a reader and uploads it
+// to a GCS bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path := h.path(sessionID)
+	return h.uploadFile(ctx, h.recordingPath(sessionID), reader)
+}
+
+// UploadSummary reads the content of a session summary from a reader and
+// uploads it to a GCS bucket. If successful, it returns URL of the uploaded
+// object.
+func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadFile(ctx, h.summaryPath(sessionID), reader)
+}
+
+// UploadMetadata reads the session metadata from a reader and uploads it to a GCS
+// bucket. If successful, it returns URL of the uploaded object.
+func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadFile(ctx, h.metadataPath(sessionID), reader)
+}
+
+// UploadThumbnail reads the session thumbnail from a reader and uploads it to a GCS
+// bucket. If successful, it returns URL of the uploaded object.
+func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
+}
+
+func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader) (string, error) {
 	h.logger.DebugContext(ctx, "Uploading object to GCS", "path", path)
 
 	// Make sure we don't overwrite an existing recording.
@@ -246,7 +269,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 		if err != nil {
 			return "", convertGCSError(err)
 		}
-		return "", trace.AlreadyExists("recording for session %q already exists in GCS", sessionID)
+		return "", trace.AlreadyExists("file %q already exists in GCS", path)
 	}
 
 	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewWriter(ctx)
@@ -265,15 +288,36 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.Bucket, path), nil
 }
 
-// Download downloads recorded session from GCS bucket and writes the results into writer
-// return trace.NotFound error is object is not found
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
-	path := h.path(sessionID)
+// Download downloads a session recording from a GCS bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadFile(ctx, h.recordingPath(sessionID), writer)
+}
+
+// DownloadSummary downloads a session summary from a GCS bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
+func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+}
+
+// DownloadMetadata downloads a session's metadata from a GCS bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
+func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadFile(ctx, h.metadataPath(sessionID), writer)
+}
+
+// DownloadThumbnail downloads a session's thumbnail from a GCS bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
+func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadFile(ctx, h.thumbnailPath(sessionID), writer)
+}
+
+func (h *Handler) downloadFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
 	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
-	writer, ok := writerAt.(io.Writer)
-	if !ok {
-		return trace.BadParameter("the provided writerAt is %T which does not implement io.Writer", writerAt)
-	}
 	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
 	if err != nil {
 		return convertGCSError(err)
@@ -287,16 +331,37 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt i
 	downloadLatencies.Observe(time.Since(start).Seconds())
 	downloadRequests.Inc()
 	if written == 0 {
-		return trace.NotFound("recording for %v is empty", sessionID)
+		return trace.NotFound("file at path %v is empty", path)
 	}
 	return nil
 }
 
-func (h *Handler) path(sessionID session.ID) string {
+func (h *Handler) recordingPath(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), slash)
+}
+
+func (h *Handler) summaryPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".summary.json"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), slash)
+}
+
+func (h *Handler) metadataPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".metadata"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".metadata"), slash)
+}
+
+func (h *Handler) thumbnailPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".thumbnail"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), slash)
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

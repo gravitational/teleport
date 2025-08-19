@@ -47,7 +47,7 @@ export function IamPolicyView({
   iamPolicyName,
 }: State) {
   return (
-    <Box maxWidth="800px">
+    <>
       <Header>Configure IAM Policy</Header>
       <HeaderSubtitle>
         Teleport needs AWS IAM permissions to be able to discover and register
@@ -120,6 +120,6 @@ export function IamPolicyView({
         />
         <ActionButtons onSkip={() => nextStep(0)} />
       </Flex>
-    </Box>
+    </>
   );
 }

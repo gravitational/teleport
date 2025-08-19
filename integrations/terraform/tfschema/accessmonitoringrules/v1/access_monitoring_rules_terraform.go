@@ -98,17 +98,29 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"automatic_approval": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"name": {
-						Description: "name is the name of the plugin to which this configuration should apply. Set this value to `teleport` to manage automatic approvals natively within Teleport.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
-					Description: "automatic_approval defines the plugin configuration for automatic approvals. Both notification and automatic_approval may be set within the same access_monitoring_rule. If both fields are set, the rule handler will manage notifications and automatic approvals for the same set of access events. Separate plugins may be used if both notifications and automatic_approvals is set.",
+				"automatic_review": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"decision": {
+							Description: "decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"integration": {
+							Description: "integration is the name of the integration that is responsible for monitoring the rule. Set this value to `builtin` to monitor the rule with Teleport.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "automatic_review defines automatic review configurations for Access Requests. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
 				},
 				"condition": {
 					Description: "condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"desired_state": {
+					Description: "desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -125,7 +137,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
-					Description: "notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_approval may be set within the same access_monitoring_rule. If both fields are set, the rule handler will manage notifications and automatic approvals for the same set of access events. Separate plugins may be used if both notifications and automatic_approvals is set.",
+					Description: "notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
 				},
 				"states": {
@@ -477,37 +489,71 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 						}
 					}
 					{
-						a, ok := tf.Attrs["automatic_approval"]
+						a, ok := tf.Attrs["automatic_review"]
 						if !ok {
-							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_approval"})
+							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_review"})
 						} else {
 							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_approval", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 							} else {
-								obj.AutomaticApproval = nil
+								obj.AutomaticReview = nil
 								if !v.Null && !v.Unknown {
 									tf := v
-									obj.AutomaticApproval = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AutomaticApproval{}
-									obj := obj.AutomaticApproval
+									obj.AutomaticReview = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AutomaticReview{}
+									obj := obj.AutomaticReview
 									{
-										a, ok := tf.Attrs["name"]
+										a, ok := tf.Attrs["integration"]
 										if !ok {
-											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_approval.name"})
+											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_review.integration"})
 										} else {
 											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_approval.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
 												if !v.Null && !v.Unknown {
 													t = string(v.Value)
 												}
-												obj.Name = t
+												obj.Integration = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["decision"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_review.decision"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.decision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Decision = t
 											}
 										}
 									}
 								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["desired_state"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.desired_state"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.desired_state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.DesiredState = t
 							}
 						}
 					}
@@ -1033,15 +1079,15 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 						}
 					}
 					{
-						a, ok := tf.AttrTypes["automatic_approval"]
+						a, ok := tf.AttrTypes["automatic_review"]
 						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_approval"})
+							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_review"})
 						} else {
 							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_approval", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 							} else {
-								v, ok := tf.Attrs["automatic_approval"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								v, ok := tf.Attrs["automatic_review"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 								if !ok {
 									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -1053,37 +1099,81 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
 									}
 								}
-								if obj.AutomaticApproval == nil {
+								if obj.AutomaticReview == nil {
 									v.Null = true
 								} else {
-									obj := obj.AutomaticApproval
+									obj := obj.AutomaticReview
 									tf := &v
 									{
-										t, ok := tf.AttrTypes["name"]
+										t, ok := tf.AttrTypes["integration"]
 										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_approval.name"})
+											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_review.integration"})
 										} else {
-											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
-													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_approval.name", err})
+													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_review.integration", err})
 												}
 												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_approval.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Name) == ""
+												v.Null = string(obj.Integration) == ""
 											}
-											v.Value = string(obj.Name)
+											v.Value = string(obj.Integration)
 											v.Unknown = false
-											tf.Attrs["name"] = v
+											tf.Attrs["integration"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["decision"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_review.decision"})
+										} else {
+											v, ok := tf.Attrs["decision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_review.decision", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.decision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Decision) == ""
+											}
+											v.Value = string(obj.Decision)
+											v.Unknown = false
+											tf.Attrs["decision"] = v
 										}
 									}
 								}
 								v.Unknown = false
-								tf.Attrs["automatic_approval"] = v
+								tf.Attrs["automatic_review"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["desired_state"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.desired_state"})
+						} else {
+							v, ok := tf.Attrs["desired_state"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.desired_state", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.desired_state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.DesiredState) == ""
+							}
+							v.Value = string(obj.DesiredState)
+							v.Unknown = false
+							tf.Attrs["desired_state"] = v
 						}
 					}
 				}

@@ -2,6 +2,9 @@
 title: Upgrading Reference
 description: Provides detailed information on upgrading Teleport in various situations.
 tocDepth: 3
+labels:
+ - conceptual
+ - platform-wide
 ---
 
 <Admonition type="warning">
@@ -342,7 +345,7 @@ Service, then on each of your agents:
    The installation script detects the package manager on your Linux server and
    uses it to install Teleport binaries. To customize your installation, learn
    about the Teleport package repositories in the [installation
-   guide](../installation.mdx#linux).
+   guide](../installation/linux.mdx).
 
 1. Confirm that the version of the `teleport` binary is the one you expect:
 
@@ -360,20 +363,9 @@ Service, then on each of your agents:
 
 The instructions in this section assume that you have configured the
 `teleport-cluster` Helm chart with a values file called `values.yaml`, and that
-your `teleport-cluster` release is called `teleport-cluster`.
-
-1. Shrink the Auth Service pool. You must reduce the number of Auth Service
-   instances to one in order to ensure a consistent cluster state during the
-   upgrade.
-
-   Ensure that your `teleport-cluster` values file includes the following
-   configuration:
-   
-   ```yaml
-   auth:
-     highAvailability:
-       replicaCount: 1
-   ```
+your `teleport-cluster` release is called `teleport-cluster`. The Auth Service instances
+are restarted simultaneously during the upgrade so there is no need to shrink 
+the number of replicas.
 
 1. Update the Teleport Helm chart repository so you can install the latest
    version of the `teleport-cluster` chart:
@@ -391,9 +383,6 @@ your `teleport-cluster` release is called `teleport-cluster`.
    The `teleport-cluster` Helm chart automatically waits for the previous
    version of the Proxy Service to stop responding to requests before running a
    new version of the Auth Service.
-
-1. Once you have completed this guide and upgraded the cluster, you can
-   configure your cluster for high availability again.
 
 ### Teleport Agents running on Kubernetes
 

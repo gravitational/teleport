@@ -61,7 +61,7 @@ func TestSignAndVerify(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			//decode the signed token
+			// decode the signed token
 			decodedToken, err := josejwt.ParseSigned(token)
 			require.NoError(t, err)
 
@@ -374,6 +374,52 @@ func TestExpiry(t *testing.T) {
 				Username: "foo@example.com",
 				URI:      "http://127.0.0.1:8080",
 				RawToken: token,
+			})
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestKey_SignAndVerifyPluginToken(t *testing.T) {
+	t.Parallel()
+	for _, alg := range supportedAlgorithms {
+		t.Run(alg.String(), func(t *testing.T) {
+			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClockAt(time.Now())
+			const clusterName = "teleport-test"
+
+			// Create a new key that can sign and verify tokens.
+			key, err := New(&Config{
+				PrivateKey:  privateKey,
+				ClusterName: clusterName,
+				Clock:       clock,
+			})
+			require.NoError(t, err)
+
+			// Sign a token with the new key.
+			expiresIn := time.Minute * 5
+			token, err := key.SignPluginToken(PluginTokenParam{
+				Issuer:   "https://localhost/",
+				Subject:  "system:proxy",
+				Audience: []string{"plugin:12345"},
+				Expires:  clock.Now().Add(expiresIn),
+			})
+			require.NoError(t, err)
+
+			_, err = key.VerifyPluginToken(token, PluginTokenParam{
+				Issuer:   "https://localhost/",
+				Subject:  "system:proxy",
+				Audience: []string{"plugin:12345"},
+			})
+			require.NoError(t, err, token)
+
+			// Check that if params don't match verification fails
+			_, err = key.VerifyPluginToken(token, PluginTokenParam{
+				Issuer:   "https://localhost/",
+				Subject:  "system:proxy",
+				Audience: []string{"plugin:9999"},
 			})
 			require.Error(t, err)
 		})

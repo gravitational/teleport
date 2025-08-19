@@ -39,7 +39,7 @@ func TestGetNamesFromAnnotations(t *testing.T) {
 			name:        "Returns 'not found' when annotation is not present",
 			annotations: map[string][]string{"other-key": {"foo", "bar"}},
 			want:        nil,
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				expectedErr := &trace.NotFoundError{}
 				require.ErrorAs(t, err, &expectedErr)
 			},
@@ -48,7 +48,7 @@ func TestGetNamesFromAnnotations(t *testing.T) {
 			name:        "Returns 'bad parameter' when annotation is empty",
 			annotations: map[string][]string{"test-key": nil},
 			want:        nil,
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				expectedErr := &trace.BadParameterError{}
 				require.ErrorAs(t, err, &expectedErr)
 			},

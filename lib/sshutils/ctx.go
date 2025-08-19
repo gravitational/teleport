@@ -30,12 +30,15 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // ConnectionContext manages connection-level state.
 type ConnectionContext struct {
+	// sessionID is the Teleport session ID that all child ServerContexts will inherit.
+	sessionID rsession.ID
+
 	// NetConn is the base connection object.
 	NetConn net.Conn
 
@@ -95,6 +98,7 @@ func SetConnectionContextClock(clock clockwork.Clock) ConnectionContextOption {
 func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn, opts ...ConnectionContextOption) (context.Context, *ConnectionContext) {
 	ctx, cancel := context.WithCancel(ctx)
 	ccx := &ConnectionContext{
+		sessionID:  rsession.NewID(),
 		NetConn:    nconn,
 		ServerConn: sconn,
 		env:        make(map[string]string),
@@ -109,16 +113,16 @@ func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.Server
 	return ctx, ccx
 }
 
-// agentChannel implements the extended teleteleagent.Agent interface,
-// allowing the underlying ssh.Channel to be closed when the agent
-// is no longer needed.
-type agentChannel struct {
+// AgentChannel implements the [agent.ExtendedAgent] and [io.Closer]
+// interfaces, allowing the underlying ssh.Channel to be closed when
+// the agent is no longer needed.
+type AgentChannel struct {
 	agent.ExtendedAgent
 	ch ssh.Channel
 }
 
 // Close closes the agent channel.
-func (a *agentChannel) Close() error {
+func (a *AgentChannel) Close() error {
 	// For graceful teardown, close the write part of the channel first. This
 	// will send "EOF" packet (type 96) to the other side which will drain and
 	// close the channel.
@@ -136,10 +140,25 @@ func (a *agentChannel) Close() error {
 		a.ch.Close())
 }
 
+// GetSessionID returns the Teleport session ID that all child ServerContexts will inherit.
+func (c *ConnectionContext) GetSessionID() rsession.ID {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.sessionID
+}
+
+// SetSessionID sets the Teleport session ID that all child ServerContexts will inherit.
+func (c *ConnectionContext) SetSessionID(sessionID rsession.ID) {
+	c.mu.Lock()
+	c.sessionID = sessionID
+	c.mu.Unlock()
+}
+
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel
 // is automatically closed when either ConnectionContext, or the supplied context.Context
 // gets canceled.
-func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
+func (c *ConnectionContext) StartAgentChannel() (*AgentChannel, error) {
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
 		return nil, trace.AccessDenied("agent forwarding has not been requested")
@@ -150,7 +169,7 @@ func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 		return nil, trace.Wrap(err)
 	}
 	go ssh.DiscardRequests(reqC)
-	return &agentChannel{
+	return &AgentChannel{
 		ExtendedAgent: agent.NewClient(ch),
 		ch:            ch,
 	}, nil

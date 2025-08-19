@@ -64,7 +64,7 @@ export const ExternalAuditStorageCta = () => {
         justifyContent="space-between"
         css={`
           @media screen and (max-width: ${props =>
-              props.theme.breakpoints.mobile}px) {
+              props.theme.breakpoints.mobile}) {
             flex-direction: column;
             gap: ${props => props.theme.space[3]}px;
           }

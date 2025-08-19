@@ -23,7 +23,7 @@ import { Plugs } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { Integration } from 'teleport/services/integrations';
 
 export function AwsOidcHeader({
@@ -45,15 +45,14 @@ export function AwsOidcHeader({
     <Flex
       alignItems="center"
       borderBottom={1}
-      borderColor="levels.surface"
+      borderColor="interactive.tonal.neutral.0"
       width={'100%'}
-      pl={5}
+      pl={6}
       py={1}
       gap={1}
-      my={2}
       data-testid="aws-oidc-header"
     >
-      <HoverTooltip position="bottom" tipContent="Back to Integrations">
+      <HoverTooltip placement="bottom" tipContent="Back to Integrations">
         <ButtonText
           size="small"
           as={InternalLink}

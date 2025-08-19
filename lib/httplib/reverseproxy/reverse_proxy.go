@@ -19,6 +19,7 @@
 package reverseproxy
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"net/http"
@@ -107,6 +108,32 @@ func New(opts ...Option) (*Forwarder, error) {
 	fwd.ReverseProxy.Transport = &roundTripperWithLogger{transport: fwd.transport, logger: fwd.logger}
 
 	return fwd, nil
+}
+
+// ServeHTTP implements the http.Handler interface for the Forwarder.
+// It sets the ServerContextKey to nil to prevent the reverse proxy to panic
+// when the request is served. The panic happens when the request is
+// canceled by the client instead of the server, which is a common case
+// when the reverse proxy is used to forward requests to long-running
+// operations (e.g. kubernetes watch streams).
+// https://cs.opensource.google/go/go/+/refs/tags/go1.24.4:src/net/http/httputil/reverseproxy.go;l=556-574;drc=e64f7ef03fdfa1c0d847c21b16c9302cc824e79b
+// When the ServerContextKey is set to nil, the reverse proxy will not
+// attempt to panic when the request is canceled, and will instead
+// return. This allows any upstream logic to continue and clean up
+// resources instead of having to handle the panic recovery. This
+// is particularly important for Kubernetes Watch streams, where
+// a substantial number of goroutines are spawned to handle
+// the watch stream, and we want to clean them up gracefully
+// instead leaving them hanging around because of a panic.
+func (f *Forwarder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r = r.WithContext(
+		context.WithValue(
+			r.Context(),
+			http.ServerContextKey,
+			nil,
+		),
+	)
+	f.ReverseProxy.ServeHTTP(w, r)
 }
 
 // Option is a functional option for the forwarder.

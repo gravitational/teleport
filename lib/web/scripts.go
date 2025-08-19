@@ -89,12 +89,12 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 	version, err := h.autoUpdateAgentVersion(ctx, defaultGroup, defaultUpdater)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get intended agent version", "error", err)
-		version = teleport.Version
+		version = teleport.SemVer()
 	}
 
 	// if there's a rollout, we do new autoupdates
 	_, rolloutErr := h.cfg.AccessPoint.GetAutoUpdateAgentRollout(ctx)
-	if rolloutErr != nil && !(trace.IsNotFound(rolloutErr) || trace.IsNotImplemented(rolloutErr)) {
+	if rolloutErr != nil && !trace.IsNotFound(rolloutErr) && !trace.IsNotImplemented(rolloutErr) {
 		h.logger.WarnContext(ctx, "Failed to get rollout", "error", rolloutErr)
 		return scripts.InstallScriptOptions{}, trace.Wrap(err, "failed to check the autoupdate agent rollout state")
 	}
@@ -134,7 +134,6 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 		TeleportFlavor:  teleportFlavor,
 		FIPS:            modules.IsBoringBinary(),
 	}, nil
-
 }
 
 // EnvVarCDNBaseURL is the environment variable that allows users to override the Teleport base CDN url used in the installation script.
@@ -145,15 +144,10 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 // - "https://cdn.cloud.gravitational.io" (dev builds/staging)
 const EnvVarCDNBaseURL = "TELEPORT_CDN_BASE_URL"
 
-func getCDNBaseURL(version string) (string, error) {
+func getCDNBaseURL(version *semver.Version) (string, error) {
 	// If the user explicitly overrides the CDN base URL, we use it.
 	if override := os.Getenv(EnvVarCDNBaseURL); override != "" {
 		return override, nil
-	}
-
-	v, err := semver.NewVersion(version)
-	if err != nil {
-		return "", trace.Wrap(err)
 	}
 
 	// If this is an AGPL build, we don't want to automatically install binaries distributed under a more restrictive
@@ -167,5 +161,5 @@ func getCDNBaseURL(version string) (string, error) {
 			teleportassets.CDNBaseURL())
 	}
 
-	return teleportassets.CDNBaseURLForVersion(v), nil
+	return teleportassets.CDNBaseURLForVersion(version), nil
 }

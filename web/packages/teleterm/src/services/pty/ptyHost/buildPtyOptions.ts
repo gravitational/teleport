@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import path, { delimiter } from 'path';
+import { delimiter } from 'path';
 
 import { makeCustomShellFromPath, Shell } from 'teleterm/mainProcess/shell';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
@@ -33,7 +33,6 @@ import {
   PtyProcessCreationStatus,
   ShellCommand,
   SshOptions,
-  TshKubeLoginCommand,
   WindowsPty,
 } from '../types';
 import {
@@ -184,32 +183,6 @@ export function getPtyProcessOptions({
       };
     }
 
-    case 'pty.tsh-kube-login': {
-      const isWindows = settings.platform === 'win32';
-
-      // backtick (PowerShell) and backslash (Bash) are used to escape a whitespace
-      const escapedBinaryPath = settings.tshd.binaryPath.replaceAll(
-        ' ',
-        isWindows ? '` ' : '\\ '
-      );
-      const kubeLoginCommand = [
-        escapedBinaryPath,
-        `--proxy=${cmd.rootClusterId}`,
-        `kube login ${cmd.kubeId} --cluster=${cmd.clusterName}`,
-        settings.insecure && '--insecure',
-      ]
-        .filter(Boolean)
-        .join(' ');
-      const bashCommandArgs = ['-c', `${kubeLoginCommand};$SHELL`];
-      const powershellCommandArgs = ['-NoExit', '-c', kubeLoginCommand];
-      return {
-        path: shellBinPath,
-        args: isWindows ? powershellCommandArgs : bashCommandArgs,
-        env: { ...env, KUBECONFIG: getKubeConfigFilePath(cmd, settings) },
-        useConpty,
-      };
-    }
-
     case 'pty.tsh-login': {
       const loginHost = cmd.login
         ? `${cmd.login}@${cmd.serverId}`
@@ -271,13 +244,6 @@ function prependBinDirToPath(
     .map(path => path?.trim())
     .filter(Boolean)
     .join(delimiter);
-}
-
-function getKubeConfigFilePath(
-  command: TshKubeLoginCommand,
-  settings: RuntimeSettings
-): string {
-  return path.join(settings.kubeConfigsDir, command.kubeConfigRelativePath);
 }
 
 async function resolveShell(

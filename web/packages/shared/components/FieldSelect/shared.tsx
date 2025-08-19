@@ -29,6 +29,7 @@ import {
   Props as SelectProps,
 } from '../Select';
 import { useRule } from '../Validation';
+import { Rule } from '../Validation/rules';
 
 export const defaultRule = () => () => ({ valid: true });
 
@@ -45,7 +46,7 @@ type FieldSelectWrapperPropsBase<Opt, IsMulti extends boolean> = {
   required?: boolean;
   helperText?: React.ReactNode;
   value?: OnChangeValue<Opt, IsMulti>;
-  rule?: (options: OnChangeValue<Opt, IsMulti>) => () => unknown;
+  rule?: Rule<OnChangeValue<Opt, IsMulti>>;
   inputId?: string;
   markAsError?: boolean;
 };
@@ -151,7 +152,7 @@ export type FieldProps<Opt, IsMulti extends boolean> = BoxProps & {
    */
   required?: boolean;
   helperText?: React.ReactNode;
-  rule?: (options: OnChangeValue<Opt, IsMulti>) => () => unknown;
+  rule?: Rule<OnChangeValue<Opt, IsMulti>>;
   markAsError?: boolean;
   ariaLabel?: string;
 };

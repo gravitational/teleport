@@ -69,6 +69,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: shared-workflows
+          ref: 664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2 
 
       - name: Install Go
         uses: actions/setup-go@v5
@@ -141,34 +142,25 @@ jobs:
         working-directory: 'docs'
         run: yarn markdown-lint
 
+      - name: Download vale
+        env: 
+          GH_TOKEN: ${{ github.token }}
+          VALE_VERSION: 3.12.0
+          # The sha256 checksum must be changed based on the downloaded package
+          # when you update the Vale version.
+          VALE_SHA256SUM: 3f4ea05cd1f2291b660ecf11a77cbb6b544b0f3b780604ad183f63285611321b
+        run: |
+          VALE_FILENAME="vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
+          gh release download "v${VALE_VERSION}" --repo="errata-ai/vale" --pattern="${VALE_FILENAME}"
+          sha256sum --check <<<"${VALE_SHA256SUM}  ${VALE_FILENAME}"
+          tar -xvf "vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
+
+      - name: Check docs style
+        working-directory: 'docs/content/current'
+        run: |
+          echo "Running Vale style checks. For information about ignoring Vale rules, see: https://vale.sh/docs/formats/mdx#comments"
+          "${GITHUB_WORKSPACE}/vale" --config docs/.vale.ini docs/pages
+
       - name: Test the docs build
         working-directory: docs
         run: yarn build
-
-  stylecheck:
-    name: Lint docs prose style
-    runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.new_docs_content == 'true' && github.event_name == 'pull_request' }}
-    permissions:
-      pull-requests: read
-    steps:
-      - name: Check out the teleport repo
-        uses: actions/checkout@v4
-        with:
-          repository: "gravitational/teleport"
-
-      - name: Run the linter
-        uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # v2.1.1
-        with:
-          version: 3.9.4
-          # Take the comma-separated list of files returned by the "Check for
-          # relevant changes" job.
-          separator: ","
-          files: ${{ needs.changes.outputs.new_docs_content_files }}
-          # Restrict the linter to lines modified/added by a PR, not entire
-          # changed files.
-          filter_mode: added
-          fail_on_error: true
-          vale_flags: "--config=docs/.vale.ini"
-

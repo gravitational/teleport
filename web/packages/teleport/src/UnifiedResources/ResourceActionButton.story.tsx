@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router';
 
 import { Flex, Stack, Text } from 'design';
@@ -26,6 +26,7 @@ import {
   awsConsoleApp,
   awsIamIcAccountApp,
   gcpCloudApp,
+  mcpApp,
 } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
@@ -107,6 +108,27 @@ export function ResourceActionButton() {
               samlApp: true,
             })}
           />
+        </Stack>
+        <Stack>
+          <Text>SAML app with launch URLs</Text>
+          <Component
+            resource={makeApp({
+              uri: 'http://localhost:300',
+              publicAddr: 'saml-app.teleport.example.com',
+              fqdn: 'saml-app.teleport.example.com',
+              name: 'saml-app',
+              samlApp: true,
+              samlAppLaunchUrls: [
+                { url: 'https://example.com' },
+                { url: 'https://example.com/1' },
+              ],
+            })}
+          />
+        </Stack>
+
+        <Stack>
+          <Text>MCP app</Text>
+          <Component resource={mcpApp} />
         </Stack>
       </Stack>
 

@@ -74,7 +74,9 @@ export function TextSelectCopyMulti({
               pt={2}
               pb={isLastText ? 0 : 2}
               key={index}
-              ref={s => (refs.current[index] = s)}
+              ref={s => {
+                refs.current[index] = s;
+              }}
             >
               {line.comment && <Comment>{line.comment}</Comment>}
               <Flex>

@@ -86,7 +86,7 @@ func TestResolution(t *testing.T) {
 	// it is only emitted once.
 	var wg sync.WaitGroup
 	barrier := make(chan struct{})
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

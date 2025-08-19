@@ -30,7 +30,7 @@ import (
 )
 
 const defaultInstallerSnapshot = `#!/usr/bin/env sh
-set -euo pipefail
+set -eu
 
 
 INSTALL_SCRIPT_URL="https://teleport.example.com:443/scripts/install.sh"
@@ -49,7 +49,7 @@ rm "$TEMP_INSTALLER_SCRIPT"
 echo "Configuring the Teleport agent"
 
 set +x
-sudo teleport install autodiscover-node --public-proxy-addr=teleport.example.com:443 --teleport-package=teleport-ent --repo-channel=stable/cloud --auto-upgrade=true --azure-client-id=`
+sudo /usr/local/bin/teleport install autodiscover-node --public-proxy-addr=teleport.example.com:443 --teleport-package=teleport-ent --repo-channel=stable/cloud --auto-upgrade=true --azure-client-id= $@`
 
 // TestNewDefaultInstaller is a minimal
 func TestNewDefaultInstaller(t *testing.T) {

@@ -16,15 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef } from 'react';
 import { useLocation, useParams } from 'react-router';
 
-import { TabBorder, TabContainer, TabsContainer } from 'design/Tabs/Tabs';
+import {
+  TabBorder,
+  TabContainerNavLink,
+  TabsContainer,
+  useSlidingBottomBorderTabs,
+} from 'design/Tabs';
 
 import cfg from 'teleport/config';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { Agents } from 'teleport/Integrations/status/AwsOidc/Details/Agents';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 export enum RdsTab {
@@ -43,38 +47,14 @@ export function Rds() {
   const searchParams = new URLSearchParams(search);
   const tab = (searchParams.get('tab') as RdsTab) || RdsTab.Rules;
 
-  const borderRef = useRef<HTMLDivElement>(null);
-  const parentRef = useRef<HTMLDivElement>();
-
-  // todo (michellescripts) the following implementation mimics the implementation of tabs in
-  //  e/web/teleport/src/AccessMonitoring/AccessMonitoring.tsx which is refactored/moved into a shared
-  //  design component, web/packages/design/src/Tabs/Tabs.ts. When refactoring AccessMonitoring to use the shared
-  //  component, consider updating both instances logic to be plain css
-  useEffect(() => {
-    if (!parentRef.current || !borderRef.current) {
-      return;
-    }
-
-    const activeElement = parentRef.current.querySelector(
-      `[data-tab-id="${tab}"]`
-    );
-
-    if (activeElement) {
-      const parentBounds = parentRef.current.getBoundingClientRect();
-      const activeBounds = activeElement.getBoundingClientRect();
-
-      const left = activeBounds.left - parentBounds.left;
-      const width = activeBounds.width;
-
-      borderRef.current.style.left = `${left}px`;
-      borderRef.current.style.width = `${width}px`;
-    }
-  }, [tab]);
+  const { borderRef, parentRef } = useSlidingBottomBorderTabs({
+    activeTab: tab,
+  });
 
   return (
     <>
-      <TabsContainer ref={parentRef}>
-        <TabContainer
+      <TabsContainer ref={parentRef} withBottomBorder px={5}>
+        <TabContainerNavLink
           data-tab-id={RdsTab.Rules}
           selected={tab === RdsTab.Rules}
           to={`${cfg.getIntegrationStatusResourcesRoute(
@@ -84,8 +64,8 @@ export function Rds() {
           )}?tab=${RdsTab.Rules}`}
         >
           Enrollment Rules
-        </TabContainer>
-        <TabContainer
+        </TabContainerNavLink>
+        <TabContainerNavLink
           data-tab-id={RdsTab.Agents}
           selected={tab === RdsTab.Agents}
           to={`${cfg.getIntegrationStatusResourcesRoute(
@@ -95,7 +75,7 @@ export function Rds() {
           )}?tab=${RdsTab.Agents}`}
         >
           Agents
-        </TabContainer>
+        </TabContainerNavLink>
         <TabBorder ref={borderRef} />
       </TabsContainer>
       {tab === RdsTab.Rules && <Rules />}

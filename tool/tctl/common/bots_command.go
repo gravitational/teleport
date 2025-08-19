@@ -35,6 +35,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"github.com/gravitational/teleport"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -59,12 +61,13 @@ type BotsCommand struct {
 	lockExpires string
 	lockTTL     time.Duration
 
-	botName    string
-	botRoles   string
-	tokenID    string
-	tokenTTL   time.Duration
-	addRoles   string
-	instanceID string
+	botName       string
+	botRoles      string
+	tokenID       string
+	tokenTTL      time.Duration
+	addRoles      string
+	instanceID    string
+	maxSessionTTL time.Duration
 
 	allowedLogins []string
 	addLogins     string
@@ -97,6 +100,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
 	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsAdd.Flag("logins", "List of allowed SSH logins for the bot user").StringsVar(&c.allowedLogins)
+	c.botsAdd.Flag("max-session-ttl", "Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.").DurationVar(&c.maxSessionTTL)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
 	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
@@ -113,6 +117,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsUpdate.Flag("add-roles", "Adds a comma-separated list of roles to an existing bot.").StringVar(&c.addRoles)
 	c.botsUpdate.Flag("set-logins", "Sets the bot's logins to the given comma-separated list, replacing any existing logins.").StringVar(&c.setLogins)
 	c.botsUpdate.Flag("add-logins", "Adds a comma-separated list of logins to an existing bot.").StringVar(&c.addLogins)
+	c.botsUpdate.Flag("set-max-session-ttl", "Sets the max session TTL. 168h maximum.").DurationVar(&c.maxSessionTTL)
 
 	c.botsInstances = bots.Command("instances", "Manage bot instances.").Alias("instance")
 
@@ -305,7 +310,14 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 		}
 	}
 
+	var maxSessionTTL *durationpb.Duration
+	if c.maxSessionTTL > 0 {
+		maxSessionTTL = durationpb.New(c.maxSessionTTL)
+	}
+
 	bot := &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: c.botName,
 		},
@@ -317,6 +329,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 					Values: flattenSlice(c.allowedLogins),
 				},
 			},
+			MaxSessionTtl: maxSessionTTL,
 		},
 	}
 
@@ -392,31 +405,24 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 		traits[t.Name] = t.Values
 	}
 
-	currentLogins := make(map[string]struct{})
+	currentLogins := set.New[string]()
 	if logins, exists := traits[constants.TraitLogins]; exists {
-		for _, login := range logins {
-			currentLogins[login] = struct{}{}
-		}
+		currentLogins.Add(logins...)
 	}
 
-	var desiredLogins map[string]struct{}
+	var desiredLogins set.Set[string]
 	if c.setLogins != "" {
-		desiredLogins = make(map[string]struct{})
-		for _, login := range splitEntries(c.setLogins) {
-			desiredLogins[login] = struct{}{}
-		}
+		desiredLogins = set.New[string](splitEntries(c.setLogins)...)
 	} else {
-		desiredLogins = maps.Clone(currentLogins)
+		desiredLogins = currentLogins.Clone()
 	}
 
 	addLogins := splitEntries(c.addLogins)
 	if len(addLogins) > 0 {
-		for _, login := range addLogins {
-			desiredLogins[login] = struct{}{}
-		}
+		desiredLogins.Add(addLogins...)
 	}
 
-	desiredLoginsArray := utils.StringsSliceFromSet(desiredLogins)
+	desiredLoginsArray := desiredLogins.Elements()
 
 	if maps.Equal(currentLogins, desiredLogins) {
 		slog.InfoContext(ctx, "Logins will be left unchanged", "logins", desiredLoginsArray)
@@ -425,7 +431,7 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 
 	slog.InfoContext(ctx, "Desired logins for bot", "bot", c.botName, "logins", desiredLoginsArray)
 
-	if len(desiredLogins) == 0 {
+	if desiredLogins.Len() == 0 {
 		delete(traits, constants.TraitLogins)
 		slog.InfoContext(ctx, "Removing logins trait from bot user")
 	} else {
@@ -453,28 +459,20 @@ type clientRoleGetter interface {
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
 func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGetter, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
-	currentRoles := make(map[string]struct{})
-	for _, role := range bot.Spec.Roles {
-		currentRoles[role] = struct{}{}
-	}
+	currentRoles := set.New[string](bot.Spec.Roles...)
 
-	var desiredRoles map[string]struct{}
+	var desiredRoles set.Set[string]
 	if c.botRoles != "" {
-		desiredRoles = make(map[string]struct{})
-		for _, role := range splitEntries(c.botRoles) {
-			desiredRoles[role] = struct{}{}
-		}
+		desiredRoles = set.New(splitEntries(c.botRoles)...)
 	} else {
-		desiredRoles = maps.Clone(currentRoles)
+		desiredRoles = currentRoles.Clone()
 	}
 
 	if c.addRoles != "" {
-		for _, role := range splitEntries(c.addRoles) {
-			desiredRoles[role] = struct{}{}
-		}
+		desiredRoles.Add(splitEntries(c.addRoles)...)
 	}
 
-	desiredRolesArray := utils.StringsSliceFromSet(desiredRoles)
+	desiredRolesArray := desiredRoles.Elements()
 
 	if maps.Equal(currentRoles, desiredRoles) {
 		slog.InfoContext(ctx, "Roles will be left unchanged", "roles", desiredRolesArray)
@@ -521,6 +519,13 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 		}
 	}
 
+	if c.maxSessionTTL > 0 {
+		bot.Spec.MaxSessionTtl = durationpb.New(c.maxSessionTTL)
+		if err := fieldMask.Append(&machineidv1pb.Bot{}, "spec.max_session_ttl"); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if len(fieldMask.Paths) == 0 {
 		slog.InfoContext(ctx, "No changes requested, nothing to do")
 		return nil
@@ -562,7 +567,15 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 	}
 
 	if c.format == teleport.JSON {
-		err := utils.WriteJSONArray(c.stdout, instances)
+		// Wrap resource type so the correct protojson marshaling is used for
+		// timestamp fields.
+		wrappedInstances := make([]types.Resource, 0, len(instances))
+		for _, instance := range instances {
+			wrappedInstances = append(
+				wrappedInstances, types.ProtoResource153ToLegacy(instance),
+			)
+		}
+		err := utils.WriteJSONArray(c.stdout, wrappedInstances)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal bot instances")
 		}
@@ -762,7 +775,7 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client *authclient.Cl
 		heartbeatTable = "No heartbeat records."
 	}
 
-	templateData := map[string]interface{}{
+	templateData := map[string]any{
 		"executable":                   os.Args[0],
 		"instance":                     instance,
 		"initial_authentication_table": initialAuthenticationTable,
@@ -821,7 +834,7 @@ func outputToken(wr io.Writer, format string, client *authclient.Client, bot *ma
 		joinMethod = types.JoinMethodToken
 	}
 
-	templateData := map[string]interface{}{
+	templateData := map[string]any{
 		"token":       token.GetName(),
 		"addr":        addr,
 		"join_method": joinMethod,
@@ -836,7 +849,7 @@ func outputToken(wr io.Writer, format string, client *authclient.Client, bot *ma
 // ignoring empty or whitespace-only elements.
 func splitEntries(flag string) []string {
 	var roles []string
-	for _, s := range strings.Split(flag, ",") {
+	for s := range strings.SplitSeq(flag, ",") {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			continue

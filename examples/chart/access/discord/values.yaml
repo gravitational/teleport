@@ -30,7 +30,7 @@ teleport:
   # ```
   #
   # Check out the [Access Requests with
-  # Discord](../../admin-guides/access-controls/access-request-plugins/ssh-approval-discord.mdx) guide
+  # Discord](../../identity-governance/access-request-plugins/ssh-approval-discord.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret

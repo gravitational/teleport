@@ -33,6 +33,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,11 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+func TestMain(m *testing.M) {
+	initTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	os.Exit(m.Run())
+}
 
 func TestWarnUmask(t *testing.T) {
 	t.Parallel()
@@ -454,6 +460,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
+			requestGroup:      "default",
 			errMatch:          "install error",
 		},
 		{
@@ -470,7 +477,8 @@ func TestUpdater_Update(t *testing.T) {
 					Active: NewRevision("16.3.0", 0),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 		{
 			name: "version already installed outside of window",
@@ -486,6 +494,7 @@ func TestUpdater_Update(t *testing.T) {
 					Active: NewRevision("16.3.0", 0),
 				},
 			},
+			requestGroup: "default",
 		},
 		{
 			name: "version detects as linked",
@@ -504,6 +513,7 @@ func TestUpdater_Update(t *testing.T) {
 			linkedRevisions: []Revision{NewRevision("16.3.0", 0)},
 			inWindow:        true,
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -530,6 +540,7 @@ func TestUpdater_Update(t *testing.T) {
 			},
 			inWindow: true,
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -558,6 +569,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow:        true,
 			linkedRevisions: []Revision{NewRevision("backup-version", 0)},
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -582,7 +594,8 @@ func TestUpdater_Update(t *testing.T) {
 					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 		{
 			name: "config does not exist",
@@ -605,6 +618,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 			flags:    autoupdate.FlagEnterprise | autoupdate.FlagFIPS,
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
@@ -638,6 +652,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 			setupErr: errors.New("setup error"),
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -667,10 +682,11 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 			agpl:     true,
 
-			reloadCalls: 0,
-			revertCalls: 0,
-			setupCalls:  0,
-			errMatch:    "AGPL",
+			requestGroup: "default",
+			reloadCalls:  0,
+			revertCalls:  0,
+			setupCalls:   0,
+			errMatch:     "AGPL",
 		},
 		{
 			name: "skip version",
@@ -688,7 +704,8 @@ func TestUpdater_Update(t *testing.T) {
 					Skip:   toPtr(NewRevision("16.3.0", 0)),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 		{
 			name: "pinned version",
@@ -706,7 +723,8 @@ func TestUpdater_Update(t *testing.T) {
 					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 	}
 
@@ -738,6 +756,7 @@ func TestUpdater_Update(t *testing.T) {
 			ns := &Namespace{
 				installDir:     dir,
 				defaultPathDir: "ignored",
+				updaterIDFile:  "updater-id-file",
 			}
 			_, err := ns.Init()
 			require.NoError(t, err)
@@ -797,12 +816,7 @@ func TestUpdater_Update(t *testing.T) {
 					return nil
 				},
 				FuncIsLinked: func(ctx context.Context, rev Revision, path string) (bool, error) {
-					for _, r := range tt.linkedRevisions {
-						if r == rev {
-							return true, nil
-						}
-					}
-					return false, nil
+					return slices.Contains(tt.linkedRevisions, rev), nil
 				},
 			}
 			updater.Process = &testProcess{
@@ -821,12 +835,12 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, path string, reload bool) error {
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, _ bool, reload bool) error {
 				restarted = reload
 				setupCalls++
 				return tt.setupErr
 			}
-			updater.SetupNamespace = func(_ context.Context, path string) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, _ bool) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -1050,14 +1064,15 @@ func TestUpdater_Remove(t *testing.T) {
 	const version = "active-version"
 
 	tests := []struct {
-		name           string
-		cfg            *UpdateConfig // nil -> file not present
-		linkSystemErr  error
-		isEnabledErr   error
-		syncErr        error
-		reloadErr      error
-		processEnabled bool
-		force          bool
+		name          string
+		cfg           *UpdateConfig // nil -> file not present
+		linkSystemErr error
+		isActiveErr   error
+		syncErr       error
+		reloadErr     error
+		processActive bool
+		force         bool
+		serviceName   string
 
 		unlinkedVersion string
 		teardownCalls   int
@@ -1093,7 +1108,7 @@ func TestUpdater_Remove(t *testing.T) {
 			force:           true,
 		},
 		{
-			name: "no system links, process enabled, force",
+			name: "no system links, process active, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -1106,7 +1121,7 @@ func TestUpdater_Remove(t *testing.T) {
 			},
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
-			processEnabled:  true,
+			processActive:   true,
 			force:           true,
 			errMatch:        "refusing to remove",
 		},
@@ -1158,7 +1173,54 @@ func TestUpdater_Remove(t *testing.T) {
 			},
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
-			isEnabledErr:    ErrNotSupported,
+			isActiveErr:     ErrNotSupported,
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, no force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			errMatch: "unable to remove",
+		},
+		{
+			name: "no system links, process disabled, custom path, no force, custom service",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			serviceName:     "custom",
 			unlinkedVersion: version,
 			teardownCalls:   1,
 			force:           true,
@@ -1268,6 +1330,10 @@ func TestUpdater_Remove(t *testing.T) {
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
+			updater.TeleportServiceName = serviceName
+			if tt.serviceName != "" {
+				updater.TeleportServiceName = tt.serviceName
+			}
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -1307,11 +1373,8 @@ func TestUpdater_Remove(t *testing.T) {
 					reloadCalls++
 					return tt.reloadErr
 				},
-				FuncIsEnabled: func(_ context.Context) (bool, error) {
-					return tt.processEnabled, tt.isEnabledErr
-				},
 				FuncIsActive: func(_ context.Context) (bool, error) {
-					return false, nil
+					return tt.processActive, tt.isActiveErr
 				},
 			}
 			updater.TeardownNamespace = func(_ context.Context) error {
@@ -1361,6 +1424,8 @@ func TestUpdater_Install(t *testing.T) {
 		reloadCalls       int
 		revertCalls       int
 		setupCalls        int
+		selinuxInstalls   int
+		selinuxRemovals   int
 		restarted         bool
 		errMatch          string
 	}{
@@ -1430,6 +1495,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1447,6 +1513,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1472,6 +1539,7 @@ func TestUpdater_Install(t *testing.T) {
 
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
+			requestGroup:      "default",
 			errMatch:          "install error",
 		},
 		{
@@ -1480,8 +1548,9 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 			},
-			agpl:     true,
-			errMatch: "AGPL",
+			agpl:         true,
+			requestGroup: "default",
+			errMatch:     "AGPL",
 		},
 		{
 			name: "version already installed",
@@ -1496,6 +1565,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         false,
 		},
@@ -1514,6 +1584,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevision:   NewRevision("backup-version", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1531,6 +1602,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 		},
 		{
@@ -1539,6 +1611,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1548,6 +1621,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1563,9 +1637,11 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			revertCalls:       1,
 			setupCalls:        1,
 			reloadCalls:       1,
+			selinuxRemovals:   1,
 			restarted:         true,
 			errMatch:          "setup error",
 		},
@@ -1583,8 +1659,10 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			revertCalls:       1,
 			setupCalls:        1,
+			selinuxRemovals:   1,
 			errMatch:          "setup error",
 		},
 		{
@@ -1594,6 +1672,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1605,7 +1684,56 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
+			restarted:         true,
+		},
+		{
+			name: "install selinux from file",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: true,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+				},
+			},
+
+			installedRevision: NewRevision("16.3.0", 0),
+			installedBaseURL:  autoupdate.DefaultBaseURL,
+			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
+			setupCalls:        1,
+			selinuxInstalls:   1,
+			restarted:         true,
+		},
+		{
+			name: "install selinux from user",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: false,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+				},
+			},
+			userCfg: OverrideConfig{
+				UpdateSpec: UpdateSpec{
+					SELinuxSSH: true,
+				},
+				SELinuxSSHChanged: true,
+			},
+
+			installedRevision: NewRevision("16.3.0", 0),
+			installedBaseURL:  autoupdate.DefaultBaseURL,
+			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
+			setupCalls:        1,
+			selinuxInstalls:   1,
 			restarted:         true,
 		},
 	}
@@ -1617,6 +1745,7 @@ func TestUpdater_Install(t *testing.T) {
 				installDir:       dir,
 				defaultPathDir:   defaultPathDir,
 				defaultProxyAddr: "default-proxy",
+				updaterIDFile:    "updater-id-file",
 			}
 			_, err := ns.Init()
 			require.NoError(t, err)
@@ -1659,6 +1788,7 @@ func TestUpdater_Install(t *testing.T) {
 			if tt.userCfg.Proxy == "" {
 				tt.userCfg.Proxy = strings.TrimPrefix(server.URL, "https://")
 			}
+			updater.DefaultProxyAddr = tt.userCfg.Proxy
 
 			var (
 				installedRevision Revision
@@ -1669,6 +1799,8 @@ func TestUpdater_Install(t *testing.T) {
 				reloadCalls       int
 				setupCalls        int
 				revertSetupCalls  int
+				selinuxInstalls   int
+				selinuxRemovals   int
 			)
 			updater.Installer = &testInstaller{
 				FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
@@ -1710,13 +1842,21 @@ func TestUpdater_Install(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, path string, reload bool) error {
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, installSELinux bool, reload bool) error {
 				setupCalls++
+				if installSELinux {
+					selinuxInstalls++
+				}
 				restarted = reload
 				return tt.setupErr
 			}
-			updater.SetupNamespace = func(_ context.Context, path string) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, installSELinux bool) error {
 				revertSetupCalls++
+				if installSELinux {
+					selinuxInstalls++
+				} else {
+					selinuxRemovals++
+				}
 				return nil
 			}
 
@@ -1738,13 +1878,9 @@ func TestUpdater_Install(t *testing.T) {
 			require.Equal(t, tt.revertCalls, revertSetupCalls)
 			require.Equal(t, tt.revertCalls, revertFuncCalls)
 			require.Equal(t, tt.setupCalls, setupCalls)
+			require.Equal(t, tt.selinuxInstalls, selinuxInstalls)
+			require.Equal(t, tt.selinuxRemovals, selinuxRemovals)
 			require.Equal(t, tt.restarted, restarted)
-
-			if tt.cfg == nil && err != nil {
-				_, err := os.Stat(cfgPath)
-				require.Error(t, err)
-				return
-			}
 
 			data, err := os.ReadFile(cfgPath)
 			require.NoError(t, err)
@@ -1815,12 +1951,15 @@ func TestUpdater_Setup(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		restart    bool
-		present    bool
-		setupErr   error
-		presentErr error
-		reloadErr  error
+		name           string
+		cfg            *UpdateConfig // nil -> file not present
+		restart        bool
+		present        bool
+		installSELinux bool
+		removeSELinux  bool
+		setupErr       error
+		presentErr     error
+		reloadErr      error
 
 		errMatch string
 	}{
@@ -1889,11 +2028,65 @@ func TestUpdater_Setup(t *testing.T) {
 			reloadErr: errors.New("some error"),
 			errMatch:  "some error",
 		},
+		{
+			name:           "install selinux",
+			installSELinux: true,
+			restart:        false,
+			present:        true,
+		},
+		{
+			name: "install selinux false in file",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: false,
+				},
+			},
+			installSELinux: true,
+			restart:        false,
+			present:        true,
+		},
+		{
+			name: "remove selinux",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: true,
+				},
+			},
+			installSELinux: false,
+			removeSELinux:  true,
+			restart:        false,
+			present:        true,
+		},
+		{
+			name: "selinux no-op",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: false,
+				},
+			},
+			installSELinux: false,
+			removeSELinux:  false,
+			restart:        false,
+			present:        true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ns := &Namespace{}
+			dir := t.TempDir()
+			ns := &Namespace{
+				installDir: dir,
+			}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
 			require.NoError(t, err)
 
@@ -1905,18 +2098,129 @@ func TestUpdater_Setup(t *testing.T) {
 					return tt.present, tt.presentErr
 				},
 			}
-			updater.SetupNamespace = func(_ context.Context, path string) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, installSELinux bool) error {
 				require.Equal(t, "test", path)
+				require.Equal(t, tt.installSELinux, installSELinux)
+				return tt.setupErr
+			}
+			updater.WriteTeleportService = func(_ context.Context, path string, rev Revision) error {
+				require.Equal(t, "test", path)
+				require.Equal(t, "version", rev.Version)
 				return tt.setupErr
 			}
 
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				b, err := yaml.Marshal(tt.cfg)
+				require.NoError(t, err)
+				err = os.WriteFile(cfgPath, b, 0600)
+				require.NoError(t, err)
+			}
+
 			ctx := context.Background()
-			err = updater.Setup(ctx, "test", tt.restart)
+			err = updater.Setup(ctx, "test", Revision{Version: "version"}, tt.installSELinux, tt.restart)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
 			} else {
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestFindDBPID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		existingID  string
+		systemID    string
+		namespaceID string
+		persist     bool
+
+		result   string
+		resFile  string
+		errMatch string
+	}{
+		{
+			name:     "no ids",
+			errMatch: "empty",
+		},
+		{
+			name:        "both ids",
+			systemID:    "test1",
+			namespaceID: "test2",
+			result:      "2c652f3c-ae11-5e5a-ba40-73cba91149cd",
+		},
+		{
+			name:     "systemID",
+			systemID: "test1",
+			result:   "6abf58ef-f6cc-55ae-91e2-376af6b0ba90",
+		},
+		{
+			name:        "systemID matching namespaceID",
+			namespaceID: "test1",
+			result:      "35321002-ed1c-51e3-a3b3-cbf0f0bc2d88",
+		},
+		{
+			name:        "namespaceID",
+			namespaceID: "test2",
+			result:      "906a648e-038b-576a-893e-d6b32a9d8aee",
+		},
+		{
+			name:     "namespaceID matching systemID",
+			systemID: "test2",
+			result:   "42929c01-bcc8-5a49-af36-e5f21344d5f5",
+		},
+		{
+			name:        "existing file not replaced",
+			existingID:  "existing",
+			systemID:    "test1",
+			namespaceID: "test2",
+			result:      "existing",
+			resFile:     "existing",
+		},
+		{
+			name:        "existing file not replaced on persist",
+			existingID:  "existing",
+			systemID:    "test1",
+			namespaceID: "test2",
+			persist:     true,
+			result:      "existing",
+			resFile:     "existing",
+		},
+		{
+			name:        "persisted when missing",
+			systemID:    "test1",
+			namespaceID: "test2",
+			persist:     true,
+			result:      "2c652f3c-ae11-5e5a-ba40-73cba91149cd",
+			resFile:     "2c652f3c-ae11-5e5a-ba40-73cba91149cd",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := filepath.Join(t.TempDir(), "existing")
+			if tt.existingID != "" {
+				err := os.WriteFile(existing, []byte(tt.existingID), os.ModePerm)
+				require.NoError(t, err)
+			}
+			s, err := FindDBPID(existing, []byte(tt.systemID), []byte(tt.namespaceID), tt.persist)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.result, s)
+
+			if tt.resFile != "" {
+				b, err := os.ReadFile(existing)
+				require.NoError(t, err)
+				require.Equal(t, tt.resFile, string(b))
+			} else {
+				require.NoFileExists(t, existing)
 			}
 		})
 	}

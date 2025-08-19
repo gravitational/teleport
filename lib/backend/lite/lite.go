@@ -630,7 +630,7 @@ func (l *Backend) getInTransaction(ctx context.Context, key backend.Key, tx *sql
 	return nil
 }
 
-func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+func (l *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
 	if params.StartKey.IsZero() {
 		err := trace.BadParameter("missing parameter startKey")
 		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
@@ -735,7 +735,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 	}
 
 	var result backend.GetResult
-	for item, err := range l.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+	for item, err := range l.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1073,7 +1073,7 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 	return
 }
 
-func expires(t time.Time) interface{} {
+func expires(t time.Time) any {
 	if t.IsZero() {
 		return nil
 	}

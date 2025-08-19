@@ -226,7 +226,7 @@ install_via_curl() {
   cd -
 
   $SUDO tar -xzf "${TEMP_DIR}/${TELEPORT_FILENAME}" -C "$TEMP_DIR"
-  $SUDO "$TEMP_DIR/teleport/install"
+  $SUDO "$TEMP_DIR/teleport${TELEPORT_SUFFIX}/install"
   set +x
 }
 
@@ -328,13 +328,13 @@ install_teleport() {
   esac
 
   # select install method based on distribution
-  # if ID is debian derivate, run apt-get
+  # if ID is debian derivative, run apt-get
   case "$ID" in
   debian | ubuntu | kali | linuxmint | pop | raspbian | neon | zorin | parrot | elementary)
     install_via_apt_get
     ;;
   # if ID is amazon Linux 2/RHEL/etc, run yum
-  centos | rhel | amzn)
+  centos | rhel | rocky | almalinux | amzn)
     install_via_yum "$ID"
     ;;
   sles)

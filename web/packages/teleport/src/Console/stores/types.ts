@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { Latency } from 'shared/components/LatencyDiagnostic';
+
 import type { Participant, ParticipantMode } from 'teleport/services/session';
 
 interface DocumentBase {
@@ -39,12 +41,7 @@ export interface DocumentSsh extends DocumentBase {
   mode?: ParticipantMode;
   serverId: string;
   login: string;
-  latency:
-    | {
-        client: number;
-        server: number;
-      }
-    | undefined;
+  latency: Latency | undefined;
 }
 
 export interface DocumentNodes extends DocumentBase {

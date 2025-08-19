@@ -17,7 +17,8 @@
  */
 
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { ProfilesFilterOption } from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
@@ -38,6 +39,7 @@ import {
   AwsOidcPingRequest,
   AwsOidcPingResponse,
   AwsRdsDatabase,
+  AwsRolesAnywherePingResponse,
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
@@ -61,8 +63,10 @@ import {
   ListAwsSubnetsResponse,
   ListEksClustersRequest,
   ListEksClustersResponse,
+  ListRolesAnywhereProfilesResponse,
   RdsEngineIdentifier,
   Regions,
+  RolesAnywhereProfile,
   SecurityGroup,
   SecurityGroupRule,
   Subnet,
@@ -505,22 +509,23 @@ export const integrationService = {
         integration: resp.integration,
         lastStateChange: resp.lastStateChange,
         description: resp.description,
+        title: resp.title,
         discoverEc2: {
           instances: resp.discoverEc2?.instances,
-          accountId: resp.discoverEc2?.accountId,
+          account_id: resp.discoverEc2?.account_id,
           region: resp.discoverEc2?.region,
-          ssmDocument: resp.discoverEc2?.ssmDocument,
-          installerScript: resp.discoverEc2?.installerScript,
+          ssm_document: resp.discoverEc2?.ssm_document,
+          installer_script: resp.discoverEc2?.installer_script,
         },
         discoverEks: {
-          clusters: resp.discoverEks?.instances,
-          accountId: resp.discoverEks?.accountId,
+          clusters: resp.discoverEks?.clusters,
+          account_id: resp.discoverEks?.account_id,
           region: resp.discoverEks?.region,
-          appAutoDiscover: resp.discoverEks?.appAutoDiscover,
+          app_auto_discover: resp.discoverEks?.app_auto_discover,
         },
         discoverRds: {
-          databases: resp.discoverRds?.instances,
-          accountId: resp.discoverRds?.accountId,
+          databases: resp.discoverRds?.databases,
+          account_id: resp.discoverRds?.account_id,
           region: resp.discoverRds?.region,
         },
       };
@@ -538,10 +543,61 @@ export const integrationService = {
           taskType: resp.taskType,
           state: resp.state,
           issueType: resp.issueType,
+          title: resp.title,
           integration: resp.integration,
           lastStateChange: resp.lastStateChange,
         };
       });
+  },
+
+  awsRolesAnywherePing({
+    integrationName,
+    trustAnchorArn,
+    syncRoleArn,
+    syncProfileArn,
+  }: {
+    integrationName: string;
+    trustAnchorArn: string;
+    syncRoleArn: string;
+    syncProfileArn: string;
+  }): Promise<AwsRolesAnywherePingResponse> {
+    return api
+      .post(cfg.getAwsRolesAnywherePingUrl(integrationName), {
+        trustAnchorArn,
+        syncRoleArn,
+        syncProfileArn,
+      })
+      .then(json => {
+        return {
+          profileCount: json?.profileCount,
+          accountId: json?.accountID,
+          arn: json?.arn,
+          userId: json?.userId,
+        };
+      });
+  },
+
+  awsRolesAnywhereProfiles(
+    variables: {
+      integrationName: string;
+      filters?: ProfilesFilterOption[];
+    },
+    signal?: AbortSignal
+  ): Promise<ListRolesAnywhereProfilesResponse> {
+    const { integrationName, filters } = variables;
+    const path = cfg.getAwsRolesAnywhereProfilesUrl(integrationName);
+
+    return api
+      .post(
+        path,
+        {
+          filters: filters?.length > 0 ? filters.map(f => f.value) : ['*'],
+        },
+        signal
+      )
+      .then(data => ({
+        profiles: data?.profiles?.map(profile => makeProfile(profile)) ?? [],
+      }));
   },
 };
 
@@ -665,5 +721,30 @@ function makeAwsSubnets(json: any): Subnet {
     name,
     id,
     availabilityZone: availability_zone,
+  };
+}
+
+function makeProfile(json: any): RolesAnywhereProfile {
+  json = json ?? {};
+
+  const { arn, enabled, name, acceptRoleSessionName, tags, roles } = json;
+
+  let arr: string[] = [];
+  if (tags != undefined && tags.length > 0) {
+    const parsedObject: { [key: string]: string } = JSON.parse(
+      JSON.stringify(tags[0])
+    );
+    Object.entries(parsedObject).forEach(entry => {
+      arr.push(entry.join(':'));
+    });
+  }
+
+  return {
+    arn,
+    enabled,
+    name,
+    acceptRoleSessionName,
+    tags: arr,
+    roles,
   };
 }

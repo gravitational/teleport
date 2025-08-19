@@ -34,7 +34,6 @@ type DynamicWindowsDesktops interface {
 	UpdateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	UpsertDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	DeleteDynamicWindowsDesktop(ctx context.Context, name string) error
-	DeleteAllDynamicWindowsDesktops(ctx context.Context) error
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 }
 

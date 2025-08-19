@@ -173,12 +173,32 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	}
 }
 
+func (w *RemoteClusterTunnelManager) listAllReverseTunnels(ctx context.Context) ([]apitypes.ReverseTunnel, error) {
+	var out []apitypes.ReverseTunnel
+	var nextToken string
+	for {
+		var page []apitypes.ReverseTunnel
+		var err error
+
+		const defaultPageSize = 0
+		page, nextToken, err = w.cfg.AccessPoint.ListReverseTunnels(ctx, defaultPageSize, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, page...)
+		if nextToken == "" {
+			break
+		}
+	}
+	return out, nil
+}
+
 // Sync does a one-time sync of trusted clusters with running agent pools.
 // Non-test code should use Run() instead.
 func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	// Fetch desired reverse tunnels and convert them to a set of
 	// remoteClusterKeys.
-	wantTunnels, err := w.cfg.AccessPoint.GetReverseTunnels(ctx)
+	wantTunnels, err := w.listAllReverseTunnels(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

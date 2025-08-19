@@ -118,6 +118,11 @@ export function IntegrationList(props: Props) {
         {
           altKey: 'options-btn',
           render: item => {
+            if (item.kind === IntegrationKind.AwsOidc) {
+              // do not show any action menu for aws oidc; settings are available on the dashboard
+              return;
+            }
+
             if (item.resourceType === 'plugin') {
               return (
                 <Cell align="right">
@@ -152,17 +157,7 @@ export function IntegrationList(props: Props) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    {/* Currently, only AWS OIDC supports editing & status dash */}
-                    {item.kind === IntegrationKind.AwsOidc && (
-                      <MenuItem
-                        as={InternalRouteLink}
-                        to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
-                      >
-                        View Status
-                      </MenuItem>
-                    )}
-                    {(item.kind === IntegrationKind.GitHub ||
-                      item.kind === IntegrationKind.AwsOidc) && (
+                    {item.kind === IntegrationKind.GitHub && (
                       <MenuItem
                         onClick={() =>
                           props.integrationOps.onEditIntegration(item)
@@ -250,7 +245,10 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
       </Cell>
     );
   }
-  const statusDescription = getStatusCodeDescription(item.statusCode);
+  const statusDescription = getStatusCodeDescription(
+    item.statusCode,
+    item.status?.errorMessage
+  );
   return (
     <Cell>
       <Flex alignItems="center">
@@ -270,6 +268,7 @@ export enum Status {
   Success,
   Warning,
   Error,
+  OktaConfigError = 20,
 }
 
 const StatusLight = styled(Box)<{ status: Status }>`
@@ -281,7 +280,7 @@ const StatusLight = styled(Box)<{ status: Status }>`
     if (status === Status.Success) {
       return theme.colors.success.main;
     }
-    if (status === Status.Error) {
+    if ([Status.Error, Status.OktaConfigError].includes(status)) {
       return theme.colors.error.main;
     }
     if (status === Status.Warning) {
@@ -351,6 +350,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case 'aws-identity-center':
         formattedText = 'AWS IAM Identity Center';
         icon = <IconContainer name="aws" />;
+        break;
+      case 'scim':
+        formattedText = 'SCIM';
+        icon = <IconContainer name="scim" />;
         break;
     }
   } else {

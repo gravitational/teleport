@@ -29,6 +29,7 @@ import { TextAreaSize } from 'design/TextArea';
 import { useRule } from 'shared/components/Validation';
 
 import { HelperTextLine } from '../FieldInput/FieldInput';
+import { Rule } from '../Validation/rules';
 
 export type FieldTextAreaProps = BoxProps & {
   id?: string;
@@ -41,7 +42,7 @@ export type FieldTextAreaProps = BoxProps & {
   autoFocus?: boolean;
   autoComplete?: HTMLInputAutoCompleteAttribute;
   spellCheck?: boolean;
-  rule?: (options: unknown) => () => unknown;
+  rule?: Rule;
   onChange?: React.ChangeEventHandler<HTMLInputElement>;
   onKeyPress?: React.KeyboardEventHandler<HTMLInputElement>;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;

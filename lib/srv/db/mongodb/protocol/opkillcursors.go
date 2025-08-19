@@ -89,7 +89,7 @@ func readOpKillCursors(header MessageHeader, payload []byte) (*MessageOpKillCurs
 		return nil, trace.BadParameter("malformed OP_KILL_CURSORS: missing number of cursor IDs %v", payload)
 	}
 	var cursorIDs []int64
-	for n := 0; n < int(numberOfCursorIDs); n++ {
+	for range int(numberOfCursorIDs) {
 		var cursorID int64
 		cursorID, rem, ok = readInt64(rem)
 		if !ok {

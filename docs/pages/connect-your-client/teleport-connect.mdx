@@ -1,9 +1,12 @@
 ---
 title: Using Teleport Connect
 description: Using Teleport Connect
+labels:
+ - conceptual
+ - platform-wide
 ---
 
-Teleport Connect provides easy and secure access to SSH servers, databases, applications, and
+Teleport Connect provides easy and secure access to SSH servers, databases, applications, Windows desktops, and
 Kubernetes clusters.
 
 ![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster@2x.png)
@@ -87,6 +90,9 @@ A new tab will open with a shell session on the chosen server.
 
 Alternatively, you can look for the server in the search bar and press `Enter` to connect to it.
 
+If you'd prefer to connect to SSH servers with a third-party SSH client or your
+editor's Remote Development feature, read the [VNet guide](./vnet.mdx) to learn how.
+
 ## Opening a local terminal
 
 To open a terminal with a local shell session, either select "Open new terminal" from the additional
@@ -97,7 +103,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [trusted clusters](../admin-guides/management/admin/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../zero-trust-access/management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -159,6 +165,19 @@ Connect with GUI section.
 The database connection tab shows the command that can be used to connect to the database. You can
 modify the database name of the connection and then click the Run button to open a new terminal tab
 with that command executed.
+
+## Connecting to a Windows desktop
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
+can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
+1. Look for the desktop you wish to connect to and click the Connect button.
+1. Select the user you wish to use and press `Enter`.
+
+A new tab will open with a remote desktop session.
+
+Alternatively, you can look for the desktops in the search bar and press `Enter` to connect to it.
+
+During a remote session, you can share your clipboard and a local directory, if permitted by your role.
 
 ## Connecting to an application
 
@@ -387,7 +406,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.
@@ -415,7 +434,7 @@ a user set up an agent and then lock the user out of removing the agent.
 
 To instantly revoke access to agents that have already joined the cluster, look for nodes labeled
 with the `teleport.dev/connect-my-computer/owner` label and then [place
-locks](../admin-guides/access-controls/guides/locking.mdx) on those nodes.
+locks](../identity-governance/locking.mdx) on those nodes.
 
 ```code
 $ tctl nodes ls -v --query='labels["teleport.dev/connect-my-computer/owner"] != ""'
@@ -455,7 +474,7 @@ installation directory to the `Path` user environment variable.
 
 Teleport Connect supports authenticating with hardware-based keys.
 Keys are generated and stored directly on a hardware device, providing greater security than storing
-them on a file system. For more details, see [Hardware Key Support guide](../admin-guides/access-controls/guides/hardware-key-support.mdx).
+them on a file system. For more details, see [Hardware Key Support guide](../zero-trust-access/authentication/hardware-key-support.mdx).
 
 <Admonition type="note" title="PIV support">
   Hardware key support requires users to use a PIV-compatible hardware key.
@@ -648,7 +667,7 @@ see them only after you restart the app.
 
 You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
 talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
-certificates](../admin-guides/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
+certificates](../zero-trust-access/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
 using this mode in production.
 
 <Tabs>

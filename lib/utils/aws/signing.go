@@ -19,10 +19,10 @@
 package aws
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
@@ -94,8 +94,14 @@ func SignRequest(ctx context.Context, req *http.Request, signCtx *SigningCtx) (*
 	// 100-continue" headers without being signed, otherwise the Athena service
 	// would reject the requests.
 	unsignedHeaders := removeUnsignedHeaders(reqCopy)
-	signer := NewSignerV2(signCtx.Credentials, signCtx.SigningName)
-	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), signCtx.SigningName, signCtx.SigningRegion, signCtx.Clock.Now())
+
+	creds, err := signCtx.Credentials.Retrieve(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer := NewSigner(signCtx.SigningName)
+	err = signer.SignHTTP(ctx, creds, reqCopy, GetV4PayloadHash(payload), signCtx.SigningName, signCtx.SigningRegion, time.Now())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

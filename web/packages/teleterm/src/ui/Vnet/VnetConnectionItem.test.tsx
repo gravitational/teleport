@@ -46,7 +46,7 @@ describe('VnetSliderStepHeader', () => {
     const openDocumentationButton = screen.getByTitle(
       'Open VNet documentation'
     );
-    const toggleButton = screen.getByTitle('Start VNet');
+    const toggleButton = screen.getByText('Start VNet');
     expect(document.body).toHaveFocus();
 
     await user.tab();
@@ -89,16 +89,16 @@ describe('VnetSliderStepHeader', () => {
     await user.tab();
     await user.tab();
     await user.tab();
-    expect(await screen.findByTitle('Start VNet')).toHaveFocus();
+    expect(await screen.findByText('Start VNet')).toHaveFocus();
 
     await user.keyboard('{Enter}');
 
-    expect(await screen.findByTitle('Starting VNet')).toHaveFocus();
-    expect(await screen.findByTitle('Stop VNet')).toHaveFocus();
+    expect(await screen.findByText('Starting…')).toHaveFocus();
+    expect(await screen.findByText('Stop VNet')).toHaveFocus();
 
     await user.keyboard('{Enter}');
 
-    expect(await screen.findByTitle('Stopping VNet')).toHaveFocus();
-    expect(await screen.findByTitle('Start VNet')).toHaveFocus();
+    expect(await screen.findByText('Stopping…')).toHaveFocus();
+    expect(await screen.findByText('Start VNet')).toHaveFocus();
   });
 });

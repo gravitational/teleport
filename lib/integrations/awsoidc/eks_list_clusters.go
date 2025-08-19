@@ -145,7 +145,6 @@ func ListEKSClusters(ctx context.Context, clt ListEKSClustersClient, req ListEKS
 
 	ret.Clusters = make([]EKSCluster, 0, len(eksClusters.Clusters))
 	for _, clusterName := range eksClusters.Clusters {
-		clusterName := clusterName
 		if clusterName == "" {
 			continue
 		}

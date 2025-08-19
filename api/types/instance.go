@@ -78,6 +78,13 @@ func (f InstanceFilter) Match(i Instance) bool {
 		return false
 	}
 
+	// Empty update group matches all.
+	if f.UpdateGroup != "" {
+		if updateInfo := i.GetUpdaterInfo(); updateInfo == nil || updateInfo.UpdateGroup != f.UpdateGroup {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -183,6 +190,9 @@ type Instance interface {
 	// another instance.
 	GetLastMeasurement() *SystemClockMeasurement
 
+	// GetUpdaterInfo returns information about the instance updater.
+	GetUpdaterInfo() *UpdaterV2Info
+
 	// Clone performs a deep copy on this instance.
 	Clone() Instance
 }
@@ -284,6 +294,10 @@ func (i *InstanceV1) GetExternalUpgrader() string {
 
 func (i *InstanceV1) GetExternalUpgraderVersion() string {
 	return i.Spec.ExternalUpgraderVersion
+}
+
+func (i *InstanceV1) GetUpdaterInfo() *UpdaterV2Info {
+	return i.Spec.UpdaterInfo
 }
 
 func (i *InstanceV1) GetControlLog() []InstanceControlLogEntry {

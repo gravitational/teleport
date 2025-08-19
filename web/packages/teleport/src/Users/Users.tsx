@@ -16,19 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link as InternalLink } from 'react-router-dom';
 
-import { Alert, Box, Button, Flex, Indicator, Link, Text } from 'design';
+import { Alert, Box, Button, Link as ExternalLink, Flex, Text } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
+import {
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  InfoUl,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 
+import { useServerSidePagination } from 'teleport/components/hooks';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import cfg from 'teleport/config';
+import { User } from 'teleport/services/user';
 
-import UserAddEdit from './UserAddEdit';
-import UserDelete from './UserDelete';
+import { UserAddEdit } from './UserAddEdit';
+import { UserDelete } from './UserDelete';
 import UserList from './UserList';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
@@ -40,9 +51,6 @@ export function UsersContainer(props: UsersContainerProps) {
 
 export function Users(props: State) {
   const {
-    attempt,
-    users,
-    fetchRoles,
     operation,
     onStartCreate,
     onStartDelete,
@@ -52,9 +60,6 @@ export function Users(props: State) {
     showMauInfo,
     onDismissUsersMauNotice,
     onClose,
-    onCreate,
-    onUpdate,
-    onDelete,
     onReset,
     onStartInviteCollaborators,
     onInviteCollaboratorsClose,
@@ -62,7 +67,39 @@ export function Users(props: State) {
     InviteCollaborators,
     EmailPasswordReset,
     onEmailPasswordResetClose,
+    fetch,
   } = props;
+
+  const [search, setSearch] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const serverSidePagination = useServerSidePagination<User>({
+    pageSize: 20,
+    fetchFunc: async (_, params) => {
+      const { items, startKey } = await fetch(
+        params,
+        abortControllerRef.current?.signal
+      );
+      return { agents: items || [], startKey };
+    },
+    clusterId: '',
+    params: { search },
+  });
+
+  useEffect(() => {
+    // Cancel previous request and create new controller
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+
+    serverSidePagination.fetch();
+  }, [search]);
+
+  // Cleanup controller on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const requiredPermissions = Object.entries(usersAcl)
     .map(([key, value]) => {
@@ -81,11 +118,11 @@ export function Users(props: State) {
     <FeatureBox>
       <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
-        {attempt.isSuccess && (
-          <>
+        {serverSidePagination.attempt.status === 'success' && (
+          <Flex gap={2}>
             {!InviteCollaborators && (
               <HoverTooltip
-                position="bottom"
+                placement="bottom"
                 tipContent={
                   !isMissingPermissions ? (
                     ''
@@ -141,15 +178,14 @@ export function Users(props: State) {
                 Enroll Users
               </Button>
             )}
-          </>
+            <InfoGuideButton config={{ guide: <InfoGuide /> }} />
+          </Flex>
         )}
       </FeatureHeader>
-      {attempt.isProcessing && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
+      {serverSidePagination.attempt.status === 'failed' && (
+        <Alert>{serverSidePagination.attempt.statusText}</Alert>
       )}
-      {showMauInfo && (
+      {showMauInfo && serverSidePagination.attempt.status !== 'processing' && (
         <Alert
           data-testid="users-not-mau-alert"
           dismissible
@@ -166,48 +202,45 @@ export function Users(props: State) {
           Sign-On (SSO) providers such as Okta may only appear here temporarily
           and disappear once their sessions expire. For more information, read
           our documentation on{' '}
-          <Link
+          <ExternalLink
             target="_blank"
             href="https://goteleport.com/docs/usage-billing/#monthly-active-users"
             className="external-link"
           >
             MAU
-          </Link>{' '}
+          </ExternalLink>{' '}
           and{' '}
-          <Link
+          <ExternalLink
             href="https://goteleport.com/docs/reference/user-types/"
             className="external-link"
           >
             User Types
-          </Link>
+          </ExternalLink>
           .
         </Alert>
       )}
-      {attempt.isFailed && <Alert kind="danger" children={attempt.message} />}
-      {attempt.isSuccess && (
-        <UserList
-          usersAcl={usersAcl}
-          users={users}
-          onEdit={onStartEdit}
-          onDelete={onStartDelete}
-          onReset={onStartReset}
-        />
-      )}
+      <UserList
+        serversidePagination={serverSidePagination}
+        onSearchChange={setSearch}
+        search={search}
+        onEdit={onStartEdit}
+        onDelete={onStartDelete}
+        onReset={onStartReset}
+        usersAcl={usersAcl}
+      />
       {(operation.type === 'create' || operation.type === 'edit') && (
         <UserAddEdit
           isNew={operation.type === 'create'}
-          fetchRoles={fetchRoles}
           onClose={onClose}
-          onCreate={onCreate}
-          onUpdate={onUpdate}
           user={operation.user}
+          modifyFetchedData={serverSidePagination.modifyFetchedData}
         />
       )}
       {operation.type === 'delete' && (
         <UserDelete
           onClose={onClose}
-          onDelete={onDelete}
           username={operation.user.name}
+          modifyFetchedData={serverSidePagination.modifyFetchedData}
         />
       )}
       {operation.type === 'reset' && !EmailPasswordReset && (
@@ -223,12 +256,44 @@ export function Users(props: State) {
           username={operation.user.name}
         />
       )}
-      {InviteCollaborators && (
-        <InviteCollaborators
-          open={inviteCollaboratorsOpen}
-          onClose={onInviteCollaboratorsClose}
-        />
+      {InviteCollaborators && inviteCollaboratorsOpen && (
+        <InviteCollaborators onClose={onInviteCollaboratorsClose} />
       )}
     </FeatureBox>
   );
 }
+
+const InfoGuideReferenceLinks = {
+  Users: {
+    title: 'Teleport Users',
+    href: 'https://goteleport.com/docs/core-concepts/#teleport-users',
+  },
+};
+
+const InfoGuide = () => (
+  <Box>
+    <InfoParagraph>
+      Teleport allows for two kinds of{' '}
+      <InfoExternalTextLink href={InfoGuideReferenceLinks.Users.href}>
+        users
+      </InfoExternalTextLink>
+      :
+      <InfoUl>
+        <li>
+          <b>Local</b> users are created and managed in Teleport and stored in
+          the Auth Service backend.
+        </li>
+        <li>
+          <b>Single Sign-On (SSO)</b> users are stored on the backend of your
+          SSO solution, e.g., Okta or GitHub. SSO can be set up with an{' '}
+          <InternalLink to={cfg.routes.sso}>Auth Connector</InternalLink>.
+        </li>
+      </InfoUl>
+    </InfoParagraph>
+    <InfoParagraph>
+      To take any action in Teleport, users must have at least one{' '}
+      <InternalLink to={cfg.routes.roles}>Role</InternalLink> assigned.
+    </InfoParagraph>
+    <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+  </Box>
+);

@@ -1,6 +1,9 @@
 ---
 title: Application Access High Availability (HA)
 description: How to configure Teleport application access in a Highly Available (HA) configuration.
+labels:
+ - conceptual
+ - zero-trust
 ---
 
 You can deploy the Application Service in a Highly Available (HA) configuration
@@ -19,7 +22,7 @@ both agents would be identical:
 ```yaml
 # Same config for both agents.
 app_service:
-  enabled: "yes"
+  enabled: true
   apps:
   - name: "elastic"
     uri: https://elasticsearch.example.com:9200
@@ -48,7 +51,7 @@ you want to connect to the application over:
 ```yaml
 # Application service instance #1.
 app_service:
-  enabled: "yes"
+  enabled: true
   apps:
   # Note the name is different than instance #2 but the URI is the same.
   - name: "elastic-us-east-1a"
@@ -58,7 +61,7 @@ app_service:
 ```yaml
 # Application service instance #2.
 app_service:
-  enabled: "yes"
+  enabled: true
   apps:
   # Note the name is different than instance #2 but the URI is the same.
   - name: "elastic-us-east-1b"

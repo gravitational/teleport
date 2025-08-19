@@ -42,6 +42,7 @@ export enum DiscoverGuideId {
   ApplicationSamlGeneric = 'application-saml-generic',
   ApplicationSamlGrafana = 'application-saml-grafana',
   ApplicationSamlWorkforceIdentityFederation = 'application-saml-workforce-identity-federation',
+  ApplicationSamlMicrosoftEntraId = 'application-saml-microsoft-entra-id',
 
   // Windows Desktops:
   WindowsDesktopsActiveDirectory = 'windows-desktops-active-directory',

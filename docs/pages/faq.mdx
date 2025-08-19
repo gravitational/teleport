@@ -2,6 +2,9 @@
 title: Teleport FAQ
 description: Frequently Asked Questions About Using Teleport
 h1: Teleport FAQ
+labels:
+ - faq
+ - platform-wide
 ---
 
 This page includes answers to frequently asked questions about setting up,
@@ -18,7 +21,7 @@ the stability of Teleport from a security perspective.
 ## Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters, see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx).
+behind-firewall clusters, see [Configure Trusted Clusters](zero-trust-access/management/admin/trustedclusters.mdx).
 
 ## How is Teleport's Community Edition different from Enterprise?
 
@@ -27,9 +30,9 @@ Teleport provides two editions:
 - Teleport Enterprise
 - Teleport Community Edition
 
-Here is a detailed breakdown of the differences between Teleport's editions.
-
-(!docs/pages/includes/edition-comparison.mdx!)
+For a detailed breakdown of features by edition, alongside a description of the
+products available to Teleport users, see [Teleport
+Editions](./feature-matrix.mdx).
 
 ## Should we use Teleport Enterprise or Teleport Community Edition for connecting resources to our Teleport cluster?
 
@@ -41,7 +44,7 @@ Yes. When running a Teleport Agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
 [Adding Nodes to the
-Cluster](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+Cluster](enroll-resources/agents/join-token.mdx).
 
 ## Can Nodes use a single port for reverse tunnels?
 
@@ -72,7 +75,7 @@ look at [Using OpenSSH Guide](enroll-resources/server-access/openssh/openssh-age
 
 ## Can I copy files from one Teleport node to another?
 
-Yes, Teleport supports [Headless WebAuthn authentication](admin-guides/access-controls/guides/headless.mdx),
+Yes, Teleport supports [Headless WebAuthn authentication](zero-trust-access/authentication/headless.mdx),
 which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
 are not logged in to Teleport or may not have access to a browser.
 
@@ -96,24 +99,8 @@ time you run `tsh`.
 
 ## Which version of Teleport is supported?
 
-Teleport releases a new major version approximately every 4 months, and provides
-security-critical support for the current and two previous major versions. With
-our typical release cadence, we usually support each major version for 12
-months.
-
-### Supported versions
-
-Here are the major versions of Teleport and their support windows:
-
-| Release | Release Date      | EOL           | Minimum `tsh` version |
-|---------|-------------------|---------------|-----------------------|
-| v17.0   | November 16, 2024 | November 2025 | v16.0.0               |
-| v16.0   | June 14, 2024     | June 2025     | v15.0.0               |
-| v15.0   | January 29, 2024  | January 2025  | v14.0.0               |
-
-### Version compatibility
-
-(!docs/pages/includes/compatibility.mdx!)
+See [Upcoming Releases](upcoming-releases.mdx) for the versions of Teleport that
+we support and how long we plan to continue supporting them.
 
 ## Does the Web UI support copy and paste?
 
@@ -128,7 +115,7 @@ Please refer to our [Networking](./reference/networking.mdx) guide.
 Teleport offers this feature for the Enterprise (Cloud) and Enterprise
 (Self-Hosted) versions of Teleport.
 
-## Why do changes to a user's role set only take effect on the log next login?
+## Why do changes to a user's role set only take effect on the next login?
 
 A Teleport user's assigned roles are embedded in the client certificate they
 receive upon logging on. This certificate remains valid and can be used until
@@ -138,7 +125,7 @@ To get a new certificate with the new role set, the user will need to log out
 and log back in.
 
 Revocation of Teleport access should be done with Teleport's
-[session and identity locks](./admin-guides/access-controls/guides/locking.mdx),
+[session and identity locks](identity-governance/locking.mdx),
 not by removing roles.
 
 ## Does Teleport support provisioning users via SCIM?
@@ -147,8 +134,13 @@ Teleport supports [SCIM](https://scim.cloud/) provisioning for Okta via the
 hosted Okta integration, available in the Enterprise (Cloud) and Enterprise
 (Self-Hosted) versions of Teleport.
 
-Refer to the [hosted Okta integration guide](./enroll-resources/application-access/okta/hosted-guide.mdx)
+Refer to the [hosted Okta integration guide](identity-governance/okta/okta.mdx)
 for details on setting up and configuring SCIM support.
+
+You can also set up Teleport to integrate with a SCIM provider to automatically
+synchronize SCIM group memberships with Teleport Access Lists. For details, see
+the [SCIM integration
+documentation](zero-trust-access/management/guides/scim/scim.mdx).
 
 ## Why do I see an alert that some agents are out of date?
 

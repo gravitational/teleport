@@ -1,6 +1,9 @@
 ---
 title: Workload Identity Attributes
 description: Information about the attributes that can be used in templating and rules in the WorkloadIdentity resource.
+labels:
+ - reference
+ - mwi
 ---
 
 Attributes are features of an identity which you can use with the
@@ -35,6 +38,25 @@ These attributes are present if the Bot joined using the Azure join method.
 |-----------------------------|--------------------------------------------------------------------------------|
 | `join.azure.subscription`   | The subscription ID of the Azure account that the joining entity is a part of. |
 | `join.azure.resource_group` | The resource group of the Azure account that the joining entity is a part of.  |
+
+### `join.azure_devops`
+
+These attributes are present if the Bot joined using the Azure DevOps join
+method.
+
+| Field                                  | Description                                                                                               |
+|----------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `join.azure_devops.sub`                | The `sub` claim of the Azure DevOps pipeline ID token that was used to join.                              |
+| `join.azure_devops.organization_name`  | The name of the organization that the pipeline is running within.                                         |
+| `join.azure_devops.project_name`       | The name of the project that the pipeline is running within.                                              |
+| `join.azure_devops.pipeline_name`      | The name of the pipeline that is running.                                                                 |
+| `join.azure_devops.organization_id`    | The ID of the organization that the pipeline is running within.                                           |
+| `join.azure_devops.project_id`         | The ID of the project that the pipeline is running within.                                                |
+| `join.azure_devops.definition_id`      | The ID of the pipeline that is running.                                                                   |
+| `join.azure_devops.repository_id`      | The ID of the repository that the pipeline is running within.                                             |
+| `join.azure_devops.repository_version` | The version of the repository that the pipeline is running against.  For Git this will be the commit SHA. |
+| `join.azure_devops.repository_ref`     | The ref of the repository that the pipeline is running against.                                           |
+| `join.azure_devops.run_id`             | The ID of the run that is being executed.                                                                 |
 
 ### `join.bitbucket`
 
@@ -217,12 +239,14 @@ See the
 [Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Unix)
 for more information.
 
-| Attribute                | Description                                   |
-|--------------------------|-----------------------------------------------|
-| `workload.unix.attested` | Whether the workload passed Unix attestation. |
-| `workload.unix.pid`      | The PID of the workload process.              |
-| `workload.unix.gid`      | The primary user ID of the workload process.  |
-| `workload.unix.uid`      | The primary group ID of the workload process. |
+| Attribute                   | Description                                   |
+|-----------------------------|-----------------------------------------------|
+| `workload.unix.attested`    | Whether the workload passed Unix attestation. |
+| `workload.unix.pid`         | The PID of the workload process.              |
+| `workload.unix.gid`         | The primary user ID of the workload process.  |
+| `workload.unix.uid`         | The primary group ID of the workload process. |
+| `workload.unix.binary_path` | Path to the workload executable.              |
+| `workload.unix.binary_hash` | SHA-256 checksum of the workload executable.  |
 
 ### `workload.kubernetes`
 
@@ -232,14 +256,17 @@ See the
 [Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Kubernetes)
 for more information.
 
-| Attribute                             | Description                                         |
-|---------------------------------------|-----------------------------------------------------|
-| `workload.kubernetes.attested`        | Whether the workload passed Kubernetes attestation. |
-| `workload.kubernetes.namespace`       | The namespace of the workload pod.                  |
-| `workload.kubernetes.pod_name`        | The name of the workload pod.                       |
-| `workload.kubernetes.service_account` | The service account of the workload pod.            |
-| `workload.kubernetes.pod_uid`         | The UID of the workload pod.                        |
-| `workload.kubernetes.labels`          | The labels of the workload pod.                     |
+| Attribute                                    | Description                                           |
+|----------------------------------------------|-------------------------------------------------------|
+| `workload.kubernetes.attested`               | Whether the workload passed Kubernetes attestation.   |
+| `workload.kubernetes.namespace`              | The namespace of the workload pod.                    |
+| `workload.kubernetes.pod_name`               | The name of the workload pod.                         |
+| `workload.kubernetes.service_account`        | The service account of the workload pod.              |
+| `workload.kubernetes.pod_uid`                | The UID of the workload pod.                          |
+| `workload.kubernetes.labels`                 | The labels of the workload pod.                       |
+| `workload.kubernetes.container.name`         | Name of the container.                                |
+| `workload.kubernetes.container.image`        | Image name of the container (e.g. `ubuntu:latest`).   |
+| `workload.kubernetes.container.image_digest` | Image digest of the container (e.g. `sha256:<hash>`). |
 
 ### `workload.docker`
 
@@ -249,12 +276,13 @@ See the
 [Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Docker)
 for more information.
 
-| Attribute                          | Description                                         |
-|------------------------------------|-----------------------------------------------------|
-| `workload.docker.attested`         | Whether the workload passed Docker attestation.     |
-| `workload.docker.container.name`   | Name of the container.                              |
-| `workload.docker.container.image`  | Image name of the container (e.g. `ubuntu:latest`). |
-| `workload.docker.container.labels` | Labels of the container.                            |
+| Attribute                                | Description                                           |
+|------------------------------------------|-------------------------------------------------------|
+| `workload.docker.attested`               | Whether the workload passed Docker attestation.       |
+| `workload.docker.container.name`         | Name of the container.                                |
+| `workload.docker.container.image`        | Image name of the container (e.g. `ubuntu:latest`).   |
+| `workload.docker.container.image_digest` | Image digest of the container (e.g. `sha256:<hash>`). |
+| `workload.docker.container.labels`       | Labels of the container.                              |
 
 ### `workload.podman`
 
@@ -264,14 +292,28 @@ See the
 [Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Podman)
 for more information.
 
-| Attribute                          | Description                                         |
-|------------------------------------|-----------------------------------------------------|
-| `workload.podman.attested`         | Whether the workload passed Podman attestation.     |
-| `workload.podman.container.name`   | Name of the container.                              |
-| `workload.podman.container.image`  | Image name of the container (e.g. `ubuntu:latest`). |
-| `workload.podman.container.labels` | Labels of the container.                            |
-| `workload.podman.pod.name`         | Name of the pod.                                    |
-| `workload.podman.pod.labels`       | Labels of the pod.                                  |
+| Attribute                                | Description                                           |
+|------------------------------------------|-------------------------------------------------------|
+| `workload.podman.attested`               | Whether the workload passed Podman attestation.       |
+| `workload.podman.container.name`         | Name of the container.                                |
+| `workload.podman.container.image`        | Image name of the container (e.g. `ubuntu:latest`).   |
+| `workload.podman.container.image_digest` | Image digest of the container (e.g. `sha256:<hash>`). |
+| `workload.podman.container.labels`       | Labels of the container.                              |
+| `workload.podman.pod.name`               | Name of the pod.                                      |
+| `workload.podman.pod.labels`             | Labels of the pod.                                    |
+
+### `workload.systemd`
+
+Attributes sourced from the Systemd workload attestor.
+
+See the
+[Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Systemd)
+for more information.
+
+| Attribute                   | Description                                      |
+|-----------------------------|--------------------------------------------------|
+| `workload.systemd.attested` | Whether the workload passed Systemd attestation. |
+| `workload.systemd.service`  | Name of the service unit.                        |
 
 ## User attributes
 

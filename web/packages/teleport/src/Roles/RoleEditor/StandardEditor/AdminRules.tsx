@@ -16,30 +16,39 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { memo } from 'react';
+import { memo, useId } from 'react';
 import { components, MultiValueProps } from 'react-select';
 import styled, { useTheme } from 'styled-components';
 
 import { ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { Plus } from 'design/Icon';
+import { LabelContent } from 'design/LabelInput/LabelInput';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip';
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import FieldInput from 'shared/components/FieldInput';
-import {
-  FieldSelect,
-  FieldSelectCreatable,
-} from 'shared/components/FieldSelect';
-import { precomputed } from 'shared/components/Validation/rules';
+import { HelperTextLine } from 'shared/components/FieldInput/FieldInput';
+import { FieldSelectCreatable } from 'shared/components/FieldSelect';
+import { useRule } from 'shared/components/Validation';
+import { precomputed, Rule } from 'shared/components/Validation/rules';
+import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
-import { SectionBox, SectionPropsWithDispatch } from './sections';
+import { Verb } from 'teleport/services/resources';
+
+import {
+  SectionBox,
+  SectionPadding,
+  SectionPropsWithDispatch,
+} from './sections';
 import {
   ResourceKindOption,
   resourceKindOptions,
   resourceKindOptionsMap,
   RuleModel,
-  verbOptions,
+  VerbModel,
 } from './standardmodel';
+import { ActionType } from './useStandardModel';
 import { AdminRuleValidationResult } from './validation';
 
 /**
@@ -53,10 +62,13 @@ export const AdminRules = memo(function AdminRules({
   dispatch,
 }: SectionPropsWithDispatch<RuleModel[], AdminRuleValidationResult[]>) {
   function addRule() {
-    dispatch({ type: 'add-access-rule' });
+    dispatch({ type: ActionType.AddAdminRule });
   }
   return (
     <Flex flexDirection="column" gap={3}>
+      <SectionPadding>
+        Rules that give this role administrative rights to Teleport resources
+      </SectionPadding>
       {value.map((rule, i) => (
         <AdminRule
           key={rule.id}
@@ -80,69 +92,100 @@ const AdminRule = memo(function AdminRule({
   validation,
   dispatch,
 }: SectionPropsWithDispatch<RuleModel, AdminRuleValidationResult>) {
-  const { id, resources, verbs, where } = value;
+  const { id, resources, verbs, allVerbs, where, hideValidationErrors } = value;
   const theme = useTheme();
-  function setRule(rule: RuleModel) {
-    dispatch({ type: 'set-access-rule', payload: rule });
+  function setResources(resources: readonly ResourceKindOption[]) {
+    dispatch({
+      type: ActionType.SetAdminRuleResources,
+      payload: { id, resources },
+    });
+  }
+  function setVerbChecked(verb: Verb, checked: boolean) {
+    dispatch({
+      type: ActionType.SetAdminRuleVerb,
+      payload: { id, verb, checked },
+    });
+  }
+  function setAllVerbsChecked(checked: boolean) {
+    dispatch({
+      type: ActionType.SetAdminRuleAllVerbs,
+      payload: { id, checked },
+    });
+  }
+  function setWhere(where: string) {
+    dispatch({ type: ActionType.SetAdminRuleWhere, payload: { id, where } });
   }
   function removeRule() {
-    dispatch({ type: 'remove-access-rule', payload: { id } });
+    dispatch({ type: ActionType.RemoveAdminRule, payload: { id } });
   }
   return (
-    <SectionBox
-      title="Admin Rule"
-      tooltip="A rule that gives users access to certain kinds of resources"
-      removable
-      isProcessing={isProcessing}
-      validation={validation}
-      onRemove={removeRule}
-    >
-      <ResourceKindSelect
-        components={{ MultiValue: ResourceKindMultiValue }}
-        isMulti
-        label="Resources"
-        required
-        isDisabled={isProcessing}
-        options={resourceKindOptions}
-        value={resources}
-        onChange={r => setRule({ ...value, resources: r })}
-        rule={precomputed(validation.fields.resources)}
-      />
-      <FieldSelect
-        isMulti
-        label="Permissions"
-        required
-        isDisabled={isProcessing}
-        options={verbOptions}
-        value={verbs}
-        onChange={v => setRule({ ...value, verbs: v })}
-        rule={precomputed(validation.fields.verbs)}
-      />
-      <FieldInput
-        label="Filter"
-        toolTipContent={
-          <>
-            Optional condition that further limits the list of resources
-            affected by this rule, expressed using the{' '}
-            <Text
-              as="a"
-              href="https://goteleport.com/docs/reference/predicate-language/"
-              target="_blank"
-              color={theme.colors.interactive.solid.accent.default}
-            >
-              Teleport predicate language
-            </Text>
-          </>
-        }
-        tooltipSticky
-        disabled={isProcessing}
-        value={where}
-        onChange={e => setRule({ ...value, where: e.target.value })}
-        mb={0}
-      />
-    </SectionBox>
+    <ValidationSuspender suspend={hideValidationErrors}>
+      <SectionBox
+        titleSegments={getTitleSegments(value.resources)}
+        removable
+        isProcessing={isProcessing}
+        validation={validation}
+        onRemove={removeRule}
+      >
+        <ResourceKindSelect
+          components={{ MultiValue: ResourceKindMultiValue }}
+          isMulti
+          label="Teleport Resources"
+          required
+          isDisabled={isProcessing}
+          options={resourceKindOptions}
+          value={resources}
+          onChange={setResources}
+          rule={precomputed(validation.fields.resources)}
+          menuPosition="fixed"
+        />
+        <VerbEditor
+          verbs={verbs}
+          allVerbs={allVerbs}
+          rule={precomputed(validation.fields.verbs)}
+          onVerbChange={setVerbChecked}
+          onAllVerbsChange={setAllVerbsChecked}
+        />
+        <FieldInput
+          label="Filter"
+          toolTipContent={
+            <>
+              Optional condition that further limits the list of resources
+              affected by this rule, expressed using the{' '}
+              <Text
+                as="a"
+                href="https://goteleport.com/docs/reference/predicate-language/"
+                target="_blank"
+                color={theme.colors.interactive.solid.accent.default}
+              >
+                Teleport predicate language
+              </Text>
+            </>
+          }
+          tooltipSticky
+          disabled={isProcessing}
+          value={where}
+          onChange={e => setWhere(e.target.value)}
+          mb={0}
+        />
+      </SectionBox>
+    </ValidationSuspender>
   );
 });
+
+function getTitleSegments(resources: readonly ResourceKindOption[]): string[] {
+  switch (resources.length) {
+    case 0:
+      return ['Admin Rule'];
+    case 1:
+      return ['Admin Rule', resources[0].label];
+    default:
+      return [
+        'Admin Rule',
+        `${resources[0].label} + ${resources.length - 1} more`,
+      ];
+  }
+}
 
 const ResourceKindSelect = styled(
   FieldSelectCreatable<ResourceKindOption, true>
@@ -162,10 +205,127 @@ function ResourceKindMultiValue(props: MultiValueProps<ResourceKindOption>) {
   }
   return (
     <HoverTooltip tipContent="Unrecognized resource type">
-      <components.MultiValue
-        {...props}
-        className="teleport-resourcekind__value--unknown"
-      />
+      {/* components.MultiValue doesn't forward ref, so we need an additional wrapper.*/}
+      <Flex>
+        <components.MultiValue
+          {...props}
+          className="teleport-resourcekind__value--unknown"
+        />
+      </Flex>
     </HoverTooltip>
   );
 }
+
+/** Renders a grid of allowed permissions (verbs) as a grid of checkboxes. */
+function VerbEditor({
+  verbs,
+  allVerbs,
+  rule,
+  onVerbChange,
+  onAllVerbsChange,
+}: {
+  verbs: VerbModel[];
+  allVerbs: boolean;
+  rule: Rule<VerbModel[]>;
+  onVerbChange(verb: Verb, checked: boolean): void;
+  onAllVerbsChange(checked: boolean): void;
+}) {
+  const helperTextId = useId();
+  const { valid, message } = useRule(rule(verbs));
+
+  // Hardcoded column works here because the editor is fixed-width (defined in
+  // the RoleEditorAdapter component).
+  const numColumns = verbs.some(
+    v => v.verb === 'create_enroll_token' || v.verb === 'readnosecrets'
+  )
+    ? 2
+    : 3;
+
+  return (
+    <PermissionsFieldset aria-describedby={helperTextId}>
+      <Legend>
+        <LabelContent required>Permissions</LabelContent>
+      </Legend>
+      <FieldCheckbox
+        label={'All (wildcard verb “*”)'}
+        checked={allVerbs}
+        onChange={e => onAllVerbsChange(e.target.checked)}
+        mb={0}
+      />
+      <Divider />
+      <PermissionsGrid numColumns={numColumns}>
+        {verbs.map(v => (
+          <FieldCheckbox
+            key={v.verb}
+            label={v.verb}
+            checked={v.checked}
+            onChange={e => onVerbChange(v.verb, e.target.checked)}
+            mb={0}
+          />
+        ))}
+      </PermissionsGrid>
+      <HelperTextLine
+        hasError={!valid}
+        helperTextId={helperTextId}
+        errorMessage={message}
+      />
+    </PermissionsFieldset>
+  );
+}
+
+const PermissionsFieldset = styled.fieldset`
+  border: none;
+  margin: 0 0 ${props => props.theme.space[3]}px 0;
+  padding: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+`;
+
+/**
+ * Renders a grid for permissions, using `numColumns` equal-width columns. We
+ * need to specify the number of columns explicitly, as `auto-fill` and
+ * `auto-fit` can't be mixed with intrinsic or flexible column sizes (see
+ * https://drafts.csswg.org/css-grid/#repeat-syntax).
+ */
+const PermissionsGrid = styled.div<{ numColumns: number }>`
+  display: grid;
+  grid-template-columns: repeat(${props => props.numColumns}, 1fr);
+  row-gap: ${props => props.theme.space[2]}px;
+  column-gap: ${props => props.theme.space[3]}px;
+`;
+
+const Legend = styled.legend`
+  margin: 0 0 ${props => props.theme.space[1]}px 0;
+  padding: 0;
+  ${props => props.theme.typography.body3}
+`;
+
+function Divider() {
+  return (
+    <Flex
+      alignItems="center"
+      justifyContent="center"
+      flexDirection="column"
+      borderBottom={1}
+      borderColor="text.muted"
+      my={3}
+      css={`
+        position: relative;
+      `}
+    >
+      <StyledOr>Or</StyledOr>
+    </Flex>
+  );
+}
+
+const StyledOr = styled.div`
+  background: ${props => props.theme.colors.levels.surface};
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  height: 32px;
+  width: 32px;
+  justify-content: center;
+  position: absolute;
+  text-transform: uppercase;
+`;

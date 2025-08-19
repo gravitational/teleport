@@ -32,6 +32,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -41,24 +42,46 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestKubernetesAttestor_Attest(t *testing.T) {
 	t.Parallel()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	ctx := context.Background()
 
 	mockToken := "FOOBARBUZZ"
 	mockPID := 1234
-	// Value from k8s-real-gcp-v1.29.5-gke.1091002
+	// Values from k8s-real-gcp-v1.29.5-gke.1091002
 	mockPodID := "61c266b0-6f75-4490-8d92-3c9ae4d02787"
+	mockContainerID := "9da25af0b548c8c60aa60f77f299ba727bf72d58248bd7528eb5390ffcce555a"
 
 	// Setup mock Kubelet Secure API
+	var requests int
 	mockKubeletAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path != "/pods" {
 			http.NotFound(w, req)
 			return
 		}
+
+		// Don't return the container status in the first response, to simulate
+		// the kubelet API's eventual consistency.
+		var containerStatuses []v1.ContainerStatus
+		switch {
+		case requests == 1:
+			containerStatuses = append(containerStatuses, v1.ContainerStatus{
+				ContainerID: "docker://totally-wrong-container-id",
+			})
+		case requests > 1:
+			containerStatuses = append(containerStatuses, v1.ContainerStatus{
+				ContainerID: "docker://" + mockContainerID,
+				Name:        "container-1",
+				Image:       "my.registry.io/my-app:v1",
+				ImageID:     "docker-pullable://my.registry.io/my-app@sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
+			})
+		}
+		requests++
+
 		out := v1.PodList{
 			Items: []v1.Pod{
 				{
@@ -72,6 +95,9 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 					},
 					Spec: v1.PodSpec{
 						ServiceAccountName: "my-service-account",
+					},
+					Status: v1.PodStatus{
+						ContainerStatuses: containerStatuses,
 					},
 				},
 			},
@@ -110,6 +136,7 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 		},
 	}, log)
 	attestor.rootPath = tmpDir
+	attestor.clock = clockwork.NewRealClock()
 	attestor.kubeletClient.getEnv = func(s string) string {
 		env := map[string]string{
 			"TELEPORT_NODE_NAME": host,
@@ -127,6 +154,11 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 		PodUid:         mockPodID,
 		Labels: map[string]string{
 			"my-label": "my-label-value",
+		},
+		Container: &workloadidentityv1pb.WorkloadAttrsKubernetesContainer{
+			Name:        "container-1",
+			Image:       "my.registry.io/my-app:v1",
+			ImageDigest: "sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
 		},
 	}, att, protocmp.Transform()))
 }

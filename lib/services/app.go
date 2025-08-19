@@ -21,8 +21,11 @@ package services
 import (
 	"context"
 	"fmt"
+	"iter"
+	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -39,12 +42,16 @@ import (
 type AppGetter interface {
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
 
-// Apps defines an interface for managing application resources.
-type Apps interface {
+// Applications defines an interface for managing application resources.
+type Applications interface {
 	// AppGetter provides methods for fetching application resources.
 	AppGetter
 	// CreateApp creates a new application resource.
@@ -164,7 +171,7 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 // It transforms service fields and annotations into appropriate Teleport app fields.
 // Service labels are copied to app labels.
 func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
-	appURI := buildAppURI(protocol, GetServiceFQDN(service), port.Port)
+	appURI := buildAppURI(protocol, GetServiceFQDN(service), service.GetAnnotations()[types.DiscoveryPathLabel], port.Port)
 
 	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
 	if err != nil {
@@ -210,10 +217,11 @@ func GetServiceFQDN(service corev1.Service) string {
 	return fmt.Sprintf("%s.%s.svc.%s", service.GetName(), service.GetNamespace(), clusterDomainResolver())
 }
 
-func buildAppURI(protocol, serviceFQDN string, port int32) string {
+func buildAppURI(protocol, serviceFQDN, path string, port int32) string {
 	return (&url.URL{
 		Scheme: protocol,
-		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
+		Host:   net.JoinHostPort(serviceFQDN, strconv.Itoa(int(port))),
+		Path:   path,
 	}).String()
 }
 
@@ -255,7 +263,7 @@ func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation st
 
 		if len(validation.IsDNS1035Label(name)) > 0 {
 			return "", trace.BadParameter(
-				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", name)
+				"application name %q must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", name)
 		}
 
 		return name, nil

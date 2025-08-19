@@ -213,6 +213,12 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
           "'no' never attempts to add them, 'yes' always attempts to add them, " +
           "'only' always attempts to add the keys to the agent but it does not save them on disk."
       ),
+    // Defaults to true for prod, false for dev. Otherwise dev instances would
+    // claim the hardware key agent runner over prod instances by default.
+    'hardwareKeyAgent.enabled': z
+      .boolean()
+      .default(!settings.dev)
+      .describe('Controls whether the hardware key agent will be started.'),
   });
 };
 

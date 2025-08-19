@@ -293,7 +293,7 @@ func (s *KeyAgentTestSuite) generateCA(t *testing.T, keygen *testauthority.Keyge
 
 		// retry until we get a unique keypair
 		attempts := 20
-		for i := 0; i < attempts; i++ {
+		for i := range attempts {
 			if i == attempts-1 {
 				require.FailNowf(t, "could not find a unique keypair", "made %d attempts", i)
 			}
@@ -772,9 +772,9 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 	})
 	require.NoError(t, err)
 
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
 	require.NoError(t, err)
 
 	return &KeyRing{

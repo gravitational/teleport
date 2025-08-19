@@ -24,22 +24,42 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
+}
+
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for b.Loop() {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
 }
 
 // bootstrap check
@@ -141,7 +161,7 @@ func TestTeleportMain(t *testing.T) {
 			InitOnly: true,
 		})
 		require.Equal(t, "start", cmd)
-		require.Equal(t, len(bootstrapEntries), len(conf.Auth.BootstrapResources))
+		require.Len(t, bootstrapEntries, len(conf.Auth.BootstrapResources))
 		for i, entry := range bootstrapEntries {
 			require.Equal(t, entry.kind, conf.Auth.BootstrapResources[i].GetKind(), entry.fileName)
 			require.Equal(t, entry.name, conf.Auth.BootstrapResources[i].GetName(), entry.fileName)
@@ -154,7 +174,7 @@ func TestTeleportMain(t *testing.T) {
 			InitOnly: true,
 		})
 		require.Equal(t, "start", cmd)
-		require.Equal(t, len(bootstrapEntries), len(conf.Auth.ApplyOnStartupResources))
+		require.Len(t, bootstrapEntries, len(conf.Auth.ApplyOnStartupResources))
 		for i, entry := range bootstrapEntries {
 			require.Equal(t, entry.kind, conf.Auth.ApplyOnStartupResources[i].GetKind(), entry.fileName)
 			require.Equal(t, entry.name, conf.Auth.ApplyOnStartupResources[i].GetName(), entry.fileName)

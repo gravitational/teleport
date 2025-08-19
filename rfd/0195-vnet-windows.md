@@ -174,7 +174,7 @@ When calling the `AuthenticateProcess` RPC, the Windows service will:
 1. Use the Windows API `GetNamedPipeClientProcessId` to get the pipe client
    process handle.
 1. Once it has the user process handle, the Windows service can confirm that
-   it's own exe is identical to the exe of the cleint application connecting to
+   it's own exe is identical to the exe of the client application connecting to
    it.
 
 ### Privacy
@@ -185,10 +185,10 @@ There are no new privacy considerations on Windows.
 
 ```protobuf
 // ClientApplicationService is a service the VNet client applications provide to
-// the VNet admin process to facilate app queries, certificate issuance,
+// the VNet admin process to facilitate app queries, certificate issuance,
 // metrics, error reporting, and signatures.
 service ClientApplicationService {
-  // AuthenticateProcess mutually authenticates client applicates to the admin
+  // AuthenticateProcess mutually authenticates client app to the admin
   // service.
   rpc AuthenticateProcess(AuthenticateProcessRequest) returns (AuthenticateProcessResponse);
   // Ping is used by the admin process to regularly poll that the client
@@ -345,7 +345,7 @@ message OnNewConnectionResponse {}
 // OnInvalidLocalPortRequest is a request for OnInvalidLocalPort.
 message OnInvalidLocalPortRequest {
   // app_info identifies the app the request was made for. AppInfo is used
-  // instaed of AppKey so that the application spec is included, which includes
+  // instead of AppKey so that the application spec is included, which includes
   // the TCP port ranges allowed for the app, which are ultimately included in
   // the user error message.
   AppInfo app_info = 1;

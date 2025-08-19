@@ -34,10 +34,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestSignersWithSHA1Fallback(t *testing.T) {
@@ -137,7 +136,6 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -191,7 +189,6 @@ func TestDirectTCPIP(t *testing.T) {
 	cases := []struct {
 		name           string
 		login          string
-		accessChecker  services.AccessChecker
 		expectAccepted bool
 		expectRejected bool
 	}{
@@ -216,12 +213,11 @@ func TestDirectTCPIP(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				logger:          utils.NewSlogLoggerForTests(),
+				logger:          logtest.NewLogger(),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
 
@@ -252,12 +248,11 @@ func TestCheckTCPIPForward(t *testing.T) {
 		},
 	}
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				logger:          utils.NewSlogLoggerForTests(),
+				logger:          logtest.NewLogger(),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
 			err := s.checkTCPIPForwardRequest(context.Background(),

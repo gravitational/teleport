@@ -48,7 +48,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -387,7 +387,7 @@ type session struct {
 
 	tracker *srv.SessionTracker
 
-	accessEvaluator auth.SessionAccessEvaluator
+	accessEvaluator moderation.SessionAccessEvaluator
 
 	recorder events.SessionPreparerRecorder
 
@@ -452,7 +452,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
+	accessEvaluator := moderation.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
 	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
@@ -519,14 +519,14 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 // It is used to properly handle client disconnections.
 func (s *session) disconnectPartyOnErr(idString string, err error) {
 	if idString == sessionRecorderID {
-		s.log.ErrorContext(s.sess.connCtx, "Failed to write to session recorder, closing session")
+		s.log.ErrorContext(s.sess.sessionCtx, "Failed to write to session recorder, closing session")
 		s.Close()
 		return
 	}
 
 	id, uuidParseErr := uuid.Parse(idString)
 	if uuidParseErr != nil {
-		s.log.ErrorContext(s.sess.connCtx, "Unable to decode party id",
+		s.log.ErrorContext(s.sess.sessionCtx, "Unable to decode party id",
 			"party_id", idString,
 			"error", uuidParseErr,
 		)
@@ -535,14 +535,14 @@ func (s *session) disconnectPartyOnErr(idString string, err error) {
 
 	wasActive, leaveErr := s.leave(id)
 	if leaveErr != nil {
-		s.log.ErrorContext(s.sess.connCtx, "Failed to disconnect party from the session",
+		s.log.ErrorContext(s.sess.sessionCtx, "Failed to disconnect party from the session",
 			"party_id", idString,
 			"error", leaveErr,
 		)
 	}
 	if wasActive {
 		// log the error only if it was the reason for the user disconnection.
-		s.log.ErrorContext(s.sess.connCtx, "Encountered error with party, disconnecting them from the session",
+		s.log.ErrorContext(s.sess.sessionCtx, "Encountered error with party, disconnecting them from the session",
 			"error", err,
 			"party_id", idString,
 		)
@@ -561,11 +561,11 @@ func (s *session) checkPresence() error {
 		}
 
 		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
-			s.log.DebugContext(s.sess.connCtx, "Participant is not active, kicking", "participant_id", participant.ID)
+			s.log.DebugContext(s.sess.sessionCtx, "Participant is not active, kicking", "participant_id", participant.ID)
 			id, _ := uuid.Parse(participant.ID)
 			_, err := s.unlockedLeave(id)
 			if err != nil {
-				s.log.WarnContext(s.sess.connCtx, "Failed to kick participant for inactivity",
+				s.log.WarnContext(s.sess.sessionCtx, "Failed to kick participant for inactivity",
 					"participant_id", participant.ID,
 					"error", err,
 				)
@@ -975,7 +975,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
 		roles := p.Ctx.Checker.Roles()
 
-		accessContext := auth.SessionAccessContext{
+		accessContext := moderation.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
 			Roles:    roles,
 		}
@@ -1329,8 +1329,8 @@ func (s *session) allParticipants() []string {
 }
 
 // canStart checks if a session can start with the current set of participants.
-func (s *session) canStart() (bool, auth.PolicyOptions, error) {
-	var participants []auth.SessionAccessContext
+func (s *session) canStart() (bool, moderation.PolicyOptions, error) {
+	var participants []moderation.SessionAccessContext
 	for _, party := range s.parties {
 		if party.Ctx.User.GetName() == s.ctx.User.GetName() {
 			continue
@@ -1339,10 +1339,10 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 		roleNames := party.Ctx.Identity.GetIdentity().Groups
 		roles, err := getRolesByName(s.forwarder, roleNames)
 		if err != nil {
-			return false, auth.PolicyOptions{}, trace.Wrap(err)
+			return false, moderation.PolicyOptions{}, trace.Wrap(err)
 		}
 
-		participants = append(participants, auth.SessionAccessContext{
+		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.Ctx.User.GetName(),
 			Roles:    roles,
 			Mode:     party.Mode,
@@ -1487,7 +1487,7 @@ func (s *session) patchAndWaitForPodEphemeralContainer(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	podClient := clientSet.CoreV1().Pods(authCtx.kubeResource.Namespace)
+	podClient := clientSet.CoreV1().Pods(authCtx.metaResource.requestedResource.namespace)
 	result, err := podClient.Patch(ctx,
 		waitingCont.Spec.PodName,
 		apimachinerytypes.StrategicMergePatchType,

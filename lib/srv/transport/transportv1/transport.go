@@ -36,12 +36,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -49,7 +48,8 @@ import (
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (net.Conn, error)
+	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error)
 }
 
 // ConnectionMonitor monitors authorized connections and terminates them when
@@ -76,7 +76,7 @@ type ServerConfig struct {
 	LocalAddr net.Addr
 
 	// agentGetterFn used by tests to serve the agent directly
-	agentGetterFn func(rw io.ReadWriter) teleagent.Getter
+	agentGetterFn func(rw io.ReadWriter) sshagent.ClientGetter
 
 	// authzContextFn used by tests to inject an access checker
 	authzContextFn func(info credentials.AuthInfo) (*authz.Context, error)
@@ -98,21 +98,19 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.agentGetterFn == nil {
-		c.agentGetterFn = func(rw io.ReadWriter) teleagent.Getter {
-			return func() (teleagent.Agent, error) {
-				return teleagent.NopCloser(agent.NewClient(rw)), nil
-			}
+		c.agentGetterFn = func(rw io.ReadWriter) sshagent.ClientGetter {
+			return sshagent.NewStaticClientGetter(agent.NewClient(rw))
 		}
 	}
 
 	if c.authzContextFn == nil {
 		c.authzContextFn = func(info credentials.AuthInfo) (*authz.Context, error) {
-			identityInfo, ok := info.(auth.IdentityInfo)
+			identityInfo, ok := info.(interface{ AuthzContext() *authz.Context })
 			if !ok {
 				return nil, trace.AccessDenied("client is not authenticated")
 			}
 
-			return identityInfo.AuthContext, nil
+			return identityInfo.AuthzContext(), nil
 		}
 	}
 
@@ -288,7 +286,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
-	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
+	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker.CheckAccessToRemoteCluster, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
 		// Return ambiguous errors unadorned so that clients can detect them easily.
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
@@ -415,4 +413,82 @@ func (s *sshStream) Send(frame []byte) error {
 	defer s.wLock.Unlock()
 
 	return trace.Wrap(s.stream.Send(s.responseFn(frame)))
+}
+
+// ProxyWindowsDesktopSession establishes a connection to a desktop service and proxies raw messages over the stream.
+// The first request from the client must contain a valid dial target
+// before the connection can be established.
+func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportService_ProxyWindowsDesktopSessionServer) (err error) {
+	ctx := stream.Context()
+
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.BadParameter("failed to find peer")
+	}
+
+	authzContext, err := s.cfg.authzContextFn(p.AuthInfo)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Wait for the first request to arrive with the dial request.
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err, "failed receiving first message")
+	}
+
+	desktopName := req.GetDialTarget().GetDesktopName()
+	cluster := req.GetDialTarget().GetCluster()
+
+	// Validate the target.
+	if desktopName == "" || cluster == "" {
+		return trace.BadParameter("first message must contain a dial target")
+	}
+	if req.GetData() != nil {
+		return trace.BadParameter("first message must not contain data")
+	}
+
+	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
+	if err != nil {
+		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+	}
+
+	serviceConn, err := s.cfg.Dialer.DialWindowsDesktop(ctx, p.Addr, clientDst, desktopName, cluster, authzContext.Checker.CheckAccessToRemoteCluster)
+	if err != nil {
+		return trace.Wrap(err, "failed to dial target desktop")
+	}
+
+	clientConn, err := streamutils.NewReadWriter(windowsDesktopStream{stream})
+	if err != nil {
+		return trace.Wrap(err, "failed constructing desktop streamer")
+	}
+
+	return trace.Wrap(utils.ProxyConn(ctx, clientConn, serviceConn))
+}
+
+type windowsDesktopStream struct {
+	stream transportv1pb.TransportService_ProxyWindowsDesktopSessionServer
+}
+
+func (s windowsDesktopStream) Send(p []byte) error {
+	return trace.Wrap(s.stream.Send(&transportv1pb.ProxyWindowsDesktopSessionResponse{Data: p}))
+}
+
+func (s windowsDesktopStream) Recv() ([]byte, error) {
+	message, err := s.stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Dial target must be empty in subsequent messages.
+	if message.GetDialTarget().GetDesktopName() != "" || message.GetDialTarget().GetCluster() != "" {
+		return nil, trace.BadParameter("received invalid message")
+	}
+
+	data := message.GetData()
+	if data == nil {
+		return nil, trace.BadParameter("received invalid message")
+	}
+
+	return data, nil
 }

@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -136,7 +135,7 @@ type CacheAWSOIDC interface {
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
 	// GetClusterName returns the current cluster name.
-	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // NewAWSOIDCService returns a new AWSOIDCService.
@@ -273,7 +272,7 @@ func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName()
+	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -455,7 +454,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName()
+	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -510,7 +509,7 @@ func (s *AWSOIDCService) ListDeployedDatabaseServices(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName()
+	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -579,7 +578,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 
 	features := modules.GetModules().Features()
 
-	clusterName, err := s.cache.GetClusterName()
+	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -625,7 +624,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName()
+	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

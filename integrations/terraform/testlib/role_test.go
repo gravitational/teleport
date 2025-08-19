@@ -64,7 +64,7 @@ func (s *TerraformSuiteOSS) TestRoleDataSource() {
 				Config: s.getFixture("role_data_source.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "role"),
-					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
 				),
 			},

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 import { useLayoutEffect } from 'react';
 
 import { Flex, Text } from 'design';
@@ -129,7 +129,7 @@ export function VnetWarning() {
 
   appContext.statePersistenceService.putState({
     ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
+    vnet: { autoStart: true, hasEverStarted: true },
   });
   appContext.workspacesService.setState(draft => {
     draft.isInitialized = true;
@@ -156,7 +156,7 @@ export function VnetError() {
 
   appContext.statePersistenceService.putState({
     ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
+    vnet: { autoStart: true, hasEverStarted: true },
   });
   appContext.workspacesService.setState(draft => {
     draft.isInitialized = true;

@@ -1,6 +1,9 @@
 ---
 title: WorkloadIdentity Resource
 description: Information about the WorkloadIdentity resource
+labels:
+ - reference
+ - mwi
 ---
 
 The WorkloadIdentity resource is used to define the structure of an identity
@@ -72,6 +75,31 @@ spec:
         # name. Supports templating. If not provided, the organizational unit
         # will be omitted.
         organizational_unit: my-organizational-unit
+      # Controls the maximum TTL of X509-SVIDs issued using this
+      # WorkloadIdentity. Specified in seconds with 's' suffix.
+      #
+      # If a X509-SVID is requested with a TTL greater than this value, then the
+      # return X509-SVID will have a TTL of this value.
+      #
+      # Defaults to 24 hours (86400s). Maximum value is 14 days (1209600s).
+      maximum_ttl: 3600s
+    # Grouped configuration for JWT credentials.
+    jwt:
+      # Optional extra claims that will be added to the JWT-SVID. It's an
+      # arbitrary object where all of the string values, including those in
+      # sub-objects or arrays, support templating.
+      extra_claims:
+        message: "Hello, {{strings.upper(user.name)}}!"
+        foo:
+          bar: ["baz", 1234, "{{user.bot_instance_id}}", true]
+      # Controls the maximum TTL of JWT-SVIDs issued using this
+      # WorkloadIdentity. Specified in seconds with 's' suffix.
+      #
+      # If a JWT-SVID is requested with a TTL greater than this value, then the
+      # return JWT-SVID will have a TTL of this value.
+      #
+      # Defaults to 24 hours (86400s). Maximum value is 24 hours (86400s).
+      maximum_ttl: 300s
   # The rules control when this WorkloadIdentity can be used to issue a
   # credential.
   rules:
@@ -135,6 +163,7 @@ The following fields within the WorkloadIdentity resource support templating:
 - `spec.spiffe.x509.subject_template.common_name`
 - `spec.spiffe.x509.subject_template.organization`
 - `spec.spiffe.x509.subject_template.organizational_unit`
+- `spec.spiffe.jwt.extra_claims`
 
 You can find a full list of the supported attributes on the
 [Attributes reference](./attributes.mdx) page.

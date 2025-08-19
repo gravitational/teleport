@@ -462,6 +462,7 @@ func (ani *AutoDiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) st
 		return api.Version
 	}
 
+	// TODO(hugoShaka): convert this to a proxy version getter
 	targetVersion, err := version.NewBasicHTTPVersionGetter(upgradeURL).GetVersion(ctx)
 	if err != nil {
 		ani.Logger.WarnContext(ctx, "Failed to query target version, using api version",
@@ -473,7 +474,7 @@ func (ani *AutoDiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) st
 		"channel_url", ani.autoUpgradesChannelURL,
 		"version", targetVersion)
 
-	return strings.TrimSpace(strings.TrimPrefix(targetVersion, "v"))
+	return strings.TrimSpace(strings.TrimPrefix(targetVersion.String(), "v"))
 }
 
 func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (map[string]string, error) {

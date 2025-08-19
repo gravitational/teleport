@@ -2,10 +2,16 @@
 title: Reference for the teleport_oidc_connector Terraform resource
 sidebar_label: oidc_connector
 description: This page describes the supported values of the teleport_oidc_connector resource of the Teleport Terraform provider.
+labels:
+ - reference
+ - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
+
+This page describes the supported values of the teleport_oidc_connector resource of the Teleport Terraform provider.
+
 
 
 
@@ -71,10 +77,13 @@ Optional:
 - `issuer_url` (String) IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
 - `max_age` (String)
 - `mfa` (Attributes) MFASettings contains settings to enable SSO MFA checks through this auth connector. (see [below for nested schema](#nested-schema-for-specmfa))
+- `pkce_mode` (String) PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"
 - `prompt` (String) Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.
 - `provider` (String) Provider is the external identity provider.
 - `redirect_url` (List of String) RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.
+- `request_object_mode` (String) RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters.
 - `scope` (List of String) Scope specifies additional scopes set by provider.
+- `user_matchers` (List of String) UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.
 - `username_claim` (String) UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
 
 ### Nested Schema for `spec.claims_to_roles`
@@ -118,4 +127,3 @@ Optional:
 - `description` (String) Description is object description
 - `expires` (String) Expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) Labels is a set of labels
-

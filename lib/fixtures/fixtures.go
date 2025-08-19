@@ -19,55 +19,8 @@
 package fixtures
 
 import (
-	"runtime/debug"
-	"testing"
-
-	"github.com/gravitational/trace"
-
 	apifixtures "github.com/gravitational/teleport/api/fixtures"
 )
-
-// AssertNotFound expects not found error
-func AssertNotFound(t *testing.T, err error) {
-	if !trace.IsNotFound(err) {
-		t.Fatalf("Expected NotFound, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
-	}
-}
-
-// AssertBadParameter expects bad parameter error
-func AssertBadParameter(t *testing.T, err error) {
-	if !trace.IsBadParameter(err) {
-		t.Fatalf("Expected BadParameter, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
-	}
-}
-
-// AssertCompareFailed expects compare failed error
-func AssertCompareFailed(t *testing.T, err error) {
-	if !trace.IsCompareFailed(err) {
-		t.Fatalf("Expected CompareFailed, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
-	}
-}
-
-// AssertAccessDenied expects error to be access denied
-func AssertAccessDenied(t *testing.T, err error) {
-	if !trace.IsAccessDenied(err) {
-		t.Fatalf("Expected AccessDenied, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
-	}
-}
-
-// AssertAlreadyExists expects already exists error
-func AssertAlreadyExists(t *testing.T, err error) {
-	if !trace.IsAlreadyExists(err) {
-		t.Fatalf("Expected AlreadyExists, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
-	}
-}
-
-// AssertConnectionProblem expects connection problem error
-func AssertConnectionProblem(t *testing.T, err error) {
-	if !trace.IsConnectionProblem(err) {
-		t.Fatalf("Expected ConnectionProblem, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
-	}
-}
 
 const SAMLOktaAuthRequestID = `_4d84cad1-1c61-4e4f-8ab6-1358b8d0da77`
 const SAMLOktaAuthnResponseXML = `<?xml version="1.0" encoding="UTF-8"?><saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://localhost:3080/v1/webapi/saml/acs" ID="id23076376064475199270314772" InResponseTo="_4d84cad1-1c61-4e4f-8ab6-1358b8d0da77" IssueInstant="2017-05-10T18:52:44.797Z" Version="2.0" xmlns:xs="http://www.w3.org/2001/XMLSchema"><saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">http://www.okta.com/exkafftca6RqPVgyZ0h7</saml2:Issuer><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><ds:Reference URI="#id23076376064475199270314772"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"><ec:InclusiveNamespaces xmlns:ec="http://www.w3.org/2001/10/xml-exc-c14n#" PrefixList="xs"/></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>wvBbayjxY78ouyo1DYjGrAOfLYymapbZeylWWnbA+lQ=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue>QSKPoRIEwjNw/QT3GO3huhdE0seUqSrWvZWIFwkAZv3D04Q5SgsiKHJbP22VsaMUVWojnYbzLfk62nnCSPvdnJmCEH7N3SV+3TkTfeJrCOqi34NLwHadBNTSURnFA+Y+p+HNYE4x4vtg8Vn5KF/teM9hMwAEqKimobYRIS3fPW8jVRcMBdkki5HaM3OCXy9JL1krTkFMGmHobeoaV4taIv7lDpfPw9fRuys1oX0VKfGXmVMpG24n1KB8jLOuC9GYL4HdB9LhIHfznzW3xiKVXm4rJiVIg9PMSQ6SV698yFXEjh5DOdLZPIz5qcizkiL7jujPUSwZQSTArp4m6ft3Pw==</ds:SignatureValue><ds:KeyInfo><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAVvvlUB6MA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG

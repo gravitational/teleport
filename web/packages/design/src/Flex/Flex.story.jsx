@@ -27,7 +27,7 @@ export default {
 
 const BoxWithBreakpoints = styled(Box)`
   width: 100%;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     width: 50%;
   }
 `;

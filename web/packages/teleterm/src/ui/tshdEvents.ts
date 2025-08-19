@@ -110,7 +110,7 @@ export function createTshdEventsContextBridgeService(
     },
 
     promptHardwareKeyPIN: async ({ request, onRequestCancelled }) => {
-      ctx.mainProcessClient.forceFocusWindow();
+      await ctx.mainProcessClient.forceFocusWindow();
       const { pin, hasCanceledModal } = await new Promise<{
         pin: string;
         hasCanceledModal: boolean;
@@ -142,7 +142,7 @@ export function createTshdEventsContextBridgeService(
     },
 
     promptHardwareKeyTouch: async ({ request, onRequestCancelled }) => {
-      ctx.mainProcessClient.forceFocusWindow();
+      await ctx.mainProcessClient.forceFocusWindow();
       const { hasCanceledModal } = await new Promise<{
         hasCanceledModal: boolean;
       }>(resolve => {

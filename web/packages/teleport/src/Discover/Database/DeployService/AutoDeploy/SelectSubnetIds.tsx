@@ -164,7 +164,7 @@ export function SelectSubnetIds({
           <Flex alignItems="center" gap={3} mt={2}>
             <HoverTooltip
               tipContent="Refreshing subnets will reset selections"
-              anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+              placement="top-start"
             >
               <ButtonSecondary
                 onClick={() => fetchSubnets({ refresh: true })}

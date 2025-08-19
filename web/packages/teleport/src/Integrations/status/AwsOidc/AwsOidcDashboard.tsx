@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, Flex, H2, Indicator } from 'design';
+import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 
 import { FeatureBox } from 'teleport/components/Layout';
@@ -25,7 +25,7 @@ import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle'
 import {
   AwsResource,
   StatCard,
-} from 'teleport/Integrations/status/AwsOidc/StatCard';
+} from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 
@@ -60,7 +60,7 @@ export function AwsOidcDashboard() {
   return (
     <>
       <AwsOidcHeader integration={integration} />
-      <FeatureBox maxWidth={1440} margin="auto" gap={3} paddingLeft={5}>
+      <FeatureBox maxWidth={1440} margin="auto" gap={3}>
         {integration && (
           <>
             <AwsOidcTitle integration={integration} />
@@ -70,8 +70,6 @@ export function AwsOidcDashboard() {
             />
           </>
         )}
-
-        <H2 my={3}>Auto-Enrollment</H2>
         <Flex gap={3}>
           <StatCard
             name={integration.name}
@@ -80,13 +78,13 @@ export function AwsOidcDashboard() {
           />
           <StatCard
             name={integration.name}
-            resource={AwsResource.eks}
-            summary={awseks}
+            resource={AwsResource.rds}
+            summary={awsrds}
           />
           <StatCard
             name={integration.name}
-            resource={AwsResource.rds}
-            summary={awsrds}
+            resource={AwsResource.eks}
+            summary={awseks}
           />
         </Flex>
       </FeatureBox>

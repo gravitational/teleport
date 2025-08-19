@@ -1,6 +1,9 @@
 ---
 title: Authentication options
 description: A reference for Teleport's authentication connectors
+labels:
+ - reference
+ - zero-trust
 ---
 
 Teleport authenticates users either via the Proxy Service or with an identity
@@ -20,7 +23,7 @@ possible values (types) of MFA:
   multi-factor authenticators and hardware devices.
   You can use [YubiKeys](https://www.yubico.com/), [SoloKeys](https://solokeys.com/) or any other authenticator that
   implements FIDO2 or FIDO U2F standards.
-  See our [Harden your Cluster Against IdP Compromises](../../admin-guides/access-controls/guides/webauthn.mdx) guide for detailed
+  See our [Harden your Cluster Against IdP Compromises](../../zero-trust-access/authentication/webauthn.mdx) guide for detailed
   instructions on setting up WebAuthn for Teleport.
 - `on` enables both TOTP and WebAuthn, and all local users are required to have at least one MFA device registered.
 - `optional` enables both TOTP and WebAuthn but makes it optional for users. Local users that register a MFA device will
@@ -125,7 +128,8 @@ Overriding a block is available to users with rights to maintain `user` resource
 available in the built-in `editor` role. To turn off a block, update the user entry,
 following these steps.
 
-Open the user resource in your editor:
+Open the user resource in your editor, assigning <Var name="username" /> to the
+name of your Teleport user:
 
 ```code
 $ tctl edit users/<Var name="username" />
@@ -173,7 +177,7 @@ spec:
 version: v2
 ```
 
-See [GitHub OAuth 2.0](../../admin-guides/access-controls/sso/github-sso.mdx) for details on how to configure it.
+See [GitHub OAuth 2.0](../../zero-trust-access/sso/github-sso.mdx) for details on how to configure it.
 
 ### SAML
 
@@ -221,7 +225,7 @@ auth_service:
     type: github
 ```
 
-See [GitHub OAuth 2.0](../../admin-guides/access-controls/sso/github-sso.mdx) for details on how to configure it.
+See [GitHub OAuth 2.0](../../zero-trust-access/sso/github-sso.mdx) for details on how to configure it.
 
 ### SAML
 
@@ -263,7 +267,7 @@ auth_service:
     type: github
 ```
 
-See [GitHub OAuth 2.0](../../admin-guides/access-controls/sso/github-sso.mdx) for details on how to configure it.
+See [GitHub OAuth 2.0](../../zero-trust-access/sso/github-sso.mdx) for details on how to configure it.
 
 </TabItem>
 </Tabs>

@@ -31,11 +31,9 @@ const makeProps = (): BotListProps => ({
   onClose: () => {},
   onDelete: () => {},
   onEdit: () => {},
-  fetchRoles: async () => [],
+  onSelect: () => {},
   selectedBot: null,
-  selectedRoles: [],
   setSelectedBot: () => {},
-  setSelectedRoles: () => {},
 });
 
 test('renders table with bots', () => {
@@ -67,13 +65,14 @@ test('renders View options if type is github actions ssh', async () => {
     name: 'github-actions-bot',
     roles: [],
     type: BotUiFlow.GitHubActionsSsh,
+    max_session_ttl: { seconds: 0 },
   };
 
   const props = makeProps();
   props.bots = [bot];
   render(<BotList {...props} />);
   fireEvent.click(await screen.findByText('Options'));
-  expect(screen.getByText('View...')).toBeInTheDocument();
+  expect(screen.getByText('View GitHub example...')).toBeInTheDocument();
 });
 
 test('doesnt renders View options if bot type is not github actions', async () => {
@@ -90,11 +89,12 @@ test('doesnt renders View options if bot type is not github actions', async () =
     name: 'github-actions-bot',
     roles: [],
     type: null,
+    max_session_ttl: { seconds: 0 },
   };
 
   const props = makeProps();
   props.bots = [bot];
   render(<BotList {...props} />);
   fireEvent.click(await screen.findByText('Options'));
-  expect(screen.queryByText('View...')).not.toBeInTheDocument();
+  expect(screen.queryByText('View GitHub example...')).not.toBeInTheDocument();
 });

@@ -20,6 +20,8 @@ package srv
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"net"
 	"testing"
 
@@ -29,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -62,9 +65,18 @@ type mockLoginChecker struct {
 	rbacChecked bool
 }
 
-func (m *mockLoginChecker) canLoginWithRBAC(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) error {
+func (m *mockLoginChecker) evaluateSSHAccess(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) (*decisionpb.SSHAccessPermit, error) {
 	m.rbacChecked = true
-	return nil
+	return nil, nil
+}
+
+type mockGitForwardingChecker struct {
+	rbacChecked bool
+}
+
+func (m *mockGitForwardingChecker) evaluateGitForwarding(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server) (*GitForwardingPermit, error) {
+	m.rbacChecked = true
+	return nil, nil
 }
 
 type mockConnMetadata struct{}
@@ -102,6 +114,8 @@ func (m mockConnMetadata) RemoteAddr() net.Addr {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
+	ctx := t.Context()
+
 	node, err := types.NewNode("testie_node", types.SubKindTeleportNode, types.ServerSpecV2{
 		Addr:     "1.2.3.4:22",
 		Hostname: "testie",
@@ -121,40 +135,46 @@ func TestRBAC(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name            string
-		component       string
-		targetServer    types.Server
-		assertRBACCheck require.BoolAssertionFunc
+		name           string
+		component      string
+		targetServer   types.Server
+		loginRBACCheck require.BoolAssertionFunc
+		gitRBACCheck   require.BoolAssertionFunc
 	}{
 		{
-			name:            "teleport node, regular server",
-			component:       teleport.ComponentNode,
-			targetServer:    node,
-			assertRBACCheck: require.True,
+			name:           "teleport node, regular server",
+			component:      teleport.ComponentNode,
+			targetServer:   node,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
 		},
 		{
-			name:            "teleport node, forwarding server",
-			component:       teleport.ComponentForwardingNode,
-			targetServer:    node,
-			assertRBACCheck: require.False,
+			name:           "teleport node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   node,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.False,
 		},
 		{
-			name:            "registered openssh node, forwarding server",
-			component:       teleport.ComponentForwardingNode,
-			targetServer:    openSSHNode,
-			assertRBACCheck: require.True,
+			name:           "registered openssh node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   openSSHNode,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
 		},
 		{
-			name:            "unregistered openssh node, forwarding server",
-			component:       teleport.ComponentForwardingNode,
-			targetServer:    nil,
-			assertRBACCheck: require.False,
+			name:           "unregistered openssh node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   nil,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.False,
 		},
 		{
-			name:            "forwarding git",
-			component:       teleport.ComponentForwardingGit,
-			targetServer:    gitServer,
-			assertRBACCheck: require.False,
+			name:           "forwarding git",
+			component:      teleport.ComponentForwardingGit,
+			targetServer:   gitServer,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.True,
 		},
 	}
 
@@ -186,6 +206,9 @@ func TestRBAC(t *testing.T) {
 	err = server.auth.SetClusterName(clusterName)
 	require.NoError(t, err)
 
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
 	accessPoint := mockCAandAuthPrefGetter{
 		AccessPoint: server.auth,
 		authPref:    types.DefaultAuthPreference(),
@@ -208,6 +231,9 @@ func TestRBAC(t *testing.T) {
 
 			lc := mockLoginChecker{}
 			ah.loginChecker = &lc
+
+			gc := mockGitForwardingChecker{}
+			ah.gitForwardingChecker = &gc
 
 			// create SSH certificate
 			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
@@ -233,7 +259,8 @@ func TestRBAC(t *testing.T) {
 			_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
 			require.NoError(t, err)
 
-			tt.assertRBACCheck(t, lc.rbacChecked)
+			tt.loginRBACCheck(t, lc.rbacChecked)
+			tt.gitRBACCheck(t, gc.rbacChecked)
 		})
 	}
 }
@@ -313,8 +340,8 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)
 
-	lc := mockLoginChecker{}
-	ah.loginChecker = &lc
+	gc := mockGitForwardingChecker{}
+	ah.gitForwardingChecker = &gc
 
 	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
@@ -358,6 +385,7 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	// verify that authentication succeeds for local cert but is rejected categorically for remote
 	_, err = ah.UserKeyAuth(&mockConnMetadata{}, localCert)
 	require.NoError(t, err)
+	require.True(t, gc.rbacChecked)
 
 	_, err = ah.UserKeyAuth(&mockConnMetadata{}, remoteCert)
 	require.Error(t, err)
@@ -368,6 +396,8 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 // sessions depending on the cluster auth preference and roles presented.
 func TestRBACJoinMFA(t *testing.T) {
 	t.Parallel()
+
+	ctx := t.Context()
 
 	const clusterName = "localhost"
 	const username = "testuser"
@@ -399,7 +429,6 @@ func TestRBACJoinMFA(t *testing.T) {
 	require.NoError(t, err)
 	err = server.auth.SetClusterName(cn)
 	require.NoError(t, err)
-	ctx := context.Background()
 
 	accessPoint := &mockCAandAuthPrefGetter{
 		AccessPoint: server.auth,
@@ -460,6 +489,9 @@ func TestRBACJoinMFA(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = server.auth.CreateRole(ctx, joinRole)
+	require.NoError(t, err)
+
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -537,8 +569,58 @@ func TestRBACJoinMFA(t *testing.T) {
 			ident, err := sshca.DecodeIdentity(cert)
 			require.NoError(t, err)
 
-			err = ah.canLoginWithRBAC(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
+			_, err = ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
 		})
 	}
+}
+
+func TestAuthorityForCert(t *testing.T) {
+	rawCA1, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca1, err := ssh.NewPublicKey(rawCA1)
+	require.NoError(t, err)
+
+	rawCA2, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca2, err := ssh.NewPublicKey(rawCA2)
+	require.NoError(t, err)
+
+	rawCA3, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca3, err := ssh.NewPublicKey(rawCA3)
+	require.NoError(t, err)
+
+	ah := &AuthHandlers{c: &AuthHandlerConfig{
+		Server: (*mockServer)(nil),
+		AccessPoint: mockCAandAuthPrefGetter{
+			cas: map[types.CertAuthType][]types.CertAuthority{
+				types.UserCA: {&types.CertAuthorityV2{
+					Spec: types.CertAuthoritySpecV2{
+						ActiveKeys: types.CAKeySet{
+							SSH: []*types.SSHKeyPair{
+								{PublicKey: ssh.MarshalAuthorizedKey(ca1)},
+								{PublicKey: ssh.MarshalAuthorizedKey(ca2)},
+							},
+						},
+					},
+				}},
+			},
+		},
+	}}
+
+	cert1 := &ssh.Certificate{
+		Key:          ca1,
+		SignatureKey: ca1,
+	}
+
+	_, err = ah.authorityForCert(types.UserCA, ca1)
+	require.NoError(t, err)
+	_, err = ah.authorityForCert(types.UserCA, ca2)
+	require.NoError(t, err)
+	_, err = ah.authorityForCert(types.UserCA, ca3)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	_, err = ah.authorityForCert(types.UserCA, cert1)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError), "a certificate signed by a certificate should not pass validation")
 }

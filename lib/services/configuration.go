@@ -26,24 +26,23 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/modules"
 )
+
+// ClusterNameGetter is a service that gets the cluster name from the backend.
+type ClusterNameGetter interface {
+	// GetClusterName gets types.ClusterName from the backend.
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
+}
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
 // the resources modified by this interface can only have a single instance
 // in the backend.
 type ClusterConfiguration interface {
-	// GetClusterName gets types.ClusterName from the backend.
-	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
-	// SetClusterName sets services.ClusterName on the backend.
-	SetClusterName(types.ClusterName) error
-	// UpsertClusterName upserts cluster name
-	UpsertClusterName(types.ClusterName) error
-
-	// DeleteClusterName deletes cluster name resource
-	DeleteClusterName() error
+	ClusterNameGetter
 
 	// GetStaticTokens gets services.StaticTokens from the backend.
-	GetStaticTokens() (types.StaticTokens, error)
+	GetStaticTokens(context.Context) (types.StaticTokens, error)
 	// SetStaticTokens sets services.StaticTokens on the backend.
 	SetStaticTokens(types.StaticTokens) error
 	// DeleteStaticTokens deletes static tokens resource
@@ -137,6 +136,13 @@ type ClusterConfiguration interface {
 type ClusterConfigurationInternal interface {
 	ClusterConfiguration
 
+	// SetClusterName sets services.ClusterName on the backend.
+	SetClusterName(types.ClusterName) error
+	// UpsertClusterName upserts cluster name
+	UpsertClusterName(types.ClusterName) error
+	// DeleteClusterName deletes cluster name resource
+	DeleteClusterName() error
+
 	// AppendCheckAuthPreferenceActions appends some atomic write actions to the
 	// given slice that will check that the currently stored cluster auth
 	// preference has the given revision when applied as part of a
@@ -152,6 +158,9 @@ type ClusterConfigurationInternal interface {
 func ValidateAuthPreference(ap types.AuthPreference) error {
 	// TODO(espadolini): the checks that are duplicated in
 	// {Set,Create,Update,Upsert}AuthPreference should be moved here
+	if err := modules.ValidateResource(ap); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if err := ValidateStableUNIXUserConfig(ap.GetStableUNIXUserConfig()); err != nil {
 		return trace.Wrap(err)

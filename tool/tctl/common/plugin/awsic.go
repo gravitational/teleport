@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
 type awsICArgs struct {
@@ -44,15 +45,20 @@ type awsICArgs struct {
 	region               string
 	arn                  string
 	useSystemCredentials bool
+	assumeRoleARN        string
 	userOrigins          []string
 	userLabels           []string
 	groupNameFilters     []string
 	accountNameFilters   []string
 	accountIDFilters     []string
+
+	excludeGroupNameFilters   []string
+	excludeAccountNameFilters []string
+	excludeAccountIDFilters   []string
 }
 
 func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
-	if !awsutils.IsKnownRegion(a.region) {
+	if !awsregion.IsKnownRegion(a.region) {
 		return trace.BadParameter("unknown AWS region: %s", a.region)
 	}
 
@@ -60,11 +66,27 @@ func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
 		return trace.BadParameter("SCIM token must not be empty")
 	}
 
-	if !a.useSystemCredentials {
-		return trace.BadParameter("only AWS Local system credentials are supported")
+	if err := a.validateSystemCredentialInput(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := a.validateSCIMBaseURL(ctx, log); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (a *awsICArgs) validateSystemCredentialInput() error {
+	if !a.useSystemCredentials {
+		return trace.BadParameter("--use-system-credentials must be set. The tctl-based AWS IAM Identity Center plugin installation only supports AWS local system credentials")
+	}
+
+	if a.assumeRoleARN == "" {
+		return trace.BadParameter("--assume-role-arn must be set when --use-system-credentials is configured")
+	}
+
+	if _, err := awsutils.ParseRoleARN(a.assumeRoleARN); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -88,17 +110,23 @@ func (a *awsICArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Logger) e
 }
 
 func (a *awsICArgs) parseGroupFilters() (icfilters.Filters, error) {
-	var filters []*types.AWSICResourceFilter
+	filters := make([]*types.AWSICResourceFilter, 0, len(a.groupNameFilters)+len(a.excludeGroupNameFilters))
 	for _, n := range a.groupNameFilters {
 		filters = append(filters, &types.AWSICResourceFilter{
 			Include: &types.AWSICResourceFilter_NameRegex{NameRegex: n},
+		})
+	}
+	for _, n := range a.excludeGroupNameFilters {
+		filters = append(filters, &types.AWSICResourceFilter{
+			Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: n},
 		})
 	}
 	return icfilters.New(filters)
 }
 
 func (a *awsICArgs) parseAccountFilters() (icfilters.Filters, error) {
-	var filters []*types.AWSICResourceFilter
+	filtersCap := len(a.accountNameFilters) + len(a.excludeAccountNameFilters) + len(a.accountIDFilters) + len(a.excludeAccountIDFilters)
+	filters := make([]*types.AWSICResourceFilter, 0, filtersCap)
 	for _, n := range a.accountNameFilters {
 		filters = append(filters, &types.AWSICResourceFilter{
 			Include: &types.AWSICResourceFilter_NameRegex{NameRegex: n},
@@ -111,11 +139,23 @@ func (a *awsICArgs) parseAccountFilters() (icfilters.Filters, error) {
 		})
 	}
 
+	for _, n := range a.excludeAccountNameFilters {
+		filters = append(filters, &types.AWSICResourceFilter{
+			Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: n},
+		})
+	}
+
+	for _, id := range a.excludeAccountIDFilters {
+		filters = append(filters, &types.AWSICResourceFilter{
+			Exclude: &types.AWSICResourceFilter_ExcludeId{ExcludeId: id},
+		})
+	}
+
 	return icfilters.New(filters)
 }
 
 func (a *awsICArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, error) {
-	var result []*types.AWSICUserSyncFilter
+	result := make([]*types.AWSICUserSyncFilter, 0, len(a.userOrigins)+len(a.userLabels))
 
 	if len(a.userOrigins) > 0 {
 		result = make([]*types.AWSICUserSyncFilter, 0, len(a.userOrigins))
@@ -164,6 +204,8 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 	cmd.Flag("use-system-credentials", "Uses system credentials instead of OIDC.").
 		Default("true").
 		BoolVar(&p.install.awsIC.useSystemCredentials)
+	cmd.Flag("assume-role-arn", "ARN of a role that the system credential should assume.").
+		StringVar(&p.install.awsIC.assumeRoleARN)
 
 	cmd.Flag("user-origin", fmt.Sprintf(`Shorthand for "--user-label %s=ORIGIN"`, types.OriginLabel)).
 		PlaceHolder("ORIGIN").
@@ -178,6 +220,13 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 		StringsVar(&p.install.awsIC.accountNameFilters)
 	cmd.Flag("account-id", "Add AWS Account to account import list by ID. All AWS accounts will be imported if no items are added to account import list.").
 		StringsVar(&p.install.awsIC.accountIDFilters)
+
+	cmd.Flag("exclude-group-name", "Exclude AWS group from import list by name. Can be a glob or a regular expression (enclosed in ^$).").
+		StringsVar(&p.install.awsIC.excludeGroupNameFilters)
+	cmd.Flag("exclude-account-name", "Exclude AWS account from import list by name. Can be a glob or a regular expression (enclosed in ^$).").
+		StringsVar(&p.install.awsIC.excludeAccountNameFilters)
+	cmd.Flag("exclude-account-id", "Exclude AWS account from import list by ID.").
+		StringsVar(&p.install.awsIC.excludeAccountIDFilters)
 }
 
 // InstallAWSIC installs AWS Identity Center plugin.
@@ -202,6 +251,32 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 		return trace.Wrap(err)
 	}
 
+	settings := &types.PluginAWSICSettings{
+		Region: awsICArgs.region,
+		Arn:    awsICArgs.arn,
+		ProvisioningSpec: &types.AWSICProvisioningSpec{
+			BaseUrl: awsICArgs.scimURL.String(),
+		},
+		AccessListDefaultOwners: awsICArgs.defaultOwners,
+		UserSyncFilters:         userFilters,
+		GroupSyncFilters:        groupFilters,
+		AwsAccountsFilters:      accountFilters,
+	}
+
+	if awsICArgs.useSystemCredentials {
+		settings.Credentials = &types.AWSICCredentials{
+			Source: &types.AWSICCredentials_System{
+				System: &types.AWSICCredentialSourceSystem{
+					AssumeRoleArn: awsICArgs.assumeRoleARN,
+				},
+			},
+		}
+
+		// Set the deprecated CredentialsSource to the legacy value to allow old
+		// versions of Teleport to handle the record. DELETE in Teleport 19
+		settings.CredentialsSource = types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+	}
+
 	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
@@ -212,19 +287,7 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 			},
 			Spec: types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_AwsIc{
-					AwsIc: &types.PluginAWSICSettings{
-						IntegrationName: apicommon.OriginAWSIdentityCenter,
-						Region:          awsICArgs.region,
-						Arn:             awsICArgs.arn,
-						ProvisioningSpec: &types.AWSICProvisioningSpec{
-							BaseUrl: awsICArgs.scimURL.String(),
-						},
-						AccessListDefaultOwners: awsICArgs.defaultOwners,
-						CredentialsSource:       types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM,
-						UserSyncFilters:         userFilters,
-						GroupSyncFilters:        groupFilters,
-						AwsAccountsFilters:      accountFilters,
-					},
+					AwsIc: settings,
 				},
 			},
 		},

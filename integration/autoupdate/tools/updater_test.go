@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -60,18 +59,21 @@ func TestUpdate(t *testing.T) {
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
 
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
+	tctlPath, err := updater.ToolPath("tctl", testVersions[0])
+	require.NoError(t, err)
+
 	// Verify that the installed version is equal to requested one.
-	cmd := exec.CommandContext(ctx, filepath.Join(toolsDir, "tctl"), "version")
+	cmd := exec.CommandContext(ctx, tctlPath, "version")
 	out, err := cmd.Output()
 	require.NoError(t, err)
 
-	matches := pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[0], matches[1])
+	matchVersion(t, string(out), testVersions[0])
 
 	// Execute version command again with setting the new version which must
 	// trigger re-execution of the same command after downloading requested version.
-	cmd = exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
+	cmd = exec.CommandContext(ctx, tshPath, "version")
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
@@ -79,9 +81,7 @@ func TestUpdate(t *testing.T) {
 	out, err = cmd.Output()
 	require.NoError(t, err)
 
-	matches = pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[1], matches[1])
+	matchVersion(t, string(out), testVersions[1])
 }
 
 // TestParallelUpdate launches multiple updater commands in parallel while defining a new version.
@@ -101,6 +101,9 @@ func TestParallelUpdate(t *testing.T) {
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
 
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
+
 	// By setting the limit request next test http serving file going blocked until unlock is sent.
 	lock := make(chan struct{})
 	limitedWriter.SetLimitRequest(limitRequest{
@@ -110,8 +113,8 @@ func TestParallelUpdate(t *testing.T) {
 
 	outputs := make([]bytes.Buffer, 3)
 	errChan := make(chan error, 3)
-	for i := 0; i < len(outputs); i++ {
-		cmd := exec.Command(filepath.Join(toolsDir, "tsh"), "version")
+	for i := range outputs {
+		cmd := exec.Command(tshPath, "version")
 		cmd.Stdout = &outputs[i]
 		cmd.Stderr = &outputs[i]
 		cmd.Env = append(
@@ -139,7 +142,7 @@ func TestParallelUpdate(t *testing.T) {
 
 	// Wait till process finished with exit code 0, but we still should get progress
 	// bar in output content.
-	for i := 0; i < cap(outputs); i++ {
+	for range cap(outputs) {
 		select {
 		case <-time.After(5 * time.Second):
 			require.Fail(t, "failed to wait till the process is finished")
@@ -149,7 +152,7 @@ func TestParallelUpdate(t *testing.T) {
 	}
 
 	var progressCount int
-	for i := 0; i < cap(outputs); i++ {
+	for i := range cap(outputs) {
 		matches := pattern.FindStringSubmatch(outputs[i].String())
 		require.Len(t, matches, 2)
 		assert.Equal(t, testVersions[1], matches[1])
@@ -173,9 +176,11 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
 
 	var output bytes.Buffer
-	cmd := exec.Command(filepath.Join(toolsDir, "tsh"), "version")
+	cmd := exec.Command(tshPath, "version")
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	cmd.Env = append(
@@ -237,9 +242,11 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
 
 	// Verify that requested update is ignored by OSS build and version wasn't updated.
-	cmd := exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
+	cmd := exec.CommandContext(ctx, tshPath, "version")
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
@@ -247,13 +254,11 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	out, err := cmd.Output()
 	require.NoError(t, err)
 
-	matches := pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[0], matches[1])
+	matchVersion(t, string(out), testVersions[0])
 
 	// Next update is set with the base URL env variable, must download new version.
 	t.Setenv(autoupdate.BaseURLEnvVar, baseURL)
-	cmd = exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
+	cmd = exec.CommandContext(ctx, tshPath, "version")
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
@@ -261,7 +266,12 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	out, err = cmd.Output()
 	require.NoError(t, err)
 
-	matches = pattern.FindStringSubmatch(string(out))
+	matchVersion(t, string(out), testVersions[1])
+}
+
+func matchVersion(t *testing.T, output string, version string) {
+	t.Helper()
+	matches := pattern.FindStringSubmatch(output)
 	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[1], matches[1])
+	require.Equal(t, version, matches[1])
 }

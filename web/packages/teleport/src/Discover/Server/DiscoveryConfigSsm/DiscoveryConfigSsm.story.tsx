@@ -18,28 +18,19 @@
 
 import { delay, http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { ServerLocation } from 'teleport/Discover/SelectResource';
-import { ResourceKind } from 'teleport/Discover/Shared';
 import {
-  AutoDiscovery,
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+  RequiredDiscoverProviders,
+  resourceSpecAwsEc2Ssm,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { AgentMeta, AutoDiscovery } from 'teleport/Discover/useDiscover';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import {
-  DiscoverDiscoveryConfigMethod,
-  DiscoverEventResource,
-} from 'teleport/services/userEvent';
 
 import { DiscoveryConfigSsm } from './DiscoveryConfigSsm';
 
@@ -142,62 +133,30 @@ const Component = ({
 }: {
   autoDiscovery?: AutoDiscovery;
 }) => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'aws-console',
-      agentMatcherLabels: [],
-      awsIntegration: {
-        kind: IntegrationKind.AwsOidc,
-        name: 'some-oidc-name',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-        statusCode: IntegrationStatusCode.Running,
+  const agentMeta: AgentMeta = {
+    resourceName: 'aws-console',
+    agentMatcherLabels: [],
+    awsIntegration: {
+      kind: IntegrationKind.AwsOidc,
+      name: 'some-oidc-name',
+      resourceType: 'integration',
+      spec: {
+        roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+        issuerS3Bucket: '',
+        issuerS3Prefix: '',
       },
-      autoDiscovery,
+      statusCode: IntegrationStatusCode.Running,
     },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      name: '',
-      kind: ResourceKind.Application,
-      icon: null,
-      keywords: [],
-      event: DiscoverEventResource.Ec2Instance,
-      nodeMeta: {
-        location: ServerLocation.Aws,
-        discoveryConfigMethod: DiscoverDiscoveryConfigMethod.AwsEc2Ssm,
-      },
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
+    autoDiscovery,
   };
 
-  cfg.proxyCluster = 'localhost';
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'application' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={agentMeta}
+      resourceSpec={resourceSpecAwsEc2Ssm}
     >
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>
-          <Info>Devs: Click next to see next state</Info>
-          <DiscoveryConfigSsm />
-        </DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <Info>Devs: Click next to see next state</Info>
+      <DiscoveryConfigSsm />
+    </RequiredDiscoverProviders>
   );
 };

@@ -22,8 +22,11 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
@@ -37,9 +40,26 @@ import (
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
+}
+
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for b.Loop() {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
 }
 
 // TestCommandMatchBeforeAuthConnect verifies all defined `tctl` commands `TryRun`
@@ -108,7 +128,9 @@ func TestConnect(t *testing.T) {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 	fileConfigAgent := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),

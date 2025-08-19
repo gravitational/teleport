@@ -1,0 +1,18 @@
+
+[Unit]
+Description=Teleport Service
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+EnvironmentFile=-/etc/default/teleport
+ExecStart=/some/path/bin/teleport start --config /some/path/teleport.yaml --pid-file=/some/path/teleport.pid
+# systemd before 239 needs an absolute path
+ExecReload=/bin/sh -c "exec pkill -HUP -L -F /some/path/teleport.pid"
+PIDFile=/some/path/teleport.pid
+LimitNOFILE=524288
+
+[Install]
+WantedBy=multi-user.target

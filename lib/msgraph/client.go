@@ -177,7 +177,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 	}
 
 	var lastErr error
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		if retryAfter > 0 {
 			select {
 			case <-c.clock.After(retryAfter):

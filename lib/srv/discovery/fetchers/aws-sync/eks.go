@@ -101,7 +101,6 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 	}
 
 	for _, region := range a.Regions {
-		region := region
 		eG.Go(func() error {
 			eksClient, err := a.GetEKSClient(ctx, region, a.getAWSOptions()...)
 			if err != nil {

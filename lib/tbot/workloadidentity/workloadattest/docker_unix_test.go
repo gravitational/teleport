@@ -35,6 +35,7 @@ import (
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestDockerAttestor(t *testing.T) {
@@ -53,8 +54,10 @@ func TestDockerAttestor(t *testing.T) {
 						Image  string
 						Labels map[string]string
 					}
+					Image string
 				}
 				rsp.Name = "web-server"
+				rsp.Image = "sha256:72297848456d5d37d1262630108ab308d3e9ec7ed1c3286a32fe09856619a782"
 				rsp.Config.Image = "nginx:latest"
 				rsp.Config.Labels = map[string]string{"region": "eu"}
 				_ = json.NewEncoder(w).Encode(rsp)
@@ -76,7 +79,7 @@ func TestDockerAttestor(t *testing.T) {
 			Enabled: true,
 			Addr:    "unix://" + lis.Addr().String(),
 		},
-		utils.NewSlogLoggerForTests(),
+		logtest.NewLogger(),
 	)
 
 	attestor.rootPath = t.TempDir()
@@ -97,9 +100,10 @@ func TestDockerAttestor(t *testing.T) {
 	expected := &workloadidentityv1.WorkloadAttrsDocker{
 		Attested: true,
 		Container: &workloadidentityv1.WorkloadAttrsDockerContainer{
-			Name:   "web-server",
-			Image:  "nginx:latest",
-			Labels: map[string]string{"region": "eu"},
+			Name:        "web-server",
+			Image:       "nginx:latest",
+			ImageDigest: "sha256:72297848456d5d37d1262630108ab308d3e9ec7ed1c3286a32fe09856619a782",
+			Labels:      map[string]string{"region": "eu"},
 		},
 	}
 	require.Empty(t, cmp.Diff(expected, attrs, protocmp.Transform()))

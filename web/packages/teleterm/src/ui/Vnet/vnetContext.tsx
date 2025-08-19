@@ -28,7 +28,11 @@ import {
   useState,
 } from 'react';
 
-import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { Action } from 'design/Alert';
+import {
+  BackgroundItemStatus,
+  GetServiceInfoResponse,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
@@ -51,17 +55,23 @@ export type VnetContext = {
    * Describes whether the given OS can run VNet.
    */
   isSupported: boolean;
-  /**
-   * Describes whether the given OS can run VNet diagnostics.
-   */
-  isDiagSupported: boolean;
   status: VnetStatus;
   start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
   stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
-  listDNSZones: () => Promise<[string[], Error]>;
-  listDNSZonesAttempt: Attempt<string[]>;
+  /**
+   * Always returns the current VNet service info by making a gRPC call to the service.
+   */
+  currentServiceInfo: () => Promise<GetServiceInfoResponse>;
+  /**
+   * The current attempt to get the VNet service info.
+   */
+  serviceInfoAttempt: Attempt<GetServiceInfoResponse>;
+  /**
+   * Refreshes serviceInfoAttempt by making a new gRPC call to the service.
+   */
+  refreshServiceInfoAttempt: () => Promise<[GetServiceInfoResponse, Error]>;
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   /**
@@ -102,6 +112,22 @@ export type VnetContext = {
    * show a warning state.
    */
   showDiagWarningIndicator: boolean;
+  /**
+   * Whether VNet has started successfully at least once.
+   */
+  hasEverStarted: boolean;
+  /**
+   * Opens a modal that handles SSH client configuration.
+   */
+  openSSHConfigurationModal: (params: {
+    /** The path to the user's generated VNet SSH config, available in the
+     * service info and diagnostic report. */
+    vnetSSHConfigPath: string;
+    /** Optional host address that will be used for example text. */
+    host?: string;
+    /** Optional callback that will be invoked after SSH clients are configured. */
+    onSuccess?: () => void;
+  }) => void;
 };
 
 export type VnetStatus =
@@ -128,9 +154,13 @@ export const VnetContextProvider: FC<
     'workspacesService',
     useCallback(state => state.isInitialized, [])
   );
-  const [{ autoStart }, setAppState] = usePersistedState('vnet', {
-    autoStart: false,
-  });
+  const [{ autoStart, hasEverStarted }, setAppState] = usePersistedState(
+    'vnet',
+    {
+      autoStart: false,
+      hasEverStarted: false,
+    }
+  );
   const { isOpenRef: isConnectionsPanelOpenRef } = useConnectionsContext();
 
   const platform = useMemo(
@@ -138,11 +168,11 @@ export const VnetContextProvider: FC<
     [mainProcessClient]
   );
   const isSupported = platform === 'darwin' || platform === 'win32';
-  const isDiagSupported = platform === 'darwin';
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
-      await notifyAboutDaemonBackgroundItem(appCtx);
+      const { didBackgroundItemRequireEnablement } =
+        await checkDaemonBackgroundItemStatus(appCtx);
 
       try {
         await vnet.start({});
@@ -151,9 +181,21 @@ export const VnetContextProvider: FC<
           throw error;
         }
       }
+
+      if (didBackgroundItemRequireEnablement) {
+        // On the first start of VNet on macOS, the user needs to enable the background item for the
+        // VNet daemon. vnet.start does not resolve until that happens.
+        //
+        // Enabling the background item requires the user to switch focus away from Connect. If they
+        // started VNet through the "Connect" button next to a TCP app, it means that once we return
+        // from this function, Connect is going to attempt to copy the address of the app to the
+        // clipboard. This won't work unless Connect has focus, hence forcing focus here.
+        await mainProcessClient.forceFocusWindow({ wait: true });
+      }
+
       setStatus({ value: 'running' });
-      setAppState({ autoStart: true });
-    }, [vnet, setAppState, appCtx])
+      setAppState({ autoStart: true, hasEverStarted: true });
+    }, [vnet, setAppState, appCtx, mainProcessClient])
   );
 
   const [diagnosticsAttempt, runDiagnostics, setDiagnosticsAttempt] = useAsync(
@@ -202,7 +244,7 @@ export const VnetContextProvider: FC<
         value: 'stopped',
         reason: { value: 'regular-shutdown-or-not-started' },
       });
-      setAppState({ autoStart: false });
+      setAppState(state => ({ ...state, autoStart: false }));
       setDiagnosticsAttempt(makeEmptyAttempt());
       setHasDismissedDiagnosticsAlert(false);
     }, [
@@ -213,12 +255,12 @@ export const VnetContextProvider: FC<
     ])
   );
 
-  const [listDNSZonesAttempt, listDNSZones] = useAsync(
-    useCallback(
-      () => vnet.listDNSZones({}).then(({ response }) => response.dnsZones),
-      [vnet]
-    )
+  const currentServiceInfo = useCallback(
+    () => vnet.getServiceInfo({}).then(({ response }) => response),
+    [vnet]
   );
+  const [serviceInfoAttempt, refreshServiceInfoAttempt] =
+    useAsync(currentServiceInfo);
 
   /**
    * Calculates whether the button for running diagnostics should be disabled. If it should be
@@ -237,13 +279,14 @@ export const VnetContextProvider: FC<
     [status.value]
   );
 
-  const rootClusterUri = useStoreSelector(
+  const isWorkspaceSelected = useStoreSelector(
     'workspacesService',
-    useCallback(state => state.rootClusterUri, [])
+    useCallback(state => !!state.rootClusterUri, [])
   );
 
   const openReport = useCallback(
     (report: Report) => {
+      const rootClusterUri = workspacesService.getRootClusterUri();
       if (!rootClusterUri) {
         return;
       }
@@ -275,7 +318,7 @@ export const VnetContextProvider: FC<
       // upon on the next run of runDiagnosticsAndShowNotification.
       notificationsService.removeNotification(diagNotificationIdRef.current);
     },
-    [rootClusterUri, workspacesService, notificationsService]
+    [workspacesService, notificationsService]
   );
 
   const showDiagWarningIndicator: boolean = useMemo(
@@ -303,7 +346,7 @@ export const VnetContextProvider: FC<
         // Turn off autostart if starting fails. Otherwise the user wouldn't be able to turn off
         // autostart by themselves.
         if (error) {
-          setAppState({ autoStart: false });
+          setAppState(state => ({ ...state, autoStart: false }));
         }
       }
     };
@@ -377,10 +420,10 @@ export const VnetContextProvider: FC<
         return;
       }
 
-      diagNotificationIdRef.current = notificationsService.notifyWarning({
-        isAutoRemovable: false,
-        title: 'Other software on your device might interfere with VNet.',
-        action: {
+      let action: Action;
+      let description: string;
+      if (workspacesService.getRootClusterUri()) {
+        action = {
           content: 'Open Diag Report',
           onClick: () => {
             openReport(report);
@@ -390,7 +433,17 @@ export const VnetContextProvider: FC<
               diagNotificationIdRef.current
             );
           },
-        },
+        };
+      } else {
+        description =
+          'Log in to a cluster to open the diag report from the VNet panel.';
+      }
+
+      diagNotificationIdRef.current = notificationsService.notifyWarning({
+        isAutoRemovable: false,
+        title: 'Other software on your device might interfere with VNet.',
+        description,
+        action,
       });
     },
     [
@@ -400,15 +453,12 @@ export const VnetContextProvider: FC<
       hasDismissedDiagnosticsAlertRef,
       resetHasActedOnPreviousNotification,
       isConnectionsPanelOpenRef,
+      workspacesService,
     ]
   );
 
   useEffect(
     function periodicallyRunDiagnostics() {
-      if (!isDiagSupported) {
-        return;
-      }
-
       if (status.value !== 'running') {
         return;
       }
@@ -430,7 +480,6 @@ export const VnetContextProvider: FC<
       };
     },
     [
-      isDiagSupported,
       diagnosticsIntervalMs,
       runDiagnosticsAndShowNotification,
       status.value,
@@ -438,26 +487,52 @@ export const VnetContextProvider: FC<
     ]
   );
 
+  const autoConfigureSSH = useCallback(async (): Promise<void> => {
+    await vnet.autoConfigureSSH({});
+    // Refresh the service info and diagnostic attempts because SSH is now configured.
+    refreshServiceInfoAttempt();
+    runDiagnostics();
+  }, [vnet, refreshServiceInfoAttempt]);
+  const openSSHConfigurationModal: VnetContext['openSSHConfigurationModal'] =
+    useCallback(
+      ({ vnetSSHConfigPath, host, onSuccess }) => {
+        appCtx.modalsService.openRegularDialog({
+          kind: 'configure-ssh-clients',
+          onConfirm: async () => {
+            await autoConfigureSSH();
+            if (onSuccess) {
+              onSuccess();
+            }
+          },
+          vnetSSHConfigPath,
+          host,
+        });
+      },
+      [appCtx.modalsService, autoConfigureSSH]
+    );
+
   return (
     <VnetContext.Provider
       value={{
         isSupported,
-        isDiagSupported,
         status,
         start,
         startAttempt,
         stop,
         stopAttempt,
-        listDNSZones,
-        listDNSZonesAttempt,
+        currentServiceInfo,
+        serviceInfoAttempt,
+        refreshServiceInfoAttempt,
         runDiagnostics,
         diagnosticsAttempt,
         getDisabledDiagnosticsReason,
         dismissDiagnosticsAlert,
         hasDismissedDiagnosticsAlert,
         reinstateDiagnosticsAlert,
-        openReport: rootClusterUri ? openReport : undefined,
+        openReport: isWorkspaceSelected ? openReport : undefined,
         showDiagWarningIndicator,
+        hasEverStarted,
+        openSSHConfigurationModal,
       }}
     >
       {children}
@@ -477,7 +552,9 @@ export const useVnetContext = () => {
   return context;
 };
 
-const notifyAboutDaemonBackgroundItem = async (ctx: IAppContext) => {
+const checkDaemonBackgroundItemStatus = async (
+  ctx: IAppContext
+): Promise<{ didBackgroundItemRequireEnablement: boolean }> => {
   const { vnet, notificationsService } = ctx;
 
   let backgroundItemStatus: BackgroundItemStatus;
@@ -488,7 +565,7 @@ const notifyAboutDaemonBackgroundItem = async (ctx: IAppContext) => {
     // vnet.getBackgroundItemStatus returns UNIMPLEMENTED if tsh was compiled without the
     // vnetdaemon build tag.
     if (isTshdRpcError(error, 'UNIMPLEMENTED')) {
-      return;
+      return { didBackgroundItemRequireEnablement: false };
     }
 
     throw error;
@@ -499,10 +576,11 @@ const notifyAboutDaemonBackgroundItem = async (ctx: IAppContext) => {
     backgroundItemStatus === BackgroundItemStatus.NOT_SUPPORTED ||
     backgroundItemStatus === BackgroundItemStatus.UNSPECIFIED
   ) {
-    return;
+    return { didBackgroundItemRequireEnablement: false };
   }
 
   notificationsService.notifyInfo(
     'Please enable the background item for tsh.app in System Settings > General > Login Items to start VNet.'
   );
+  return { didBackgroundItemRequireEnablement: true };
 };

@@ -39,7 +39,12 @@ To build the Teleport open source version
 pnpm build-ui-oss
 ```
 
-The resulting output will be in the `webassets` folder.
+The resulting output will be in the `webassets` folder. By default, the webassets are compressed with Brotli. If you 
+want to disable this for faster local builds, set the environment variable `VITE_DISABLE_COMPRESSION` to any value:
+
+```
+VITE_DISABLE_COMPRESSION=1 pnpm build-ui-oss
+```
 
 ### Docker Build
 
@@ -124,14 +129,6 @@ requests to the given target.
 
 > Keep in mind that you have to use a local user because social
 > logins (google/github) are not supported by development server.
-
-### WASM
-
-The web UI includes a WASM module built from a Rust codebase located in `packages/teleport/src/ironrdp`.
-It is built with the help of [wasm-pack](https://github.com/rustwasm/wasm-pack).
-
-Running `pnpm build-wasm` builds the WASM binary as well as the appropriate Javascript/Typescript
-bindings and types in `web/packages/teleport/src/ironrdp/pkg`.
 
 ### Unit-Tests
 

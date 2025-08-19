@@ -252,17 +252,17 @@ log_cleanup_message() {
     log_only "- remove any configuration at ${TELEPORT_CONFIG_PATH}"
     log_only "  - rm -f ${TELEPORT_CONFIG_PATH}"
     if check_exists apt; then
-        log_only "- remove teleport package"
-        log_only "  - apt remove teleport"
+        log_only "- remove ${TELEPORT_PACKAGE_NAME} package"
+        log_only "  - apt remove ${TELEPORT_PACKAGE_NAME}"
     elif check_exists yum; then
-        log_only "- remove teleport package"
-        log_only "  - yum remove teleport"
+        log_only "- remove ${TELEPORT_PACKAGE_NAME} package"
+        log_only "  - yum remove ${TELEPORT_PACKAGE_NAME}"
     elif check_exists dnf; then
-        log_only "- remove teleport package"
-        log_only "  - dnf remove teleport"
+        log_only "- remove ${TELEPORT_PACKAGE_NAME} package"
+        log_only "  - dnf remove ${TELEPORT_PACKAGE_NAME}"
     elif check_exists zypper; then
-        log_only "- remove teleport package"
-        log_only "  - zypper remove teleport"
+        log_only "- remove ${TELEPORT_PACKAGE_NAME} package"
+        log_only "  - zypper remove ${TELEPORT_PACKAGE_NAME}"
     else
         log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
         for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done

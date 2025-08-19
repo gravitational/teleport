@@ -1,6 +1,9 @@
 ---
 title: Workload Identity API & Workload Attestation
 description: Information about the `tbot` Workload Identity API service and Workload Attestation functionality
+labels:
+ - conceptual
+ - mwi
 ---
 
 The Workload Identity API service (`workload-identity-api`) is a configurable
@@ -97,6 +100,44 @@ attestors:
     # supported. This field is required and there is no default value. See the
     # Podman section below for more information.
     addr: unix:///run/podman/podman.sock
+  # sigstore is configuration for the Sigstore Workload attestor. See the
+  # Sigstore Workload Attestation page for more information.
+  sigstore:
+    # enabled specifies whether tbot will discover Sigstore signatures for the
+    # workload's container image. If unspecified, this defaults to false.
+    enabled: true
+    # additional_registries optionally configures the OCI registries that will
+    # be searched for signatures in addition to the workload container image's
+    # source registry.
+    additional_registries:
+      -
+        # host of the OCI registry.
+        host: ghcr.io
+    # credentials_path is the path to a Docker or Podman configuration file
+    # containing per-registry credentials.
+    credentials_path: /path/to/docker/config.json
+    # allowed_private_network_prefixes are the private IP address prefixes (CIDR
+    # blocks) that the Sigstore attestor is allowed to connect to. By default,
+    # tbot will only connect to registries at publicly-routable IP addresses to
+    # reduce the surface area for SSRF attacks.
+    allowed_private_network_prefixes:
+      - "192.168.1.42/32"
+      - "fd12:3456:789a:1::1/128"
+  # systemd is configuration for the Systemd Workload attestor. See the Systemd
+  # section below for more information.
+  systemd:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Systemd service. If unspecified, this defaults to
+    # false.
+    enabled: true
+  # unix is configuration for the Unix Workload Attestor.
+  unix:
+    # binary_hash_max_size_bytes is the maximum number of bytes that will be
+    # read from a process's binary to calculate its SHA-256 checksum. If the
+    # binary is larger than this, the `workload.unix.binary_hash` attribute
+    # will be empty. If unspecified, this defaults to 1GiB. Set it to -1 to
+    # make it unlimited.
+    binary_hash_max_size_bytes: 1024
 (!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
 ```
 
@@ -142,6 +183,24 @@ This is a sensitive configuration option, and you should ensure that it is
 set correctly or not set at all. If misconfigured, an attacker could provide
 falsified information about processes, and this could lead to the issuance of
 SVIDs to unauthorized workloads.
+
+#### The `binary_path` and `binary_hash` attributes
+
+The Unix Workload Attestor captures the path and a SHA-256 checksum of the
+workload's executable using the `/proc/$pid/exe` symlink. There are a number of
+important considerations when using these attributes in your rules:
+
+- `tbot` can only reliably determine the a process' executable path if it's
+  running in the same mount namespace. The `binary_path` attribute will likely
+  be incorrect if the workload is containerized.
+- Because `/proc/$pid/exe` is a symlink to an *inode* rather than a regular path,
+  it's usually an accurate representation of what the process is executing even
+  if the binary has been replaced on disk (e.g. during a rolling deployment).
+  However, network filesystems do not guarantee inode stability, so if the
+  process's executable is on a network mount, it's possible for `binary_hash` to
+  be out of date.
+- By default, `tbot` will only checksum binaries smaller than 1GiB. To change
+  this, increase `attestors.unix.binary_hash_max_size_bytes`.
 
 ### Kubernetes
 
@@ -442,6 +501,29 @@ $ podman run \
   public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=) \
   start -c /path/to/config
 ```
+
+## Systemd
+
+The Systemd Workload Attestor allows you to restrict the issuance of workload
+identities to specific Systemd services. It works by interacting with Systemd's
+[D-Bus API](https://www.freedesktop.org/wiki/Software/systemd/dbus/) to
+determine the service unit of a given process.
+
+`tbot` honors the `DBUS_SYSTEM_BUS_ADDRESS` environment variable, but if it's
+not set, will default to connecting via a Unix domain socket located at
+`/var/run/dbus/system_bus_socket`.
+
+If connecting using this socket fails, `tbot` will attempt to use the socket
+located at `/run/systemd/private` instead, but this is typically only accessible
+by root.
+
+## Sigstore
+
+The Sigstore Workload Attestor allows you to restrict the issuance of workload
+identities to only workloads running signed container images, reducing the scope
+for supply chain attacks.
+
+See [Sigstore Workload Attestation](sigstore-attestation.mdx) for more information.
 
 ## Envoy SDS
 

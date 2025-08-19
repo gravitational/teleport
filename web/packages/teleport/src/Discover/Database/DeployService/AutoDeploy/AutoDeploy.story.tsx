@@ -17,19 +17,19 @@
  */
 
 import { delay, http, HttpResponse } from 'msw';
+import { PropsWithChildren } from 'react';
+
+import { Info } from 'design/Alert';
 
 import cfg from 'teleport/config';
 import {
-  ComponentWrapper,
-  getDbMeta,
-  getDbResourceSpec,
+  getSelectedAwsPostgresDbMeta,
+  resourceSpecAwsRdsMySql,
+  resourceSpecAwsRdsPostgres,
 } from 'teleport/Discover/Fixtures/databases';
-import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
-import { ResourceKind } from 'teleport/Discover/Shared';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
+import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import { AutoDeploy } from './AutoDeploy';
 
@@ -39,9 +39,9 @@ export default {
 
 export const Init = () => {
   return (
-    <ComponentWrapper>
+    <DiscoverProviderDatabase>
       <AutoDeploy />
-    </ComponentWrapper>
+    </DiscoverProviderDatabase>
   );
 };
 Init.parameters = {
@@ -61,24 +61,25 @@ Init.parameters = {
 };
 
 export const InitWithAutoDiscover = () => {
-  const dbMeta = getDbMeta();
+  const dbMeta = getSelectedAwsPostgresDbMeta();
   dbMeta.selectedAwsRdsDb = undefined; // there is no selection for discovery
   return (
-    <TeleportProvider
-      resourceKind={ResourceKind.Database}
+    <RequiredDiscoverProviders
       agentMeta={{
         ...dbMeta,
         autoDiscovery: {
           config: { name: '', discoveryGroup: '', aws: [] },
         },
       }}
-      resourceSpec={getDbResourceSpec(
-        DatabaseEngine.Postgres,
-        DatabaseLocation.Aws
-      )}
+      resourceSpec={resourceSpecAwsRdsMySql}
     >
+      <Info>
+        Devs: difference is that there should be no offer to manually install
+        service
+      </Info>
+
       <AutoDeploy />
-    </TeleportProvider>
+    </RequiredDiscoverProviders>
   );
 };
 InitWithAutoDiscover.parameters = {
@@ -101,22 +102,19 @@ InitWithAutoDiscover.parameters = {
 
 export const InitWithLabelsWithDeployFailure = () => {
   return (
-    <TeleportProvider
-      resourceKind={ResourceKind.Database}
-      resourceSpec={getDbResourceSpec(
-        DatabaseEngine.Postgres,
-        DatabaseLocation.Aws
-      )}
+    <RequiredDiscoverProviders
+      resourceSpec={resourceSpecAwsRdsPostgres}
       agentMeta={{
-        ...getDbMeta(),
+        ...getSelectedAwsPostgresDbMeta(),
         agentMatcherLabels: [
           { name: 'env', value: 'staging' },
           { name: 'os', value: 'windows' },
         ],
       }}
     >
+      <Info>Devs: Click &quot;deploy...&quot; to see next state</Info>
       <AutoDeploy />
-    </TeleportProvider>
+    </RequiredDiscoverProviders>
   );
 };
 InitWithLabelsWithDeployFailure.parameters = {
@@ -140,15 +138,15 @@ InitWithLabelsWithDeployFailure.parameters = {
   },
 };
 
-export const InitSecurityGroupsLoadingFailed = () => {
+export const InitSgSubnetLoadingFailed = () => {
   return (
-    <ComponentWrapper>
+    <DiscoverProviderDatabase>
       <AutoDeploy />
-    </ComponentWrapper>
+    </DiscoverProviderDatabase>
   );
 };
 
-InitSecurityGroupsLoadingFailed.parameters = {
+InitSgSubnetLoadingFailed.parameters = {
   msw: {
     handlers: [
       http.post(cfg.api.awsSecurityGroupsListPath, () =>
@@ -171,15 +169,15 @@ InitSecurityGroupsLoadingFailed.parameters = {
   },
 };
 
-export const InitSecurityGroupsLoading = () => {
+export const InitSgSubnetLoading = () => {
   return (
-    <ComponentWrapper>
+    <DiscoverProviderDatabase>
       <AutoDeploy />
-    </ComponentWrapper>
+    </DiscoverProviderDatabase>
   );
 };
 
-InitSecurityGroupsLoading.parameters = {
+InitSgSubnetLoading.parameters = {
   msw: {
     handlers: [
       http.post(cfg.api.awsSecurityGroupsListPath, () => delay('infinite')),
@@ -417,3 +415,14 @@ const securityGroupsResponse = [
     ],
   },
 ];
+
+const DiscoverProviderDatabase: React.FC<
+  PropsWithChildren<{ resourceSpec?: SelectResourceSpec; dbMeta?: DbMeta }>
+> = ({ children, resourceSpec, dbMeta }) => (
+  <RequiredDiscoverProviders
+    agentMeta={dbMeta || getSelectedAwsPostgresDbMeta()}
+    resourceSpec={resourceSpec || resourceSpecAwsRdsPostgres}
+  >
+    {children}
+  </RequiredDiscoverProviders>
+);

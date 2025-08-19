@@ -26,6 +26,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
 )
@@ -612,6 +613,175 @@ func TestMakeDatabaseSupportsInteractive(t *testing.T) {
 			require.Equal(t, tc.supports, multi[0].SupportsInteractive)
 		})
 	}
+}
+
+func TestMakeDatabaseConnectOptions(t *testing.T) {
+	interactiveChecker := &mockDatabaseInteractiveChecker{}
+
+	for name, tc := range map[string]struct {
+		roles        services.RoleSet
+		db           *types.DatabaseV3
+		assertResult require.ValueAssertionFunc
+		username     string
+	}{
+		"names wildcard": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseNames:  []string{"*", "mydatabase"},
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v any, _ ...any) {
+				db, _ := v.(Database)
+				require.ElementsMatch(t, []string{"*", "mydatabase"}, db.DatabaseNames)
+			},
+		},
+		"users wildcard": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  []string{"*", "myuser"},
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v any, _ ...any) {
+				db, _ := v.(Database)
+				require.ElementsMatch(t, []string{"*", "myuser"}, db.DatabaseUsers)
+			},
+		},
+		"roles wildcard": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseRoles:  []string{"*", "myrole"},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v any, _ ...any) {
+				db, _ := v.(Database)
+				require.ElementsMatch(t, []string{"*", "myrole"}, db.DatabaseRoles)
+			},
+		},
+		"only wildcards": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseNames:  []string{"*"},
+						DatabaseUsers:  []string{"*"},
+						DatabaseRoles:  []string{"*"},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v any, _ ...any) {
+				db, _ := v.(Database)
+				require.ElementsMatch(t, []string{"*"}, db.DatabaseNames)
+				require.ElementsMatch(t, []string{"*"}, db.DatabaseUsers)
+				require.ElementsMatch(t, []string{"*"}, db.DatabaseRoles)
+			},
+		},
+		"auto-user provisioning enabled": {
+			db:       makeTestDatabase(t, map[string]string{"env": "dev"}, true),
+			username: "alice",
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  []string{"otheruser"},
+						DatabaseRoles:  []string{"myrole"},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v any, _ ...any) {
+				db, _ := v.(Database)
+				require.True(t, db.AutoUsersEnabled)
+				require.ElementsMatch(t, []string{"alice"}, db.DatabaseUsers)
+				require.ElementsMatch(t, []string{"myrole"}, db.DatabaseRoles)
+			},
+		},
+		"auto-user provisioning at database but disabled on role": {
+			db:       makeTestDatabase(t, map[string]string{"env": "dev"}, true),
+			username: "alice",
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  []string{"*", "myuser"},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v any, _ ...any) {
+				db, _ := v.(Database)
+				require.False(t, db.AutoUsersEnabled)
+				require.ElementsMatch(t, []string{"*", "myuser"}, db.DatabaseUsers)
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{Username: tc.username}, "clusterName", tc.roles)
+			single := MakeDatabase(tc.db, accessChecker, interactiveChecker, false)
+			tc.assertResult(t, single)
+
+			multi := MakeDatabases([]*types.DatabaseV3{tc.db}, accessChecker, interactiveChecker)
+			require.Len(t, multi, 1)
+			tc.assertResult(t, multi[0])
+		})
+	}
+}
+
+// makeTestDatabase creates a database with labels and admin options.
+func makeTestDatabase(t *testing.T, labels map[string]string, autoProvisioningEnabled bool) *types.DatabaseV3 {
+	t.Helper()
+
+	spec := types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	}
+	if autoProvisioningEnabled {
+		spec.AdminUser = &types.DatabaseAdminUser{
+			Name:            "teleport-admin",
+			DefaultDatabase: "teleport",
+		}
+	}
+
+	db, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name:   "db",
+			Labels: labels,
+		}, spec,
+	)
+	require.NoError(t, err)
+	if autoProvisioningEnabled {
+		require.True(t, db.IsAutoUsersEnabled(), "The database was expected to have auto-users enabled but it isn't. Check if the auto-users enabled definition changed and update this helper to match it.")
+	}
+
+	return db
 }
 
 type mockDatabaseInteractiveChecker struct {

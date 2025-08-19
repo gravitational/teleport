@@ -19,7 +19,7 @@
 import { useState } from 'react';
 
 import { Box, H3, Link, Mark } from 'design';
-import { OutlineInfo } from 'design/Alert/Alert';
+import { Info } from 'design/Alert/Alert';
 import { P } from 'design/Text/Text';
 import Select, { type Option } from 'shared/components/Select';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
@@ -108,17 +108,17 @@ export function TestConnection() {
         <P my={2}>Connect to your application:</P>
         <TextSelectCopy mt="1" text={tshCmd} />
       </StyledBox>
-      <OutlineInfo mb={3} linkColor="buttons.link.default" width="800px">
+      <Info mb={3} linkColor="buttons.link.default">
         <P>
-          If the connection can't be established, ensure the IAM role you are
-          trying to assume is{' '}
+          If the connection can&apos;t be established, ensure the IAM role you
+          are trying to assume is{' '}
           <Link target="_blank" href={AWS_TAG_INFO_LINK}>
             tagged
           </Link>{' '}
           with key <Mark>teleport.dev/integration</Mark> and value{' '}
           <Mark>true</Mark>.
         </P>
-      </OutlineInfo>
+      </Info>
 
       <ActionButtons onProceed={nextStep} lastStep={true} onPrev={prevStep} />
     </Box>

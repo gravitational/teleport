@@ -33,7 +33,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -46,12 +48,15 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
 	utils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -95,8 +100,8 @@ func TestGenerateIAMTokenName(t *testing.T) {
 
 type tokenData struct {
 	name   string
-	roles  types.SystemRoles
 	expiry time.Time
+	spec   types.ProvisionTokenSpecV2
 }
 
 func TestGetTokens(t *testing.T) {
@@ -148,25 +153,31 @@ func TestGetTokens(t *testing.T) {
 			tokenData: []tokenData{
 				{
 					name: "test-token",
-					roles: types.SystemRoles{
-						types.RoleNode,
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{
+							types.RoleNode,
+						},
 					},
 					expiry: expiry,
 				},
 				{
 					name: "test-token-2",
-					roles: types.SystemRoles{
-						types.RoleNode,
-						types.RoleDatabase,
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{
+							types.RoleNode,
+							types.RoleDatabase,
+						},
 					},
 					expiry: expiry,
 				},
 				{
 					name: "test-token-3-and-super-duper-long",
-					roles: types.SystemRoles{
-						types.RoleNode,
-						types.RoleKube,
-						types.RoleDatabase,
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{
+							types.RoleNode,
+							types.RoleKube,
+							types.RoleDatabase,
+						},
 					},
 					expiry: expiry,
 				},
@@ -204,6 +215,64 @@ func TestGetTokens(t *testing.T) {
 						types.RoleDatabase,
 					},
 					Method: types.JoinMethodToken,
+				},
+				staticUIToken,
+			},
+		},
+		{
+			name: "github token",
+			tokenData: []tokenData{
+				{
+					name: "github-test-token",
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{
+							types.RoleBot,
+						},
+						BotName:    "test-bot",
+						JoinMethod: types.JoinMethodGitHub,
+						GitHub: &types.ProvisionTokenSpecV2GitHub{
+							EnterpriseServerHost: "github.example.com",
+							StaticJWKS:           "{\"keys\":[]}",
+							Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+								{
+									Repository:      "gravitational/teleport",
+									RepositoryOwner: "gravitational",
+									Sub:             "test-sub",
+									Workflow:        "test-workflow",
+									Environment:     "test-environment",
+									Actor:           "octocat",
+									Ref:             "ref/heads/main",
+									RefType:         "branch",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []ui.JoinToken{
+				{
+					ID:       "github-test-token",
+					SafeName: "github-test-token",
+					BotName:  "test-bot",
+					Expiry:   time.Time{},
+					Roles:    types.SystemRoles{"Bot"},
+					Method:   types.JoinMethodGitHub,
+					Github: &types.ProvisionTokenSpecV2GitHub{
+						EnterpriseServerHost: "github.example.com",
+						StaticJWKS:           "{\"keys\":[]}",
+						Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Repository:      "gravitational/teleport",
+								RepositoryOwner: "gravitational",
+								Sub:             "test-sub",
+								Workflow:        "test-workflow",
+								Environment:     "test-environment",
+								Actor:           "octocat",
+								Ref:             "ref/heads/main",
+								RefType:         "branch",
+							},
+						},
+					},
 				},
 				staticUIToken,
 			},
@@ -248,9 +317,7 @@ func TestGetTokens(t *testing.T) {
 			}
 
 			for _, td := range tc.tokenData {
-				token, err := types.NewProvisionTokenFromSpec(td.name, td.expiry, types.ProvisionTokenSpecV2{
-					Roles: td.roles,
-				})
+				token, err := types.NewProvisionTokenFromSpec(td.name, td.expiry, td.spec)
 				require.NoError(t, err)
 				err = env.server.Auth().CreateToken(ctx, token)
 				require.NoError(t, err)
@@ -263,9 +330,133 @@ func TestGetTokens(t *testing.T) {
 			resp := GetTokensResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.Len(t, resp.Items, len(tc.expected))
-			require.Empty(t, cmp.Diff(resp.Items, tc.expected, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
+			require.Empty(t, cmp.Diff(tc.expected, resp.Items, cmpopts.IgnoreFields(ui.JoinToken{}, "Content"), cmpopts.SortSlices(func(a, b ui.JoinToken) bool { return a.ID < b.ID })))
 		})
 	}
+}
+
+func TestListProvisionTokens(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	expiry := time.Now().UTC().Add(30 * time.Minute)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	items := []struct {
+		name string
+		spec types.ProvisionTokenSpecV2
+	}{
+		{
+			name: "test-token-3",
+			spec: types.ProvisionTokenSpecV2{
+				Roles:   types.SystemRoles{types.RoleBot, types.RoleNode},
+				BotName: "bot-2",
+			},
+		},
+		{
+			name: "test-token-1",
+			spec: types.ProvisionTokenSpecV2{
+				Roles: types.SystemRoles{types.RoleNode},
+			},
+		},
+		{
+			name: "test-token-2",
+			spec: types.ProvisionTokenSpecV2{
+				Roles:   types.SystemRoles{types.RoleBot},
+				BotName: "bot-1",
+			},
+		},
+	}
+
+	for _, item := range items {
+		token, err := types.NewProvisionTokenFromSpec(
+			item.name,
+			expiry,
+			item.spec)
+		require.NoError(t, err)
+		err = env.server.Auth().CreateToken(ctx, token)
+		require.NoError(t, err)
+	}
+
+	endpoint := pack.clt.Endpoint("v2", "webapi", "tokens")
+
+	t.Run("paging", func(t *testing.T) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{
+			"page_token": []string{""}, // default to the start
+			"page_size":  []string{strconv.Itoa(2)},
+		})
+		require.NoError(t, err)
+		resp := ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+
+		require.Len(t, resp.Items, 2)
+		assert.Equal(t, "test-token-3", resp.NextPageToken)
+		assert.Equal(t, "test-token-1", resp.Items[0].ID)
+		assert.Equal(t, "test-token-2", resp.Items[1].ID)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"page_token": []string{resp.NextPageToken},
+			"page_size":  []string{strconv.Itoa(2)},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+
+		require.Len(t, resp.Items, 1)
+		assert.Empty(t, resp.NextPageToken)
+		assert.Equal(t, "test-token-3", resp.Items[0].ID)
+	})
+
+	t.Run("filter by roles", func(t *testing.T) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{
+			"role": []string{"Node", "Bot"},
+		})
+		require.NoError(t, err)
+		resp := ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 3)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"role": []string{"Node"},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 2)
+		assert.Equal(t, "test-token-1", resp.Items[0].ID)
+		assert.Equal(t, "test-token-3", resp.Items[1].ID)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"role": []string{"Bot"},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 2)
+		assert.Equal(t, "test-token-2", resp.Items[0].ID)
+		assert.Equal(t, "test-token-3", resp.Items[1].ID)
+	})
+
+	t.Run("filter by bot name", func(t *testing.T) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{
+			"bot_name": []string{""},
+		})
+		require.NoError(t, err)
+		resp := ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 3)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"bot_name": []string{"bot-1"},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 1)
+		assert.Equal(t, "test-token-2", resp.Items[0].ID)
+	})
 }
 
 func TestDeleteToken(t *testing.T) {
@@ -334,6 +525,242 @@ func TestDeleteToken(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1 /* only static again */)
 	require.Empty(t, cmp.Diff(resp.Items, []ui.JoinToken{staticUIToken}, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
+}
+
+func TestEditToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	username := "test-user@example.com"
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, nil /* roles */)
+
+	expiry := time.Now().UTC()
+
+	tcs := []struct {
+		Name   string
+		Method func(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error)
+	}{
+		{Name: "http_post", Method: pack.clt.PostJSON},
+		{Name: "http_put", Method: pack.clt.PutJSON},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.Name, func(t *testing.T) {
+
+			// Setup an existing token
+			spec := types.ProvisionTokenSpecV2{
+				Roles:      types.SystemRoles{types.RoleBot},
+				BotName:    "test-bot",
+				JoinMethod: types.JoinMethodGitHub,
+
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						{
+							Repository: "gravitational/teleport",
+						},
+					},
+				},
+			}
+			tokenName := "github-test-token" + tc.Name
+			token, err := types.NewProvisionTokenFromSpec(tokenName, time.Time{}, spec)
+			require.NoError(t, err)
+			token.SetExpiry(expiry)
+			token.SetLabels(map[string]string{
+				"test-key": "test-value",
+			})
+			err = env.server.Auth().CreateToken(ctx, token)
+			require.NoError(t, err)
+
+			// Make a simple edit
+			spec.BotName = "test-bot_EDITED"
+			data := struct {
+				types.ProvisionTokenSpecV2
+				Name string `json:"name"`
+			}{
+				ProvisionTokenSpecV2: spec,
+				Name:                 tokenName,
+			}
+			endpointV1 := pack.clt.Endpoint("v1", "webapi", "tokens")
+			_, err = tc.Method(ctx, endpointV1, data)
+			require.NoError(t, err)
+
+			// Fetch the token and compare
+			editedToken, err := env.server.Auth().GetToken(ctx, tokenName)
+			require.NoError(t, err)
+			require.Equal(t, "test-bot_EDITED", editedToken.GetBotName())
+			require.Equal(t, expiry, *editedToken.GetMetadata().Expires)
+			require.Equal(t, map[string]string{
+				"test-key": "test-value",
+			}, editedToken.GetMetadata().Labels)
+		})
+	}
+}
+
+func TestCreateTokenExpiry(t *testing.T) {
+	// Can't t.Parallel because of modules.SetTestModules.
+	// Use enterprise build to access token types such as TPM and Spacelift
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: false,
+		},
+	})
+
+	ctx := context.Background()
+	username := "test-user@example.com"
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, nil /* roles */)
+
+	for _, method := range types.JoinMethods {
+		t.Run(string(method), func(t *testing.T) {
+			spec := types.ProvisionTokenSpecV2{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: method,
+			}
+			setMinimalConfigForMethod(&spec, method)
+
+			var expectedExpiry time.Time
+			switch method {
+			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
+				expectedExpiry = time.Time{}
+			default:
+				expectedExpiry = time.Now().UTC().Add(4 * time.Hour)
+			}
+
+			endpointV1 := pack.clt.Endpoint("v1", "webapi", "tokens")
+			re, err := pack.clt.PostJSON(ctx, endpointV1, spec)
+			require.NoError(t, err)
+
+			resp := nodeJoinToken{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.Equal(t, method, resp.Method)
+			require.WithinDuration(t, expectedExpiry, resp.Expiry, 100*time.Millisecond)
+		})
+	}
+}
+
+func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.JoinMethod) {
+	switch method {
+	case types.JoinMethodIAM, types.JoinMethodEC2:
+		spec.Allow = []*types.TokenRule{
+			{
+				AWSAccount: "test-account",
+			},
+		}
+	case types.JoinMethodAzure:
+		spec.Azure = &types.ProvisionTokenSpecV2Azure{
+			Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "test-sub",
+				},
+			},
+		}
+	case types.JoinMethodBitbucket:
+		spec.Bitbucket = &types.ProvisionTokenSpecV2Bitbucket{
+			Audience:            "test-audience",
+			IdentityProviderURL: "test-identity-provider-url",
+			Allow: []*types.ProvisionTokenSpecV2Bitbucket_Rule{
+				{
+					WorkspaceUUID: "test-workspace-uuid",
+				},
+			},
+		}
+	case types.JoinMethodOracle:
+		spec.Oracle = &types.ProvisionTokenSpecV2Oracle{
+			Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy: "ocid1.tenancy.oc1..test",
+				},
+			},
+		}
+	case types.JoinMethodTerraformCloud:
+		spec.TerraformCloud = &types.ProvisionTokenSpecV2TerraformCloud{
+			Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
+				{
+					OrganizationID: "test-org-id",
+					ProjectID:      "test-proj-id",
+				},
+			},
+		}
+	case types.JoinMethodKubernetes:
+		spec.Kubernetes = &types.ProvisionTokenSpecV2Kubernetes{
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{
+					ServiceAccount: "test:service-account",
+				},
+			},
+		}
+	case types.JoinMethodGitLab:
+		spec.GitLab = &types.ProvisionTokenSpecV2GitLab{
+			Allow: []*types.ProvisionTokenSpecV2GitLab_Rule{
+				{
+					Sub: "test-sub",
+				},
+			},
+		}
+	case types.JoinMethodGitHub:
+		spec.GitHub = &types.ProvisionTokenSpecV2GitHub{
+			Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+				{
+					Sub: "test-sub",
+				},
+			},
+		}
+	case types.JoinMethodGCP:
+		spec.GCP = &types.ProvisionTokenSpecV2GCP{
+			Allow: []*types.ProvisionTokenSpecV2GCP_Rule{
+				{
+					ProjectIDs: []string{"test-project-id"},
+				},
+			},
+		}
+	case types.JoinMethodCircleCI:
+		spec.CircleCI = &types.ProvisionTokenSpecV2CircleCI{
+			Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+				{
+					ProjectID: "test-project-id",
+				},
+			},
+			OrganizationID: "test-org-id",
+		}
+	case types.JoinMethodTPM:
+		spec.TPM = &types.ProvisionTokenSpecV2TPM{
+			Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
+				{
+					EKPublicHash: "test-hash",
+				},
+			},
+		}
+	case types.JoinMethodSpacelift:
+		spec.Spacelift = &types.ProvisionTokenSpecV2Spacelift{
+			Hostname: "test-hostname",
+			Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
+				{
+					SpaceID: "test-space-id",
+				},
+			},
+		}
+	case types.JoinMethodAzureDevops:
+		spec.AzureDevops = &types.ProvisionTokenSpecV2AzureDevops{
+			OrganizationID: "0000-0000-0000-000",
+			Allow: []*types.ProvisionTokenSpecV2AzureDevops_Rule{
+				{
+					ProjectName: "my-project",
+				},
+			},
+		}
+	case types.JoinMethodBoundKeypair:
+		spec.BoundKeypair = &types.ProvisionTokenSpecV2BoundKeypair{
+			Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+				InitialPublicKey: "abcd",
+			},
+			Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+				Mode: boundkeypair.RecoveryModeInsecure,
+			},
+		}
+	}
 }
 
 func TestCreateTokenForDiscovery(t *testing.T) {
@@ -912,7 +1339,7 @@ func (a *autoupdateProxyClientMock) GetClusterCACert(ctx context.Context) (*prot
 }
 
 type autoupdateTestHandlerConfig struct {
-	testModules *modules.TestModules
+	testModules *modulestest.Modules
 	hostname    string
 	port        int
 	channels    automaticupgrades.Channels
@@ -951,11 +1378,11 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	clt.On("GetClusterCACert", mock.Anything).Return(&proto.GetClusterCACertResponse{TLSCA: []byte(fixtures.SigningCertPEM)}, nil)
 
 	if config.testModules == nil {
-		config.testModules = &modules.TestModules{
+		config.testModules = &modulestest.Modules{
 			TestBuildType: modules.BuildCommunity,
 		}
 	}
-	modules.SetTestModules(t, config.testModules)
+	modulestest.SetTestModules(t, *config.testModules)
 	h := &Handler{
 		clusterFeatures: *config.testModules.Features().ToProto(),
 		cfg: Config{
@@ -964,7 +1391,7 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 			PublicProxyAddr:           addr,
 			ProxyClient:               clt,
 		},
-		logger: utils.NewSlogLoggerForTests(),
+		logger: logtest.NewLogger(),
 	}
 	h.PublicProxyAddr()
 	return h
@@ -1127,7 +1554,6 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = h.getJoinScript(context.Background(), tc.settings)
 			if tc.shouldError {
@@ -1540,7 +1966,7 @@ func TestJoinScript(t *testing.T) {
 		t.Run("ent", func(t *testing.T) {
 			// Using the Enterprise Version, the package name must be teleport-ent
 			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
-				testModules: &modules.TestModules{TestBuildType: modules.BuildEnterprise},
+				testModules: &modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				token:       token,
 			})
 			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
@@ -1561,7 +1987,7 @@ func TestJoinScript(t *testing.T) {
 		t.Run("installUpdater is true", func(t *testing.T) {
 			currentStableCloudVersion := "1.2.3"
 			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
-				testModules: &modules.TestModules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
+				testModules: &modulestest.Modules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
 				token:       token,
 				channels: automaticupgrades.Channels{
 					automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{StaticVersion: currentStableCloudVersion},
@@ -1602,7 +2028,7 @@ func TestJoinScript(t *testing.T) {
 		t.Run("rollout exists and autoupdates are on", func(t *testing.T) {
 			currentStableCloudVersion := "1.1.1"
 			config := autoupdateTestHandlerConfig{
-				testModules: &modules.TestModules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
+				testModules: &modulestest.Modules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
 				channels: automaticupgrades.Channels{
 					automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{StaticVersion: currentStableCloudVersion},
 				},
@@ -1633,7 +2059,7 @@ func TestJoinScript(t *testing.T) {
 
 func TestAutomaticUpgrades(t *testing.T) {
 	t.Run("cloud and automatic upgrades enabled", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: true,
@@ -1644,7 +2070,7 @@ func TestAutomaticUpgrades(t *testing.T) {
 		require.True(t, got)
 	})
 	t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: false,
@@ -1656,7 +2082,7 @@ func TestAutomaticUpgrades(t *testing.T) {
 	})
 
 	t.Run("automatic upgrades enabled but is not cloud", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Cloud:             false,

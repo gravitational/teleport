@@ -56,6 +56,12 @@ message AccessRequest {
   google.protobuf.Timestamp request_ttl = 17;
   // session_ttl indicates how long a certificate for a session should be valid for.
   google.protobuf.Timestamp session_ttl = 18;
+  // reason_mode specifies the reason mode for this Access Request. It can be either "optional" or
+  // "required". It's only added in response to a dry run request.
+  string reason_mode = 19;
+  // reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
+  // It's only added in response to a dry run request.
+  repeated string reason_prompts = 20;
 }
 
 message AccessRequestReview {

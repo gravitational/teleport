@@ -16,56 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
+import type { StoryObj } from '@storybook/react-vite';
+import { delay } from 'msw';
+
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import {
+  errorGetUsers,
+  handleGetUsers,
+  successGetUsers,
+} from 'teleport/test/helpers/users';
 
 import { Users } from './Users';
 
 export default {
   title: 'Teleport/Users',
-};
-
-export const Processing = () => {
-  const attempt = {
-    isProcessing: true,
-    isFailed: false,
-    isSuccess: false,
-    message: '',
-  };
-  return (
-    <MemoryRouter>
-      <Users {...sample} attempt={attempt} />
-    </MemoryRouter>
-  );
-};
-
-export const Loaded = () => {
-  return (
-    <MemoryRouter>
-      <Users {...sample} />
-    </MemoryRouter>
-  );
-};
-
-export const UsersNotEqualMauNotice = () => {
-  return (
-    <MemoryRouter>
-      <Users {...sample} showMauInfo={true} />
-    </MemoryRouter>
-  );
-};
-
-export const Failed = () => {
-  const attempt = {
-    isProcessing: false,
-    isFailed: true,
-    isSuccess: false,
-    message: 'some error message',
-  };
-  return (
-    <MemoryRouter>
-      <Users {...sample} attempt={attempt} />
-    </MemoryRouter>
-  );
 };
 
 const users = [
@@ -114,7 +78,65 @@ const users = [
   },
 ];
 
-const roles = ['admin', 'testrole'];
+export const Loaded: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [successGetUsers(users)],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <Users {...sample} />
+      </TeleportProviderBasic>
+    );
+  },
+};
+
+export const UsersNotEqualMauNotice: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [successGetUsers(users)],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <Users {...sample} showMauInfo={true} />
+      </TeleportProviderBasic>
+    );
+  },
+};
+
+export const Processing: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [handleGetUsers(async () => await delay('infinite'))],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <Users {...sample} />
+      </TeleportProviderBasic>
+    );
+  },
+};
+
+export const Failed: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [errorGetUsers('Something went wrong')],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <Users {...sample} />
+      </TeleportProviderBasic>
+    );
+  },
+};
 
 const sample = {
   attempt: {
@@ -124,7 +146,11 @@ const sample = {
     message: '',
   },
   users: users,
-  fetchRoles: async (input: string) => roles.filter(r => r.includes(input)),
+  fetch: async () =>
+    Promise.resolve({
+      items: users,
+      startKey: '',
+    }),
   operation: {
     type: 'none',
     user: null,

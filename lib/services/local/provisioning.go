@@ -20,11 +20,13 @@ package local
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -50,6 +52,62 @@ func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.Provision
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// PatchToken uses the supplied function to attempt to patch a token resource.
+// Up to 3 update attempts will be made if the conditional update fails due to
+// a revision comparison failure.
+func (s *ProvisioningService) PatchToken(
+	ctx context.Context,
+	tokenName string,
+	updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+) (types.ProvisionToken, error) {
+	const iterLimit = 3
+
+	for range iterLimit {
+		existing, err := s.GetToken(ctx, tokenName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Note: CloneProvisionToken only supports ProvisionTokenV2.
+		clone, err := services.CloneProvisionToken(existing)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updated, err := updateFn(clone)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updatedMetadata := updated.GetMetadata()
+		existingMetadata := existing.GetMetadata()
+
+		switch {
+		case updatedMetadata.GetName() != existingMetadata.GetName():
+			return nil, trace.BadParameter("metadata.name: cannot be patched")
+		case updatedMetadata.GetRevision() != existingMetadata.GetRevision():
+			return nil, trace.BadParameter("metadata.revision: cannot be patched")
+		}
+
+		item, err := s.tokenToItem(updated)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		lease, err := s.ConditionalUpdate(ctx, *item)
+		if trace.IsCompareFailed(err) {
+			continue
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updated.SetRevision(lease.Revision)
+		return updated, nil
+	}
+
+	return nil, trace.CompareFailed("failed to update provision token within %v iterations", iterLimit)
 }
 
 // CreateToken creates a new token for the auth server
@@ -119,6 +177,8 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
+// Deprecated: use [ListProvisionTokens] instead.
+// TODO(hugoShaka): DELETE IN 19.0.0
 func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	startKey := backend.ExactKey(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -133,11 +193,72 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 			services.WithRevision(item.Revision),
 		)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "unmarshaling token (key: %q)", item.Key)
 		}
 		tokens[i] = t
 	}
 	return tokens, nil
+}
+
+// ListProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
+func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	// Bound page size (0 - 1_000)
+	if pageSize <= 0 || pageSize > int(defaults.MaxIterationLimit) {
+		pageSize = int(defaults.MaxIterationLimit)
+	}
+
+	prefix := backend.NewKey(tokensPrefix)
+	var out []types.ProvisionToken
+	for item, err := range s.Items(ctx, backend.ItemsParams{
+		StartKey: prefix.AppendKey(backend.KeyFromString(pageToken)),
+		EndKey:   backend.RangeEnd(prefix.ExactKey()),
+	}) {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		t, err := services.UnmarshalProvisionToken(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err, "unmarshaling token (key: %q)", item.Key)
+		}
+
+		if len(out) == pageSize {
+			nextKey := strings.TrimPrefix(
+				item.Key.TrimPrefix(backend.ExactKey(tokensPrefix)).String(),
+				string(backend.Separator),
+			)
+			return out, nextKey, nil
+		}
+
+		if !MatchToken(t, anyRoles, botName) {
+			continue
+		}
+
+		out = append(out, t)
+	}
+
+	return out, "", nil
+}
+
+// MatchToken validates a token against a set of roles and a bot name filters.
+// If a bot name is provided, it additionally checks if the token has a role of bot.
+func MatchToken(t types.ProvisionToken, anyRoles types.SystemRoles, botName string) bool {
+	if len(anyRoles) > 0 && !t.GetRoles().IncludeAny(anyRoles...) {
+		return false
+	}
+
+	if botName != "" && (!t.GetRoles().Include(types.RoleBot) || t.GetBotName() != botName) {
+		return false
+	}
+
+	return true
 }
 
 const tokensPrefix = "tokens"

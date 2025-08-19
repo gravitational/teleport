@@ -59,7 +59,7 @@ func getObject(t *testing.T, index int) *dbobjectv1.DatabaseObject {
 }
 
 func prepopulate(t *testing.T, service services.DatabaseObjects, count int) {
-	for i := 0; i < count; i++ {
+	for i := range count {
 		_, err := service.CreateDatabaseObject(context.Background(), getObject(t, i))
 		require.NoError(t, err)
 	}
@@ -145,7 +145,7 @@ func TestGetDatabaseObject(t *testing.T) {
 				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 				protocmp.Transform(),
 			}
-			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
+			require.Empty(t, cmp.Diff(tt.wantObj, obj, cmpOpts...))
 		})
 	}
 }
@@ -226,12 +226,12 @@ func TestListDatabaseObjects(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := 0; i < count; i++ {
+				for i := range count {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
 				}
 			})
 
@@ -250,12 +250,12 @@ func TestListDatabaseObjects(t *testing.T) {
 					}
 				}
 
-				for i := 0; i < count; i++ {
+				for i := range count {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
 				}
 			})
 		})

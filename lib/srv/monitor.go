@@ -60,11 +60,16 @@ type TrackingConn interface {
 	Close() error
 }
 
+type ConnectionMonitorAccessPoint interface {
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+}
+
 // ConnectionMonitorConfig contains dependencies required by
 // the ConnectionMonitor.
 type ConnectionMonitorConfig struct {
 	// AccessPoint is used to retrieve cluster configuration.
-	AccessPoint AccessPoint
+	AccessPoint ConnectionMonitorAccessPoint
 	// LockWatcher ensures lock information is up to date.
 	LockWatcher *services.LockWatcher
 	// Clock is a clock, realtime or fixed in tests.
@@ -288,15 +293,19 @@ func StartMonitor(cfg MonitorConfig) error {
 	w := &Monitor{
 		MonitorConfig: cfg,
 	}
-	// If an applicable lock is already in force, close the connection immediately.
-	if lockErr := w.LockWatcher.CheckLockInForce(w.LockingMode, w.LockTargets...); lockErr != nil {
-		w.handleLockInForce(lockErr)
-		return nil
-	}
+	// If an applicable lock is already in force, close the connection immediately. The subscription is
+	// created first to prevent any races with CheckLockInForce and new locks being created.
 	lockWatch, err := w.LockWatcher.Subscribe(w.Context, w.LockTargets...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if lockErr := w.LockWatcher.CheckLockInForce(w.LockingMode, w.LockTargets...); lockErr != nil {
+		w.handleLockInForce(lockErr)
+		_ = lockWatch.Close()
+		return nil
+	}
+
 	go func() {
 		w.start(lockWatch)
 		if w.MonitorCloseChannel != nil {
@@ -599,31 +608,4 @@ func (t *TrackingReadConn) UpdateClientActivity() {
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
 	t.lastActive = t.cfg.Clock.Now().UTC()
-}
-
-// See GetDisconnectExpiredCertFromIdentity
-func getDisconnectExpiredCertFromIdentityContext(
-	checker services.AccessChecker,
-	authPref types.AuthPreference,
-	identity *IdentityContext,
-) time.Time {
-	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
-	// the PreviousIdentityExpires value of the certificate will be used, which is the
-	// expiry of the certificate used to issue the short lived MFA verified certificate.
-	//
-	// See https://github.com/gravitational/teleport/issues/18544
-
-	// If the session doesn't need to be disconnected on cert expiry just return the default value.
-	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		return time.Time{}
-	}
-
-	if !identity.PreviousIdentityExpires.IsZero() {
-		// If this is a short-lived mfa verified cert, return the certificate extension
-		// that holds its' issuing cert's expiry value.
-		return identity.PreviousIdentityExpires
-	}
-
-	// Otherwise just return the current cert's expiration
-	return identity.CertValidBefore
 }

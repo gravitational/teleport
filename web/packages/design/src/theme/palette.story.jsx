@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/*eslint import/namespace: ['error', { allowComputed: true }]*/
-
 import { Box, Flex } from '..';
 import * as colors from './palette';
 import { getContrastText } from './themes/sharedStyles';

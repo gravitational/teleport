@@ -1,10 +1,15 @@
 ---
 title: Register a Kubernetes Cluster using IAM Joining
 description: Connecting a Kubernetes cluster to Teleport with IAM joining.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 In this guide, we will show you how to register a Kubernetes cluster with
 Teleport by using the agent's IAM identity to automatically join the Teleport cluster.
+
+## How it works
 
 You can register multiple Kubernetes clusters with Teleport by deploying the
 Teleport Kubernetes Service on each cluster you want to register without having
@@ -13,9 +18,6 @@ to distribute a joining secret to the Kubernetes cluster.
 Once the Kubernetes cluster is registered for the first time, the agent will store
 its Teleport identity in a Kubernetes secret. The agent will use this identity
 to automatically join the cluster on subsequent restarts.
-
-Support for joining a cluster with the Proxy Service behind a layer 7 load
-balancer or reverse proxy is available in Teleport 13.0+.
 
 ## Prerequisites
 
@@ -294,11 +296,12 @@ On the other hand, if you can see your Kubernetes cluster but unable to see any 
 it's likely that your Teleport role does not allow access to pods in the Kubernetes cluster.
 For both cases, please refer to the section below.
 
-<Details title="Not seeing Kubernetes clusters?">
+<details>
+<summary>Not seeing Kubernetes clusters?</summary>
 
 (!docs/pages/includes/kubernetes-access/rbac.mdx!)
 
-</Details>
+</details>
 
 ## Next steps
 

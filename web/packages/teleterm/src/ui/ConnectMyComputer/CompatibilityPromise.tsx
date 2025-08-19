@@ -16,15 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
+
 import { Alert, ButtonPrimary, Flex, Text } from 'design';
 import Link from 'design/Link';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-
-const CONNECT_MY_COMPUTER_RELEASE_VERSION = '14.1.0';
-const CONNECT_MY_COMPUTER_RELEASE_MAJOR_VERSION = 14;
 
 export type AgentCompatibility = 'unknown' | 'compatible' | 'incompatible';
 
@@ -57,27 +56,14 @@ export function CompatibilityError(props: {
   const clusterMajorVersion = getMajorVersion(proxyVersion);
   const appMajorVersion = getMajorVersion(appVersion);
 
-  // offer a downgrade only to a release that has 'Connect My Computer'
-  // DELETE IN 17.0.0 (gzdunek): by the time 17.0 releases, 14.x will no longer be
-  // supported and then downgradeAppTo will simply become ${clusterMajorVersion}.x.x,
-  // and we will not have to check if downgrade is possible.
-  const isAppDowngradePossible =
-    clusterMajorVersion >= CONNECT_MY_COMPUTER_RELEASE_MAJOR_VERSION;
-  const downgradeAppTo =
-    clusterMajorVersion === CONNECT_MY_COMPUTER_RELEASE_MAJOR_VERSION
-      ? CONNECT_MY_COMPUTER_RELEASE_VERSION
-      : `${clusterMajorVersion}.x.x`;
-
   let $content: JSX.Element;
   if (appMajorVersion > clusterMajorVersion) {
     $content = (
       <>
         , clusters don't support clients that are on a newer major version. To
-        use Connect My Computer,{' '}
-        {isAppDowngradePossible && (
-          <>downgrade the app to version {downgradeAppTo} or </>
-        )}
-        upgrade the cluster to version {appMajorVersion}.x.x.
+        use Connect My Computer, downgrade the app to version{' '}
+        {clusterMajorVersion}.x.x or upgrade the cluster to version{' '}
+        {appMajorVersion}.x.x.
       </>
     );
   }

@@ -86,7 +86,7 @@ func (r resourceTeleportAuthPreference) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 
-	err = r.p.Client.SetAuthPreference(ctx, authPreference)
+	_, err = r.p.Client.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
@@ -94,16 +94,35 @@ func (r resourceTeleportAuthPreference) Create(ctx context.Context, req tfsdk.Cr
 
 	var authPreferenceI apitypes.AuthPreference
 
+	// Try getting the resource until it exists and is different than the previous ones.
+	// There are two types of singleton resources:
+	// - the ones who can deleted and return a trace.NotFoundErr
+	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		authPreferenceI, err = r.p.Client.GetAuthPreference(ctx)
+		if trace.IsNotFound(err) {
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
+				return
+			}
+			if tries >= r.p.RetryConfig.MaxTries {
+				diagMessage := fmt.Sprintf("Error reading AuthPreference (tried %d times) - state outdated, please import resource", tries)
+				resp.Diagnostics.AddError(diagMessage, "cluster_auth_preference")
+				return
+			}
+			continue
+		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 			return
 		}
-		if authPreferenceBefore.GetMetadata().Revision != authPreferenceI.GetMetadata().Revision || false {
+
+		previousMetadata := authPreferenceBefore.GetMetadata()
+		currentMetadata := authPreferenceI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {
@@ -159,6 +178,7 @@ func (r resourceTeleportAuthPreference) Read(ctx context.Context, req tfsdk.Read
 		return
 	}
 
+	
 	authPreference := authPreferenceI.(*apitypes.AuthPreferenceV2)
 	diags = tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &state)
 	resp.Diagnostics.Append(diags...)
@@ -206,12 +226,11 @@ func (r resourceTeleportAuthPreference) Update(ctx context.Context, req tfsdk.Up
 		return
 	}
 
-	err = r.p.Client.SetAuthPreference(ctx, authPreference)
+	_, err = r.p.Client.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
 	}
-
 	var authPreferenceI apitypes.AuthPreference
 
 	tries := 0
@@ -241,6 +260,7 @@ func (r resourceTeleportAuthPreference) Update(ctx context.Context, req tfsdk.Up
 		return
 	}
 
+	
 	authPreference = authPreferenceI.(*apitypes.AuthPreferenceV2)
 	diags = tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -273,7 +293,6 @@ func (r resourceTeleportAuthPreference) ImportState(ctx context.Context, req tfs
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
 	}
-
 	authPreference := authPreferenceI.(*apitypes.AuthPreferenceV2)
 
 	var state types.Object
@@ -289,8 +308,9 @@ func (r resourceTeleportAuthPreference) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	id := authPreference.GetName()
 
-	state.Attrs["id"] = types.String{Value: authPreference.Metadata.Name}
+	state.Attrs["id"] = types.String{Value: id}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

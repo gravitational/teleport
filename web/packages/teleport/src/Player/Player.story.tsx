@@ -16,17 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react-vite';
 import { createMemoryHistory } from 'history';
 
 import { Flex } from 'design';
 
+import { ContextProvider } from 'teleport';
 import { Route, Router } from 'teleport/components/Router';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { Player } from './Player';
 
-export default {
+const meta: Meta = {
   title: 'Teleport/Player',
+  decorators: Story => {
+    const ctx = createTeleportContext();
+
+    return (
+      <ContextProvider ctx={ctx}>
+        <Story />
+      </ContextProvider>
+    );
+  },
 };
+export default meta;
 
 export const SSH = () => {
   const history = createMemoryHistory({

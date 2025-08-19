@@ -28,12 +28,14 @@ import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import {
   MenuInputType,
   MenuLogin,
   MenuLoginProps,
 } from 'shared/components/MenuLogin';
+import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
 
 import {
   formatPortRange,
@@ -43,13 +45,14 @@ import {
   isWebApp,
 } from 'teleterm/services/tshd/app';
 import { GatewayProtocol } from 'teleterm/services/tshd/types';
+import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   captureAppLaunchInBrowser,
-  connectToAppWithVnet,
   connectToDatabase,
   connectToKube,
   connectToServer,
+  connectToWindowsDesktop,
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
@@ -61,6 +64,19 @@ export function ConnectServerActionButton(props: {
   server: Server;
 }): React.JSX.Element {
   const ctx = useAppContext();
+  const { isSupported: isVnetSupported } = useVnetContext();
+  const { launchVnet } = useVnetLauncher();
+
+  function connectWithVnet(): void {
+    const hostname = props.server.hostname;
+    const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
+    const clusterName = cluster?.name || '<cluster>';
+    const addr = `${hostname}.${clusterName}`;
+    launchVnet({
+      addrToCopy: addr,
+      resourceUri: props.server.uri,
+    });
+  }
 
   function getSshLogins(): string[] {
     const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
@@ -78,21 +94,28 @@ export function ConnectServerActionButton(props: {
     );
   }
 
+  const commonProps = {
+    inputType: MenuInputType.FILTER,
+    textTransform: 'none',
+    getLoginItems: () => getSshLogins().map(login => ({ login, url: '' })),
+    onSelect: (e, login) => connect(login),
+    transformOrigin: {
+      vertical: 'top',
+      horizontal: 'right',
+    },
+    anchorOrigin: {
+      vertical: 'bottom',
+      horizontal: 'right',
+    },
+  };
+
+  if (!isVnetSupported) {
+    return <MenuLogin {...commonProps} />;
+  }
   return (
-    <MenuLogin
-      inputType={MenuInputType.FILTER}
-      textTransform="none"
-      getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
-      onSelect={(e, login) => connect(login)}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'right',
-      }}
-    />
+    <MenuLoginWithActionMenu size="small" {...commonProps}>
+      <MenuItem onClick={connectWithVnet}>Connect with VNet</MenuItem>
+    </MenuLoginWithActionMenu>
   );
 }
 
@@ -119,10 +142,14 @@ export function ConnectKubeActionButton(props: {
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
   const { isSupported: isVnetSupported } = useVnetContext();
-  const launchVnet = useVnetLauncher();
+  const { launchVnet } = useVnetLauncher();
 
   function connectWithVnet(targetPort?: number): void {
-    connectToAppWithVnet(appContext, launchVnet, props.app, targetPort);
+    void launchVnet({
+      addrToCopy: appToAddrToCopy(props.app, targetPort),
+      resourceUri: props.app.uri,
+      isMultiPortApp: !!props.app.tcpPorts.length,
+    });
   }
 
   function setUpGateway(targetPort?: number): void {
@@ -399,5 +426,41 @@ export function AccessRequestButton(props: {
     >
       {props.requestStarted ? '+ Add to request' : '+ Request access'}
     </ButtonBorder>
+  );
+}
+
+export function ConnectWindowsDesktopActionButton(props: {
+  windowsDesktop: WindowsDesktop;
+}): React.JSX.Element {
+  const appContext = useAppContext();
+
+  function connect(login: string): void {
+    const { uri } = props.windowsDesktop;
+    void connectToWindowsDesktop(
+      appContext,
+      { uri, login },
+      { origin: 'resource_table' }
+    );
+  }
+
+  return (
+    <MenuLogin
+      textTransform="none"
+      width="195px"
+      getLoginItems={() =>
+        props.windowsDesktop.logins.map(l => ({ login: l, url: '' }))
+      }
+      onSelect={(_, user) => {
+        connect(user);
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'right',
+      }}
+    />
   );
 }

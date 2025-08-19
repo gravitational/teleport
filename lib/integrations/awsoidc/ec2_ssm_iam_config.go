@@ -31,7 +31,6 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
@@ -186,7 +185,7 @@ func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMI
 	content := awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL,
 		awslib.WithInsecureSkipInstallPathRandomization(req.insecureSkipInstallPathRandomization),
 	)
-	tags := tags.DefaultResourceCreationTags(req.ClusterName, req.IntegrationName)
+	tags := defaultResourceCreationTags(req.ClusterName, req.IntegrationName)
 	createDoc, err := awsactions.CreateDocument(clt, req.SSMDocumentName, content, ssmtypes.DocumentTypeCommand, ssmtypes.DocumentFormatYaml, tags)
 	if err != nil {
 		return trace.Wrap(err)

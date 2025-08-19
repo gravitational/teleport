@@ -1,6 +1,9 @@
 ---
 title: Application Access Reference Documentation
 description: Configuration and CLI reference documentation for Teleport application access.
+labels:
+ - reference
+ - zero-trust
 ---
 
 This guide describes interfaces and options for interacting with the Teleport
@@ -17,7 +20,7 @@ appearing in the `teleport.yaml` configuration file:
 ```yaml
 app_service:
   # Enables application proxy service.
-  enabled: yes
+  enabled: true
   # Teleport provides a small debug app called "dumper" that can be used
   # to make sure application access is working correctly. It outputs JWTs,
   #  so it can be useful when extending your application.
@@ -39,6 +42,14 @@ app_service:
     public_addr: "grafana.teleport.example.com"
     # Rewrites section.
     rewrite:
+      # Specify whether to include roles or traits in the JWT.
+      # Options:
+      # - roles-and-traits: include both roles and traits
+      # - roles: include only roles
+      # - traits: include only traits
+      # - none: exclude both roles and traits from the JWT token
+      # Default: roles-and-traits
+      jwt_claims: roles-and-traits
       # Rewrite the "Location" header on redirect responses replacing the
       # host with the public address of this application.
       redirect:

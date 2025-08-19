@@ -36,6 +36,12 @@ exclude_fields:
   # Metadata (we id resources by name on our side)
   - "WorkloadIdentity.metadata.id"
 
+  # The extra_claims field is a `google.protobuf.Struct` which isn't currently
+  # supported by protoc-gen-terraform.
+  #
+  # https://github.com/gravitational/protoc-gen-terraform/issues/52
+  - "WorkloadIdentity.spec.spiffe.jwt.extra_claims"
+
 # These fields will be marked as Computed: true
 computed_fields:
   # Metadata
@@ -66,3 +72,5 @@ validators:
 
 custom_types:
   "WorkloadIdentity.metadata.expires": Timestamp
+  "WorkloadIdentity.spec.spiffe.x509.maximum_ttl": Duration
+  "WorkloadIdentity.spec.spiffe.jwt.maximum_ttl": Duration

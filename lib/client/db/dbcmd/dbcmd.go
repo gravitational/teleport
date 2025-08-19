@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -281,7 +282,7 @@ func (c *CLICommandBuilder) getPostgresConnString() string {
 // getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.
 // Currently, the common options are: user, database, host, port and protocol.
 func (c *CLICommandBuilder) getMySQLCommonCmdOpts() []string {
-	args := make([]string, 0)
+	args := []string{"--skip-password"}
 	if c.db.Username != "" {
 		args = append(args, "--user", c.db.Username)
 	}
@@ -573,10 +574,22 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 		serverSelectionTimeoutMS = envValue
 	}
 	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
+	// If directConnection is false (default for many clients), the client
+	// attempts to discover all servers in the replica set, and sends operations
+	// to the primary member.
+	// https://www.mongodb.com/docs/manual/reference/connection-string-options/#mongodb-urioption-urioption.directConnection
+	//
+	// Since Teleport is a proxy that appears only as a single server,
+	// directConnection should always be used.
+	//
+	// mongosh automatically adds the directConnection=true parameter. However,
+	// here we explicitly set it for other clients like MongoDB compass.
+	// https://www.mongodb.com/docs/mongodb-shell/connect/
+	query.Set("directConnection", "true")
 
 	address := url.URL{
 		Scheme:   connstring.SchemeMongoDB,
-		Host:     fmt.Sprintf("%s:%d", c.host, c.port),
+		Host:     net.JoinHostPort(c.host, strconv.Itoa(c.port)),
 		RawQuery: query.Encode(),
 		Path:     fmt.Sprintf("/%s", c.db.Database),
 	}

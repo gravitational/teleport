@@ -188,13 +188,13 @@ export const Support = ({
 };
 
 export const StyledMultiRowBox = styled(MultiRowBox)`
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     border: none;
   }
 `;
 
 export const StyledRow = styled(Row)`
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     border: none !important;
     padding-left: 0;
     padding-bottom: 0;
@@ -204,7 +204,7 @@ export const StyledRow = styled(Row)`
 export const MobileSeparator = styled.div`
   width: 100vw;
   margin-left: -${props => props.theme.space[6]}px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     border-bottom: ${props =>
       `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2]}`};
   }
@@ -217,14 +217,14 @@ export const IconBox = styled(Box)`
   margin-right: ${props => props.theme.space[3]}px;
   background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
 
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     background: transparent;
     margin-right: ${props => props.theme.space[1]}px;
   }
 `;
 
 const SupportContentFlex = styled(Flex)`
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -232,7 +232,7 @@ const SupportContentFlex = styled(Flex)`
 
 const SupportButtonBox = styled(Box)`
   width: 320px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     margin-left: ${props => props.theme.space[6]}px;
     margin-top: ${props => props.theme.space[2]}px;
   }
@@ -242,10 +242,10 @@ const SupportLinksFlex = styled(Flex)`
   justify-content: space-between;
   flex-wrap: wrap;
   max-width: 70%;
-  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}) {
     max-width: 100%;
   }
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     flex-direction: column;
     gap: ${props => props.theme.space[3]}px;
     margin-bottom: ${props => props.theme.space[3]}px;
@@ -254,7 +254,7 @@ const SupportLinksFlex = styled(Flex)`
 
 const DataItemFlex = styled(Flex)`
   margin-bottom: ${props => props.theme.space[3]}px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     flex-direction: column;
     padding-left: ${props => props.theme.space[2]}px;
   }

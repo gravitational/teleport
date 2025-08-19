@@ -157,7 +157,7 @@ export const Small = () => {
       <SlideTabs
         tabs={[
           { key: 'kraken', title: 'Kraken' },
-          { key: 'chubacabra', title: 'Chubacabra' },
+          { key: 'chupacabra', title: 'Chupacabra' },
           { key: 'yeti', title: 'Yeti' },
         ]}
         size="small"
@@ -201,6 +201,18 @@ export const StatusIcons = () => {
       <SlideTabs
         tabs={tabs}
         hideStatusIconOnActiveTab
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+      />
+      <SlideTabs
+        size="medium"
+        tabs={tabs}
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+      />
+      <SlideTabs
+        size="small"
+        tabs={tabs}
         activeIndex={activeIndex}
         onChange={setActiveIndex}
       />

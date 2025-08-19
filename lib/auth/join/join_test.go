@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -57,8 +57,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
-	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+func newTestTLSServer(t testing.TB) *authtest.TLSServer {
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
@@ -162,6 +162,8 @@ func TestRegister_Bot(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: "test",
 		},
@@ -293,10 +295,10 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 		{
 			name:           "value exceeding limit specified",
 			requestExpires: &tooGreatExpires,
-			// MaxSessionTTL set in createBotRole is 12 hours, so this cap will
-			// apply instead of the defaults.MaxRenewableCertTTL specified
-			// in generateInitialBotCerts.
-			expectTTL: 12 * time.Hour,
+			// MaxSessionTTL is set to defaults.MaxRenewableCertTTL by
+			// createBotRole, and will clamp the requested value set in
+			// generateInitialBotCerts.
+			expectTTL: defaults.DefaultBotMaxSessionTTL,
 		},
 	}
 
@@ -304,6 +306,8 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			botName := uuid.NewString()
 			_, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},

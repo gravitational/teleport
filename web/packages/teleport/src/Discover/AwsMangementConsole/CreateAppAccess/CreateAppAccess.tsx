@@ -101,7 +101,7 @@ export function CreateAppAccess() {
   return (
     <Validation>
       {({ validator }) => (
-        <Box maxWidth="800px">
+        <>
           <Header>Enable Access to AWS with Teleport Application Access</Header>
           <P mt={1} mb={3}>
             An application will be created that will use the selected AWS OIDC
@@ -172,7 +172,7 @@ export function CreateAppAccess() {
               appName={agentMeta.resourceName}
             />
           )}
-        </Box>
+        </>
       )}
     </Validation>
   );

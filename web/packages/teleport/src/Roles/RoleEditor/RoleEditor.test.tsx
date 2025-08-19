@@ -23,9 +23,18 @@ import { render, screen, userEvent } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { ApiError } from 'teleport/services/api/parseError';
+import ResourceService, {
+  Role,
+  RoleWithYaml,
+} from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import {
+  CaptureEvent,
+  CreateNewRoleSaveClickEventData,
+  RoleEditorMode,
+  userEventService,
+} from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
 import {
   YamlStringifyRequest,
@@ -74,6 +83,18 @@ beforeEach(() => {
       return toFauxYaml(withDefaults(req.resource));
     });
   jest.spyOn(userEventService, 'captureUserEvent').mockImplementation(() => {});
+  jest
+    .spyOn(userEventService, 'captureCreateNewRoleSaveClickEvent')
+    .mockImplementation(() => {});
+  jest
+    .spyOn(ResourceService.prototype, 'fetchRole')
+    .mockImplementation(async name => {
+      // Pretend that we never have a name collision.
+      throw new ApiError({
+        message: `role ${name} is not found`,
+        response: { status: 404 } as Response,
+      });
+    });
 });
 
 afterEach(() => {
@@ -112,17 +133,15 @@ test('rendering and switching tabs for new role', async () => {
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
   await user.click(getStandardEditorTab());
-  await screen.findByLabelText('Role Name *');
+  await screen.findByLabelText('Max Session TTL');
   expect(
     screen.queryByRole('button', { name: /Reset to Standard Settings/i })
   ).not.toBeInTheDocument();
-  await forwardToTab('Resources');
-  await forwardToTab('Admin Rules');
-  await forwardToTab('Options');
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 }, 10000);
 
 test('rendering and switching tabs for a non-standard role', async () => {
+  const onSave = jest.fn();
   const originalRole = withDefaults({
     metadata: {
       name: 'some-role',
@@ -132,7 +151,12 @@ test('rendering and switching tabs for a non-standard role', async () => {
       deny: { node_labels: { foo: ['bar'] } },
     },
   });
-  render(<TestRoleEditor originalRole={newRoleWithYaml(originalRole)} />);
+  render(
+    <TestRoleEditor
+      originalRole={newRoleWithYaml(originalRole)}
+      onSave={onSave}
+    />
+  );
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
   expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
@@ -146,12 +170,28 @@ test('rendering and switching tabs for a non-standard role', async () => {
   await user.click(getYamlEditorTab());
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
   expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
+
+  await user.clear(await findTextEditor());
+  await user.type(await findTextEditor(), '{{"asdf":"qwer"}');
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+  expect(onSave).toHaveBeenCalledWith({
+    yaml: '{"asdf":"qwer"}',
+  });
+  expect(
+    userEventService.captureCreateNewRoleSaveClickEvent
+  ).toHaveBeenCalledWith({
+    standardUsed: false,
+    yamlUsed: true,
+    modeWhenSaved: RoleEditorMode.Yaml,
+    fieldsWithConversionErrors: ['spec.deny.node_labels'],
+  } as CreateNewRoleSaveClickEventData);
 });
 
 it('calls onRoleUpdate on each modification in the standard editor', async () => {
   cfg.isPolicyEnabled = true;
   const onRoleUpdate = jest.fn();
-  render(<TestRoleEditor onRoleUpdate={onRoleUpdate} />);
+  render(<TestRoleEditor demoMode onRoleUpdate={onRoleUpdate} />);
   expect(onRoleUpdate).toHaveBeenLastCalledWith(
     withDefaults({ metadata: { name: 'new_role_name' } })
   );
@@ -340,14 +380,19 @@ test('saving a new role', async () => {
       spec: {
         allow: {},
         deny: {},
-        options: defaultOptions(),
+        options: defaultOptions(defaultRoleVersion),
       },
-      version: 'v7',
+      version: 'v8',
     },
   });
-  expect(userEventService.captureUserEvent).toHaveBeenCalledWith({
-    event: CaptureEvent.CreateNewRoleSaveClickEvent,
-  });
+  expect(
+    userEventService.captureCreateNewRoleSaveClickEvent
+  ).toHaveBeenCalledWith({
+    standardUsed: true,
+    yamlUsed: false,
+    modeWhenSaved: RoleEditorMode.Standard,
+    fieldsWithConversionErrors: [],
+  } as CreateNewRoleSaveClickEventData);
 });
 
 describe('saving a new role after editing as YAML', () => {
@@ -363,9 +408,14 @@ describe('saving a new role after editing as YAML', () => {
     expect(onSave).toHaveBeenCalledWith({
       yaml: '{"foo":"bar"}',
     });
-    expect(userEventService.captureUserEvent).toHaveBeenCalledWith({
-      event: CaptureEvent.CreateNewRoleSaveClickEvent,
-    });
+    expect(
+      userEventService.captureCreateNewRoleSaveClickEvent
+    ).toHaveBeenCalledWith({
+      standardUsed: false,
+      yamlUsed: true,
+      modeWhenSaved: RoleEditorMode.Yaml,
+      fieldsWithConversionErrors: [],
+    } as CreateNewRoleSaveClickEventData);
   });
 
   test('with Policy enabled', async () => {
@@ -397,9 +447,14 @@ describe('saving a new role after editing as YAML', () => {
     expect(onSave).toHaveBeenCalledWith({
       yaml: '{"metadata":{"description":"foo"}}',
     });
-    expect(userEventService.captureUserEvent).toHaveBeenCalledWith({
-      event: CaptureEvent.CreateNewRoleSaveClickEvent,
-    });
+    expect(
+      userEventService.captureCreateNewRoleSaveClickEvent
+    ).toHaveBeenCalledWith({
+      standardUsed: false,
+      yamlUsed: true,
+      modeWhenSaved: RoleEditorMode.Yaml,
+      fieldsWithConversionErrors: [],
+    } as CreateNewRoleSaveClickEventData);
   });
 });
 

@@ -238,25 +238,16 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subSeconds(Date.now(), 15).toISOString(), // 15 seconds ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '2',
-      title: 'Example notification 2',
+      title: 'Example notification 2 with newlines',
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subSeconds(Date.now(), 30).toISOString(), // 30 seconds ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent:
+        'This is the text content of the notification.\\nThis is a newline.\\n\\nThis is another newline.',
     },
     {
       id: '3',
@@ -264,12 +255,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subMinutes(Date.now(), 1).toISOString(), // 1 minute ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '4',
@@ -277,12 +263,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subMinutes(Date.now(), 5).toISOString(), // 5 minutes ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '5',
@@ -290,12 +271,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subMinutes(Date.now(), 10).toISOString(), // 10 minutes ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '6',
@@ -303,12 +279,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subHours(Date.now(), 1).toISOString(), // 1 hour ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '7',
@@ -316,12 +287,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 1).toISOString(), // 1 day ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '8',
@@ -329,12 +295,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 2).toISOString(), // 2 days ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '9',
@@ -342,12 +303,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 7).toISOString(), // 7 days ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '10',
@@ -355,12 +311,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 15).toISOString(), // 15 days ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '11',
@@ -368,12 +319,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 30).toISOString(), // 30 days ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '12',
@@ -381,12 +327,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 35).toISOString(), // 35 days ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '13',
@@ -394,12 +335,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 40).toISOString(), // 40 days ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '14',
@@ -407,12 +343,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 45).toISOString(), // 45 days ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '15',
@@ -420,12 +351,7 @@ const mockNotificationsResponseFirstPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 50).toISOString(), // 50 days ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
   ],
 };
@@ -440,12 +366,7 @@ const mockNotificationsResponseSecondPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 55).toISOString(), // 55 days ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '17',
@@ -453,12 +374,7 @@ const mockNotificationsResponseSecondPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 60).toISOString(), // 60 days ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '18',
@@ -466,12 +382,7 @@ const mockNotificationsResponseSecondPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 65).toISOString(), // 65 days ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '19',
@@ -479,12 +390,7 @@ const mockNotificationsResponseSecondPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 70).toISOString(), // 70 days ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '20',
@@ -492,12 +398,7 @@ const mockNotificationsResponseSecondPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 75).toISOString(), // 75 days ago
       clicked: true,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
     {
       id: '21',
@@ -505,12 +406,7 @@ const mockNotificationsResponseSecondPage = {
       subKind: NotificationSubKind.UserCreatedInformational,
       created: subDays(Date.now(), 80).toISOString(), // 80 days ago
       clicked: false,
-      labels: [
-        {
-          name: 'text-content',
-          value: 'This is the text content of the notification.',
-        },
-      ],
+      textContent: 'This is the text content of the notification.',
     },
   ],
 };

@@ -38,6 +38,7 @@ import sessionService from './services/session';
 import { storageService } from './services/storageService';
 import userService from './services/user';
 import userGroupService from './services/userGroups';
+import { yamlService } from './services/yaml/yaml';
 import { StoreNav, StoreUserContext } from './stores';
 import * as types from './types';
 
@@ -62,6 +63,7 @@ class TeleportContext implements types.Context {
   userGroupService = userGroupService;
   mfaService = new MfaService();
   notificationService = new NotificationService();
+  yamlService = yamlService;
 
   notificationContentFactory = notificationContentFactory;
 
@@ -92,7 +94,7 @@ class TeleportContext implements types.Context {
   // The caller of this function provides the try/catch
   // block.
   // preferences are needed in TeleportContextE, but not in TeleportContext.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   async init(preferences: UserPreferences) {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
@@ -204,20 +206,24 @@ class TeleportContext implements types.Context {
         userContext.getExternalAuditStorageAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
       locks: userContext.getLockAccess().list,
-      newLocks:
-        userContext.getLockAccess().create && userContext.getLockAccess().edit,
+      addLocks:
+        userContext.getLockAccess().create && userContext.getLockAccess().edit, // Presumably because this is an upsert operation so needs both create and edit permissions
+      removeLocks: userContext.getLockAccess().remove,
       accessMonitoring: hasAccessMonitoringAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
       accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
-      tokens: userContext.getTokenAccess().create,
+      createTokens: userContext.getTokenAccess().create,
+      listTokens: userContext.getTokenAccess().list,
       externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
       listBots: userContext.getBotsAccess().list,
+      readBots: userContext.getBotsAccess().read,
       addBots: userContext.getBotsAccess().create,
       editBots: userContext.getBotsAccess().edit,
       removeBots: userContext.getBotsAccess().remove,
       gitServers:
         userContext.getGitServersAccess().list &&
         userContext.getGitServersAccess().read,
+      listBotInstances: userContext.getBotInstancesAccess().list,
     };
   }
 }
@@ -237,7 +243,8 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   trustedClusters: false,
   users: false,
   newAccessRequest: false,
-  tokens: false,
+  createTokens: false,
+  listTokens: false,
   accessRequests: false,
   downloadCenter: false,
   supportLink: false,
@@ -248,16 +255,19 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   enrollIntegrationsOrPlugins: false,
   enrollIntegrations: false,
   locks: false,
-  newLocks: false,
+  addLocks: false,
+  removeLocks: false,
   accessMonitoring: false,
   accessGraph: false,
   accessGraphIntegrations: false,
   externalAuditStorage: false,
   addBots: false,
   listBots: false,
+  readBots: false,
   editBots: false,
   removeBots: false,
   gitServers: false,
+  listBotInstances: false,
 };
 
 export default TeleportContext;

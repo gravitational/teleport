@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"errors"
+	"iter"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -46,7 +47,12 @@ import (
 // DatabaseGetter defines interface for fetching database resources.
 type DatabaseGetter interface {
 	// GetDatabases returns all database resources.
+	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(context.Context) ([]types.Database, error)
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 }
@@ -189,6 +195,9 @@ func ValidateDatabase(db types.Database) error {
 		if db.GetAD().KDCHostName != "" {
 			if db.GetAD().LDAPCert == "" {
 				return trace.BadParameter("missing LDAP certificate for x509 authentication for database %q", db.GetName())
+			}
+			if _, err := tlsca.ParseCertificatePEM([]byte(db.GetAD().LDAPCert)); err != nil {
+				return trace.BadParameter("provided database %q LDAP certificate doesn't appear to be valid: %v", db.GetName(), err)
 			}
 		}
 	}

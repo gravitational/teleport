@@ -38,7 +38,8 @@ $ sudo systemctl enable teleport-event-handler
 $ sudo systemctl start teleport-event-handler
 ```
 
-<Details title="Choose when to start exporting events">
+<details>
+<summary>Choose when to start exporting events</summary>
 
 You can configure when you would like the Teleport Event Handler to begin
 exporting events when you run the `start` command. This example will start
@@ -53,7 +54,7 @@ Event Handler. If you want to change the time frame later, remove the plugin
 state directory that you specified in the `storage` field of the handler's
 configuration file.
 
-</Details>
+</details>
 
 Once the Teleport Event Handler starts, you will see notifications about scanned
 and forwarded events:

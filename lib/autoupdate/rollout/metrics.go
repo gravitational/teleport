@@ -337,7 +337,7 @@ func (m *metrics) observeRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, n
 
 	m.setStrategyMetric(rollout.GetSpec().GetStrategy(), m.rolloutStrategy)
 
-	if to := rollout.GetStatus().GetTimeOverride().AsTime(); !(to.IsZero() || to.Unix() == 0) {
+	if to := rollout.GetStatus().GetTimeOverride().AsTime(); !to.IsZero() && to.Unix() != 0 {
 		m.rolloutTimeOverride.Set(float64(to.Second()))
 	} else {
 		m.rolloutTimeOverride.Set(0)

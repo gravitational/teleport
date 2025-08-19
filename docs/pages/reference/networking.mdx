@@ -1,6 +1,9 @@
 ---
 title: Networking
 description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
+labels:
+ - conceptual
+ - platform-wide
 ---
 
 A Teleport cluster is a distributed system that may comprise a number of
@@ -236,11 +239,10 @@ Service, Kubernetes Service, and other services that protect resources in your
 infrastructure, there is no need to open ports on the machines running the
 agents to the public internet. 
 
-<Details title="Direct connections to agents">
+### Direct connections to agents
 
 If you run a self-hosted Teleport cluster, you can join an agent [directly to
-the Teleport Auth
-Service](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
+the Teleport Auth Service](../enroll-resources/agents/join-token.mdx).
 In this setup, certain Teleport services open their own listeners rather than
 accepting connections via reverse tunnel. The Proxy Service connects to these
 agent services by dialing them directly.
@@ -259,4 +261,6 @@ Proxy Service. The Teleport Application Service and Teleport Database Service
 use reverse tunnel connections through the Teleport Proxy Service and cannot
 expose ports directly.
 
-</Details>
+<Admonition type="important">
+Direct auth joining is only supported for ssh and kube agents. Application, database, and other discovery-based features are not supported when joining auth directly.
+</Admonition>

@@ -197,7 +197,10 @@ func (t *WSStream) processMessages(ctx context.Context) {
 
 				handler, ok := t.handlers[envelope.Type]
 				if !ok {
-					t.log.WarnContext(ctx, "Received web socket envelope with unknown type", "envelope_type", logutils.TypeAttr(envelope.Type))
+					t.log.WarnContext(ctx, "Received web socket envelope with unknown type",
+						"envelope_type", envelope.Type,
+						"envelope_payload", envelope.Payload,
+					)
 					continue
 				}
 
@@ -494,7 +497,7 @@ func (t *Stream) handleWindowResize(ctx context.Context, envelope Envelope) {
 		return
 	}
 
-	var e map[string]interface{}
+	var e map[string]any
 	if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
 		t.log.WarnContext(ctx, "Failed to parse resize payload", "error", err)
 		return

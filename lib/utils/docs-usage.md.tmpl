@@ -1,0 +1,91 @@
+{{define "FormatCommand" -}}
+{{if .Flags|AnyVisibleFlags}}{{if .FlagSummary }} {{.FlagSummary}}{{end}}{{end -}}
+    {{range .Args}}{{if not .Hidden}} {{ .|FormatUsageArg}}{{end}}{{end -}}
+{{end -}}
+
+{{ define "FormatCommands" -}}
+{{$appName := .Name -}}
+{{range .FlattenedCommands|SortCommandsByName -}}
+{{if not .Hidden -}}
+## {{$appName}} {{.FullCommand}}
+
+{{.Help|Wrap 0 }}
+Usage:
+
+```code
+$ {{$appName}} {{.FullCommand}}{{template "FormatCommand" .}}
+```
+
+{{if AnyEnvVarsForCmd .Args .Flags -}}
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+{{- EnvVarsToRows .Args .Flags|FormatThreeColMarkdownTable}}
+
+{{end -}}
+
+{{ if .Flags|AnyVisibleFlags -}}
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+{{- .Flags|FlagsToRows|FormatThreeColMarkdownTable }}
+
+{{end -}}
+{{ if .Args -}}
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+{{- .Args|ArgsToRows|FormatThreeColMarkdownTable }}
+
+{{end -}}
+{{end -}}
+{{end -}}
+{{end -}}
+
+{{define "FormatUsage" -}}
+```code
+$ {{.Name}}{{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]{{end}}
+```
+
+{{end -}}
+---
+title: {{.App.Name}} Reference
+description: Provides a comprehensive list of commands, arguments, and flags for {{.App.Name}}.
+---
+
+This guide provides a comprehensive list of commands, arguments, and flags for
+{{.App.Name}}: {{ if .App.Help -}}
+{{- .App.Help|Wrap 0 }}
+{{ end -}}
+
+{{template "FormatUsage" .App -}}
+{{if .Context.Flags -}}
+Global flags:
+
+|Flag|Default|Description|
+|---|---|---|
+{{- .Context.Flags|FlagsToRows|FormatThreeColMarkdownTable}}
+
+{{end -}}
+{{if AnyEnvVarsForCmd .Context.Args .Context.Flags -}}
+Global environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+{{- EnvVarsToRows .Context.Args .Context.Flags|FormatThreeColMarkdownTable}}
+
+{{end -}}
+{{if .Context.Args -}}
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+{{- .Context.Args|ArgsToRows|FormatThreeColMarkdownTable}}
+
+{{end -}}
+{{if .App.Commands -}}
+{{template "FormatCommands" .App -}}
+{{end -}}

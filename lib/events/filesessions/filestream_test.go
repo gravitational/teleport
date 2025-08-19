@@ -38,6 +38,7 @@ func TestReserveUploadPart(t *testing.T) {
 
 	handler, err := NewHandler(Config{
 		Directory: dir,
+		OpenFile:  os.OpenFile,
 	})
 	require.NoError(t, err)
 
@@ -60,6 +61,7 @@ func TestUploadPart(t *testing.T) {
 
 	handler, err := NewHandler(Config{
 		Directory: dir,
+		OpenFile:  os.OpenFile,
 	})
 	require.NoError(t, err)
 
@@ -138,6 +140,7 @@ func TestCompleteUpload(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			handler, err := NewHandler(Config{
 				Directory: t.TempDir(),
+				OpenFile:  os.OpenFile,
 			})
 			require.NoError(t, err)
 
@@ -154,7 +157,7 @@ func TestCompleteUpload(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check upload contents
-			uploadPath := handler.path(upload.SessionID)
+			uploadPath := handler.recordingPath(upload.SessionID)
 			f, err := os.Open(uploadPath)
 			require.NoError(t, err)
 
@@ -162,10 +165,7 @@ func TestCompleteUpload(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.expectedContent, contents)
 
-			// Part files directory should no longer exists.
-			_, err = os.ReadDir(handler.uploadRootPath(*upload))
-			require.Error(t, err)
-			require.True(t, os.IsNotExist(err))
+			require.NoDirExists(t, handler.uploadRootPath(*upload))
 		})
 	}
 }

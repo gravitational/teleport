@@ -1,19 +1,25 @@
 ---
 title: Managed Updates for Teleport Agents (v1)
 description: Describes how to set up Managed Updates for Teleport Agents (v1)
+labels:
+ - how-to
+ - platform-wide
 ---
 
 <Admonition type="warning">
-This document describes Managed Updates for Agents (v1), which is
-currently supported but will be deprecated after [Managed Updates for
-Agents (v2)](./agent-managed-updates.mdx) is generally available.
+This document describes Managed Updates for Agents (v1), which
+is currently supported but may be removed in future versions of Teleport.
+
+For Managed Updates v2 instructions, see [Managed Updates for
+Agents (v2)](./agent-managed-updates.mdx).
 </Admonition>
 
 Managed Updates v1 uses a script called `teleport-upgrade` that is provided by
 the `teleport-ent-updater` package and configured by the `cluster_maintenance_config`
 Teleport resource. Managed Updates v2 uses a binary called `teleport-update` that is
 provided by the `teleport` package and configured by the `autoupdate_version` and
-`autoupdate_config`. The original updater and resource are described in this document.
+`autoupdate_config` resources. The original updater and resource are described in
+this document.
 
 Only Enterprise versions of Teleport can use Managed Updates v1.
 
@@ -22,14 +28,16 @@ as it provides a safer, simpler, more flexible, compatible, and reliable update 
 compared to Managed Updates v1.
 
 <Admonition type="note" title="Compatibility between Managed Updates v1 and v2">
-Managed Updates v2 is backwards compatible with the
+The Managed Updates v2 `teleport-update` binary is backwards-compatible with the
 `cluster_maintenance_config` resource. The Managed Updates v1 `teleport-upgrade` script
-is forwards compatible with the `autoupdate_config` and `autoupdate_version` resources.
-Teleport Agents connected to the same cluster may use either resource.
+is forwards-compatible with the `autoupdate_config` and `autoupdate_version` resources.
+Agents connected to the same cluster will all update to the same version.
 
-If the `autoupdate_*` resources are configured, they take precedence over
+If the `autoupdate_config` resource is configured, it takes precedence over
 `cluster_maintenance_config`. This allows for a safe, non-breaking, incremental
-migration between Managed Updates v1 and v2.
+migration between Managed Updates v1 and v2. If `autoupdate_config` is not present
+and `autoupdate_version` is present, the `autoupdate_config` settings are implicitly
+derived from `cluster_maintenance_config`.
 
 Users of cloud-hosted Teleport Enterprise will be migrated to Managed Updates v2
 in the first half of 2025 and should plan to migrate their agents to `teleport-update`.
@@ -65,13 +73,10 @@ regular maintenance window.
 
 ## Prerequisites
 
-- A Teleport Enterprise cluster. If you do not have one, [sign
-  up](https://goteleport.com/signup) for a free trial or consult the [Update
-  Reference](upgrading-reference.mdx) to read about manual updates.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 - Teleport Agents that are not yet enrolled in Managed Updates.
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
+- (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Enable Managed Agent Updates
@@ -117,7 +122,7 @@ Teleport cluster that agents use to determine when to check for upgrades.
 
 1. Add the role to your Teleport user:
 
-  (!docs/pages/includes/add-role-to-user.mdx role="cmc-editor"!)
+   (!docs/pages/includes/add-role-to-user.mdx role="cmc-editor"!)
 
 1. Create a cluster maintenance config in a file called `cmc.yaml`. The
    following example allows maintenance on Monday, Wednesday and Friday between
@@ -141,7 +146,7 @@ field in the Proxy Service configuration file:
 
 ```yaml
 proxy_service:
-  enabled: "yes"
+  enabled: true
   automatic_upgrades_channels:
     # Override the default version channel reachable at
     # https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version
@@ -222,7 +227,7 @@ Server ID                            Hostname      Services Version Upgrader
    <TabItem label="Self-Hosted Teleport Enterprise">
 
    1. Follow the instructions in the Teleport [installation
-      guide](../installation.mdx#package-repositories) to install the `teleport`
+      guide](../installation/linux.mdx#package-repositories) to install the `teleport`
       binary on your Linux server for your package manager.
 
    1. Using your package manager, install `teleport-ent-updater` on the
@@ -238,7 +243,7 @@ Server ID                            Hostname      Services Version Upgrader
    The installation script detects the package manager on your Linux server and
    uses it to install Teleport binaries. To customize your installation, learn
    about the Teleport package repositories in the [installation
-   guide](../installation.mdx#linux).
+   guide](../installation/linux.mdx).
 
 1. Confirm that the version of the `teleport` binary is the one you expect:
 
@@ -246,18 +251,19 @@ Server ID                            Hostname      Services Version Upgrader
    $ teleport version
    ```
 
-<Details title="Running the agent as a non-root user">
+   <details>
+   <summary>Running the agent as a non-root user</summary>
 
-If you changed the agent user to run as non-root, create
-`/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user:
+   If you changed the agent user to run as non-root, create
+   `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user:
 
-```code
-$ sudo mkdir -p /etc/teleport-upgrade.d/
-$ sudo touch /etc/teleport-upgrade.d/schedule
-$ sudo chown your-teleport-user /etc/teleport-upgrade.d/schedule
-```
+   ```code
+   $ sudo mkdir -p /etc/teleport-upgrade.d/
+   $ sudo touch /etc/teleport-upgrade.d/schedule
+   $ sudo chown your-teleport-user /etc/teleport-upgrade.d/schedule
+   ```
 
-</Details>
+   </details>
 
 1. Verify that the upgrader can see your version endpoint by checking for
    upgrades:
@@ -405,4 +411,3 @@ until the next reconciliation, you can trigger an event.
    ```code
    $ sudo systemctl enable --now teleport-upgrade.timer
    ```
-

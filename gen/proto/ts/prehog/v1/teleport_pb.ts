@@ -478,7 +478,15 @@ export enum UserKind {
      *
      * @generated from protobuf enum value: USER_KIND_BOT = 2;
      */
-    BOT = 2
+    BOT = 2,
+    /**
+     * Indicates that the user associated with this event is a system component e.g. Okta service.
+     *
+     * PostHog property value: "system"
+     *
+     * @generated from protobuf enum value: USER_KIND_SYSTEM = 3;
+     */
+    SYSTEM = 3
 }
 /**
  * UserOrigin is the origin of a user account.

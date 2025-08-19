@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 )
 
 // NOTE: the contents of this file might be moving to the 'api' package in the future.
@@ -174,7 +174,7 @@ func (t Target) SecurityPatchAltOf(other Target) bool {
 // iterSecAlts is a helper for iterating the valide values of the
 // security-patch-alts label.
 func (t Target) iterSecAlts(fn func(v string)) {
-	for _, alt := range strings.Split(t[LabelSecurityPatchAlts], "|") {
+	for alt := range strings.SplitSeq(t[LabelSecurityPatchAlts], "|") {
 		alt = strings.TrimSpace(alt)
 		if !semver.IsValid(alt) {
 			continue

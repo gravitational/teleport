@@ -281,6 +281,15 @@ export interface PromptMFARequest {
      * @generated from protobuf field: teleport.lib.teleterm.v1.SSOChallenge sso = 6;
      */
     sso?: SSOChallenge;
+    /**
+     * We may handle MFA options differently based on whether or not per-session
+     * MFA is required. For example, we invalidate TOTP as an option during
+     * per-session MFA but we may still need to know that the user has TOTP
+     * configured as an option.
+     *
+     * @generated from protobuf field: bool per_session_mfa = 7;
+     */
+    perSessionMfa: boolean;
 }
 /**
  * SSOChallenge contains SSO challenge details.
@@ -323,15 +332,23 @@ export interface PromptMFAResponse {
  */
 export interface PromptHardwareKeyPINRequest {
     /**
-     * @generated from protobuf field: string root_cluster_uri = 1;
-     */
-    rootClusterUri: string;
-    /**
-     * Specifies if a PIN is optional, allowing the user to set it up if left empty.
+     * PinOptional specified if a PIN is optional, allowing the user to set it up if left empty.
      *
      * @generated from protobuf field: bool pin_optional = 2;
      */
     pinOptional: boolean;
+    /**
+     * ProxyHostname is the proxy hostname of the client key.
+     *
+     * @generated from protobuf field: string proxy_hostname = 3;
+     */
+    proxyHostname: string;
+    /**
+     * Command is an optional command string to provide context for the prompt.
+     *
+     * @generated from protobuf field: string command = 4;
+     */
+    command: string;
 }
 /**
  * Response for PromptHardwareKeyPIN.
@@ -353,9 +370,17 @@ export interface PromptHardwareKeyPINResponse {
  */
 export interface PromptHardwareKeyTouchRequest {
     /**
-     * @generated from protobuf field: string root_cluster_uri = 1;
+     * ProxyHostname is the proxy hostname of the client key.
+     *
+     * @generated from protobuf field: string proxy_hostname = 2;
      */
-    rootClusterUri: string;
+    proxyHostname: string;
+    /**
+     * Command is an optional command string to provide context for the prompt.
+     *
+     * @generated from protobuf field: string command = 3;
+     */
+    command: string;
 }
 /**
  * Response for PromptHardwareKeyTouch.
@@ -371,9 +396,11 @@ export interface PromptHardwareKeyTouchResponse {
  */
 export interface PromptHardwareKeyPINChangeRequest {
     /**
-     * @generated from protobuf field: string root_cluster_uri = 1;
+     * ProxyHostname is the proxy hostname of the client key.
+     *
+     * @generated from protobuf field: string proxy_hostname = 2;
      */
-    rootClusterUri: string;
+    proxyHostname: string;
 }
 /**
  * Response for PromptHardwareKeyPINChange.
@@ -408,15 +435,17 @@ export interface PromptHardwareKeyPINChangeResponse {
  */
 export interface ConfirmHardwareKeySlotOverwriteRequest {
     /**
-     * @generated from protobuf field: string root_cluster_uri = 1;
-     */
-    rootClusterUri: string;
-    /**
      * Message to display in the prompt.
      *
      * @generated from protobuf field: string message = 2;
      */
     message: string;
+    /**
+     * ProxyHostname is the proxy hostname of the client key.
+     *
+     * @generated from protobuf field: string proxy_hostname = 3;
+     */
+    proxyHostname: string;
 }
 /**
  * Response for ConfirmHardwareKeySlotOverwrite.
@@ -1097,7 +1126,8 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
             { no: 3, name: "totp", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "webauthn", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "sso", kind: "message", T: () => SSOChallenge }
+            { no: 6, name: "sso", kind: "message", T: () => SSOChallenge },
+            { no: 7, name: "per_session_mfa", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<PromptMFARequest>): PromptMFARequest {
@@ -1106,6 +1136,7 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         message.totp = false;
         message.webauthn = false;
         message.clusterUri = "";
+        message.perSessionMfa = false;
         if (value !== undefined)
             reflectionMergePartial<PromptMFARequest>(this, message, value);
         return message;
@@ -1129,6 +1160,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
                     break;
                 case /* teleport.lib.teleterm.v1.SSOChallenge sso */ 6:
                     message.sso = SSOChallenge.internalBinaryRead(reader, reader.uint32(), options, message.sso);
+                    break;
+                case /* bool per_session_mfa */ 7:
+                    message.perSessionMfa = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1157,6 +1191,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         /* teleport.lib.teleterm.v1.SSOChallenge sso = 6; */
         if (message.sso)
             SSOChallenge.internalBinaryWrite(message.sso, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* bool per_session_mfa = 7; */
+        if (message.perSessionMfa !== false)
+            writer.tag(7, WireType.Varint).bool(message.perSessionMfa);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1289,14 +1326,16 @@ export const PromptMFAResponse = new PromptMFAResponse$Type();
 class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "pin_optional", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 2, name: "pin_optional", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "proxy_hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "command", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptHardwareKeyPINRequest>): PromptHardwareKeyPINRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
         message.pinOptional = false;
+        message.proxyHostname = "";
+        message.command = "";
         if (value !== undefined)
             reflectionMergePartial<PromptHardwareKeyPINRequest>(this, message, value);
         return message;
@@ -1306,11 +1345,14 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string root_cluster_uri */ 1:
-                    message.rootClusterUri = reader.string();
-                    break;
                 case /* bool pin_optional */ 2:
                     message.pinOptional = reader.bool();
+                    break;
+                case /* string proxy_hostname */ 3:
+                    message.proxyHostname = reader.string();
+                    break;
+                case /* string command */ 4:
+                    message.command = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1324,12 +1366,15 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
         return message;
     }
     internalBinaryWrite(message: PromptHardwareKeyPINRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string root_cluster_uri = 1; */
-        if (message.rootClusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
         /* bool pin_optional = 2; */
         if (message.pinOptional !== false)
             writer.tag(2, WireType.Varint).bool(message.pinOptional);
+        /* string proxy_hostname = 3; */
+        if (message.proxyHostname !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.proxyHostname);
+        /* string command = 4; */
+        if (message.command !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.command);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1391,12 +1436,14 @@ export const PromptHardwareKeyPINResponse = new PromptHardwareKeyPINResponse$Typ
 class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTouchRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "proxy_hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "command", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptHardwareKeyTouchRequest>): PromptHardwareKeyTouchRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
+        message.proxyHostname = "";
+        message.command = "";
         if (value !== undefined)
             reflectionMergePartial<PromptHardwareKeyTouchRequest>(this, message, value);
         return message;
@@ -1406,8 +1453,11 @@ class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTo
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string root_cluster_uri */ 1:
-                    message.rootClusterUri = reader.string();
+                case /* string proxy_hostname */ 2:
+                    message.proxyHostname = reader.string();
+                    break;
+                case /* string command */ 3:
+                    message.command = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1421,9 +1471,12 @@ class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTo
         return message;
     }
     internalBinaryWrite(message: PromptHardwareKeyTouchRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string root_cluster_uri = 1; */
-        if (message.rootClusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        /* string proxy_hostname = 2; */
+        if (message.proxyHostname !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.proxyHostname);
+        /* string command = 3; */
+        if (message.command !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.command);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1463,12 +1516,12 @@ export const PromptHardwareKeyTouchResponse = new PromptHardwareKeyTouchResponse
 class PromptHardwareKeyPINChangeRequest$Type extends MessageType<PromptHardwareKeyPINChangeRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "proxy_hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptHardwareKeyPINChangeRequest>): PromptHardwareKeyPINChangeRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
+        message.proxyHostname = "";
         if (value !== undefined)
             reflectionMergePartial<PromptHardwareKeyPINChangeRequest>(this, message, value);
         return message;
@@ -1478,8 +1531,8 @@ class PromptHardwareKeyPINChangeRequest$Type extends MessageType<PromptHardwareK
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string root_cluster_uri */ 1:
-                    message.rootClusterUri = reader.string();
+                case /* string proxy_hostname */ 2:
+                    message.proxyHostname = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1493,9 +1546,9 @@ class PromptHardwareKeyPINChangeRequest$Type extends MessageType<PromptHardwareK
         return message;
     }
     internalBinaryWrite(message: PromptHardwareKeyPINChangeRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string root_cluster_uri = 1; */
-        if (message.rootClusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        /* string proxy_hostname = 2; */
+        if (message.proxyHostname !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.proxyHostname);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1573,14 +1626,14 @@ export const PromptHardwareKeyPINChangeResponse = new PromptHardwareKeyPINChange
 class ConfirmHardwareKeySlotOverwriteRequest$Type extends MessageType<ConfirmHardwareKeySlotOverwriteRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "proxy_hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ConfirmHardwareKeySlotOverwriteRequest>): ConfirmHardwareKeySlotOverwriteRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
         message.message = "";
+        message.proxyHostname = "";
         if (value !== undefined)
             reflectionMergePartial<ConfirmHardwareKeySlotOverwriteRequest>(this, message, value);
         return message;
@@ -1590,11 +1643,11 @@ class ConfirmHardwareKeySlotOverwriteRequest$Type extends MessageType<ConfirmHar
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string root_cluster_uri */ 1:
-                    message.rootClusterUri = reader.string();
-                    break;
                 case /* string message */ 2:
                     message.message = reader.string();
+                    break;
+                case /* string proxy_hostname */ 3:
+                    message.proxyHostname = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1608,12 +1661,12 @@ class ConfirmHardwareKeySlotOverwriteRequest$Type extends MessageType<ConfirmHar
         return message;
     }
     internalBinaryWrite(message: ConfirmHardwareKeySlotOverwriteRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string root_cluster_uri = 1; */
-        if (message.rootClusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
         /* string message = 2; */
         if (message.message !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.message);
+        /* string proxy_hostname = 3; */
+        if (message.proxyHostname !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.proxyHostname);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

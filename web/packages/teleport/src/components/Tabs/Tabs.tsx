@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type JSX } from 'react';
 
 import { Box, Flex } from 'design';
 
