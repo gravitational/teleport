@@ -25,6 +25,7 @@ import {
   type SessionRecordingMetadata,
   type SessionRecordingThumbnail,
 } from './types';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 export interface SessionRecordingMetadataWithFrames {
   metadata: SessionRecordingMetadata;
@@ -49,13 +50,7 @@ export function fetchSessionRecordingMetadata(
       return;
     }
 
-    const url = cfg.getSessionRecordingMetadataUrl(clusterId, sessionId);
-
-    const params = new URLSearchParams();
-
-    params.set('access_token', getAccessToken());
-
-    const ws = new WebSocket(`${url}?${params.toString()}`);
+    const ws = new AuthenticatedWebSocket(cfg.getSessionRecordingMetadataUrl(clusterId, sessionId));
 
     let metadata: SessionRecordingMetadata | null = null;
 
