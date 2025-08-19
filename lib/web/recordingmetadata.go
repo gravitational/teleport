@@ -94,6 +94,9 @@ func (h *Handler) getSessionRecordingMetadata(
 		SessionId: sessionID,
 	})
 	if err != nil {
+		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
+			Error: err.Error(),
+		})
 		return nil, trace.Wrap(err)
 	}
 
