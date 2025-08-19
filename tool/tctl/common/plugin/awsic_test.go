@@ -92,7 +92,7 @@ func TestAWSICUserFilters(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				userLabels:  test.labelValues,
 				userOrigins: test.originValues,
 			}
@@ -134,7 +134,7 @@ func TestAWSICGroupFilters(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				groupNameFilters: test.nameValues,
 			}
 
@@ -198,7 +198,7 @@ func TestAWSICAccountFilters(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				accountNameFilters: test.nameValues,
 				accountIDFilters:   test.idValues,
 			}
@@ -256,7 +256,7 @@ func TestSCIMBaseURLValidation(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				scimURL:      mustParseURL(test.suppliedURL),
 				forceSCIMURL: test.forceURL,
 			}
@@ -305,7 +305,7 @@ func TestUseSystemCredentialsInput(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				useSystemCredentials: tc.useSystemCredential,
 				assumeRoleARN:        tc.assumeRoleARN,
 			}

@@ -49,7 +49,7 @@ type pluginInstallArgs struct {
 	scim    scimArgs
 	entraID entraArgs
 	netIQ   netIQArgs
-	awsIC   awsICArgs
+	awsIC   awsICInstallArgs
 	github  githubArgs
 }
 
@@ -66,9 +66,8 @@ type pluginDeleteArgs struct {
 }
 
 type pluginUpdateCredsArgs struct {
-	cmd     *kingpin.CmdClause
-	name    string
-	payload string
+	cmd   *kingpin.CmdClause
+	awsic awsICUpdateCredsArgs
 }
 
 // PluginsCommand allows for management of plugins.
@@ -178,31 +177,9 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, args installPluginArgs) er
 }
 
 func (p *PluginsCommand) initUpdateCreds(parent *kingpin.CmdClause) {
-	p.updateCreds.cmd = parent.Command("rotate-creds", "Rotates a plugin's primary credential.")
-	p.updateCreds.cmd.
-		Arg("name", "The name of the plugin resource to update").
-		StringVar(&p.updateCreds.name)
+	p.updateCreds.cmd = parent.Command("update-creds", "Updates a plugin's credentials.")
 
-	p.updateCreds.cmd.
-		Arg("payload", "The name of the plugin resource to update").
-		StringVar(&p.updateCreds.payload)
-}
-
-func (p *PluginsCommand) UpdateCreds(ctx context.Context, args installPluginArgs) error {
-	req := pluginsv1.UpdatePluginStaticCredentialsRequest{
-		Name:       p.updateCreds.name,
-		Credential: &types.PluginStaticCredentialsSpecV1{},
-	}
-
-	req.Credential.Credentials = &types.PluginStaticCredentialsSpecV1_APIToken{
-		APIToken: p.updateCreds.payload,
-	}
-
-	if _, err := args.plugins.UpdatePluginStaticCredentials(ctx, &req); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	p.initUpdateCredsAWSIC(p.updateCreds.cmd)
 }
 
 type authClient interface {
@@ -224,7 +201,7 @@ type pluginsClient interface {
 	NeedsCleanup(ctx context.Context, in *pluginsv1.NeedsCleanupRequest, opts ...grpc.CallOption) (*pluginsv1.NeedsCleanupResponse, error)
 	Cleanup(ctx context.Context, in *pluginsv1.CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeletePlugin(ctx context.Context, in *pluginsv1.DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	UpdatePluginStaticCredentials(ctx context.Context, in *pluginsv1.UpdatePluginStaticCredentialsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdatePluginStaticCredentials(ctx context.Context, in *pluginsv1.UpdatePluginStaticCredentialsRequest, opts ...grpc.CallOption) (*pluginsv1.UpdatePluginStaticCredentialsResponse, error)
 }
 
 type installPluginArgs struct {
@@ -252,8 +229,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallGithub
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
-	case p.updateCreds.cmd.FullCommand():
-		commandFunc = p.UpdateCreds
+	case p.updateCreds.awsic.cmd.FullCommand():
+		commandFunc = p.UpdateAWSICCreds
 	default:
 		return false, nil
 	}
