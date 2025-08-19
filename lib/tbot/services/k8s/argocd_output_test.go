@@ -166,12 +166,24 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 	require.True(t, strings.HasPrefix(secret.Name, "my-cluster"))
 
 	// Check we set the correct labels on the secret.
-	require.Equal(t, "cluster", secret.Labels["argocd.argoproj.io/secret-type"])
-	require.Equal(t, "billing", secret.Labels["team"])
+	require.Equal(t,
+		map[string]string{
+			"argocd.argoproj.io/secret-type": "cluster",
+			"team":                           "billing",
+		},
+		secret.Labels,
+	)
 
-	// Check the user-facing name given to the cluster.
-	name := string(secret.Data["name"])
-	require.Equal(t, "root-kube-cluster-1", name)
+	// Check the name and other top-level fields.
+	expectedData := map[string]string{
+		"name":             "root-kube-cluster-1",
+		"project":          "my-argo-project",
+		"namespaces":       "prod,dev",
+		"clusterResources": "true",
+	}
+	for k, v := range expectedData {
+		require.Equal(t, v, string(secret.Data[k]))
+	}
 
 	// Check the server addr.
 	server := string(secret.Data["server"])
@@ -182,24 +194,30 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 	require.Equal(t, port, serverURL.Port())
 	require.Equal(t, "/v1/teleport/cm9vdA/a3ViZS1jbHVzdGVyLTE", serverURL.Path)
 
-	// Check the optional fields.
-	require.Equal(t, "my-argo-project", string(secret.Data["project"]))
-	require.Equal(t, "prod,dev", string(secret.Data["namespaces"]))
-	require.Equal(t, "true", string(secret.Data["clusterResources"]))
-
 	// Check the config.
 	var config map[string]any
 	require.NoError(t, json.Unmarshal(secret.Data["config"], &config))
 
 	tlsConfig := config["tlsClientConfig"].(map[string]any)
-	require.Equal(t, "kube-teleport-proxy-alpn.teleport.cluster.local", tlsConfig["serverName"])
+	require.Equal(t,
+		"kube-teleport-proxy-alpn.teleport.cluster.local",
+		tlsConfig["serverName"],
+	)
+
+	// Check the CA Certificates, Client Certificate, and Private Key were set.
 	require.NotEmpty(t, tlsConfig["caData"])
 	require.NotEmpty(t, tlsConfig["certData"])
 	require.NotEmpty(t, tlsConfig["keyData"])
 
-	require.Equal(t, "root", secret.Annotations["teleport.dev/teleport-cluster-name"])
-	require.Equal(t, "argo-bot", secret.Annotations["teleport.dev/bot-name"])
-	require.Equal(t, "kube-cluster-1", secret.Annotations["teleport.dev/kubernetes-cluster-name"])
+	expectedAnnotations := map[string]string{
+		"teleport.dev/bot-name":                "argo-bot",
+		"teleport.dev/kubernetes-cluster-name": "kube-cluster-1",
+		"teleport.dev/tbot-version":            teleport.Version,
+		"teleport.dev/teleport-cluster-name":   "root",
+	}
+	for k, v := range expectedAnnotations {
+		require.Equal(t, v, secret.Annotations[k])
+	}
 
 	// Add another cluster and run the bot again.
 	registerCluster(t, "kube-cluster-2")
