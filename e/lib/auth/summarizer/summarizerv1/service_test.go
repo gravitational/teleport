@@ -1,6 +1,7 @@
 package summarizerv1
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -8,22 +9,30 @@ import (
 	"net"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/summarizer"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 type testPlugin struct{}
@@ -44,8 +53,9 @@ func (p *testPlugin) RegisterAuthServices(
 	}
 
 	svc, err := NewService(ServiceConfig{
-		Authorizer: authServer.Authorizer,
-		Backend:    authServer.AuthServer,
+		Authorizer:        authServer.Authorizer,
+		Backend:           authServer.AuthServer,
+		SummaryDownloader: authServer.AuthServer,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -84,6 +94,8 @@ func newTestTLSServer(t testing.TB) *authtest.TLSServer {
 	return srv
 }
 
+// createTestUser creates a user that has access to all the configuration
+// objects and read-only access to only their sessions (using a Where filter).
 func createTestUser(
 	t *testing.T, srv *authtest.TLSServer, name string, opts ...authtest.CreateUserAndRoleOption,
 ) types.User {
@@ -784,4 +796,183 @@ func TestService_RBAC(t *testing.T) {
 			})
 		}
 	}
+}
+
+func newSessionEndEvent() *apievents.SessionEnd {
+	startTime := time.Date(2020, 3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC)
+	endTime := startTime.Add(time.Minute)
+	return &apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Index: 20,
+			Type:  events.SessionEndEvent,
+			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
+			Code:  events.SessionEndCode,
+			Time:  endTime,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
+			ServerID:        "6a7c593d-345a-431f-9e21-4049be982fa5",
+			ServerNamespace: "default",
+			ServerLabels:    map[string]string{"env": "prod"},
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: "cb116fb0-9227-4889-9392-aedd13a914a6",
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: "alice",
+		},
+		EnhancedRecording: true,
+		Interactive:       true,
+		Participants:      []string{"alice", "bob"},
+		StartTime:         startTime,
+		EndTime:           endTime,
+	}
+}
+
+func newTestSummary(t *testing.T, sessionEnd *apievents.SessionEnd) *summarizerv1pb.Summary {
+	t.Helper()
+
+	inferenceStartTime := sessionEnd.EndTime.Add(time.Minute)
+	inferenceEndTime := inferenceStartTime.Add(time.Minute)
+	endEventFields, err := events.ToEventFields(sessionEnd)
+	require.NoError(t, err)
+	endEventStruct, err := structpb.NewStruct(endEventFields)
+	require.NoError(t, err)
+
+	return &summarizerv1pb.Summary{
+		SessionId:           sessionEnd.SessionID,
+		State:               summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
+		InferenceStartedAt:  timestamppb.New(inferenceStartTime),
+		InferenceFinishedAt: timestamppb.New(inferenceEndTime),
+		Content:             "This is a test summary content.",
+		ModelName:           "some-model",
+		SessionEndEvent:     endEventStruct,
+	}
+}
+
+func TestService_GetSummary(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+	user := createTestUser(t, srv, "alice")
+
+	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+
+	sessionEnd := newSessionEndEvent()
+	expectedSummary := newTestSummary(t, sessionEnd)
+	b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(expectedSummary)
+	require.NoError(t, err)
+	srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(expectedSummary.SessionId), bytes.NewReader(b))
+
+	// Test fetching an existing summary.
+	got, err := sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: expectedSummary.SessionId,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, cmp.Diff(expectedSummary, got.Summary, protocmp.Transform()))
+
+	// Make sure that the session end event can be fully recovered from the
+	// unstructured representation.
+	gotSessionEnd, err := events.FromEventFields(got.Summary.SessionEndEvent.AsMap())
+	require.NoError(t, err)
+	assert.Empty(t, cmp.Diff(sessionEnd, gotSessionEnd, protocmp.Transform()))
+
+	// Test fetching a summary that doesn't exist.
+	_, err = sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: "aa6bd352-7d90-4802-927e-9295872f37ad",
+	})
+	require.Error(t, err)
+	assert.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+}
+
+func TestService_GetSummary_RBAC(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	// Create session summaries.
+	// Session of Alice and Bob
+	sessionEnd1 := newSessionEndEvent()
+	summary1 := newTestSummary(t, sessionEnd1)
+	b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary1)
+	require.NoError(t, err)
+	srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary1.SessionId), bytes.NewReader(b))
+
+	// Session of Bob and Mary
+	sessionEnd2 := newSessionEndEvent()
+	sessionEnd2.SessionID = "0fd10888-a48d-45b7-9a10-dc4321f7b159"
+	sessionEnd2.UserMetadata.User = "bob"
+	sessionEnd2.Participants = []string{"bob", "mary"}
+	summary2 := newTestSummary(t, sessionEnd2)
+	b, err = protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary2)
+	require.NoError(t, err)
+	srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary2.SessionId), bytes.NewReader(b))
+
+	// Add Alice.
+	createTestUser(t, srv, "alice")
+	aliceClt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	aliceSclt := aliceClt.SummarizerServiceClient()
+
+	// Alice should only see the first session (see the "where" condition in
+	// user's role).
+	_, err = aliceSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: summary1.SessionId,
+	})
+	require.NoError(t, err)
+	_, err = aliceSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: summary2.SessionId,
+	})
+	require.Error(t, err)
+	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+
+	// Add Bob.
+	createTestUser(t, srv, "bob")
+	bobClt, err := srv.NewClient(authtest.TestUser("bob"))
+	require.NoError(t, err)
+	bobSclt := bobClt.SummarizerServiceClient()
+
+	// Bob should be able to see both sessions, as he participated in both.
+	_, err = bobSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: summary1.SessionId,
+	})
+	require.NoError(t, err)
+	_, err = bobSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: summary2.SessionId,
+	})
+	require.NoError(t, err)
+
+	// Add Mary.
+	createTestUser(t, srv, "mary")
+	maryClt, err := srv.NewClient(authtest.TestUser("mary"))
+	require.NoError(t, err)
+	marySclt := maryClt.SummarizerServiceClient()
+
+	// Mary should only see the second session (see the "where" condition in
+	// user's role).
+	_, err = marySclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: summary1.SessionId,
+	})
+	require.Error(t, err)
+	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+	_, err = marySclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: summary2.SessionId,
+	})
+	require.NoError(t, err)
+
+	// Add an account that doesn't have any access to session recordings (there's
+	// a special case for that in the code).
+	_, _, err = authtest.CreateUserAndRole(srv.Auth(), "intern", []string{}, []types.Rule{})
+	require.NoError(t, err)
+	internClt, err := srv.NewClient(authtest.TestUser("intern"))
+	require.NoError(t, err)
+	internSclt := internClt.SummarizerServiceClient()
+
+	_, err = internSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: summary1.SessionId,
+	})
+	require.Error(t, err)
+	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 }

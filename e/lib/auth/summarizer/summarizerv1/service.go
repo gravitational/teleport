@@ -5,18 +5,30 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 )
+
+// SummaryDownloader provides backend access to session summary recordings.
+type SummaryDownloader interface {
+	// DownloadSummary downloads a session summary and writes it to a writer.
+	DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
+}
 
 // ServiceConfig holds configuration for the [Service].
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Backend    services.Summarizer
+	Authorizer        authz.Authorizer
+	Backend           services.Summarizer
+	SummaryDownloader SummaryDownloader
 }
 
 // Service provides an implementation of [pb.SummarizerServiceServer] and
@@ -25,9 +37,10 @@ type Service struct {
 	// Use a forward-compatible server to make it easier to add new methods in
 	// OSS without breaking the enterprise build.
 	pb.UnimplementedSummarizerServiceServer
-	authorizer authz.Authorizer
-	backend    services.Summarizer
-	logger     *slog.Logger
+	authorizer        authz.Authorizer
+	backend           services.Summarizer
+	summaryDownloader SummaryDownloader
+	logger            *slog.Logger
 }
 
 var _ pb.SummarizerServiceServer = (*Service)(nil)
@@ -42,11 +55,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Backend == nil {
 		return nil, trace.BadParameter("backend service is required")
 	}
+	if cfg.SummaryDownloader == nil {
+		return nil, trace.BadParameter("upload handler is required")
+	}
 
 	return &Service{
-		authorizer: cfg.Authorizer,
-		backend:    cfg.Backend,
-		logger:     slog.With(teleport.ComponentKey, "summarizer"),
+		authorizer:        cfg.Authorizer,
+		backend:           cfg.Backend,
+		summaryDownloader: cfg.SummaryDownloader,
+		logger:            slog.With(teleport.ComponentKey, "summarizer"),
 	}, nil
 }
 
@@ -430,4 +447,80 @@ func (s *Service) ListInferencePolicies(
 		Policies:      policies,
 		NextPageToken: nextPageToken,
 	}, nil
+}
+
+// GetSummary retrieves the inference result for a session, which contains the session summary.
+func (s *Service) GetSummary(
+	ctx context.Context, req *pb.GetSummaryRequest,
+) (*pb.GetSummaryResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Perform first access check: see if the user can possibly access any
+	// session at all, without taking into consideration the `where` clauses.
+	// This is done to spare us from downloading the entire session if user's
+	// access controls prevent them from reading any sessions at all.
+	sctx := &services.Context{User: authCtx.User}
+	err = authCtx.Checker.GuessIfAccessIsPossible(
+		sctx, defaults.Namespace, types.KindSession, types.VerbRead,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Read the session summary.
+	sid := session.ID(req.GetSessionId())
+	summary, sessionAuditEvent, err := s.insecureGetSummary(
+		ctx, session.ID(req.GetSessionId()),
+	)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		// The user hasn't been fully authorized yet, so we don't return this
+		// error, as it may leak details about the accessed object.
+		s.logger.ErrorContext(
+			ctx, "Unable to read session summary recording", "session_id", sid, "error", err,
+		)
+		return nil, trace.AccessDenied(
+			"access denied to perform action %q on %q", types.VerbRead, types.KindSession,
+		)
+	}
+
+	// Perform a fine-grained check that takes the session into consideration.
+	sctx.Session = sessionAuditEvent
+	err = authCtx.CheckAccessToRule(sctx, types.KindSession, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// All checks passed, return the summary.
+	return &pb.GetSummaryResponse{Summary: summary}, nil
+}
+
+// insecureGetSummary retrieves session summary and associated end event,
+// ignoring access rules.
+func (s *Service) insecureGetSummary(
+	ctx context.Context, sid session.ID,
+) (*pb.Summary, apievents.AuditEvent, error) {
+	buf := &memBuffer{}
+	err := s.summaryDownloader.DownloadSummary(ctx, sid, buf)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	summary := &pb.Summary{}
+	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(buf.Bytes(), summary)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	sessionAuditEvent, err := events.FromEventFields(summary.SessionEndEvent.AsMap())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return summary, sessionAuditEvent, nil
 }
