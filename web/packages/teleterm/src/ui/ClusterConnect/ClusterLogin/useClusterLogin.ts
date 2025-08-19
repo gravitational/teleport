@@ -43,6 +43,8 @@ export default function useClusterLogin(props: Props) {
   const [initAttempt, init] = useAsync(() => {
     return Promise.all([
       tshd.getAuthSettings({ clusterUri }).then(({ response }) => response),
+      // checkForAppUpdates doesn't return a rejected promise, errors are
+      // surfaced in app updates widget and details view.
       mainProcessClient.checkForAppUpdates(),
     ]).then(([authSettings]) => authSettings);
   });
