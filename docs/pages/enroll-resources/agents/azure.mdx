@@ -31,17 +31,15 @@ your Azure joining token.
 - An Azure Virtual Machine running Linux with the Teleport binary installed. The
   Virtual Machine must have a [Managed
   Identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
-  assigned to it with permission to read virtual machine info.
+  assigned to it.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up a Managed Identity
 
 Every virtual machine hosting a Teleport process using the Azure method to join
-your Teleport cluster needs a Managed Identity assigned to it. The identity
-requires the `Microsoft.Compute/virtualMachines/read` permission so Teleport can
-look up the virtual machine. No other permissions are required.
+your Teleport cluster needs a Managed Identity assigned to it.
 
-(!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
+(!docs/pages/includes/server-access/azure-join-system-assigned-identity.mdx!)
 
 ## Step 2/5. Create the Azure joining token
 
@@ -82,7 +80,8 @@ teleport:
     token_name: azure-token
     method: azure
     azure:
-      # client_id is the client ID of the managed identity created in Step 1.
+      # client_id is the client ID of a user-assigned managed identity.
+      # Omit this value when using a system-assigned managed identity.
       client_id: 11111111-1111-1111-1111-111111111111
   proxy_server: teleport.example.com:443
 ssh_service:
