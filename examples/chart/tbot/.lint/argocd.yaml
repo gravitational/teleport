@@ -12,6 +12,8 @@ argocd:
   secretNamespace: my-namespace
   secretLabels:
     baz: qux
+  secretAnnotations:
+    chunky: bacon
   project: my-argo-project
   namespaces:
     - dev

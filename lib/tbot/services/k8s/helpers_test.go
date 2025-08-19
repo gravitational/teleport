@@ -20,7 +20,6 @@ package k8s
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"net"
 	"strconv"

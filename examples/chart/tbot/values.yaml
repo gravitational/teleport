@@ -72,6 +72,9 @@ argocd:
   # argocd.secretLabels(object) -- provides a set of labels that will be applied
   # to cluster secrets.
   secretLabels: {}
+  # argocd.secretAnnotations(object) -- provides a set of annotations that will
+  # be applied to cluster secrets.
+  secretAnnotations: {}
   # argocd.project(string) -- sets the Argo CD project with which the Kubernetes
   # clusters will be associated.
   project: ""

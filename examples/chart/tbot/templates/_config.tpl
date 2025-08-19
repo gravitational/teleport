@@ -54,6 +54,10 @@ outputs:
     secret_labels:
         {{- toYaml .Values.argocd.secretLabels | nindent 8 }}
     {{- end }}
+    {{- if .Values.argocd.secretAnnotations }}
+    secret_annotations:
+        {{- toYaml .Values.argocd.secretAnnotations | nindent 8 }}
+    {{- end }}
     {{- if .Values.argocd.project }}
     project: {{ .Values.argocd.project }}
     {{- end }}

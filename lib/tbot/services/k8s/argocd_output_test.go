@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -120,6 +121,9 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 			SecretNamespace:  "argocd",
 			SecretLabels: map[string]string{
 				"team": "billing",
+			},
+			SecretAnnotations: map[string]string{
+				"managed-by": "ninjas",
 			},
 			Selectors: []*KubernetesSelector{
 				{Labels: map[string]string{"department": "engineering"}},
@@ -214,6 +218,7 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 		"teleport.dev/kubernetes-cluster-name": "kube-cluster-1",
 		"teleport.dev/tbot-version":            teleport.Version,
 		"teleport.dev/teleport-cluster-name":   "root",
+		"managed-by":                           "ninjas",
 	}
 	for k, v := range expectedAnnotations {
 		require.Equal(t, v, secret.Annotations[k])

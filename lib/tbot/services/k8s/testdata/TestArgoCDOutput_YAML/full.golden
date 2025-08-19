@@ -10,6 +10,8 @@ secret_namespace: argocd
 secret_name_prefix: my-argo-cluster-
 secret_labels:
   my-label: value
+secret_annotations:
+  my-annotation: value
 project: super-secret-project
 namespaces:
   - prod

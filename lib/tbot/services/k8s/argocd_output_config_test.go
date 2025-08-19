@@ -51,6 +51,9 @@ func TestArgoCDOutput_YAML(t *testing.T) {
 				SecretLabels: map[string]string{
 					"my-label": "value",
 				},
+				SecretAnnotations: map[string]string{
+					"my-annotation": "value",
+				},
 				Project:          "super-secret-project",
 				Namespaces:       []string{"prod", "dev"},
 				ClusterResources: true,

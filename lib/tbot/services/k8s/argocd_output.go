@@ -327,6 +327,20 @@ func (s *ArgoCDOutput) renderSecret(cluster *argoClusterCredentials) (*corev1.Se
 		}
 	}
 
+	annotations := map[string]string{
+		"teleport.dev/bot-name":                cluster.botName,
+		"teleport.dev/kubernetes-cluster-name": cluster.kubeClusterName,
+		"teleport.dev/updated":                 time.Now().Format(time.RFC3339),
+		"teleport.dev/tbot-version":            teleport.Version,
+		"teleport.dev/teleport-cluster-name":   cluster.teleportClusterName,
+	}
+	for k, v := range s.cfg.SecretAnnotations {
+		// Do not overwrite any of "our" annotations.
+		if _, ok := annotations[k]; !ok {
+			annotations[k] = v
+		}
+	}
+
 	configJSON, err := json.Marshal(struct {
 		TLSClientConfig argoTLSClientConfig `json:"tlsClientConfig"`
 	}{cluster.tlsClientConfig})
@@ -352,16 +366,10 @@ func (s *ArgoCDOutput) renderSecret(cluster *argoClusterCredentials) (*corev1.Se
 	return &corev1.Secret{
 		Type: corev1.SecretTypeOpaque,
 		ObjectMeta: v1.ObjectMeta{
-			Name:      s.secretName(cluster),
-			Namespace: s.cfg.SecretNamespace,
-			Labels:    labels,
-			Annotations: map[string]string{
-				"teleport.dev/bot-name":                cluster.botName,
-				"teleport.dev/kubernetes-cluster-name": cluster.kubeClusterName,
-				"teleport.dev/updated":                 time.Now().Format(time.RFC3339),
-				"teleport.dev/tbot-version":            teleport.Version,
-				"teleport.dev/teleport-cluster-name":   cluster.teleportClusterName,
-			},
+			Name:        s.secretName(cluster),
+			Namespace:   s.cfg.SecretNamespace,
+			Labels:      labels,
+			Annotations: annotations,
 		},
 		Data: data,
 	}, nil

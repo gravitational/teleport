@@ -61,6 +61,10 @@ type ArgoCDOutputConfig struct {
 	// Kubernetes secrets (in addition to the labels added for Argo's benefit).
 	SecretLabels map[string]string `yaml:"secret_labels,omitempty"`
 
+	// SecretLabels is a set of annotations that will be applied to the created
+	// Kubernetes secrets (in addition to tbot's own annotations).
+	SecretAnnotations map[string]string `yaml:"secret_annotations,omitempty"`
+
 	// Project is the Argo CD project with which the Kubernetes cluster
 	// credentials will be associated.
 	Project string `yaml:"project,omitempty"`

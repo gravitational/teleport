@@ -39,6 +39,8 @@ should match the snapshot (argocd):
           - dev
           - prod
           project: my-argo-project
+          secret_annotations:
+            chunky: bacon
           secret_labels:
             baz: qux
           secret_namespace: my-namespace
