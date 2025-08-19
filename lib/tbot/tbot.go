@@ -21,7 +21,9 @@ package tbot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"runtime"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -118,6 +120,10 @@ func (b *Bot) getClient() *apiclient.Client {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+	b.log.InfoContext(
+		ctx, "Initializing tbot",
+		"version", versionString(),
+	)
 
 	if err := metrics.RegisterPrometheusCollectors(
 		metrics.BuildCollector(),
@@ -363,4 +369,13 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	return nil
+}
+
+func versionString() string {
+	return fmt.Sprintf(
+		"v%s git:%s %s\n",
+		teleport.Version,
+		teleport.Gitref,
+		runtime.Version(),
+	)
 }
