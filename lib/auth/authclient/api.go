@@ -284,7 +284,6 @@ type ReadProxyAccessPoint interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
@@ -646,7 +645,6 @@ type ReadDatabaseAccessPoint interface {
 	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
@@ -775,7 +773,6 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
@@ -1135,7 +1132,6 @@ type Cache interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.

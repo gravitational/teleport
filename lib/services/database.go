@@ -46,7 +46,6 @@ import (
 // DatabaseGetter defines interface for fetching database resources.
 type DatabaseGetter interface {
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases]
 	GetDatabases(context.Context) ([]types.Database, error)
 	// ListDatabases returns a page of database resources.
 	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)

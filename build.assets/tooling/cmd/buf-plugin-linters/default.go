@@ -190,6 +190,8 @@ func newDefaultConfig() *Config {
 			"proto.AuthService.GetInventoryStatus":                                      {},
 			"teleport.integration.v1.AWSOIDCService.ListEICE":                           {},
 			"teleport.integration.v1.AWSOIDCService.ListEC2":                            {},
+			// RPCs deprecated from v19 onwards:
+			"proto.AuthService.GetDatabases": {},
 			// repeated field `schemas` in `Resource` does not require pagination.
 			"teleport.scim.v1.SCIMService.GetSCIMResource": {},
 			// `Device` message contains repeated field `DeviceCollectedData` but is not paginated.

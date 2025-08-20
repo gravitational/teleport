@@ -3702,9 +3702,7 @@ func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, 
 //
 // For a full list of registered databases that are served by a database
 // service, use GetDatabaseServers instead.
-// Deprecated: Prefer paginated variant such as [ListDatabases]
 func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
-	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	items, err := c.grpc.GetDatabases(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)

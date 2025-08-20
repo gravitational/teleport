@@ -795,7 +795,6 @@ type AuthServiceClient interface {
 	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
 	// ListDatabases returns a page of registered databases.
@@ -3027,7 +3026,6 @@ func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.DatabaseV3List)
@@ -4273,7 +4271,6 @@ type AuthServiceServer interface {
 	DeleteApp(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error)
 	// ListDatabases returns a page of registered databases.

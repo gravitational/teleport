@@ -3557,9 +3557,7 @@ service AuthService {
   rpc DeleteAllApps(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetDatabases returns all registered databases.
-  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List) {
-    option deprecated = true;
-  }
+  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
   // ListDatabases returns a page of registered databases.
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
   // GetDatabase returns a database by name.
