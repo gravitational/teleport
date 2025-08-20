@@ -20,11 +20,11 @@ import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
 import {
-  fireEvent,
   Providers,
   render,
   screen,
   testQueryClient,
+  userEvent,
   waitFor,
 } from 'design/utils/testing';
 
@@ -66,29 +66,29 @@ describe('DeleteDialog', () => {
 
   it('should cancel', async () => {
     const onCancel = jest.fn();
-    renderComponent({
+    const { user } = renderComponent({
       onCancel,
     });
-    fireEvent.click(screen.getByText('Cancel'));
+    await user.click(screen.getByText('Cancel'));
     expect(onCancel).toHaveBeenCalled();
   });
 
   it('should request lock', async () => {
     const onLockRequest = jest.fn();
-    renderComponent({
+    const { user } = renderComponent({
       onLockRequest,
     });
-    fireEvent.click(screen.getByText('Lock Bot'));
+    await user.click(screen.getByText('Lock Bot'));
     expect(onLockRequest).toHaveBeenCalled();
   });
 
   it('should disable request lock', async () => {
     const onLockRequest = jest.fn();
-    renderComponent({
+    const { user } = renderComponent({
       onLockRequest,
       canLockBot: false,
     });
-    fireEvent.click(screen.getByText('Lock Bot'));
+    await user.click(screen.getByText('Lock Bot'));
     expect(onLockRequest).not.toHaveBeenCalled();
     expect(screen.getByText('Lock Bot')).toBeDisabled();
   });
@@ -108,10 +108,10 @@ describe('DeleteDialog', () => {
   it('should submit', async () => {
     withDeleteBotSuccess();
     const onComplete = jest.fn();
-    renderComponent({
+    const { user } = renderComponent({
       onComplete,
     });
-    fireEvent.click(screen.getByText('Delete Bot'));
+    await user.click(screen.getByText('Delete Bot'));
     await waitFor(() => {
       expect(onComplete).toHaveBeenCalled();
     });
@@ -120,10 +120,10 @@ describe('DeleteDialog', () => {
   it('should show submit error', async () => {
     withDeleteBotError();
     const onComplete = jest.fn();
-    renderComponent({
+    const { user } = renderComponent({
       onComplete,
     });
-    fireEvent.click(screen.getByText('Delete Bot'));
+    await user.click(screen.getByText('Delete Bot'));
     await waitFor(() => {
       expect(screen.getByText('something went wrong')).toBeInTheDocument();
     });
@@ -146,17 +146,21 @@ function renderComponent(options?: {
     canLockBot = true,
     onLockRequest = jest.fn(),
   } = options ?? {};
-  return render(
-    <DeleteDialog
-      botName="test-bot-name"
-      onCancel={onCancel}
-      onComplete={onComplete}
-      showLockAlternative={showLockAlternative}
-      canLockBot={canLockBot}
-      onLockRequest={onLockRequest}
-    />,
-    { wrapper: makeWrapper({ customAcl }) }
-  );
+  const user = userEvent.setup();
+  return {
+    ...render(
+      <DeleteDialog
+        botName="test-bot-name"
+        onCancel={onCancel}
+        onComplete={onComplete}
+        showLockAlternative={showLockAlternative}
+        canLockBot={canLockBot}
+        onLockRequest={onLockRequest}
+      />,
+      { wrapper: makeWrapper({ customAcl }) }
+    ),
+    user,
+  };
 }
 
 function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {

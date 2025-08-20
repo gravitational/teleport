@@ -17,6 +17,7 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { UserEvent } from '@testing-library/user-event';
 import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
@@ -25,10 +26,10 @@ import { MemoryRouter, Route, Router } from 'react-router';
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
-  fireEvent,
   render,
   screen,
   testQueryClient,
+  userEvent,
   waitFor,
   waitForElementToBeRemoved,
   within,
@@ -107,11 +108,11 @@ describe('BotDetails', () => {
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
     withListLocksSuccess();
-    renderComponent({ history });
+    const { user } = renderComponent({ history });
     await waitForLoadingBot();
 
     const backButton = screen.getByLabelText('back');
-    fireEvent.click(backButton);
+    await user.click(backButton);
 
     expect(history.goBack).toHaveBeenCalledTimes(1);
   });
@@ -304,19 +305,19 @@ describe('BotDetails', () => {
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
       withListLocksSuccess();
-      renderComponent();
+      const { user } = renderComponent();
       await waitForLoadingBot();
 
       withFetchRolesSuccess();
       const editButton = screen.getByRole('button', { name: 'Edit Bot' });
-      fireEvent.click(editButton);
+      await user.click(editButton);
 
       expect(
         screen.getByText('Bot name cannot be changed')
       ).toBeInTheDocument();
 
       const cancelButton = screen.getByRole('button', { name: 'Cancel' });
-      fireEvent.click(cancelButton);
+      await user.click(cancelButton);
 
       expect(
         screen.queryByText('Bot name cannot be changed')
@@ -328,7 +329,7 @@ describe('BotDetails', () => {
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
       withListLocksSuccess();
-      renderComponent();
+      const { user } = renderComponent();
       await waitForLoadingBot();
 
       let configPanel = screen
@@ -355,10 +356,10 @@ describe('BotDetails', () => {
 
       withFetchRolesSuccess();
       const editButton = screen.getByRole('button', { name: 'Edit Bot' });
-      fireEvent.click(editButton);
+      await user.click(editButton);
 
       // Change something to enable the save button
-      await inputMaxSessionDuration('12h 30m');
+      await inputMaxSessionDuration(user, '12h 30m');
 
       withSaveSuccess(2, {
         roles: ['role-1'],
@@ -371,10 +372,12 @@ describe('BotDetails', () => {
         max_session_ttl: '12h30m',
       });
       const saveButton = screen.getByRole('button', { name: 'Save' });
-      fireEvent.click(saveButton);
-      await waitForElementToBeRemoved(() =>
-        screen.queryByRole('button', { name: 'Save' })
-      );
+      await user.click(saveButton);
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('button', { name: 'Save' })
+        ).not.toBeInTheDocument();
+      });
 
       configPanel = screen
         .getByRole('heading', { name: 'Metadata' })
@@ -405,24 +408,24 @@ describe('BotDetails', () => {
       withListLocksSuccess({
         locks: [],
       });
-      renderComponent();
+      const { user } = renderComponent();
       await waitForLoadingBot();
 
       expect(screen.queryByText('Locked')).not.toBeInTheDocument();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
-      fireEvent.click(overflowButton);
+      await user.click(overflowButton);
 
       const lockButton = screen.getByText('Lock Bot...');
       expect(lockButton).toBeInTheDocument();
-      fireEvent.click(lockButton!);
+      await user.click(lockButton!);
 
       expect(screen.getByText('Lock bot-test-bot-name?')).toBeInTheDocument();
 
       withLockSuccess();
       const submitButton = screen.getByRole('button', { name: 'Create Lock' });
       expect(submitButton).toBeEnabled();
-      fireEvent.click(submitButton);
+      await user.click(submitButton);
 
       await waitFor(() => {
         expect(screen.getByText('Locked')).toBeInTheDocument();
@@ -434,24 +437,24 @@ describe('BotDetails', () => {
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
       withListLocksSuccess();
-      renderComponent();
+      const { user } = renderComponent();
       await waitForLoadingBot();
 
       expect(screen.getByText('Locked')).toBeInTheDocument();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
-      fireEvent.click(overflowButton);
+      await user.click(overflowButton);
 
       const unlockButton = screen.getByText('Unlock Bot...');
       expect(unlockButton).toBeInTheDocument();
-      fireEvent.click(unlockButton!);
+      await user.click(unlockButton!);
 
       expect(screen.getByText('Unlock bot-test-bot-name?')).toBeInTheDocument();
 
       withUnlockSuccess();
       const submitButton = screen.getByRole('button', { name: 'Remove Lock' });
       expect(submitButton).toBeEnabled();
-      fireEvent.click(submitButton);
+      await user.click(submitButton);
 
       await waitFor(() => {
         expect(screen.queryByText('Locked')).not.toBeInTheDocument();
@@ -465,7 +468,7 @@ describe('BotDetails', () => {
       withListLocksSuccess({
         locks: [],
       });
-      renderComponent({
+      const { user } = renderComponent({
         customAcl: makeAcl({
           bots: {
             ...defaultAccess,
@@ -483,11 +486,11 @@ describe('BotDetails', () => {
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
-      fireEvent.click(overflowButton);
+      await user.click(overflowButton);
 
       const lockButton = screen.getByText('Lock Bot...');
       expect(lockButton).toBeInTheDocument();
-      fireEvent.click(lockButton!);
+      await user.click(lockButton!);
 
       expect(
         screen.queryByText('Lock bot-test-bot-name?')
@@ -499,7 +502,7 @@ describe('BotDetails', () => {
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
       withListLocksSuccess();
-      renderComponent({
+      const { user } = renderComponent({
         customAcl: makeAcl({
           bots: {
             ...defaultAccess,
@@ -519,11 +522,11 @@ describe('BotDetails', () => {
       expect(screen.getByText('Locked')).toBeInTheDocument();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
-      fireEvent.click(overflowButton);
+      await user.click(overflowButton);
 
       const unlockButton = screen.getByText('Unlock Bot...');
       expect(unlockButton).toBeInTheDocument();
-      fireEvent.click(unlockButton!);
+      await user.click(unlockButton!);
 
       expect(
         screen.queryByText('Unlock bot-test-bot-name?')
@@ -545,20 +548,20 @@ describe('BotDetails', () => {
         locks: [],
       });
       withDeleteBotSuccess();
-      renderComponent({ history });
+      const { user } = renderComponent({ history });
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
-      fireEvent.click(overflowButton);
+      await user.click(overflowButton);
 
       const deleteButton = screen.getByText('Delete Bot...');
       expect(deleteButton).toBeInTheDocument();
-      fireEvent.click(deleteButton!);
+      await user.click(deleteButton!);
 
       expect(screen.getByText('Delete test-bot-name?')).toBeInTheDocument();
       expect(screen.getByText('Lock Bot')).toBeInTheDocument();
 
-      fireEvent.click(screen.getByText('Delete Bot'));
+      await user.click(screen.getByText('Delete Bot'));
 
       await waitFor(() => {
         expect(
@@ -584,7 +587,7 @@ describe('BotDetails', () => {
       withFetchInstancesSuccess();
       withListLocksSuccess();
       withDeleteBotSuccess();
-      renderComponent({
+      const { user } = renderComponent({
         customAcl: makeAcl({
           bots: {
             ...defaultAccess,
@@ -604,11 +607,11 @@ describe('BotDetails', () => {
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
-      fireEvent.click(overflowButton);
+      await user.click(overflowButton);
 
       const deleteButton = screen.getByText('Delete Bot...');
       expect(deleteButton).toBeInTheDocument();
-      fireEvent.click(deleteButton!);
+      await user.click(deleteButton!);
 
       expect(
         screen.queryByText('Delete test-bot-name?')
@@ -623,7 +626,7 @@ describe('BotDetails', () => {
         locks: [],
       });
       withDeleteBotSuccess();
-      renderComponent({
+      const { user } = renderComponent({
         customAcl: makeAcl({
           bots: {
             ...defaultAccess,
@@ -643,17 +646,17 @@ describe('BotDetails', () => {
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
-      fireEvent.click(overflowButton);
+      await user.click(overflowButton);
 
       const deleteButton = screen.getByText('Delete Bot...');
       expect(deleteButton).toBeInTheDocument();
-      fireEvent.click(deleteButton!);
+      await user.click(deleteButton!);
 
       expect(screen.getByText('Delete test-bot-name?')).toBeInTheDocument();
 
       const lockButton = screen.getByText('Lock Bot');
       expect(lockButton).toBeInTheDocument();
-      fireEvent.click(lockButton!);
+      await user.click(lockButton!);
 
       expect(
         screen.queryByText('Lock bot-test-bot-name?')
@@ -666,15 +669,15 @@ describe('BotDetails', () => {
       withFetchInstancesSuccess();
       withListLocksSuccess();
       withDeleteBotSuccess();
-      renderComponent();
+      const { user } = renderComponent();
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
-      fireEvent.click(overflowButton);
+      await user.click(overflowButton);
 
       const deleteButton = screen.getByText('Delete Bot...');
       expect(deleteButton).toBeInTheDocument();
-      fireEvent.click(deleteButton!);
+      await user.click(deleteButton!);
 
       expect(screen.getByText('Delete test-bot-name?')).toBeInTheDocument();
 
@@ -683,18 +686,22 @@ describe('BotDetails', () => {
   });
 });
 
-async function inputMaxSessionDuration(duration: string) {
+async function inputMaxSessionDuration(user: UserEvent, duration: string) {
   const ttlInput = screen.getByLabelText('Max session duration');
-  fireEvent.change(ttlInput, { target: { value: duration } });
+  await user.type(ttlInput, duration);
 }
 
 const renderComponent = (options?: {
   history?: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) => {
-  return render(<BotDetails />, {
-    wrapper: makeWrapper(options),
-  });
+  const user = userEvent.setup();
+  return {
+    ...render(<BotDetails />, {
+      wrapper: makeWrapper(options),
+    }),
+    user,
+  };
 };
 
 const waitForLoadingBot = async () => {
