@@ -620,7 +620,7 @@ function OverflowMenu(props: {
     onDelete,
   } = props;
   const [isOpen, setIsOpen] = useState(false);
-  const anchorElRef = useRef(null);
+  const anchorElRef = useRef<HTMLButtonElement>(null);
 
   const handleLock = () => {
     // Disabled attribute on MenuItem is for styling only, so check if the user can lock the bot
