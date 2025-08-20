@@ -2654,7 +2654,6 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 }
 
 // GetDatabases returns all database resources.
-// Deprecated: Prefer paginated variant such as [ListDatabases]
 func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
 	defer span.End()

@@ -46,7 +46,6 @@ func NewDatabasesService(backend backend.Backend) *DatabaseService {
 }
 
 // GetDatabases returns all database resources.
-// Deprecated: Prefer paginated variant such as [ListDatabases]
 func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	startKey := backend.ExactKey(databasesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)

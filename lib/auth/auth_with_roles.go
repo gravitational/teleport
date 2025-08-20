@@ -6699,7 +6699,6 @@ func (a *ServerWithRoles) GetDatabase(ctx context.Context, name string) (types.D
 }
 
 // GetDatabases returns all database resources.
-// Deprecated: Prefer paginated variant such as [ListDatabases]
 func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Database, err error) {
 	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
