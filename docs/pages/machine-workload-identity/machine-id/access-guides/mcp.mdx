@@ -6,6 +6,30 @@ labels:
  - mwi
 ---
 
+Teleport protects and control access to Model Context Protocol (MCP) servers.
+Machine & Workload Identity (MWI) can then be used to grant machines and
+workloads secure and short-lived access to these MCP servers without the need
+for long-lived static secrets.
+
+In this guide, you will configure `tbot` to produce short-lived credentials that
+can be used by an MCP client to access MCP servers enrolled within your Teleport
+cluster.
+
+This guide focuses on granting machines access to MCP servers. If you wish to
+grant human users access to MCP servers, you should instead refer to the
+[MCP Access with Stdio MCP Server guide](../../../enroll-resources/mcp-access/stdio.mdx).
+
+## How it works
+
+The Teleport Application Access agent is deployed in front of the MCP server
+that you wish to protect access to. This agent is responsible for enforcing
+access control based on roles configured in Teleport.
+
+The Machine & Workload Identity agent, `tbot`, is installed on the machine
+that will require access to the MCP server. It is responsible for authenticating
+to the Teleport cluster and producing an identity file that can be used by the
+MCP client to access the MCP server through the Teleport Proxy.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -155,6 +179,9 @@ MCP client you are using.
         produced by `tbot`.
         - `example.teleport.sh:443` with the address of your Teleport proxy.
         - `my-mcp-server` with the name of your MCP server as enrolled in Teleport.
+
+        See the [Claude Desktop documentation](https://modelcontextprotocol.io/quickstart/user)
+        for further details.
     </TabItem>
     <TabItem label="Other">
         Generally, any MCP client that supports STDIO transport can be used with
