@@ -46,12 +46,12 @@ type uploadHandler interface {
 	// file in case of success. Session metadata is a file with a [recordingmetadatav1.SessionRecordingMetadata]
 	// protobuf message containing info about the session (duration, events, etc), as well as
 	// multiple [recordingmetadatav1.SessionRecordingThumbnail] messages (thumbnails).
-	UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error)
 	// UploadThumbnail uploads a session thumbnail and returns a URL with uploaded
 	// file in case of success. A thumbnail is [recordingmetadatav1.SessionRecordingThumbnail]
 	// protobuf message which contains the thumbnail as an SVG, and some basic details about the
 	// state of the terminal at the time of the thumbnail capture (terminal size, cursor position).
-	UploadThumbnail(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error)
 }
 
 // RecordingMetadataService processes session recordings to generate metadata and thumbnails.
