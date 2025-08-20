@@ -154,7 +154,7 @@ func NewClient(cfg Config) (*Client, error) {
 
 // request is the base function for HTTP API calls.
 // It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
-func (c *Client) request(ctx context.Context, method string, uri string, payload []byte) (*http.Response, error) {
+func (c *Client) request(ctx context.Context, method string, uri string, header map[string]string, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
 	if len(payload) > 0 {
 		body = bytes.NewReader(payload)
@@ -175,6 +175,9 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 		return nil, trace.Wrap(err, "failed to get azure authentication token")
 	}
 	req.Header.Add("Authorization", "Bearer "+token.Token)
+	for i := range header {
+		req.Header.Add(i, header[i])
+	}
 
 	const maxRetries = 5
 	var retryAfter time.Duration
@@ -264,7 +267,7 @@ func roundtrip[T any](ctx context.Context, c *Client, method string, uri string,
 			return zero, trace.Wrap(err)
 		}
 	}
-	resp, err := c.request(ctx, method, uri, body)
+	resp, err := c.request(ctx, method, uri, nil /* extra headers */, body)
 	if err != nil {
 		return zero, trace.Wrap(err)
 	}
@@ -284,7 +287,7 @@ func (c *Client) patch(ctx context.Context, uri string, in any) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	resp, err := c.request(ctx, http.MethodPatch, uri, body)
+	resp, err := c.request(ctx, http.MethodPatch, uri, nil /* extra headers */, body)
 	if err != nil {
 		return trace.Wrap(err)
 	}
