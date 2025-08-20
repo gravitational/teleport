@@ -19,18 +19,23 @@
 package local
 
 import (
+	"cmp"
 	"context"
+	"slices"
+	"strconv"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestDatabasesCRUD tests backend operations with database resources.
@@ -66,6 +71,15 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 
+	out, next, err := service.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
 	// Create both databases.
 	err = service.CreateDatabase(ctx, db1)
 	require.NoError(t, err)
@@ -85,14 +99,27 @@ func TestDatabasesCRUD(t *testing.T) {
 	// Fetch all databases.
 	out, err = service.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = service.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
+	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Fetch a specific database.
 	db, err := service.GetDatabase(ctx, db2.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(db2, db,
+	require.Empty(t, gocmp.Diff(db2, db,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -110,7 +137,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	db, err = service.GetDatabase(ctx, db1.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(db1, db,
+	require.Empty(t, gocmp.Diff(db1, db,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -119,7 +146,20 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = service.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{dbBadURI, db2}, out,
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = service.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
+	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -133,4 +173,73 @@ func TestDatabasesCRUD(t *testing.T) {
 	out, err = service.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, out)
+
+	out, next, err = service.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Test pagination
+	expected := make([]types.Database, 0, 50)
+	for i := range 50 {
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: "db" + strconv.Itoa(i+1),
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost",
+		})
+		require.NoError(t, err)
+		require.NoError(t, service.CreateDatabase(t.Context(), db))
+		expected = append(expected, db)
+	}
+	slices.SortFunc(expected, func(a, b types.Database) int {
+		return cmp.Compare(a.GetMetadata().Name, b.GetMetadata().Name)
+	})
+
+	out, err = service.GetDatabases(ctx)
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	page1, page2Start, err := service.ListDatabases(t.Context(), 10, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, 10)
+	assert.NotEmpty(t, page2Start)
+
+	page2, next, err := service.ListDatabases(t.Context(), 1000, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, len(expected)-10)
+	assert.Empty(t, next)
+
+	listed := append(page1, page2...)
+	assert.Empty(t, gocmp.Diff(expected, listed,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(service.RangeDatabases(t.Context(), "", page2Start))
+	require.NoError(t, err)
+	assert.Len(t, out, len(page1))
+	assert.Empty(t, gocmp.Diff(page1, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(service.RangeDatabases(t.Context(), "", ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(service.RangeDatabases(t.Context(), page2Start, ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected)-10)
+	assert.Empty(t, gocmp.Diff(expected, append(page1, out...),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 }

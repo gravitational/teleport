@@ -252,7 +252,7 @@ const MultiselectMenuOptionsContainer = styled(Flex)<{
   z-index: 1;
 `;
 
-const FiltersExistIndicator = styled.div`
+export const FiltersExistIndicator = styled.div`
   position: absolute;
   top: -4px;
   right: -4px;

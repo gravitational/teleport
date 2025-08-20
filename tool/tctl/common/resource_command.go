@@ -2026,9 +2026,17 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabase:
-		databases, err := client.GetDatabases(ctx)
+		databases, err := stream.Collect(client.RangeDatabases(ctx, "", ""))
 		if err != nil {
-			return trace.Wrap(err)
+			// TODO(okraport) DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				databases, err = client.GetDatabases(ctx)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			} else {
+				return trace.Wrap(err)
+			}
 		}
 		resDesc := "database"
 		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
@@ -2853,10 +2861,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
-		databases, err := client.GetDatabases(ctx)
+		databases, err := stream.Collect(client.RangeDatabases(ctx, "", ""))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// TODO(okraport) DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				databases, err = client.GetDatabases(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				return nil, trace.Wrap(err)
+			}
 		}
+
 		if rc.ref.Name == "" {
 			return &databaseCollection{databases: databases}, nil
 		}

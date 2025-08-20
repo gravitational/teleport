@@ -43,7 +43,7 @@ TOKEN=$(pwgen -n 30)
 Edit `values/teleport.yaml` (replace <your-name>), then install Teleport using the chart
 
 ```shell
-helm install teleport -n teleport --create-namespace <path/to/chart> --values values/teleport.yaml --set auth.teleportConfig.auth_service.tokens[0]="node:$TOKEN"
+helm install teleport -n teleport --version $TELEPORT_VERSION --create-namespace <path/to/chart> --values values/teleport.yaml --set auth.teleportConfig.auth_service.tokens[0]="node:$TOKEN"
 ```
 
 For v11 and below:

@@ -131,6 +131,15 @@ spec:
                         nullable: true
                         type: array
                     type: object
+                  elasticache_serverless:
+                    description: ElastiCacheServerless contains Amazon ElastiCache
+                      Serverless metadata.
+                    properties:
+                      cache_name:
+                        description: CacheName is an ElastiCache Serverless cache
+                          name.
+                        type: string
+                    type: object
                   external_id:
                     description: ExternalID is an optional AWS external ID used to
                       enable assuming an AWS role across accounts.
@@ -320,6 +329,18 @@ spec:
               gcp:
                 description: GCP contains parameters specific to GCP Cloud SQL databases.
                 properties:
+                  alloydb:
+                    description: AlloyDB contains AlloyDB specific configuration elements.
+                    properties:
+                      endpoint_override:
+                        description: EndpointOverride is an override of endpoint address
+                          to use.
+                        type: string
+                      endpoint_type:
+                        description: 'EndpointType is the database endpoint type to
+                          use. Should be one of: "private", "public", "psc".'
+                        type: string
+                    type: object
                   instance_id:
                     description: InstanceID is the Cloud SQL instance ID.
                     type: string

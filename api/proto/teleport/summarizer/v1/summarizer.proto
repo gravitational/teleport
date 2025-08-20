@@ -44,6 +44,22 @@ message InferenceModelSpec {
     // and specifies OpenAI-specific parameters.
     OpenAIProvider openai = 1;
   }
+  // MaxSessionLengthBytes is the maximum session length that can be sent to
+  // inference provider. Currently, it's determined by the size of model's
+  // context window; future versions of Teleport will allow summarizing larger
+  // sessions by splitting them.
+  //
+  // Inference providers will reject requests that are larger than given
+  // model's context window. Since context windows are usually sized in tokens,
+  // this value is an approximation. Assuming 2 bytes per input token should be
+  // safe.
+  //
+  // Currently, Teleport will outright reject sessions larger than this limit;
+  // future versions will split sessions in chunks, treating this size as a
+  // maximum.
+  //
+  // If unset or set to 0, defaults to 1MB.
+  int64 max_session_length_bytes = 2;
 }
 
 // OpenAIProvider specifies OpenAI-specific parameters. It can be used to
