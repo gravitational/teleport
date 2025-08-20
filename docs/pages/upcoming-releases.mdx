@@ -1,120 +1,62 @@
 ---
 title: Teleport Upcoming Releases
 description: A timeline of upcoming Teleport releases.
-h1: Upcoming Teleport Releases
 labels:
  - reference
  - platform-wide
 ---
 
-The Teleport team delivers a new major release roughly every 3 months.
+Teleport releases a new major version approximately every 4 months, and provides
+security-critical support for the current and two previous major versions. With
+our typical release cadence, we usually support each major version for 12
+months.
 
 ## Teleport
 
-### Teleport 12.3.0
+We plan to release the following versions in the coming months:
 
-####  Automatic user creation for desktop access
+| Version | Date                      |
+|---------|---------------------------|
+| 18.2.0  | Week of September 1, 2025 |
 
-Teleport's passwordless access for local users will provide the ability to
-create Windows users on demand, similar to how host-user creation works for SSH
-servers.
+We continue to support the following major versions of Teleport:
 
-#### SFTP UX enhancements
+| Release | Release Date      | EOL            | Minimum `tsh` version |
+|---------|-------------------|----------------|-----------------------|
+| v18.x   | July 3, 2025      | August 2026    | v17.0.0               |
+| v17.x   | November 16, 2024 | February 2026  | v16.0.0               |
+| v16.x   | June 14, 2024     | October 2025   | v15.0.0               |
 
-Will include fixes for wildcard patterns, excessive audit logging and PyCharm
-compatibility. [#22748](https://github.com/gravitational/teleport/issues/22748)
-[#21518](https://github.com/gravitational/teleport/issues/21518)
-[#22982](https://github.com/gravitational/teleport/issues/22982)
-[#22263](https://github.com/gravitational/teleport/issues/22263)
-[#20863](https://github.com/gravitational/teleport/issues/20863)
-[#23593](https://github.com/gravitational/teleport/issues/23593)
+### 18.2.0
 
-| Version | Date          |
-|---------|---------------|
-| 12.3.0  | May 1st, 2023 |
+#### Encrypted session recordings
 
-### Teleport 13.0.0
+Teleport will provide the ability to integrate with Hardware Security Modules
+(HSMs) in order to encrypt session recordings prior to uploading them to storage.
 
-| Version        | Date             |
-|----------------|------------------|
-| 13.0.0-alpha.1 | April 17th, 2023 |
-| 13.0.0         | May 8th, 2023    |
+#### Teleport Connect Managed Updates
 
-####  Automatic updates
+Teleport Connect will be able to detect when application updates are available and
+automatically apply them on the next restart.
 
-Users will be able to configure Teleport Agents to upgrade automatically.
+#### Teleport Device Trust Intune Support
 
-####  TLS routing through ALB for server access and Kubernetes access
+Teleport will include a new hosted plugin for Microsoft's Intune suite, allowing
+trusted devices to be synchronized from the Intune inventory.
 
-Teleport will support server access and Kubernetes access through load
-balancers in TLS routing mode.
+#### Terraform support for Access List members
 
-####  Ability to import applications and groups from Okta
-
-Teleport will be able to imports Okta apps and groups and users will be able to
-use Access Requests with Okta apps and groups.
-
-####  AWS OpenSearch support for database access
-
-Database access will add support for connecting to AWS OpenSearch.
-
-#### Cross-Cluster Search for Teleport Connect
-
-Teleport Connect will include a new search experience, allowing you to search
-for and connect to resources across all logged-in clusters.
-
-#### Kubernetes access performance improvements
-
-Users will experience better performance when interacting with Kubernetes clusters.
-
-#### Universal binaries (including Apple Silicon) for macOS
-
-Teleport will run natively on ARM Macs, without the need for Rosetta emulation.
-
-#### Simplified RDS onboarding flow in Access Management UI
-
-Teleport Access Management UI will provide ability to connect to AWS account
-and select RDS databases for onboarding.
-
-#### Light theme for Web UI
-
-Teleport's web UI will ship with an optional light theme.
-
-#### Other
-
-In addition, the following improvements
-
-- Improved SQL Server PKINIT Auth support
-- Session recording video export support for Teleport-protected desktops
-- Add support for locking to Web UI
-- Device listing in Web UI
-
-### 13.1.0
-
-####  GCP Auto-Discovery for server access
-
-Teleport will be able to automatically enroll GCP VM for server access.
-
-####  OpsGenie Access Request Plugin
-
-Teleport will include OpsGenie access plugin.
-
-*Delayed from Teleport 13.0.0.*
-
-| Version | Date           |
-|---------|----------------|
-| 12.3.0  | June 1st, 2023 |
+Users will be able to provision Access Lists and their members (including other
+nested Access Lists) with terraform.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of          | Description                                          |
-|------------------|------------------------------------------------------|
-| April 10th, 2023 | Teleport 12.2 begins to roll out for Cloud customers |
-| May 8th, 2023    | Add support for hosted Access Request plugins        |
-| June 5th, 2023   | Teleport 13.1 begins to roll out for Cloud customers |
-| June 5th, 2023   | Advanced Audit Log rollout begins                    |
+| Week of         | Description                                                  |
+|-----------------|--------------------------------------------------------------|
+| August 04, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
+| August 04, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
@@ -155,18 +97,7 @@ minor release, such as (=teleport.major_version=).1.0.
 Patch releases contain small bug fixes and can typically be deployed directly
 to production.
 
-## Preview Policy
+## Version compatibility
 
-A product or feature may be marked as "Preview" if any of the following is
-true.
+(!docs/pages/includes/compatibility.mdx!)
 
-- The product or feature is missing key functionality. For example, Microsoft
-  SQL Server support for database access initially shipped without audit
-  logging support.
-- The product or feature has NOT been adopted by at least 2 existing customers.
-- The product or feature has NOT been through a security audit.
-- The documentation for the product or feature is incomplete.
-- Assets (e.g. binaries) associated with the feature are not published to our
-  official downloads page.
-
-Use preview features in production if the above issues are not a concern.

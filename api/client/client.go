@@ -89,6 +89,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -110,6 +111,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -500,7 +503,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
@@ -516,6 +518,9 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			metadata.StreamClientInterceptor,
 			interceptors.GRPCClientStreamErrorInterceptor,
 			breaker.StreamClientInterceptor(cb),
+		),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(grpcutils.MaxClientRecvMsgSize()),
 		),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
@@ -938,6 +943,12 @@ func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 // recording summarizer service.
 func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient {
 	return summarizerv1.NewSummarizerServiceClient(c.conn)
+}
+
+// RecordingMetadataServiceClient returns an unadorned client for the session
+// recording metadata service.
+func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient {
+	return recordingmetadatav1.NewRecordingMetadataServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -2713,6 +2724,14 @@ func (c *Client) DynamicDesktopClient() *dynamicwindows.Client {
 	return dynamicwindows.NewClient(dynamicwindowsv1.NewDynamicWindowsServiceClient(c.conn))
 }
 
+func (c *Client) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
+	return c.DynamicDesktopClient().ListDynamicWindowsDesktops(ctx, pageSize, pageToken)
+}
+
+func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	return c.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, name)
+}
+
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {
@@ -3314,31 +3333,7 @@ func (c *Client) ListApps(ctx context.Context, limit int, start string) ([]types
 
 // Apps returns application resources within the range [start, end).
 func (c *Client) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	return func(yield func(types.Application, error) bool) {
-		for {
-			apps, next, err := c.ListApps(ctx, 0, start)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			for _, app := range apps {
-				if end != "" && app.GetName() >= end {
-					return
-				}
-
-				if !yield(app, nil) {
-					return
-				}
-			}
-
-			if next == "" {
-				return
-			}
-
-			start = next
-		}
-	}
+	return clientutils.RangeResources(ctx, start, end, c.ListApps, types.Application.GetName)
 }
 
 // DeleteApp deletes specified application resource.

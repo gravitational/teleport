@@ -41,8 +41,8 @@ importers:
         specifier: ^2.10.0
         version: 2.10.0
       '@tanstack/react-query':
-        specifier: ^5.75.4
-        version: 5.75.5(react@19.1.0)
+        specifier: ^5.85.5
+        version: 5.85.5(react@19.1.0)
       '@uiw/codemirror-themes':
         specifier: ^4.23.12
         version: 4.23.12(@codemirror/view@6.36.7)
@@ -277,6 +277,9 @@ importers:
       typescript-eslint:
         specifier: ^8.32.0
         version: 8.32.0(eslint@9.26.0)(typescript@5.8.3)
+      vite-plugin-compression:
+        specifier: ^0.5.1
+        version: 0.5.1(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1))
       vite-plugin-wasm:
         specifier: ^3.4.1
         version: 3.4.1(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1))
@@ -491,6 +494,9 @@ importers:
       electron-builder:
         specifier: ^26.0.12
         version: 26.0.12
+      electron-updater:
+        specifier: ^6.6.5
+        version: 6.6.5
       electron-vite:
         specifier: ^3.1.0
         version: 3.1.0(@swc/core@1.11.24)(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1))
@@ -2583,11 +2589,11 @@ packages:
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
 
-  '@tanstack/query-core@5.75.5':
-    resolution: {integrity: sha512-kPDOxtoMn2Ycycb76Givx2fi+2pzo98F9ifHL/NFiahEDpDwSVW6o12PRuQ0lQnBOunhRG5etatAhQij91M3MQ==}
+  '@tanstack/query-core@5.85.5':
+    resolution: {integrity: sha512-KO0WTob4JEApv69iYp1eGvfMSUkgw//IpMnq+//cORBzXf0smyRwPLrUvEe5qtAEGjwZTXrjxg+oJNP/C00t6w==}
 
-  '@tanstack/react-query@5.75.5':
-    resolution: {integrity: sha512-QrLCJe40BgBVlWdAdf2ZEVJ0cISOuEy/HKupId1aTKU6gPJZVhSvZpH+Si7csRflCJphzlQ77Yx6gUxGW9o0XQ==}
+  '@tanstack/react-query@5.85.5':
+    resolution: {integrity: sha512-/X4EFNcnPiSs8wM2v+b6DqS5mmGeuJQvxBglmDxl6ZQb5V26ouD2SJYAcC3VjbNwqhY2zjxVD15rDA5nGbMn3A==}
     peerDependencies:
       react: ^18 || ^19
 
@@ -3272,6 +3278,10 @@ packages:
     resolution: {integrity: sha512-2/egrNDDnRaxVwK3A+cJq6UOlqOdedGA7JPqCeJjN2Zjk1/QB/6QUi3b714ScIGS7HafFXTyzJEOr5b44I3kvQ==}
     engines: {node: '>=12.0.0'}
 
+  builder-util-runtime@9.3.2:
+    resolution: {integrity: sha512-7QDXJ1FwT6d9ZhG4kuObUUPY8/ENBS/Ky26O4hR5vbeoRGavgekS2Jxv+8sCn/v23aPGU2DXRWEeJuijN2ooYA==}
+    engines: {node: '>=12.0.0'}
+
   builder-util@26.0.11:
     resolution: {integrity: sha512-xNjXfsldUEe153h1DraD0XvDOpqGR0L5eKFkdReB7eFW5HqysDZFfly4rckda6y9dF39N3pkPlOblcfHKGw+uA==}
 
@@ -3869,6 +3879,9 @@ packages:
 
   electron-to-chromium@1.5.150:
     resolution: {integrity: sha512-rOOkP2ZUMx1yL4fCxXQKDHQ8ZXwisb2OycOQVKHgvB3ZI4CvehOd4y2tfnnLDieJ3Zs1RL1Dlp3cMkyIn7nnXA==}
+
+  electron-updater@6.6.5:
+    resolution: {integrity: sha512-jnk38WfByl2Pb0cje02xls/pJkvkq3AQZI7usDCLriU23adkerLTkRrugbCPuUxUOa79nY1g/rokHPWHZFBKyA==}
 
   electron-vite@3.1.0:
     resolution: {integrity: sha512-M7aAzaRvSl5VO+6KN4neJCYLHLpF/iWo5ztchI/+wMxIieDZQqpbCYfaEHHHPH6eupEzfvZdLYdPdmvGqoVe0Q==}
@@ -5055,6 +5068,13 @@ packages:
 
   lodash.debounce@4.0.8:
     resolution: {integrity: sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==}
+
+  lodash.escaperegexp@4.1.2:
+    resolution: {integrity: sha512-TM9YBvyC84ZxE3rgfefxUWiQKLilstD6k7PTGt6wfbtXF8ixIJLOL3VYyV/z+ZiPLsVxAsKAFVwWlWeb2Y8Yyw==}
+
+  lodash.isequal@4.5.0:
+    resolution: {integrity: sha512-pDo3lu8Jhfjqls6GkMgpahsF9kCyayhgykjyLMNFTKWrpVdAQtYyB4muAMWozBB4ig/dtWAmsMxLEI8wuz+DYQ==}
+    deprecated: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
 
   lodash.merge@4.6.2:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
@@ -6295,6 +6315,9 @@ packages:
   tiny-invariant@1.3.3:
     resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
 
+  tiny-typed-emitter@2.1.0:
+    resolution: {integrity: sha512-qVtvMxeXbVej0cQWKqVSSAHmKZEHAvxdF8HEUBFWts8h+xEo5m/lEiPakuyZ3BnCBjOD8i24kzNOiOLLgsSxhA==}
+
   tiny-warning@1.0.3:
     resolution: {integrity: sha512-lBN9zLN/oAf68o3zNXYrdCt1kP8WsiGW8Oo2ka41b2IM5JL/S1CTyX1rW0mb/zSuJun0ZUrDxx4sqvYS2FWzPA==}
 
@@ -6549,6 +6572,11 @@ packages:
   verror@1.10.1:
     resolution: {integrity: sha512-veufcmxri4e3XSrT0xwfUR7kguIkaxBeosDg00yDWhk49wdwkSUrvvsm7nc75e1PUyvIeZj6nS8VQRYz2/S4Xg==}
     engines: {node: '>=0.6.0'}
+
+  vite-plugin-compression@0.5.1:
+    resolution: {integrity: sha512-5QJKBDc+gNYVqL/skgFAP81Yuzo9R+EAf19d+EtsMF/i8kFUpNi3J/H01QD3Oo8zBQn+NzoCIFkpPLynoOzaJg==}
+    peerDependencies:
+      vite: '>=2.0.0'
 
   vite-plugin-wasm@3.4.1:
     resolution: {integrity: sha512-ja3nSo2UCkVeitltJGkS3pfQHAanHv/DqGatdI39ja6McgABlpsZ5hVgl6wuR8Qx5etY3T5qgDQhOWzc5RReZA==}
@@ -9254,11 +9282,11 @@ snapshots:
     dependencies:
       defer-to-connect: 2.0.1
 
-  '@tanstack/query-core@5.75.5': {}
+  '@tanstack/query-core@5.85.5': {}
 
-  '@tanstack/react-query@5.75.5(react@19.1.0)':
+  '@tanstack/react-query@5.85.5(react@19.1.0)':
     dependencies:
-      '@tanstack/query-core': 5.75.5
+      '@tanstack/query-core': 5.85.5
       react: 19.1.0
 
   '@testing-library/dom@10.1.0':
@@ -10113,6 +10141,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  builder-util-runtime@9.3.2:
+    dependencies:
+      debug: 4.4.0
+      sax: 1.4.1
+    transitivePeerDependencies:
+      - supports-color
+
   builder-util@26.0.11:
     dependencies:
       7zip-bin: 5.2.0
@@ -10839,6 +10874,19 @@ snapshots:
       - supports-color
 
   electron-to-chromium@1.5.150: {}
+
+  electron-updater@6.6.5:
+    dependencies:
+      builder-util-runtime: 9.3.2
+      fs-extra: 10.1.0
+      js-yaml: 4.1.0
+      lazy-val: 1.0.5
+      lodash.escaperegexp: 4.1.2
+      lodash.isequal: 4.5.0
+      semver: 7.7.2
+      tiny-typed-emitter: 2.1.0
+    transitivePeerDependencies:
+      - supports-color
 
   electron-vite@3.1.0(@swc/core@1.11.24)(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1)):
     dependencies:
@@ -12436,6 +12484,10 @@ snapshots:
 
   lodash.debounce@4.0.8: {}
 
+  lodash.escaperegexp@4.1.2: {}
+
+  lodash.isequal@4.5.0: {}
+
   lodash.merge@4.6.2: {}
 
   lodash@4.17.21: {}
@@ -13854,6 +13906,8 @@ snapshots:
 
   tiny-invariant@1.3.3: {}
 
+  tiny-typed-emitter@2.1.0: {}
+
   tiny-warning@1.0.3: {}
 
   tinyglobby@0.2.13:
@@ -14091,6 +14145,15 @@ snapshots:
       core-util-is: 1.0.2
       extsprintf: 1.4.1
     optional: true
+
+  vite-plugin-compression@0.5.1(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1)):
+    dependencies:
+      chalk: 4.1.2
+      debug: 4.4.0
+      fs-extra: 10.1.0
+      vite: 6.3.5(@types/node@22.15.16)(yaml@2.7.1)
+    transitivePeerDependencies:
+      - supports-color
 
   vite-plugin-wasm@3.4.1(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1)):
     dependencies:

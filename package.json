@@ -76,7 +76,7 @@
     "@nivo/bar": "^0.93.0",
     "@protobuf-ts/runtime": "^2.10.0",
     "@protobuf-ts/runtime-rpc": "^2.10.0",
-    "@tanstack/react-query": "^5.75.4",
+    "@tanstack/react-query": "^5.85.5",
     "@uiw/codemirror-themes": "^4.23.12",
     "@uiw/react-codemirror": "^4.23.12",
     "d3-scale": "^4.0.2",
