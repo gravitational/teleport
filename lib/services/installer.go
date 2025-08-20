@@ -39,7 +39,7 @@ func UnmarshalInstaller(data []byte, opts ...MarshalOption) (types.Installer, er
 	}
 
 	if err := utils.FastUnmarshal(data, &installer); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := installer.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

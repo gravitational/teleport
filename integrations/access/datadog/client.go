@@ -131,14 +131,12 @@ func onAfterDatadogResponse(sink common.StatusSink) resty.ResponseMiddleware {
 		}
 
 		if resp.IsError() {
-			var details string
 			switch result := resp.Error().(type) {
 			case *ErrorResult:
-				details = fmt.Sprintf("http error code=%v, errors=[%v]", resp.StatusCode(), strings.Join(result.Errors, ", "))
+				return trace.Errorf("http error code=%v, errors=[%v]", resp.StatusCode(), strings.Join(result.Errors, ", "))
 			default:
-				details = fmt.Sprintf("unknown error result %#v", result)
+				return trace.Errorf("unknown error result %#v", result)
 			}
-			return trace.Errorf(details)
 		}
 		return nil
 	}
