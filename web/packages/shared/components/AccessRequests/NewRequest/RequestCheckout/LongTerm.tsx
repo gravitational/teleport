@@ -50,7 +50,7 @@ export const LongTermGroupingErrors = <
           <Text>Long-term access unavailable</Text>
           <Text typography="body2" bold={false}>
             {grouping.validationMessage ||
-              'No resources are available for long-term access.'}
+              'No resources are available for long-term access'}
           </Text>
         </Flex>
       </Alert>
@@ -59,12 +59,12 @@ export const LongTermGroupingErrors = <
 
   return (
     <>
-      <UncoveredResourcesError
+      <LongTermUnavailableError
         grouping={grouping}
         pendingAccessRequests={pendingAccessRequests}
         toggleResources={toggleResources}
       />
-      <IncompatibleResourcesError
+      <GroupingResourcesError
         grouping={grouping}
         pendingAccessRequests={pendingAccessRequests}
         toggleResources={toggleResources}
@@ -73,7 +73,7 @@ export const LongTermGroupingErrors = <
   );
 };
 
-const UncoveredResourcesError = <T extends PendingListItem = PendingListItem>({
+const LongTermUnavailableError = <T extends PendingListItem = PendingListItem>({
   grouping,
   pendingAccessRequests,
   toggleResources,
@@ -107,7 +107,6 @@ const UncoveredResourcesError = <T extends PendingListItem = PendingListItem>({
             }))
           ),
       }}
-      wrapContents
     >
       <Flex flexDirection="column" gap={1}>
         <Text>
@@ -122,9 +121,7 @@ const UncoveredResourcesError = <T extends PendingListItem = PendingListItem>({
   );
 };
 
-const IncompatibleResourcesError = <
-  T extends PendingListItem = PendingListItem,
->({
+const GroupingResourcesError = <T extends PendingListItem = PendingListItem>({
   grouping,
   pendingAccessRequests,
   toggleResources,
@@ -178,12 +175,10 @@ const IncompatibleResourcesError = <
 // as a list with commas and "and" for the last item.
 const joinResourceNames = <T extends PendingListItem = PendingListItem>(
   resources: T[]
-) => {
-  const names = resources.map(r => r.name);
-  if (names.length <= 1) return names[0] || '';
-  if (names.length === 2) return names.join(' and ');
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-};
+) =>
+  new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(
+    resources.map(r => r.name)
+  );
 
 // findIncompatibleLongTermResources iterates through the
 // pendingRequests and returns a list of resources
@@ -195,12 +190,12 @@ const findIncompatibleLongTermResources = <
   pendingRequests: T[]
 ) => {
   const optimalGrouping =
-    grouping.accessListToResources?.[grouping.recommendedAccessList];
-  if (!optimalGrouping?.length) {
+    grouping.accessListToResources?.[grouping.recommendedAccessList] || [];
+  if (!optimalGrouping.length) {
     return [];
   }
 
-  // Don't include uncovered resources, so we avoid duplicate errs
+  // Don't include uncovered resources, so we avoid duplicate errors
   const uncoveredResources = findUncoveredLongTermResources(
     grouping,
     pendingRequests
@@ -208,7 +203,6 @@ const findIncompatibleLongTermResources = <
 
   return pendingRequests.filter(
     item =>
-      item.kind !== 'namespace' &&
       !uncoveredResources.some(i => item.id === i.id) &&
       !optimalGrouping.some(i => item.id === i.name)
   );
@@ -226,8 +220,7 @@ const findUncoveredLongTermResources = <
   const groupings = Object.values(grouping.accessListToResources || {}).flat();
 
   return pendingRequests.filter(
-    item =>
-      item.kind !== 'namespace' && !groupings.some(i => item.id === i.name)
+    item => !groupings.some(i => item.id === i.name)
   );
 };
 
@@ -252,12 +245,14 @@ export const shouldShowLongTermGroupingErrors = <
   ) {
     return false;
   }
+  if (pendingAccessRequests.some(r => r.kind === 'namespace')) {
+    return true;
+  }
 
   const responseResourceKeys = new Set(
     dryRunResponse.resources.map(res => `${res.id.kind}:${res.id.name}`)
   );
   return pendingAccessRequests.every(r => {
-    if (r.kind === 'namespace') return true;
     const key = `${r.kind}:${r.id}`;
     return responseResourceKeys.has(key);
   });

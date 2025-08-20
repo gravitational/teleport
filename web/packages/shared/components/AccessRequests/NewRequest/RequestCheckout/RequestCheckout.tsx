@@ -226,14 +226,18 @@ export function RequestCheckout<T extends PendingListItem>({
       pendingAccessRequests.length === 0 ||
       createAttempt.status === 'processing' ||
       isInvalidRoleSelection
-    )
+    ) {
       return true;
+    }
     if (
       fetchResourceRequestRolesAttempt.status === 'failed' &&
       hasUnsupporteKubeResourceKinds
-    )
+    ) {
       return true;
-    if (fetchResourceRequestRolesAttempt.status === 'processing') return true;
+    }
+    if (fetchResourceRequestRolesAttempt.status === 'processing') {
+      return true;
+    }
     if (isLongTerm) {
       return !dryRunResponse?.longTermResourceGrouping?.canProceed;
     }
@@ -300,8 +304,22 @@ export function RequestCheckout<T extends PendingListItem>({
 
   function customRow(item: T) {
     if (item.kind === 'kube_cluster') {
+      const unsupported =
+        requestKind === RequestKind.LongTerm &&
+        !!isKubeClusterWithNamespaces(item, pendingAccessRequests);
+
       return (
-        <td colSpan={showClusterNameColumn ? 4 : 3}>
+        <td
+          colSpan={showClusterNameColumn ? 4 : 3}
+          style={
+            unsupported
+              ? {
+                  background: theme.colors.interactive.tonal.danger[0],
+                  borderTopColor: theme.colors.interactive.tonal.danger[2],
+                }
+              : {}
+          }
+        >
           <Flex>
             <Flex flexWrap="wrap">
               <Flex
@@ -541,10 +559,6 @@ export function RequestCheckout<T extends PendingListItem>({
                               )
                             }
                             disabled={longTermDisabled}
-                            css={
-                              longTermDisabled &&
-                              `cursor: not-allowed !important;`
-                            }
                           >
                             <Flex flexDirection="column" ml={3}>
                               <Text>Long-Term Access</Text>
@@ -568,7 +582,7 @@ export function RequestCheckout<T extends PendingListItem>({
                   )}
                   {/* Selecting reviewers not available for long-term requests */}
                   {!isLongTerm && (
-                    <Box mt={4}>
+                    <Box my={4}>
                       <SelectReviewers
                         reviewers={
                           dryRunResponse?.reviewers.map(r => r.name) ?? []
