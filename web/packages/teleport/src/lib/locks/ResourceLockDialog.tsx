@@ -89,10 +89,9 @@ export function ResourceLockDialog(props: {
       newLock = await lock(message, ttl);
     } catch {
       // Swallow this error - it's handled as `lockError` above
+      return;
     }
-    if (newLock) {
-      onComplete(newLock);
-    }
+    onComplete(newLock);
   };
 
   return (
