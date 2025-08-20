@@ -88,7 +88,7 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 			dest: &SecretDestination{
 				Name:      "my-secret",
 				Namespace: "my-other-namespace",
-				k8s:       fakeClientSet(),
+				k8s:       fake.NewClientset(),
 			},
 			wantNamespace: "my-other-namespace",
 		},
@@ -195,5 +195,9 @@ func TestDestinationKubernetesSecret_YAML(t *testing.T) {
 }
 
 func TestDestinationKubernetesSecret_String(t *testing.T) {
-	require.Equal(t, "kubernetes_secret: my-secret", (&SecretDestination{Name: "my-secret"}).String())
+	require.Equal(
+		t,
+		"kubernetes_secret: foo/my-secret",
+		(&SecretDestination{Namespace: "foo", Name: "my-secret"}).String(),
+	)
 }
