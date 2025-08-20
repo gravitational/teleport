@@ -676,7 +676,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 			fs := http.FileServer(cfg.StaticFS)
 
-			fs = makeGzipHandler(fs)
+			fs = makeBrotliHandler(fs, cfg.StaticFS)
 			fs = makeCacheHandler(fs, etag)
 
 			http.StripPrefix("/web", fs).ServeHTTP(w, r)
