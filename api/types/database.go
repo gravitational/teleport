@@ -431,6 +431,11 @@ func (g GCPCloudSQL) IsEmpty() bool {
 	return deriveTeleportEqualGCPCloudSQL(&g, &GCPCloudSQL{})
 }
 
+// IsEmpty returns true if AlloyDB options are empty.
+func (a AlloyDB) IsEmpty() bool {
+	return deriveTeleportEqualAlloyDB(&a, &AlloyDB{})
+}
+
 // GetGCP returns GCP information for Cloud SQL databases.
 func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 	return d.Spec.GCP
@@ -477,6 +482,11 @@ func (d *DatabaseV3) IsRedshift() bool {
 // IsCloudSQL returns true if this database is a Cloud SQL instance.
 func (d *DatabaseV3) IsCloudSQL() bool {
 	return d.GetType() == DatabaseTypeCloudSQL
+}
+
+// IsAlloyDB returns true if this database is a GCP-hosted AlloyDB instance.
+func (d *DatabaseV3) IsAlloyDB() bool {
+	return d.GetType() == DatabaseTypeAlloyDB
 }
 
 // IsAzure returns true if this is Azure hosted database.
@@ -557,11 +567,25 @@ func (d *DatabaseV3) getGCPType() (string, bool) {
 	if d.Spec.Protocol == DatabaseTypeSpanner {
 		return DatabaseTypeSpanner, true
 	}
-	gcp := d.GetGCP()
-	if !gcp.IsEmpty() {
-		return DatabaseTypeCloudSQL, true
+
+	if gcputils.IsAlloyDBConnectionURI(d.Spec.URI) {
+		return DatabaseTypeAlloyDB, true
 	}
-	return "", false
+
+	gcp := d.GetGCP()
+	if gcp.IsEmpty() {
+		return "", false
+	}
+
+	// This check catches the case when URI is not prefixed with `alloydb://`, and yet spec.gcp.alloydb is not empty.
+	// Most likely this is due to a typo in URI or misconfiguration (copy-pasting the URI without adding the prefix).
+	//
+	// Making it clear this is AlloyDB instance will prevent CloudSQL-specific logic to fire,
+	// but also make it eligible for AlloyDB-specific validation to run, which will catch the URI problem.
+	if !gcp.AlloyDB.IsEmpty() {
+		return DatabaseTypeAlloyDB, true
+	}
+	return DatabaseTypeCloudSQL, true
 }
 
 // getAWSType returns the database type.
@@ -737,6 +761,10 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.GCP.InstanceID == "" {
 			return trace.BadParameter("GCP Spanner database %q missing GCP instance ID",
 				d.GetName())
+		}
+	case d.IsAlloyDB():
+		if err := d.handleAlloyDBConfig(); err != nil {
+			return trace.Wrap(err)
 		}
 	case d.IsDynamoDB():
 		if err := d.handleDynamoDBConfig(); err != nil {
@@ -990,6 +1018,36 @@ func (d *DatabaseV3) IsEqual(i Database) bool {
 	return false
 }
 
+// handleAlloyDBConfig validates AlloyDB configuration.
+func (d *DatabaseV3) handleAlloyDBConfig() error {
+	// default to private endpoint type, but only if override isn't set.
+	if d.Spec.GCP.AlloyDB.EndpointType == "" && d.Spec.GCP.AlloyDB.EndpointOverride == "" {
+		d.Spec.GCP.AlloyDB.EndpointType = string(gcputils.AlloyDBEndpointTypePrivate)
+	}
+
+	err := gcputils.ValidateAlloyDBEndpointType(d.Spec.GCP.AlloyDB.EndpointType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	info, err := gcputils.ParseAlloyDBConnectionURI(d.Spec.URI)
+	if err != nil {
+		return trace.Wrap(err, "failed to parse AlloyDB connection URI")
+	}
+
+	// ensure the GCP fields are empty: we want to avoid redundant information in the database spec.
+	if d.Spec.GCP.InstanceID != "" {
+		return trace.BadParameter("database %q the gcp.instance_id field should be empty but is %q instead; the GCP instance ID configured through URI %q will be automatically used instead",
+			d.GetName(), d.Spec.GCP.InstanceID, info.InstanceID)
+	}
+	if d.Spec.GCP.ProjectID != "" {
+		return trace.BadParameter("database %q the gcp.project_id field should be empty but is %q instead; the GCP project ID configured through URI %q will be automatically used instead",
+			d.GetName(), d.Spec.GCP.ProjectID, info.ProjectID)
+	}
+
+	return nil
+}
+
 // handleDynamoDBConfig handles DynamoDB configuration checking.
 func (d *DatabaseV3) handleDynamoDBConfig() error {
 	if d.Spec.AWS.AccountID == "" {
@@ -1195,6 +1253,8 @@ const (
 	DatabaseTypeRedshiftServerless = "redshift-serverless"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"
+	// DatabaseTypeAlloyDB is GCP-hosted AlloyDB database.
+	DatabaseTypeAlloyDB = "alloydb"
 	// DatabaseTypeSpanner is a GCP Spanner instance.
 	DatabaseTypeSpanner = "spanner"
 	// DatabaseTypeAzure is Azure-hosted database.
