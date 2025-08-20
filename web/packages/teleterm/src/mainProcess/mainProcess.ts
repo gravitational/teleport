@@ -706,6 +706,10 @@ export default class MainProcess {
       {
         windowsHide: true,
         timeout: 2_000,
+        env: {
+          ...process.env,
+          [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+        },
       }
     );
     daemonStop.on('error', error => {
