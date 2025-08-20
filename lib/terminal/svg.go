@@ -57,13 +57,6 @@ func writeSVGHeader(buf *bytes.Buffer, width, height int) func() string {
 
 	fmt.Fprintf(buf, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" font-size="%.0f" class="terminal">`,
 		width, height, fontSize)
-
-	buf.WriteString("<style>")
-	buf.WriteString(".b{font-weight:bold}")
-	buf.WriteString(".i{font-style:italic}")
-	buf.WriteString(".u{text-decoration:underline}")
-	buf.WriteString("</style>")
-
 	fmt.Fprintf(buf, `<rect width="100%%" height="100%%" class="bg-default"/><svg x="%.3f%%" y="%.3f%%">`,
 		x, y)
 
