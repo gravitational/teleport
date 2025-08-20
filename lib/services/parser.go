@@ -48,6 +48,11 @@ type RuleContext interface {
 	// GetResource returns resource if specified in the context,
 	// if unspecified, returns error.
 	GetResource() (types.Resource, error)
+	// GetRole returns role if specified in the context,
+	// if unspecified, returns error.
+	GetRole() (types.Role, error)
+	// SetRole sets role in the context, used by the matcher
+	SetRole(role types.Role)
 }
 
 var (
@@ -145,9 +150,8 @@ func predicateIsSubset(a any, b ...any) predicate.BoolPredicate {
 	}
 }
 
-// NewWhereParser returns standard parser for `where` section in access rules.
-func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
-	return predicate.NewParser(predicate.Def{
+func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
+	def := predicate.Def{
 		Operators: predicate.Operators{
 			AND: predicate.And,
 			OR:  predicate.Or,
@@ -156,6 +160,17 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 		Functions: map[string]any{
 			"equals":       predicate.Equals,
 			"contains":     predicate.Contains,
+			"contains_all": predicateContainsAll,
+			"contains_any": predicateContainsAny,
+			"set": func(a ...any) types.WhereExpr {
+				aVal := make([]string, 0, len(a))
+				for _, v := range a {
+					if str, ok := v.(string); ok {
+						aVal = append(aVal, str)
+					}
+				}
+				return types.WhereExpr{Literal: aVal}
+			},
 			"all_end_with": predicateAllEndWith,
 			"all_equal":    predicateAllEqual,
 			"is_subset":    predicateIsSubset,
@@ -192,7 +207,59 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   GetStringMapValue,
-	})
+	}
+	return def
+}
+
+// WhereParserOpts is a function that modifies the default
+// predicate.Def used to create a parser for the `where` section in access rules.
+type WhereParserOpts func(RuleContext, *predicate.Def)
+
+// WithHasAccessFunction adds a has_access function to the parser definition.
+// This function will be used to check if the user has access to the resource
+// specified in the context. If value is false, the function will not be added.
+func WithHasAccessFunction(value bool) WhereParserOpts {
+	return func(ctx RuleContext, def *predicate.Def) {
+		if !value {
+			return
+		}
+		def.Functions["has_access"] = hasAccessFunc(ctx)
+	}
+}
+
+// NewWhereParser returns standard parser for `where` section in access rules.
+func NewWhereParser(ctx RuleContext, opts ...WhereParserOpts) (predicate.Parser, error) {
+	def := newDefaultWhereParserDef(ctx)
+	for _, opt := range opts {
+		opt(ctx, &def)
+	}
+	return predicate.NewParser(def)
+}
+
+func hasAccessFunc(ctx RuleContext) func() predicate.BoolPredicate {
+	return func() predicate.BoolPredicate {
+		return func() bool {
+			resource, err := ctx.GetResource()
+			if err != nil {
+				return false
+			}
+			accessCheckableResource, ok := resource.(AccessCheckable)
+			if !ok {
+				return false
+			}
+
+			role, err := ctx.GetRole()
+			if err != nil {
+				return false
+			}
+
+			return NewAccessCheckerWithRoleSet(&AccessInfo{
+				Roles:    []string{role.GetName()},
+				Traits:   nil,
+				Username: "",
+			}, "", RoleSet{role}).CheckAccess(accessCheckableResource, AccessState{}) == nil
+		}
+	}
 }
 
 // GetStringMapValue is a helper function that returns property
@@ -303,6 +370,10 @@ type Context struct {
 	HostCert *HostCertContext
 	// SessionTracker is an optional session tracker, in case if the rule checks access to the tracker.
 	SessionTracker types.SessionTracker
+
+	// role is the role that is being checked. It's populated at rule evaluation time
+	// never set it!
+	role types.Role
 }
 
 // String returns user friendly representation of this context
@@ -354,6 +425,17 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 	}
 }
 
+func (ctx *Context) GetRole() (types.Role, error) {
+	if ctx.role == nil {
+		return nil, trace.NotFound("role is not set in the context")
+	}
+	return ctx.role, nil
+}
+
+func (ctx *Context) SetRole(role types.Role) {
+	ctx.role = role
+}
+
 // GetIdentifier returns identifier defined in a context
 func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	switch fields[0] {
@@ -382,7 +464,7 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	case SessionIdentifier:
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
-		case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
+		case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.DatabaseSessionEnd:
 			session = ctx.Session
 		}
 		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
@@ -728,6 +810,46 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			return GetStringMapValue(mapExpr.Literal, keyExpr.Literal)
 		},
 	})
+}
+
+// predicateContainsAll is a custom function to test if all entries in a []string
+func predicateContainsAll(a, b any) predicate.BoolPredicate {
+	return func() bool {
+		aval, ok := a.([]string)
+		if !ok {
+			return false
+		}
+		bval, ok := b.([]string)
+		if !ok {
+			return false
+		}
+		for _, v := range bval {
+			if !slices.Contains(aval, v) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// predicateContainsAny is a custom function to test if any entry in a []string
+func predicateContainsAny(a, b any) predicate.BoolPredicate {
+	return func() bool {
+		aval, ok := a.([]string)
+		if !ok {
+			return false
+		}
+		bval, ok := b.([]string)
+		if !ok {
+			return false
+		}
+		for _, v := range bval {
+			if slices.Contains(aval, v) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // NewResourceExpression returns a [typical.Expression] that is to be evaluated against a

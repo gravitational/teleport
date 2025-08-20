@@ -218,11 +218,90 @@ func (a *ServerWithRoles) actionWithExtendedContext(ctx context.Context, kind, v
 func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.ID) error {
 	extendContext := func(servicesCtx *services.Context) error {
 		sessionEnd, err := a.findSessionEndEvent(ctx, sid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		servicesCtx.Session = sessionEnd
+		servicesCtx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
 		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(a.actionWithExtendedContext(ctx, types.KindSession, types.VerbRead, extendContext))
+}
+
+// rebuildResourceFromSessionEndEvent rebuilds a resource from a session end event.
+// This is used to reconstruct the resource that was active at the time of the session end event
+// for audit log RBAC purposes.
+func rebuildResourceFromSessionEndEvent(event apievents.AuditEvent) types.Resource {
+	if event == nil {
+		return nil
+	}
+	switch sEnd := event.(type) {
+	case *apievents.SessionEnd:
+		if sEnd == nil {
+			return nil
+		}
+		switch sEnd.Protocol {
+		case events.EventProtocolSSH:
+			return &types.ServerV2{
+				Kind: types.KindNode,
+				Metadata: types.Metadata{
+					Name:      sEnd.ServerMetadata.ServerID,
+					Namespace: sEnd.ServerMetadata.ServerNamespace,
+					Labels:    sEnd.ServerMetadata.ServerLabels,
+				},
+				Spec: types.ServerSpecV2{
+					Addr:     sEnd.ServerMetadata.ServerAddr,
+					Hostname: sEnd.ServerMetadata.ServerHostname,
+				},
+			}
+		case events.EventProtocolKube:
+			return &types.KubernetesClusterV3{
+				Kind: types.KindKubernetesCluster,
+				Metadata: types.Metadata{
+					Name:      sEnd.KubernetesClusterMetadata.KubernetesCluster,
+					Namespace: apidefaults.Namespace,
+					Labels:    sEnd.KubernetesClusterMetadata.KubernetesLabels,
+				},
+				Spec: types.KubernetesClusterSpecV3{},
+			}
+		}
+	case *apievents.WindowsDesktopSessionEnd:
+		if sEnd == nil {
+			return nil
+		}
+		return &types.WindowsDesktopV3{
+			ResourceHeader: types.ResourceHeader{
+				Kind: types.KindWindowsDesktop,
+				Metadata: types.Metadata{
+					Name:      sEnd.WindowsDesktopService,
+					Namespace: apidefaults.Namespace,
+					Labels:    sEnd.DesktopLabels,
+				},
+			},
+			Spec: types.WindowsDesktopSpecV3{
+				Addr:   sEnd.DesktopAddr,
+				Domain: sEnd.Domain,
+			},
+		}
+	case *apievents.DatabaseSessionEnd:
+		if sEnd == nil {
+			return nil
+		}
+		return &types.DatabaseV3{
+			Kind: types.KindDatabase,
+			Metadata: types.Metadata{
+				Name:      sEnd.DatabaseName,
+				Namespace: apidefaults.Namespace,
+				Labels:    sEnd.DatabaseLabels,
+			},
+			Spec: types.DatabaseSpecV3{
+				Protocol: sEnd.DatabaseProtocol,
+				URI:      sEnd.DatabaseURI,
+			},
+		}
+	}
+	return nil
 }
 
 // localServerAction returns an access denied error if the role is not one of the builtin server roles.

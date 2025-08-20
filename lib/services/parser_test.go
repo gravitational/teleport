@@ -33,6 +33,9 @@ func TestParserForIdentifierSubcondition(t *testing.T) {
 	t.Parallel()
 	user, err := types.NewUser("test-user")
 	require.NoError(t, err)
+	user.SetTraits(map[string][]string{
+		"test": {"value1", "value2"},
+	})
 	testCase := func(cond string, expected types.WhereExpr) func(*testing.T) {
 		return func(t *testing.T) {
 			parser, err := newParserForIdentifierSubcondition(&Context{User: user}, SessionIdentifier)
@@ -156,6 +159,7 @@ func TestParserForIdentifierSubcondition(t *testing.T) {
 					}},
 				}},
 			}}))
+
 }
 
 func TestNewResourceExpression(t *testing.T) {

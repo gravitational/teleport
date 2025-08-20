@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -10335,5 +10336,571 @@ func TestNewEnumerationResultFromEntities(t *testing.T) {
 			require.Equal(t, test.wantAllowed, actualAllowed)
 			require.Equal(t, test.wantDenied, actualDenied)
 		})
+	}
+}
+
+func TestAuditSessionRBAC(t *testing.T) {
+	newUser := func(name string, traits map[string][]string, roles []string) types.User {
+		user, err := types.NewUser(name)
+		require.NoError(t, err)
+		user.SetTraits(traits)
+		user.SetRoles(roles)
+		return user
+	}
+	newRole := func(allow, deny *types.Rule) *types.RoleV6 {
+		var denyRules []types.Rule
+		var denyNamespaces []string
+		if deny != nil {
+			denyRules = []types.Rule{*deny}
+			denyNamespaces = []string{apidefaults.Namespace}
+		}
+		var allowRules []types.Rule
+		if allow != nil {
+			allowRules = []types.Rule{*allow}
+		}
+		return &types.RoleV6{
+			Metadata: types.Metadata{
+				Name:      "test-role",
+				Namespace: apidefaults.Namespace,
+			},
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{apidefaults.Namespace},
+					NodeLabels: types.Labels{
+						"env": []string{"prod"},
+					},
+					Rules: allowRules,
+				},
+				Deny: types.RoleConditions{
+					Rules:      denyRules,
+					Namespaces: denyNamespaces,
+				},
+			},
+		}
+	}
+
+	newServer := func(labels map[string]string) types.Server {
+		server, err := types.NewServer("my-server", types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		server.SetStaticLabels(labels)
+		return server
+	}
+
+	serverWithAccess := newServer(map[string]string{
+		"env": "prod",
+	})
+
+	serverWithoutAccess := newServer(map[string]string{
+		"env": "dev",
+	})
+
+	alice := newUser(
+		"alice",
+		map[string][]string{
+			"group": {"prod"},
+			"team":  {"engineering"},
+		}, []string{"role1"})
+
+	bob := newUser(
+		"bob",
+		map[string][]string{
+			"group": {"prod"},
+			"team":  {"engineering"},
+		}, []string{"role1"})
+
+	john := newUser(
+		"john",
+		map[string][]string{
+			"group": {"sre"},
+			"team":  {"sre"},
+		}, []string{"role2"})
+
+	testCases := []struct {
+		name     string
+		roles    RoleSet
+		context  Context
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:  "0 - empty role set has access to nothing",
+			roles: RoleSet{},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "1 - user can read session",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+				}, nil),
+			},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "2 - user can read session with trait match",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], "prod")`,
+				}, nil),
+			},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "3 - user can not read session with missing trait match",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], "missing")`,
+				}, nil),
+			},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "4 - alice user can read session if he is a participant",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(session.participants, user.metadata.name)`,
+				}, nil),
+			},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+
+		{
+			name: "5 - bob user can read session if he is a participant",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(session.participants, user.metadata.name)`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "6 - john user can not read session because he is a participant",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(session.participants, user.metadata.name)`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "7 - alice can read session if server label matches",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.server_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "8 - john can not read session because server label doesn't match",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.server_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "9 - bob can read session if he shares any role with the session user",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains_any(user.spec.roles, session.user_roles)`,
+				}, nil),
+			},
+			context: Context{
+				User:    bob,
+				Session: newSessionEndEvent(),
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "10 - john can not read session because he shares no roles with the session user",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains_any(user.spec.roles, session.user_roles)`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "11 - bob can read session if he belongs to the same team as the session user",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains_all(user.spec.traits["team"], session.user_traits["team"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "12 - john can not read session because he belongs to a different team",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains_all(user.spec.traits["team"], session.user_traits["team"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "13 - bob can read session if he belongs to the same team as the session user",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains_all(user.spec.traits["team"], session.user_traits["team"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newWindowsSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "14 - john can not read session because he belongs to a different team",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains_all(user.spec.traits["team"], session.user_traits["team"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newWindowsSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "15 - alice can't read session because of deny rule",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+				}, nil),
+				newRole(nil, &types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], "prod")`,
+				}),
+			},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "15 - alice can read session because of deny rule does not match",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+				}, nil),
+				newRole(nil, &types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], "missing")`,
+				}),
+			},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "16 - alice can read session because she can access the server",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `has_access()`,
+				}, nil),
+			},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "17 - alice can not read session because she can't access the server",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `has_access()`,
+				}, nil),
+			},
+			context: Context{
+				User:     alice,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithoutAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "18 - alice can not read session because resource doesn't exist",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `has_access()`,
+				}, nil),
+			},
+			context: Context{
+				User:    alice,
+				Session: newSessionEndEvent(),
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "19 - bob can read session because he has access and belongs to the same team as the session user",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `has_access() && contains_all(user.spec.traits["team"], session.user_traits["team"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "20 - john can not read session because he has access but belongs to a different team",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `has_access() && contains_all(user.spec.traits["team"], session.user_traits["team"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "21 - bob can read database session because his group matches with env label for database",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.db_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newDatabaseSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "21 - john can not read database session because his group does not match with env label for database",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.db_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newDatabaseSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.roles.CheckAccessToRule(&tc.context, apidefaults.Namespace, types.KindSession, types.VerbRead)
+			tc.errCheck(t, result)
+		})
+	}
+}
+
+func newSessionEndEvent() *apievents.SessionEnd {
+	startTime := time.Date(2020, 3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC)
+	endTime := startTime.Add(time.Minute)
+	return &apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Index: 20,
+			Type:  "session.end",
+			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
+			Code:  "T2004I",
+			Time:  endTime,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
+			ServerID:        "6a7c593d-345a-431f-9e21-4049be982fa5",
+			ServerNamespace: "default",
+			ServerLabels:    map[string]string{"env": "prod"},
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: "cb116fb0-9227-4889-9392-aedd13a914a6",
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:      "alice",
+			UserRoles: []string{"role1"},
+			UserTraits: map[string][]string{
+				"group": {"prod"},
+				"team":  {"engineering"},
+			},
+		},
+		EnhancedRecording: true,
+		Interactive:       true,
+		Participants:      []string{"alice", "bob"},
+		StartTime:         startTime,
+		EndTime:           endTime,
+	}
+}
+
+func newWindowsSessionEndEvent() *apievents.WindowsDesktopSessionEnd {
+	startTime := time.Date(2020, 3, 30, 15,
+		58, 54, 561*int(time.Millisecond), time.UTC)
+	endTime := startTime.Add(time.Minute)
+	return &apievents.WindowsDesktopSessionEnd{
+		Metadata: apievents.Metadata{
+			Index: 20,
+			Type:  "session.end",
+			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
+			Code:  "T2004I",
+			Time:  endTime,
+		},
+		DesktopLabels: map[string]string{"env": "prod"},
+		UserMetadata: apievents.UserMetadata{
+			User:      "alice",
+			UserRoles: []string{"role1"},
+			UserTraits: map[string][]string{
+				"group": {"prod"},
+				"team":  {"engineering"},
+			},
+		},
+		Participants: []string{"alice", "bob"},
+		StartTime:    startTime,
+		EndTime:      endTime,
+	}
+}
+
+func newDatabaseSessionEndEvent() *apievents.DatabaseSessionEnd {
+	startTime := time.Date(2020, 3, 30, 15,
+		58, 54, 561*int(time.Millisecond), time.UTC)
+	endTime := startTime.Add(time.Minute)
+	return &apievents.DatabaseSessionEnd{
+		Metadata: apievents.Metadata{
+			Index: 20,
+			Type:  "session.end",
+			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
+			Code:  "T2004I",
+			Time:  endTime,
+		},
+		DatabaseMetadata: apievents.DatabaseMetadata{
+			DatabaseLabels: map[string]string{"env": "prod"},
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:      "alice",
+			UserRoles: []string{"role1"},
+			UserTraits: map[string][]string{
+				"group": {"prod"},
+				"team":  {"engineering"},
+			},
+		},
+		StartTime: startTime,
+		EndTime:   endTime,
 	}
 }

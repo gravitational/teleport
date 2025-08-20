@@ -33,6 +33,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -1288,6 +1289,8 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		TrustedDevice:     device,
 		BotName:           id.BotName,
 		BotInstanceID:     id.BotInstanceID,
+		UserRoles:         slices.Clone(id.Groups),
+		UserTraits:        id.Traits.Clone(),
 	}
 }
 
