@@ -624,7 +624,7 @@ export default class MainProcess {
       logger.error('daemon stop process failed to start', error);
     });
     daemonStop.stderr.setEncoding('utf-8');
-    daemonStop.stderr.on('data', logger.error);
+    daemonStop.stderr.on('data', data => logger.error(data));
   }
 
   private logProcessExitAndError(
