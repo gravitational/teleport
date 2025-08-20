@@ -35,9 +35,9 @@ may be disconnected when the cluster is upgraded.
    $ curl https://<Var name="teleport.example.com:443" />/webapi/find
      ...
      "auto_update": {
-       "tools_version": "15.2.1",
+       "tools_version": "(=teleport.version=)",
        "tools_auto_update": true,
-       "agent_version": "15.2.1",
+       "agent_version": "(=teleport.version=)",
        "agent_auto_update": true,
        "agent_update_jitter_seconds": 60
      },
@@ -49,7 +49,7 @@ may be disconnected when the cluster is upgraded.
    upgradable:
 
    ```code
-   $ tctl inventory ls --older-than=v15.2.1
+   $ tctl inventory ls --older-than=v(=teleport.version=)
    Server ID                            Hostname       Services       Version Upgrader
    ------------------------------------ -------------- -------------- ------- --------
    00000000-0000-0000-0000-000000000000 ip-10-1-6-130  Node           v14.4.5 none
