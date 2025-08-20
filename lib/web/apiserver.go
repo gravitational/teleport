@@ -1175,6 +1175,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/gitservers", h.WithClusterAuth(h.gitServerCreateOrUpsert))
 	h.GET("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerGet))
 	h.DELETE("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerDelete))
+
+	h.GET("/webapi/sites/:site/session-recording/:session_id/thumbnail", h.WithClusterAuth(h.getSessionRecordingThumbnail))
+	h.GET("/webapi/sites/:site/session-recording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 }
 
 // GetProxyClient returns authenticated auth server client
