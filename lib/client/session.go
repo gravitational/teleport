@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -58,9 +60,6 @@ const (
 )
 
 type NodeSession struct {
-	// id is the Teleport session ID
-	id session.ID
-
 	// env is the environment variables that need to be created
 	// on the server for this session
 	env map[string]string
@@ -106,8 +105,7 @@ type NodeSession struct {
 // of another user
 func newSession(ctx context.Context,
 	client *NodeClient,
-	joinSession types.SessionTracker,
-	env map[string]string,
+	sessionParams *tracessh.SessionParams,
 	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
@@ -121,9 +119,29 @@ func newSession(ctx context.Context,
 		return nil, trace.Wrap(err)
 	}
 
-	if env == nil {
-		env = make(map[string]string)
+	env := make(map[string]string)
+	maps.Copy(env, client.TC.ExtraEnvs)
+
+	// Set the current web proxy addr as an env var. This is used in `teleport status`
+	// to print a the correct proxy addr in the join link.
+	env[teleport.SSHSessionWebProxyAddr] = client.TC.WebProxyAddr
+
+	// Overwrite "SSH_SESSION_WEBPROXY_ADDR" with the public addr reported by the proxy. Otherwise,
+	// this would be set to the localhost addr (tc.WebProxyAddr) used for Web UI client connections.
+	if client.ProxyPublicAddr != "" && client.TC.WebProxyAddr != client.ProxyPublicAddr {
+		env[teleport.SSHSessionWebProxyAddr] = client.ProxyPublicAddr
 	}
+
+	// TODO(Joerger): DELETE IN v20.0.0 - session params are provided in the session
+	// request as extra data rather than env vars.
+	env[teleport.EnvSSHJoinMode] = string(sessionParams.JoinMode)
+	env[teleport.EnvSSHSessionReason] = sessionParams.Reason
+	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(sessionParams.DisplayParticipantRequirements)
+	encoded, err := json.Marshal(&sessionParams.Invited)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	env[teleport.EnvSSHSessionInvited] = string(encoded)
 
 	ns := &NodeSession{
 		env:                   env,
@@ -134,26 +152,24 @@ func newSession(ctx context.Context,
 		terminal:              term,
 		shouldClearOnExit:     client.FIPSEnabled || isFIPS(),
 	}
-	// if we're joining an existing session, we need to assume that session's
-	// existing/current terminal size:
-	if joinSession != nil {
-		sessionID := joinSession.GetSessionID()
-		terminalSize, err := client.GetRemoteTerminalSize(ctx, sessionID)
+
+	if sessionParams != nil && sessionParams.JoinSessionID != "" {
+		// if we're joining an existing session, we need to assume that session's
+		// existing/current terminal size:
+		terminalSize, err := client.GetRemoteTerminalSize(ctx, sessionParams.JoinSessionID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		ns.id = session.ID(sessionID)
 
 		if ns.terminal.IsAttached() {
 			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))
 			if err != nil {
 				log.ErrorContext(ctx, "Failed to resize terminal", "error", err)
 			}
-
 		}
 
-		ns.env[sshutils.SessionEnvVar] = string(ns.id)
+		// TODO(Joerger): DELETE IN v20.0.0 - session env var is no longer used for session joining.
+		ns.env[sshutils.SessionEnvVar] = sessionParams.JoinSessionID
 	}
 
 	// Close the Terminal when finished.
@@ -178,7 +194,7 @@ func (ns *NodeSession) NodeClient() *NodeClient {
 	return ns.nodeClient
 }
 
-func (ns *NodeSession) regularSession(ctx context.Context, sessionCallback func(s *tracessh.Session) error) error {
+func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *tracessh.SessionParams, sessionCallback func(s *tracessh.Session) error) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/regularSession",
@@ -186,7 +202,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionCallback func(
 	)
 	defer span.End()
 
-	session, err := ns.createServerSession(ctx)
+	session, err := ns.createServerSession(ctx, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -198,7 +214,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionCallback func(
 
 type interactiveCallback func(serverSession *tracessh.Session, shell io.ReadWriteCloser) error
 
-func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Session, error) {
+func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *tracessh.SessionParams) (*tracessh.Session, error) {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/createServerSession",
@@ -206,7 +222,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 	)
 	defer span.End()
 
-	sess, err := ns.nodeClient.Client.NewSession(ctx)
+	sess, err := ns.nodeClient.Client.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -272,7 +288,7 @@ func selectKeyAgent(ctx context.Context, tc *TeleportClient) sshagent.ClientGett
 
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.SessionParticipantMode, sessionCallback interactiveCallback) error {
+func (ns *NodeSession) interactiveSession(ctx context.Context, sessionParams *tracessh.SessionParams, sessionCallback interactiveCallback) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/interactiveSession",
@@ -286,7 +302,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 		termType = teleport.SafeTerminalType
 	}
 	// create the server-side session:
-	sess, err := ns.createServerSession(ctx)
+	sess, err := ns.createServerSession(ctx, sessionParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -310,6 +326,16 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 
 		// Catch term signals, but only if we're attached to a real terminal
 		ns.watchSignals(remoteTerm)
+	}
+
+	mode := types.SessionPeerMode
+	if sessionParams != nil && sessionParams.JoinSessionID != "" {
+		mode = sessionParams.JoinMode
+
+		// The join mode should default to "observer" for tsh and should be specified for the WebUI.
+		if mode == "" {
+			return trace.BadParameter("participant mode missing when joining as session. This is a bug.")
+		}
 	}
 
 	// start piping input into the remote shell and pipe the output from
@@ -516,8 +542,8 @@ func (s *sessionWriter) Write(p []byte) (int, error) {
 }
 
 // runShell executes user's shell on the remote node under an interactive session
-func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, beforeStart func(io.Writer), shellCallback ShellCreatedCallback) error {
-	return ns.interactiveSession(ctx, mode, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
+func (ns *NodeSession) runShell(ctx context.Context, sessionParams *tracessh.SessionParams, beforeStart func(io.Writer), shellCallback ShellCreatedCallback) error {
+	return ns.interactiveSession(ctx, sessionParams, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
 		w := &sessionWriter{
 			tshOut:  ns.nodeClient.TC.Stdout,
 			session: s,
@@ -545,7 +571,7 @@ func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipa
 
 // runCommand executes a "exec" request either in interactive mode (with a
 // TTY attached) or non-intractive mode (no TTY).
-func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionParticipantMode, cmd []string, shellCallback ShellCreatedCallback, interactive bool) error {
+func (ns *NodeSession) runCommand(ctx context.Context, sessionParams *tracessh.SessionParams, cmd []string, shellCallback ShellCreatedCallback, interactive bool) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/runCommand",
@@ -559,7 +585,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// keyboard based signals will be propogated to the TTY on the server which is
 	// where all signal handling will occur.
 	if interactive {
-		return ns.interactiveSession(ctx, mode, func(s *tracessh.Session, term io.ReadWriteCloser) error {
+		return ns.interactiveSession(ctx, sessionParams, func(s *tracessh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(ctx, strings.Join(cmd, " "))
 			if err != nil {
 				return trace.Wrap(err)
@@ -586,7 +612,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// Unfortunately at the moment the Go SSH library Teleport uses does not
 	// support sending SSH_MSG_DISCONNECT. Instead we close the SSH channel and
 	// SSH client, and try and exit as gracefully as possible.
-	return ns.regularSession(ctx, func(s *tracessh.Session) error {
+	return ns.regularSession(ctx, sessionParams, func(s *tracessh.Session) error {
 		errCh := make(chan error, 1)
 		go func() {
 			errCh <- s.Run(ctx, strings.Join(cmd, " "))
