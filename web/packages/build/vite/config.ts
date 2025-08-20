@@ -141,7 +141,7 @@ export function createViteConfig(
           ws: true,
         },
         // /webapi/sites/:site/desktopplayback/:sid
-        '^\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/desktopplayback|session-recording\\/(.*?)':
+        '^(\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/(desktopplayback|session-recording)\\/(.*?))(\\/ws)?':
           {
             target: `wss://${target}`,
             changeOrigin: true,
