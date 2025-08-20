@@ -827,7 +827,7 @@
     },
     {
       "source": "/admin-guides/teleport-policy/",
-      "destination": "/identity-security/teleport-security/",
+      "destination": "/identity-security/",
       "permanent": true
     },
     {
