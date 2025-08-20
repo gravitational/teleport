@@ -64,6 +64,8 @@ type GCPClients interface {
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+	// GetGCPAlloyDBClient returns GCP AlloyDB Admin client.
+	GetGCPAlloyDBClient(context.Context) (gcp.AlloyDBAdminClient, error)
 	// GetGCPGKEClient returns GKE client.
 	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
 	// GetGCPProjectsClient returns Projects client.
@@ -184,10 +186,11 @@ func NewClients(opts ...ClientsOption) (Clients, error) {
 	}
 	cloudClients := &cloudClients{
 		gcpClients: gcpClients{
-			gcpSQLAdmin:  newClientCache(gcp.NewSQLAdminClient),
-			gcpGKE:       newClientCache(gcp.NewGKEClient),
-			gcpProjects:  newClientCache(gcp.NewProjectsClient),
-			gcpInstances: newClientCache(gcp.NewInstancesClient),
+			gcpSQLAdmin:     newClientCache(gcp.NewSQLAdminClient),
+			gcpAlloyDBAdmin: newClientCache(gcp.NewAlloyDBAdminClient),
+			gcpGKE:          newClientCache(gcp.NewGKEClient),
+			gcpProjects:     newClientCache(gcp.NewProjectsClient),
+			gcpInstances:    newClientCache(gcp.NewInstancesClient),
 		},
 		azureClients: azClients,
 	}
@@ -219,6 +222,8 @@ type gcpClients struct {
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
 	gcpSQLAdmin *clientCache[gcp.SQLAdminClient]
+	// gcpAlloyDBAdmin is the cached GCP AlloyDB Admin client.
+	gcpAlloyDBAdmin *clientCache[gcp.AlloyDBAdminClient]
 	// gcpGKE is the cached GCP Cloud GKE client.
 	gcpGKE *clientCache[gcp.GKEClient]
 	// gcpProjects is the cached GCP Cloud Projects client.
@@ -278,6 +283,11 @@ func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.Iam
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
 	return c.gcpSQLAdmin.GetClient(ctx)
+}
+
+// GetGCPAlloyDBClient returns GCP AlloyDB Admin client.
+func (c *cloudClients) GetGCPAlloyDBClient(ctx context.Context) (gcp.AlloyDBAdminClient, error) {
+	return c.gcpAlloyDBAdmin.GetClient(ctx)
 }
 
 // GetInstanceMetadataClient returns the instance metadata.
@@ -594,6 +604,7 @@ var _ Clients = (*TestCloudClients)(nil)
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
 	GCPSQL                  gcp.SQLAdminClient
+	GCPAlloyDB              gcp.AlloyDBAdminClient
 	GCPGKE                  gcp.GKEClient
 	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
@@ -629,6 +640,10 @@ func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdm
 	return c.GCPSQL, nil
 }
 
+func (c *TestCloudClients) GetGCPAlloyDBClient(ctx context.Context) (gcp.AlloyDBAdminClient, error) {
+	return c.GCPAlloyDB, nil
+}
+
 // GetInstanceMetadataClient returns the instance metadata.
 func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.Client, error) {
 	return c.InstanceMetadata, nil
@@ -639,7 +654,7 @@ func (c *TestCloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, 
 	return c.GCPGKE, nil
 }
 
-// GetGCPGKEClient returns GKE client.
+// GetGCPProjectsClient returns GCP projects client.
 func (c *TestCloudClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
 	return c.GCPProjects, nil
 }

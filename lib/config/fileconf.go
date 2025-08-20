@@ -2076,6 +2076,17 @@ type DatabaseGCP struct {
 	ProjectID string `yaml:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL database instance ID.
 	InstanceID string `yaml:"instance_id,omitempty"`
+	// AlloyDB contains AlloyDB specific settings.
+	AlloyDB DatabaseGCPAlloyDB `yaml:"alloydb,omitempty"`
+}
+
+// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
+type DatabaseGCPAlloyDB struct {
+	// EndpointType is the database endpoint type to use. Available types are 'private', 'public' and 'psc'.
+	// 'private' is the default type.
+	EndpointType string `yaml:"endpoint_type,omitempty"`
+	// EndpointOverride is an override of endpoint address to use.
+	EndpointOverride string `yaml:"endpoint_override,omitempty"`
 }
 
 // DatabaseAzure contains Azure database configuration.

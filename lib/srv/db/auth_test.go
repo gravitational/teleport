@@ -378,6 +378,10 @@ func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, databaseUser string
 	return cloudSQLAuthToken, nil
 }
 
+func (a *testAuth) GetAlloyDBAuthToken(ctx context.Context, databaseUser string) (string, error) {
+	return "", trace.NotImplemented("GetAlloyDBAuthToken is not implemented")
+}
+
 func (a *testAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {
 	return &fakeTokenSource{
 		token:  cloudSpannerAuthToken,

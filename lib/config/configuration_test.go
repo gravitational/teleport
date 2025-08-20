@@ -2961,6 +2961,46 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			},
 		},
 		{
+			desc: "AlloyDB database",
+			inFlags: CommandLineFlags{
+				DatabaseName:     "alloydb",
+				DatabaseProtocol: defaults.ProtocolPostgres,
+				DatabaseURI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "AlloyDB database with public endpoint type",
+			inFlags: CommandLineFlags{
+				DatabaseName:                   "alloydb",
+				DatabaseProtocol:               defaults.ProtocolPostgres,
+				DatabaseURI:                    "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				DatabaseGCPAlloyDBEndpointType: "public",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				GCP: servicecfg.DatabaseGCP{
+					AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+						EndpointType: "public",
+					},
+				},
+			},
+		},
+		{
 			desc: "SQL Server",
 			inFlags: CommandLineFlags{
 				DatabaseName:         "sqlserver",
