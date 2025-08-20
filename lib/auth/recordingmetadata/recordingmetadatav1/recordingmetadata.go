@@ -19,7 +19,6 @@
 package recordingmetadatav1
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"io"
@@ -261,20 +260,15 @@ loop:
 	thumbnails := sampler.result()
 
 	metadataBuf := &bytes.Buffer{}
-	writer := bufio.NewWriter(metadataBuf)
 
-	if _, err := protodelim.MarshalTo(writer, metadata); err != nil {
+	if _, err := protodelim.MarshalTo(metadataBuf, metadata); err != nil {
 		return trace.Wrap(err)
 	}
 
 	for _, t := range thumbnails {
-		if _, err := protodelim.MarshalTo(writer, thumbnailEntryToProto(t)); err != nil {
+		if _, err := protodelim.MarshalTo(metadataBuf, thumbnailEntryToProto(t)); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	if err := writer.Flush(); err != nil {
-		return trace.Wrap(err)
 	}
 
 	path, err := s.uploadHandler.UploadMetadata(ctx, sessionID, metadataBuf)
