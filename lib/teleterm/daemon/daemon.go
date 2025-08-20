@@ -875,12 +875,12 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	defer s.gatewaysMu.RUnlock()
 	for _, gw := range s.gateways {
 		targetURI := gw.TargetURI()
-		if !targetURI.IsKube() && targetURI.GetRootClusterURI() != cluster.URI {
+		if !targetURI.IsKube() || targetURI.GetRootClusterURI() != cluster.URI {
 			continue
 		}
 		kubeGw, err := gateway.AsKube(gw)
 		if err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+			return trace.Wrap(err)
 		}
 		kubeGw.ClearCerts()
 	}
