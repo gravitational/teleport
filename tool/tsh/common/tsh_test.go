@@ -4357,7 +4357,9 @@ func TestSerializeDatabases(t *testing.T) {
       "oracle": {
         "audit_user": ""
       },
-      "gcp": {},
+      "gcp": {
+        "alloydb": {}
+      },
       "azure": {
 	    "redis": {}
 	  },
