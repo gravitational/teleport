@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -150,6 +151,8 @@ type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
+	// Scope constrains the current operation to a specific target scope
+	Scope string
 	// UserHost contains "[login]@hostname" argument to SSH command
 	UserHost string
 	// Commands to execute on a remote host
@@ -1220,6 +1223,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request.").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
+	login.Flag("scope", "Scope pins credentials to a given scope.").StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to.").StringVar(&cf.KubernetesCluster)
 	login.Flag("verbose", "Show extra status information.").Short('v').BoolVar(&cf.Verbose)
@@ -2146,6 +2150,19 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+	}
+
+	if cf.Scope != "" {
+		// client-side validation of scopes isn't strictly necessary, but scope syntax is easy to mess
+		// up (especially accidentally omitting the leading slash), so its nice to find out if the scope
+		// is malformed before going through authentication.
+		if err := scopes.StrongValidate(cf.Scope); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// TODO(fspmarshall/scopes): this is a clunky way to handle the forced reauth on scope change,
+		// look into doing something smarter.
+		profile, profiles = nil, nil
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
@@ -4702,6 +4719,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	if len(rPorts) > 0 {
 		c.RemoteForwardPorts = rPorts
 	}
+
+	// TODO(fspmarshall/scopes): decide if we want some kind of persistence for the CLI arg.
+	c.Scope = cf.Scope
+
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
 	}
