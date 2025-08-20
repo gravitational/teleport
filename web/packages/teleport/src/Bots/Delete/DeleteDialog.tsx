@@ -17,7 +17,6 @@
  */
 
 import { useMutation } from '@tanstack/react-query';
-import styled from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
 import {
@@ -106,10 +105,9 @@ export function DeleteDialog(props: {
           <ButtonWarning mr="3" disabled={isPending} onClick={handleDelete}>
             Delete Bot
           </ButtonWarning>
-          <ButtonSecondary disabled={isPending} onClick={onCancel}>
+          <ButtonSecondary disabled={isPending} onClick={onCancel} mr="auto">
             Cancel
           </ButtonSecondary>
-          <FlexSpacer />
           {showLockAlternative ? (
             <ButtonWarningBorder
               disabled={!canLockBot || isPending}
@@ -123,7 +121,3 @@ export function DeleteDialog(props: {
     </Dialog>
   );
 }
-
-const FlexSpacer = styled.div`
-  flex: 1;
-`;
