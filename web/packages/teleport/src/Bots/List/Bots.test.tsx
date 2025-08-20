@@ -18,7 +18,13 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { render, screen, userEvent, waitFor } from 'design/utils/testing';
+import {
+  render,
+  screen,
+  userEvent,
+  waitFor,
+  waitForElementToBeRemoved,
+} from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { botsApiResponseFixture } from 'teleport/Bots/fixtures';
@@ -109,11 +115,13 @@ describe('Bots', () => {
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Delete Bot' }));
 
-    expect(
-      screen.queryByText(
-        `Delete ${botsApiResponseFixture.items[0].metadata.name}?`
-      )
-    ).not.toBeInTheDocument();
+    await waitForElementToBeRemoved(
+      () =>
+        screen.queryByText(
+          `Delete ${botsApiResponseFixture.items[0].metadata.name}?`
+        ),
+      { timeout: 5000 }
+    );
     expect(api.deleteWithOptions).toHaveBeenCalledWith(
       `/v1/webapi/sites/localhost/machine-id/bot/${botsApiResponseFixture.items[0].metadata.name}`,
       { signal: undefined }
