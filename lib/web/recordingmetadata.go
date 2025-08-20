@@ -48,7 +48,7 @@ type sessionRecordingErrorResponse struct {
 // This makes it easier to have strongly typed messages on the frontend, switching on the `Type` field.
 type sessionRecordingMessageWrapper struct {
 	Type sessionRecordingMessageType `json:"type"`
-	Data interface{}                 `json:"data"`
+	Data any                         `json:"data"`
 }
 
 // getSessionRecordingMetadata handles the WebSocket connection to stream session recording metadata and thumbnails.
@@ -67,8 +67,6 @@ func (h *Handler) getSessionRecordingMetadata(
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
-	defer ws.Close()
-
 	ctx := r.Context()
 	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
@@ -85,7 +83,7 @@ func (h *Handler) getSessionRecordingMetadata(
 		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
 			Error: err.Error(),
 		})
-		return nil, trace.Wrap(err)
+		return nil, nil
 	}
 
 	metadata, err := stream.Recv()
