@@ -9,7 +9,7 @@ publish.workspace = true
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.9.1"
+bitflags = "2.9.2"
 boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 byteorder = "1.5.0"
 bytes = "1.10.1"
@@ -47,7 +47,7 @@ rustls = { version = "0.23.31", default-features = false, features = [
 
 [build-dependencies]
 cbindgen = "0.29.0"
-tempfile = "3.20.0"
+tempfile = "3.21.0"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
