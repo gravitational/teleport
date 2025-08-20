@@ -30,14 +30,15 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	rsession "github.com/gravitational/teleport/lib/session"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 )
 
 // ConnectionContext manages connection-level state.
 type ConnectionContext struct {
-	// sessionID is the Teleport session ID that all child ServerContexts will inherit.
-	sessionID rsession.ID
+	sessionParams *tracessh.SessionParams
 
 	// NetConn is the base connection object.
 	NetConn net.Conn
@@ -98,7 +99,6 @@ func SetConnectionContextClock(clock clockwork.Clock) ConnectionContextOption {
 func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn, opts ...ConnectionContextOption) (context.Context, *ConnectionContext) {
 	ctx, cancel := context.WithCancel(ctx)
 	ccx := &ConnectionContext{
-		sessionID:  rsession.NewID(),
 		NetConn:    nconn,
 		ServerConn: sconn,
 		env:        make(map[string]string),
@@ -140,19 +140,40 @@ func (a *AgentChannel) Close() error {
 		a.ch.Close())
 }
 
-// GetSessionID returns the Teleport session ID that all child ServerContexts will inherit.
-func (c *ConnectionContext) GetSessionID() rsession.ID {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.sessionID
+// SetSessionParams sets session parameters.
+func (c *ConnectionContext) SetSessionParams(sessionParams *tracessh.SessionParams) {
+	c.mu.Lock()
+	c.sessionParams = sessionParams
+	c.mu.Unlock()
 }
 
-// SetSessionID sets the Teleport session ID that all child ServerContexts will inherit.
-func (c *ConnectionContext) SetSessionID(sessionID rsession.ID) {
-	c.mu.Lock()
-	c.sessionID = sessionID
-	c.mu.Unlock()
+// GetSessionParams gets session parameters.
+func (c *ConnectionContext) GetSessionParams() *tracessh.SessionParams {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.sessionParams
+}
+
+// ParseSessionParams parses session parameters.
+func ParseSessionParams(data []byte) (*tracessh.SessionParams, error) {
+	var params tracessh.SessionParams
+	if err := ssh.Unmarshal(data, &params); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if params.JoinSessionID != "" {
+		if _, err := session.ParseID(params.JoinSessionID); err != nil {
+			return nil, trace.Wrap(err, "failed to parse join session ID: %v", params.JoinSessionID)
+		}
+
+		switch params.JoinMode {
+		case types.SessionModeratorMode, types.SessionObserverMode, types.SessionPeerMode:
+		default:
+			return nil, trace.BadParameter("Unrecognized session participant mode: %q", params.JoinMode)
+		}
+	}
+
+	return &params, nil
 }
 
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel

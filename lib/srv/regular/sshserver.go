@@ -1408,6 +1408,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
+
 			go s.handleSessionRequests(ctx, ccx, identityContext, ch, requests)
 			return
 		default:
@@ -1451,6 +1452,19 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			}
 			decr = d
 		}
+
+		// SessionParams are not passed by old clients (<v19) or OpenSSH clients.
+		if len(nch.ExtraData()) > 0 {
+			sessionParams, err := sshutils.ParseSessionParams(nch.ExtraData())
+			if err != nil {
+				s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+				return
+			}
+
+			ccx.SetSessionParams(sessionParams)
+		}
+
 		ch, requests, err := nch.Accept()
 		if err != nil {
 			s.logger.WarnContext(ctx, "Unable to accept channel", "error", err)
@@ -1637,21 +1651,6 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	})
 
 	for {
-		// update scx with the session ID:
-		if !s.proxyMode {
-			err := scx.CreateOrJoinSession(ctx, s.reg)
-			if err != nil {
-				scx.Logger.ErrorContext(ctx, "Unable to update context", "error", err)
-
-				// write the error to channel and close it
-				s.writeStderr(ctx, trackingChan, fmt.Sprintf("unable to update context: %v", err))
-				_, err := trackingChan.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
-				if err != nil {
-					scx.Logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
-				}
-				return
-			}
-		}
 		select {
 		case creq := <-scx.SubsystemResultCh:
 			// this means that subsystem has finished executing and
