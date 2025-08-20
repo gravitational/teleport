@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -557,3 +558,52 @@ func TestGetApplication(t *testing.T) {
 }
 
 func toPtr[T any](s T) *T { return &s }
+
+func TestNewClient(t *testing.T) {
+	tests := []struct {
+		name                  string
+		config                Config
+		expectedGraphEndpoint string
+		errExpected           bool
+		errAssertion          require.ErrorAssertionFunc
+	}{
+		{
+			name: "empty endpoint sets default graph endpoint",
+			config: Config{
+				TokenProvider: &fakeTokenProvider{},
+				GraphEndpoint: "",
+			},
+			expectedGraphEndpoint: types.MSGraphDefaultEndpoint,
+			errAssertion:          require.NoError,
+		},
+		{
+			name: "configured endpoint",
+			config: Config{
+				TokenProvider: &fakeTokenProvider{},
+				GraphEndpoint: "https://dod-graph.microsoft.us",
+			},
+			expectedGraphEndpoint: "https://dod-graph.microsoft.us",
+			errAssertion:          require.NoError,
+		},
+		{
+			name: "invalid endpoint",
+			config: Config{
+				TokenProvider: &fakeTokenProvider{},
+				GraphEndpoint: "https://graph.windows.net",
+			},
+			errExpected:  true,
+			errAssertion: require.Error,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			clt, err := NewClient(test.config)
+			test.errAssertion(t, err)
+			if !test.errExpected {
+				require.Equal(t, test.expectedGraphEndpoint+"/"+graphVersion, clt.baseURL.String())
+			}
+		})
+	}
+}
