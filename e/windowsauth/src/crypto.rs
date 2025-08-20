@@ -21,11 +21,11 @@ pub enum LicenseType {
 }
 
 #[derive(Deserialize)]
-struct Groups {
+struct CreateUserOptions {
     #[serde(rename = "createUser")]
     create_user: bool,
     #[serde(rename = "groups")]
-    groups: HashSet<String>,
+    groups: Option<HashSet<String>>,
 }
 
 #[derive(Default)]
@@ -113,10 +113,12 @@ impl CryptContext {
     pub fn should_create_user(&mut self) -> Result<UserCreation> {
         let cert = self.init_cert()?;
         if let Some(data) = Self::get_extension(cert, CREATE_USER_EXT_OID) {
-            let groups = serde_json::from_slice::<Groups>(&data)
-                .context("Create user extension was incorrect")?;
-            if groups.create_user {
-                return Ok(Yes(groups.groups));
+            let options = serde_json::from_slice::<CreateUserOptions>(&data).context(format!(
+                "Create user extension was invalid: {}",
+                String::from_utf8_lossy(&data)
+            ))?;
+            if options.create_user {
+                return Ok(Yes(options.groups.unwrap_or_default()));
             }
         }
         Ok(No)
