@@ -149,7 +149,6 @@ func TestValidateAWSRolesAnywhereIntegration(t *testing.T) {
 		name            string
 		integrationName string
 		errCheck        require.ErrorAssertionFunc
-		errContains     string
 	}{
 		{
 			name:            "valid",
@@ -159,23 +158,24 @@ func TestValidateAWSRolesAnywhereIntegration(t *testing.T) {
 		{
 			name:            "invalid",
 			integrationName: "INVALID-",
-			errCheck:        require.Error,
-			errContains:     "must be a lower case valid DNS subdomain",
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(tt, err)
+				require.ErrorContains(tt, err, "must be a lower case valid DNS subdomain")
+			},
 		},
 		{
 			name:            "valid name but it already exists",
 			integrationName: "existing-integration",
-			errCheck:        require.Error,
-			errContains:     "already exists",
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(tt, err)
+				require.ErrorContains(tt, err, "already exists")
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			endpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", "aws-ra", tt.integrationName, "validate")
 			_, err := authPack.clt.PostJSON(ctx, endpoint, nil)
 			tt.errCheck(t, err)
-			if tt.errContains != "" {
-				require.ErrorContains(t, err, tt.errContains)
-			}
 		})
 	}
 }

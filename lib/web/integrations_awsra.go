@@ -152,7 +152,7 @@ func (h *Handler) validateAWSRolesAnywhereIntegration(w http.ResponseWriter, r *
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	// validate integration name.
@@ -168,7 +168,7 @@ func (h *Handler) validateAWSRolesAnywhereIntegration(w http.ResponseWriter, r *
 	_, err = clt.GetIntegration(ctx, integrationName)
 	switch {
 	case err == nil:
-		return nil, trace.AlreadyExists("an integration named %q already exists", integrationName)
+		return nil, trace.AlreadyExists("integration named %q already exists", integrationName)
 
 	case trace.IsNotFound(err):
 
@@ -176,7 +176,7 @@ func (h *Handler) validateAWSRolesAnywhereIntegration(w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, nil
+	return OK(), nil
 }
 
 // awsRolesAnywherePing performs an health check for the integration.
@@ -188,7 +188,7 @@ func (h *Handler) awsRolesAnywherePing(w http.ResponseWriter, r *http.Request, p
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	var req ui.AWSRolesAnywherePingRequest
@@ -244,7 +244,7 @@ func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Re
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	var req ui.AWSRolesAnywhereListProfilesRequest
