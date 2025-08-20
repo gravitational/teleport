@@ -201,7 +201,7 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	exporter, bufClient, err := NewExporter(ctx, cfg)
+	exporter, bufClient, err := newExporter(ctx, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

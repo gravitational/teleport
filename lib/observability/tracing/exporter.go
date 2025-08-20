@@ -27,9 +27,11 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-// NewExporter returns a new exporter that is configured per the provided Config.
-// It also returns a *bufferedClient if one is required based on the config, otherwise it will be nil.
-func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, *bufferedClient, error) {
+// newExporter returns a new exporter that is configured per the provided Config.
+// It also returns a *bufferedClient if one is required because the resource
+// attributes or the real client are not yet available, otherwise it will be
+// nil.
+func newExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, *bufferedClient, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

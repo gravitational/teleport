@@ -258,7 +258,7 @@ func TestNewExporter(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			exporter, bufClient, err := NewExporter(context.Background(), tt.config)
+			exporter, bufClient, err := newExporter(context.Background(), tt.config)
 			if exporter != nil {
 				t.Cleanup(func() { require.NoError(t, exporter.Shutdown(context.Background())) })
 			}
