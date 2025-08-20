@@ -42,6 +42,19 @@ export const EnrollJamfDisabled = () => {
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
 };
 
+export const EnrollIntune = () => {
+  cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
+  const ctx = createTeleportContextE();
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('intune'), ctx);
+};
+
+export const EnrollIntuneDisabled = () => {
+  cfg.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
+  cfg.isEnterprise = true;
+  const ctx = createTeleportContextE();
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('intune'), ctx);
+};
+
 export const EnrollJira = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jira'));
 

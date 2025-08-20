@@ -105,6 +105,7 @@ func (fn pluginInstallerFn) TranslateCallbackCookie(*types.PluginSpecV1, *plugin
 var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.PluginType]pluginDescriptor{
 	types.PluginTypeDiscord:           pluginInstallerFn(installDiscordPlugin),
 	types.PluginTypeJamf:              pluginInstallerFn(installJamfPlugin),
+	types.PluginTypeIntune:            pluginInstallerFn(installIntunePlugin),
 	types.PluginTypeJira:              pluginInstallerFn(installJiraPlugin),
 	types.PluginTypeOkta:              oktaPluginDescriptor{},
 	types.PluginTypeOpsgenie:          pluginInstallerFn(installOpsgeniePlugin),
@@ -454,6 +455,59 @@ func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		return nil, trace.Wrap(err)
 	}
 	return ui, nil
+}
+
+func installIntunePlugin(ctx context.Context, sessCtx *web.SessionContext, _ http.ResponseWriter, r *http.Request, _ *Plugin) (*ui.Plugin, error) {
+	tenant := r.FormValue("tenant")
+	if tenant == "" {
+		return nil, trace.BadParameter("tenant required")
+	}
+
+	clientID := r.FormValue("clientId")
+	clientSecret := r.FormValue("clientSecret")
+	if clientID == "" || clientSecret == "" {
+		return nil, trace.BadParameter("API credentials required")
+	}
+
+	pluginReq := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindMDM,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeIntune,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Intune{
+					Intune: &types.PluginIntuneSettings{
+						Tenant: tenant,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"intune/tenant": tenant,
+					},
+					Name: types.PluginTypeIntune,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+					OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+						ClientId:     clientID,
+						ClientSecret: clientSecret,
+					},
+				},
+			},
+		},
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, pluginReq)
+	return ui, trace.Wrap(err)
 }
 
 func installServiceNowPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {

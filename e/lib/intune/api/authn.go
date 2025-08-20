@@ -39,6 +39,17 @@ func ValidateAppCredentials(creds AppCredentials) error {
 	case creds.Tenant == "":
 		return trace.BadParameter("param Tenant required")
 	}
+
+	// Tenant can be either a domain name or a UUID. It becomes a part of the URL that the request for
+	// an access token is sent to. If the tenant includes a scheme and is then put in the URL, such
+	// request returns a vague 404 with no extra details as to what is wrong.
+	if strings.HasPrefix(creds.Tenant, "http://") {
+		return trace.BadParameter("param Tenant must not start with http://")
+	}
+	if strings.HasPrefix(creds.Tenant, "https://") {
+		return trace.BadParameter("param Tenant must not start with https://")
+	}
+
 	return nil
 }
 

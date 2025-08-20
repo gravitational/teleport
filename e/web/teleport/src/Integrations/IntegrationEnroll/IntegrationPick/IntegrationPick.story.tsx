@@ -20,6 +20,7 @@ const onboardSupportPluginKinds: PluginKind[] = [
   'okta',
   'opsgenie',
   'jamf',
+  'intune',
   'servicenow',
   'jira',
   'pagerduty',

@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"testing" //nolint:depguard // This is a test package.
+	"testing"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require" //nolint:depguard // This is a test package.
+	"github.com/stretchr/testify/require"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"

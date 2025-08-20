@@ -298,6 +298,7 @@ function makeOktaPluginStatus(rawOktaDetails): PluginStatusOkta {
 export function getCTAForPlugin(plugin: PluginKind) {
   switch (plugin) {
     case 'jamf':
+    case 'intune':
       return CtaEvent.CTA_TRUSTED_DEVICES;
     case 'entra-id':
       return CtaEvent.CTA_ENTRA_ID;

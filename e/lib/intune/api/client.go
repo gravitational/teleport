@@ -125,6 +125,11 @@ const (
 	// the tenant.
 	// https://login.microsoftonline.com/error?code=90002
 	DiagCodeTenantNotFound = 90002
+	// DiagCodeInvalidTenantIdentifier is returned by the identity platform when the identifier is
+	// neither a valid DNS name nor a valid external domain. This happes when the tenant is not a UUID
+	// and instead a regular string that doesn't match said requirements.
+	// https://login.microsoftonline.com/error?code=900023
+	DiagCodeInvalidTenantIdentifier = 900023
 )
 
 func (c *Client) verifyCredentials(ctx context.Context) error {
@@ -140,7 +145,8 @@ func (c *Client) verifyCredentials(ctx context.Context) error {
 
 	switch {
 	case apiError.ServiceKind == ServiceKindLogin &&
-		slices.Contains(apiError.DiagnosticCodes, DiagCodeTenantNotFound):
+		(slices.Contains(apiError.DiagnosticCodes, DiagCodeTenantNotFound) ||
+			slices.Contains(apiError.DiagnosticCodes, DiagCodeInvalidTenantIdentifier)):
 		return trace.Wrap(ErrIntuneClientTenantNotFound, apiError.Message)
 
 	case apiError.ServiceKind == ServiceKindLogin &&

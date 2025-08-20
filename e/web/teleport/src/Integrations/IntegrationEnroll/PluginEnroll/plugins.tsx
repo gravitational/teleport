@@ -295,8 +295,9 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/"
             target="_blank"
           >
-            Device Trust and the Jamf Integration.
+            Device Trust and the Jamf integration
           </Link>
+          .
         </P>
       </Text>
     ),
@@ -390,6 +391,150 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         <P>
           Jamf integration is configured for your cluster. Depending on the size
           of your Jamf inventory, it may take a few minutes to sync with{' '}
+          <ReactRouterLink to={cfg.routes.deviceTrust}>
+            Trusted Devices
+          </ReactRouterLink>{' '}
+          in Teleport.
+        </P>
+      );
+    },
+  },
+  {
+    type: 'intune',
+    name: 'Microsoft Intune',
+    icon: 'intune',
+    // TODO(ravicious): Update the URL to the actual Intune docs.
+    url: 'https://goteleport.com/docs/identity-governance/device-trust/',
+    cloudHostable: true,
+    selfHostable: true,
+    disabledIfNoMdmSupport: true,
+    fullName: 'Microsoft Intune Integration for Device Trust',
+    Description: () => (
+      <Text>
+        <P>
+          Microsoft Intune integration updates trusted devices in Teleport to
+          match available devices in your Intune inventory. For more details,
+          see our docs page about{' '}
+          <Link
+            // TODO(ravicious): Update the URL to the actual Intune docs.
+            href="https://goteleport.com/docs/identity-governance/device-trust/"
+            target="_blank"
+          >
+            Device Trust and the Intune integration
+          </Link>
+          .
+        </P>
+      </Text>
+    ),
+    permissions: [
+      {
+        category: 'Microsoft Graph',
+        permissions: [
+          {
+            title: 'DeviceManagementManagedDevices.Read.All',
+            description:
+              'An application permission that lets the integration pull devices from Intune into Teleport.',
+          },
+        ],
+      },
+    ],
+    Setup: () => (
+      <Text>
+        <ol>
+          <li>
+            Provide{' '}
+            <Link
+              href="https://learn.microsoft.com/en-us/partner-center/account-settings/find-ids-and-domain-names#find-the-microsoft-entra-tenant-id-and-primary-domain-name"
+              target="_blank"
+            >
+              the primary domain or the Microsoft Entra tenant ID
+            </Link>{' '}
+            in the form below.
+          </li>
+          <li>
+            <Link
+              href="https://learn.microsoft.com/en-us/graph/auth-register-app-v2"
+              target="_blank"
+            >
+              Register an application
+            </Link>{' '}
+            in the Microsoft identity platform.
+            <ul>
+              <li>
+                Select "Accounts in this organizational directory only" as the
+                supported account types.
+              </li>
+              <li>Skip the Redirect URI section and click "Register".</li>
+              <li>
+                Copy "Application (client) ID" and paste it the form below.
+              </li>
+            </ul>
+          </li>
+          <li>
+            <Link
+              href="https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-access-web-apis#application-permission-to-microsoft-graph"
+              target="_blank"
+            >
+              Add application permission
+            </Link>{' '}
+            for Microsoft Graph's{' '}
+            <code>DeviceManagementManagedDevices.Read.All</code>.
+          </li>
+          <li>
+            <Link
+              href="https://learn.microsoft.com/en-us/graph/auth-register-app-v2#option-2-add-a-client-secret"
+              target="_blank"
+            >
+              Add a client secret
+            </Link>
+            . Copy the resulting value and paste it in the form below.
+          </li>
+        </ol>
+      </Text>
+    ),
+    FormMixin: () => {
+      const [tenant, setTenant] = useState('');
+      const [clientId, setClientId] = useState('');
+      const [clientSecret, setClientSecret] = useState('');
+      return (
+        <>
+          <FieldInput
+            width="500px"
+            label="Primary domain or Microsoft Entra tenant ID"
+            name="tenant" // must be the same name as expected by the backend as form value
+            rule={requiredField('Tenant must be specified')}
+            value={tenant}
+            onChange={e => setTenant(e.target.value)}
+            autoFocus
+            placeholder="contoso.onmicrosoft.com"
+          />
+          <FieldInput
+            width="500px"
+            label="Application (client) ID"
+            name="clientId" // must be the same name as expected by the backend as form value
+            rule={requiredField('Application (client) ID must be specified')}
+            value={clientId}
+            onChange={e => setClientId(e.target.value)}
+            placeholder="9bbf1ecc-1aba-4293-8465-47e511dae942"
+          />
+          <FieldInput
+            width="500px"
+            label="Client secret value"
+            name="clientSecret" // must be the same name as expected by the backend as form value
+            rule={requiredField('Client secret must be specified')}
+            value={clientSecret}
+            onChange={e => setClientSecret(e.target.value)}
+            type="password"
+          />
+        </>
+      );
+    },
+    NextSteps: () => {
+      return (
+        <P>
+          The Intune integration is configured for your cluster. Depending on
+          the size of your Intune inventory, it may take a few minutes to sync
+          with{' '}
           <ReactRouterLink to={cfg.routes.deviceTrust}>
             Trusted Devices
           </ReactRouterLink>{' '}

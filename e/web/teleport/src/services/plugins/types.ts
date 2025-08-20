@@ -52,7 +52,12 @@ export type PluginBase = {
    */
   selfHostable: boolean;
 
+  /**
+   * disabledIfNoMdmSupport blurs out the form for the plugin unless the account has the
+   * MobileDeviceManagement entitlement. It adds a CTA to get Teleport Enterprise on top of the form.
+   */
   disabledIfNoMdmSupport?: boolean;
+
   // todo (michellescripts) replace with new entitlement `EntraIDSync`
   requiresIgs?: boolean;
 
@@ -96,6 +101,10 @@ export type CloudHostablePlugin = PluginBase & {
   FormMixin?: (props: { attempt: Attempt }) => JSX.Element;
   NextSteps?: (props: { successData?: EnrollSuccessResponse }) => JSX.Element;
   permissions?: CategoryPermissions[];
+  /**
+   * disabledIfNoMdmSupport blurs out the form for the plugin unless the account has the
+   * MobileDeviceManagement entitlement. It adds a CTA to get Teleport Enterprise on top of the form.
+   */
   disabledIfNoMdmSupport?: boolean;
 } & (
     | {

@@ -20,6 +20,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/api/cloud"
+	intune "github.com/gravitational/teleport/e/lib/intune/api"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -43,6 +44,7 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeOpsgenie,
 		types.PluginTypePagerDuty,
 		types.PluginTypeJamf,
+		types.PluginTypeIntune,
 		types.PluginTypeJira,
 		types.PluginTypeMattermost,
 		types.PluginTypeServiceNow,
@@ -357,6 +359,7 @@ var defaultPluginHandlers = map[types.PluginType]pluginHandler{
 	types.PluginTypeDiscord:    defaultHandler{},
 	types.PluginTypeGitlab:     defaultHandler{},
 	types.PluginTypeGithub:     defaultHandler{},
+	types.PluginTypeIntune:     defaultHandler{},
 	types.PluginTypeJamf:       defaultHandler{},
 	types.PluginTypeJira:       defaultHandler{},
 	types.PluginTypeMattermost: defaultHandler{},
@@ -560,6 +563,40 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 		}); err != nil {
 			s.logger.WarnContext(ctx, "failed to verify Jamf endpoint and credentials", "error", err)
 			return trace.Errorf("failed to verify Jamf endpoint and credentials")
+		}
+	}
+
+	// Verify Intune tenant and credentials.
+	if plugin.GetType() == types.PluginTypeIntune {
+		var clientID, clientSecret string
+		if len(staticCreds) > 0 {
+			sc := staticCreds[0]
+			clientID, clientSecret = sc.GetOAuthClientSecret()
+		}
+
+		var tenant, loginEndpoint, graphEndpoint string
+		if spec := plugin.Spec.GetIntune(); spec != nil {
+			tenant = spec.Tenant
+			loginEndpoint = spec.LoginEndpoint
+			graphEndpoint = spec.GraphEndpoint
+		}
+
+		// Creating a client automatically verifies the credentials.
+		if _, err := intune.NewClient(ctx, intune.ClientConfig{
+			APIConfig: intune.Config{
+				AppCredentials: intune.AppCredentials{
+					Tenant:       tenant,
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+				},
+				LoginEndpoint: loginEndpoint,
+				GraphEndpoint: graphEndpoint,
+			},
+			Logger:     s.logger,
+			HTTPClient: s.httpClient,
+		}); err != nil {
+			s.logger.WarnContext(ctx, "failed to verify Intune credentials", "error", err)
+			return trace.Wrap(err)
 		}
 	}
 
