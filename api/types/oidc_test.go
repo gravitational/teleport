@@ -17,8 +17,9 @@ package types
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 func TestOIDCValidate(t *testing.T) {
