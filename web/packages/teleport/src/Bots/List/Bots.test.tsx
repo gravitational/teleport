@@ -86,7 +86,7 @@ describe('Bots', () => {
       .spyOn(api, 'get')
       .mockResolvedValueOnce({ ...botsApiResponseFixture })
       .mockResolvedValueOnce(['role-1', 'editor']);
-    jest.spyOn(api, 'delete').mockResolvedValue({});
+    jest.spyOn(api, 'deleteWithOptions').mockResolvedValue({});
     renderWithContext(<Bots />);
 
     await waitFor(() => {
@@ -114,10 +114,9 @@ describe('Bots', () => {
         `Delete ${botsApiResponseFixture.items[0].metadata.name}?`
       )
     ).not.toBeInTheDocument();
-    expect(api.delete).toHaveBeenCalledWith(
+    expect(api.deleteWithOptions).toHaveBeenCalledWith(
       `/v1/webapi/sites/localhost/machine-id/bot/${botsApiResponseFixture.items[0].metadata.name}`,
-      undefined,
-      undefined
+      { signal: undefined }
     );
   });
 });

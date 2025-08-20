@@ -163,10 +163,11 @@ export async function deleteBot(
   variables: { botName: string },
   signal?: AbortSignal
 ) {
-  return api.delete(
+  return api.deleteWithOptions(
     cfg.getBotUrl({ action: 'delete', botName: variables.botName }),
-    undefined,
-    signal
+    {
+      signal,
+    }
   );
 }
 
