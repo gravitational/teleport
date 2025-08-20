@@ -237,7 +237,7 @@ loop:
 	}
 
 	if lastEvent == nil {
-		return trace.Errorf("could not find any events for session %v", sessionID)
+		return trace.NotFound("no events found for session %v", sessionID)
 	}
 
 	// Finish off any remaining activity events
