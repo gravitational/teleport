@@ -25,10 +25,10 @@ import (
 	"github.com/hinshun/vt10x"
 )
 
-// terminalStateToANSI converts a terminal state to an ANSI escape sequence string,
+// VtStateToANSI converts a terminal state to an ANSI escape sequence string,
 // including both the primary and alternate screen buffers.
 // It handles terminal modes, colors, cursor position, and other settings.
-func terminalStateToANSI(state vt10x.TerminalState) string {
+func VtStateToANSI(state vt10x.TerminalState) string {
 	var buf bytes.Buffer
 
 	// Initialize the terminal
