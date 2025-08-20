@@ -184,11 +184,16 @@ func runMCPConfig(cf *CLIConf, flags *mcpClientConfigFlags, exec mcpConfigExec) 
 		return trace.Wrap(err)
 	}
 
-	config, err := flags.loadConfig()
-	if err != nil {
-		return trace.BadParameter("failed to load mcp configuration file at %q: %v", flags.clientConfig, err)
+	switch flags.clientConfig {
+	case "":
+		return trace.Wrap(exec.printInstructions(cf.Stdout()))
+	default:
+		config, err := flags.loadConfig()
+		if err != nil {
+			return trace.BadParameter("failed to load mcp configuration file at %q: %v", flags.clientConfig, err)
+		}
+		return trace.Wrap(exec.updateConfig(cf.Stdout(), config))
 	}
-	return trace.Wrap(exec.updateConfig(cf.Stdout(), config))
 }
 
 // mcpConfig defines a subset of functions from mcpconfig.Config.
@@ -200,6 +205,8 @@ type mcpConfig interface {
 // mcpConfigExec defines the interface for generating install instructions and
 // directly updating the MCP config.
 type mcpConfigExec interface {
+	// printInstructions prints instructions on how to configure the MCP server.
+	printInstructions(io.Writer) error
 	// updateConfig directly updates the client config. It might also print
 	// information.
 	updateConfig(io.Writer, *mcpconfig.FileConfig) error
