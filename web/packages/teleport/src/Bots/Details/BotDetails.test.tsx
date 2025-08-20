@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* eslint-disable testing-library/no-node-access */
+
 import { QueryClientProvider } from '@tanstack/react-query';
 import { UserEvent } from '@testing-library/user-event';
 import { createMemoryHistory } from 'history';
@@ -141,7 +143,6 @@ describe('BotDetails', () => {
 
     const panel = screen
       .getByRole('heading', { name: 'Metadata' })
-      // eslint-disable-next-line testing-library/no-node-access
       .closest('section');
     expect(panel).toBeInTheDocument();
 
@@ -159,7 +160,6 @@ describe('BotDetails', () => {
 
     const panel = screen
       .getByRole('heading', { name: 'Roles' })
-      // eslint-disable-next-line testing-library/no-node-access
       .closest('section');
     expect(panel).toBeInTheDocument();
 
@@ -177,7 +177,6 @@ describe('BotDetails', () => {
 
     const panel = screen
       .getByRole('heading', { name: 'Traits' })
-      // eslint-disable-next-line testing-library/no-node-access
       .closest('section');
     expect(panel).toBeInTheDocument();
 
@@ -198,7 +197,6 @@ describe('BotDetails', () => {
 
     const panel = screen
       .getByRole('heading', { name: 'Join Tokens' })
-      // eslint-disable-next-line testing-library/no-node-access
       .closest('section');
     expect(panel).toBeInTheDocument();
 
@@ -218,7 +216,6 @@ describe('BotDetails', () => {
 
     const panel = screen
       .getByRole('heading', { name: 'Join Tokens' })
-      // eslint-disable-next-line testing-library/no-node-access
       .closest('section');
     expect(panel).toBeInTheDocument();
 
@@ -240,7 +237,6 @@ describe('BotDetails', () => {
 
     const panel = screen
       .getByRole('heading', { name: 'Join Tokens' })
-      // eslint-disable-next-line testing-library/no-node-access
       .closest('section');
     expect(panel).toBeInTheDocument();
 
@@ -262,7 +258,6 @@ describe('BotDetails', () => {
 
     const panel = screen
       .getByRole('heading', { name: 'Active Instances' })
-      // eslint-disable-next-line testing-library/no-node-access
       .closest('section');
     expect(panel).toBeInTheDocument();
 
@@ -341,14 +336,12 @@ describe('BotDetails', () => {
 
       let configPanel = screen
         .getByRole('heading', { name: 'Metadata' })
-        // eslint-disable-next-line testing-library/no-node-access
         .closest('section');
       expect(configPanel).toBeInTheDocument();
       expect(within(configPanel!).getByText('12h')).toBeInTheDocument();
 
       let rolesPanel = screen
         .getByRole('heading', { name: 'Roles' })
-        // eslint-disable-next-line testing-library/no-node-access
         .closest('section');
       expect(rolesPanel).toBeInTheDocument();
       expect(within(rolesPanel!).getByText('admin')).toBeInTheDocument();
@@ -356,7 +349,6 @@ describe('BotDetails', () => {
 
       let traitsPanel = screen
         .getByRole('heading', { name: 'Traits' })
-        // eslint-disable-next-line testing-library/no-node-access
         .closest('section');
       expect(traitsPanel).toBeInTheDocument();
       expect(within(traitsPanel!).getByText('trait-1')).toBeInTheDocument();
@@ -391,21 +383,18 @@ describe('BotDetails', () => {
 
       configPanel = screen
         .getByRole('heading', { name: 'Metadata' })
-        // eslint-disable-next-line testing-library/no-node-access
         .closest('section');
       expect(configPanel).toBeInTheDocument();
       expect(within(configPanel!).getByText('12h 30m')).toBeInTheDocument();
 
       rolesPanel = screen
         .getByRole('heading', { name: 'Roles' })
-        // eslint-disable-next-line testing-library/no-node-access
         .closest('section');
       expect(rolesPanel).toBeInTheDocument();
       expect(within(rolesPanel!).getByText('role-1')).toBeInTheDocument();
 
       traitsPanel = screen
         .getByRole('heading', { name: 'Traits' })
-        // eslint-disable-next-line testing-library/no-node-access
         .closest('section');
       expect(traitsPanel).toBeInTheDocument();
       expect(within(traitsPanel!).getByText('trait-2')).toBeInTheDocument();
