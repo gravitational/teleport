@@ -194,7 +194,6 @@ func (d *KubernetesDataSource) Read(
 				},
 				DisableExecPlugin: true,
 			},
-			bot.DefaultCredentialLifetime,
 		),
 	}
 	if err := botCfg.CheckAndSetDefaults(); err != nil {

@@ -20,6 +20,9 @@ package k8s
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -137,6 +140,23 @@ type KubernetesSelector struct {
 	Name string `yaml:"name,omitempty"`
 
 	Labels map[string]string `yaml:"labels,omitempty"`
+}
+
+// String returns a human-readable representation of the selector for logs.
+func (s *KubernetesSelector) String() string {
+	switch {
+	case s.Name != "":
+		return fmt.Sprintf("name=%s", s.Name)
+	case len(s.Labels) != 0:
+		labels := make([]string, 0, len(s.Labels))
+		for k, v := range s.Labels {
+			labels = append(labels, k+"="+v)
+		}
+		slices.Sort(labels)
+		return fmt.Sprintf("labels={%s}", strings.Join(labels, ", "))
+	default:
+		return "<empty selector>"
+	}
 }
 
 func (s *KubernetesSelector) CheckAndSetDefaults() error {

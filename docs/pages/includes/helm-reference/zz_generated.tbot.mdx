@@ -35,7 +35,7 @@ This must contain the port number, usually 443 or 3080 for Proxy Service.
 Connecting to the Proxy Service is the most common and recommended way to connect to Teleport.
 This is mandatory to connect to Teleport Enterprise (Cloud)
 
-This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+This setting is mutually exclusive with teleportProxyAddress and is ignored if `tbotConfig` is set.
 
 For example:
 ```yaml
@@ -54,7 +54,7 @@ should be used when you are deploying the bot in the same Kubernetes cluster tha
 Helm release and have direct access to the Auth Service.
 Else, you should prefer connecting via the Proxy Service.
 
-This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+This setting is mutually exclusive with teleportProxyAddress and is ignored if `tbotConfig` is set.
 
 For example:
 ```yaml
@@ -64,7 +64,7 @@ teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
 ## `defaultOutput`
 
 `defaultOutput` controls the default output configured for the tbot agent.
-Ignored if `customConfig` is set.
+Ignored if `tbotConfig` is set.
 
 ### `defaultOutput.enabled`
 
@@ -73,6 +73,102 @@ Ignored if `customConfig` is set.
 | `bool` | `true` |
 
 `defaultOutput.enabled` controls whether the default output is enabled.
+
+## `argocd`
+
+`argocd` configures tbot to synchronize Teleport-managed Kubernetes clusters
+to Argo CD.
+Ignored if `tbotConfig` is set.
+
+### `argocd.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`argocd.enabled` controls whether the Argo CD output is enabled.
+
+### `argocd.clusterSelectors`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`argocd.clusterSelectors` determines which Kubernetes clusters will
+be synchronized to Argo CD.
+
+For example:
+```yaml
+clusterSelectors:
+  - name: my-cluster-1
+  - labels:
+    environment: production
+```
+
+### `argocd.secretNamespace`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`argocd.secretNamespace` determines to which Kubernetes namespace
+cluster secrets will be written (it must be the namespace in which Argo CD
+is running). Defaults to the current namespace.
+
+### `argocd.secretNamePrefix`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`argocd.secretNamePrefix` overrides the string that cluster secret
+names will be prefixed with. Defaults to "teleport.argocd-cluster".
+
+### `argocd.secretLabels`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`argocd.secretLabels` provides a set of labels that will be applied
+to cluster secrets.
+
+### `argocd.secretAnnotations`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`argocd.secretAnnotations` provides a set of annotations that will
+be applied to cluster secrets.
+
+### `argocd.project`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`argocd.project` sets the Argo CD project with which the Kubernetes
+clusters will be associated.
+
+### `argocd.namespaces`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`argocd.namespaces` controls which Kubernetes namespaces the Argo CD
+clusters will be allowed to operate on.
+
+### `argocd.clusterResources`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`argocd.clusterResources` determines whether the Argo CD cluster is
+allowed to operate on cluster-scoped resources (only when `argocd.namespaces`
+is non-empty).
 
 ## `persistence`
 
@@ -102,7 +198,7 @@ use the more specific configuration values throughout this chart.
 
 `outputs` contains additional outputs to configure for the tbot agent.
 These should be in the same format as the `outputs` field in the tbot.yaml.
-Ignored if `customConfig` is set.
+Ignored if `tbotConfig` is set.
 
 ## `services`
 
@@ -112,7 +208,7 @@ Ignored if `customConfig` is set.
 
 `services` contains additional services to configure for the tbot agent.
 These should be in the same format as the `services` field in the tbot.yaml.
-Ignored if `customConfig` is set.
+Ignored if `tbotConfig` is set.
 
 ## `joinMethod`
 
@@ -122,7 +218,7 @@ Ignored if `customConfig` is set.
 
 `joinMethod` describes how tbot joins the Teleport cluster.
 See [the join method reference](../../reference/join-methods.mdx) for a list fo supported values and detailed explanations.
-Ignored if `customConfig` is set.
+Ignored if `tbotConfig` is set.
 
 ## `token`
 
@@ -132,7 +228,7 @@ Ignored if `customConfig` is set.
 
 `token` is the name of the token used by tbot to join the Teleport cluster.
 This value is not sensitive unless the `joinMethod` is set to `"token"`.
-Ignored if `customConfig` is set.
+Ignored if `tbotConfig` is set.
 
 ## `teleportVersionOverride`
 
