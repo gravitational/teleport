@@ -14,11 +14,20 @@ import { RecordingType } from 'teleport/services/recordings';
 import { useSuspenseGetRecordingDuration } from 'teleport/services/recordings/hooks';
 
 import { RecordingPlayer } from './RecordingPlayer';
-import { ViewTerminalRecording } from './ViewTerminalRecording';
+import {
+  ViewTerminalRecording,
+  type SummarySlot,
+} from './ViewTerminalRecording';
 
 const validRecordingTypes = ['ssh', 'k8s', 'desktop', 'database'];
 
-export function ViewSessionRecordingRoute() {
+interface ViewSessionRecordingRouteProps {
+  summarySlot?: SummarySlot;
+}
+
+export function ViewSessionRecordingRoute({
+  summarySlot,
+}: ViewSessionRecordingRouteProps) {
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
 
@@ -32,16 +41,27 @@ export function ViewSessionRecordingRoute() {
   }, [sid, clusterId]);
 
   if (recordingType === 'ssh') {
+    // If the recording type is SSH, try to load the session metadata (ViewTerminalRecording)
+    // and render the SSH player with the session metadata/summary.
+    // If that errors (such as during a proxy upgrade), we fall back to the
+    // RecordingPlayerWrapper which will fetch the session duration and render the player.
+    // This is to ensure that the player can still be rendered even if the session metadata
+    // cannot be fetched, allowing users to still view the recording.
+
     return (
       <Suspense fallback={<RecordingPlayerLoading />}>
         <ErrorBoundary
           fallback={
             <ErrorBoundary fallback={<RecordingPlayerError />}>
-              <ViewRecording clusterId={clusterId} sessionId={sid} />
+              <RecordingPlayerWrapper clusterId={clusterId} sessionId={sid} />
             </ErrorBoundary>
           }
         >
-          <ViewTerminalRecording clusterId={clusterId} sessionId={sid} />
+          <ViewTerminalRecording
+            clusterId={clusterId}
+            sessionId={sid}
+            summarySlot={summarySlot}
+          />
         </ErrorBoundary>
       </Suspense>
     );
@@ -59,7 +79,7 @@ export function ViewSessionRecordingRoute() {
         errorComponent={RecordingPlayerError}
         loadingComponent={RecordingPlayerLoading}
       >
-        <ViewRecording clusterId={clusterId} sessionId={sid} />
+        <RecordingPlayerWrapper clusterId={clusterId} sessionId={sid} />
       </ErrorSuspenseWrapper>
     );
   }
@@ -102,7 +122,7 @@ interface ViewRecordingProps {
   sessionId: string;
 }
 
-function ViewRecording({ clusterId, sessionId }: ViewRecordingProps) {
+function RecordingPlayerWrapper({ clusterId, sessionId }: ViewRecordingProps) {
   const { data } = useSuspenseGetRecordingDuration({
     clusterId,
     sessionId,
