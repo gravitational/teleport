@@ -118,6 +118,8 @@ type Database interface {
 	IsAzure() bool
 	// IsElastiCache returns true if this is an AWS ElastiCache database.
 	IsElastiCache() bool
+	// IsElastiCacheServerless returns true if this is an AWS ElastiCache Serverless database.
+	IsElastiCacheServerless() bool
 	// IsMemoryDB returns true if this is an AWS MemoryDB database.
 	IsMemoryDB() bool
 	// IsAWSHosted returns true if database is hosted by AWS.
@@ -487,6 +489,11 @@ func (d *DatabaseV3) IsElastiCache() bool {
 	return d.GetType() == DatabaseTypeElastiCache
 }
 
+// IsElastiCacheServerless returns true if this is an AWS ElastiCache database.
+func (d *DatabaseV3) IsElastiCacheServerless() bool {
+	return d.GetType() == DatabaseTypeElastiCacheServerless
+}
+
 // IsMemoryDB returns true if this is an AWS MemoryDB database.
 func (d *DatabaseV3) IsMemoryDB() bool {
 	return d.GetType() == DatabaseTypeMemoryDB
@@ -582,6 +589,9 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	}
 	if aws.ElastiCache.ReplicationGroupID != "" {
 		return DatabaseTypeElastiCache, true
+	}
+	if aws.ElastiCacheServerless.CacheName != "" {
+		return DatabaseTypeElastiCacheServerless, true
 	}
 	if aws.MemoryDB.ClusterName != "" {
 		return DatabaseTypeMemoryDB, true
@@ -804,6 +814,21 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		d.Spec.AWS.ElastiCache.TransitEncryptionEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.ElastiCache.EndpointType = endpointInfo.EndpointType
+	case awsutils.IsElastiCacheServerlessEndpoint(d.Spec.URI):
+		info, err := awsutils.ParseElastiCacheServerlessEndpoint(d.Spec.URI)
+		if err != nil {
+			slog.WarnContext(context.Background(), "Failed to parse ElastiCache Serverless endpoint",
+				"uri", d.Spec.URI,
+				"error", err,
+			)
+			break
+		}
+		if d.Spec.AWS.ElastiCacheServerless.CacheName == "" {
+			d.Spec.AWS.ElastiCacheServerless.CacheName = info.ID
+		}
+		if d.Spec.AWS.Region == "" {
+			d.Spec.AWS.Region = info.Region
+		}
 	case awsutils.IsMemoryDBEndpoint(d.Spec.URI):
 		endpointInfo, err := awsutils.ParseMemoryDBEndpoint(d.Spec.URI)
 		if err != nil {
@@ -1109,6 +1134,9 @@ func (d *DatabaseV3) GetEndpointType() string {
 	switch d.GetType() {
 	case DatabaseTypeElastiCache:
 		return d.GetAWS().ElastiCache.EndpointType
+	case DatabaseTypeElastiCacheServerless:
+		// ElastiCache Serverless endpoints are always cluster mode.
+		return awsutils.ElastiCacheConfigurationEndpoint
 	case DatabaseTypeMemoryDB:
 		return d.GetAWS().MemoryDB.EndpointType
 	case DatabaseTypeOpenSearch:
@@ -1173,6 +1201,8 @@ const (
 	DatabaseTypeAzure = "azure"
 	// DatabaseTypeElastiCache is AWS-hosted ElastiCache database.
 	DatabaseTypeElastiCache = "elasticache"
+	// DatabaseTypeElastiCacheServerless is AWS-hosted ElastiCache serverless database.
+	DatabaseTypeElastiCacheServerless = "elasticache-serverless"
 	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
 	DatabaseTypeMemoryDB = "memorydb"
 	// DatabaseTypeAWSKeyspaces is AWS-hosted Keyspaces database (Cassandra).

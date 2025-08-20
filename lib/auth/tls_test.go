@@ -59,6 +59,7 @@ import (
 	eventtypes "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -73,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -3472,9 +3474,9 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 		})
 		require.Error(t, err)
 
-		tokens, err := testSrv.Auth().GetUserTokens(ctx)
+		userTokens, err := stream.Collect(clientutils.Resources(ctx, testSrv.Auth().ListUserTokens))
 		require.NoError(t, err)
-		require.Empty(t, tokens)
+		require.Empty(t, userTokens)
 	})
 }
 
@@ -4444,7 +4446,7 @@ func TestEvents(t *testing.T) {
 				err = testSrv.Auth().SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := testSrv.Auth().GetStaticTokens()
+				out, err := testSrv.Auth().GetStaticTokens(ctx)
 				require.NoError(t, err)
 
 				err = testSrv.Auth().DeleteStaticTokens()
@@ -4821,7 +4823,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	err = testSrv.Auth().SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	staticTokens, err = testSrv.Auth().GetStaticTokens()
+	staticTokens, err = testSrv.Auth().GetStaticTokens(ctx)
 	require.NoError(t, err)
 	ExpectResource(t, w, 3*time.Second, staticTokens)
 

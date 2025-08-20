@@ -65,6 +65,7 @@ jobs:
       - name: Configure Rust Toolchain
         run: |
           rustup override set ${{ env.RUST_VERSION }}
+          rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack
         run: make ensure-wasm-deps

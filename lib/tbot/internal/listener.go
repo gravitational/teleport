@@ -56,7 +56,7 @@ func CreateListener(ctx context.Context, log *slog.Logger, addr string) (net.Lis
 			Name: absPath,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err, "creating unix socket", absPath)
+			return nil, trace.Wrap(err, "creating unix socket %q", absPath)
 		}
 
 		// On Unix systems, you must have read and write permissions for the
@@ -72,7 +72,7 @@ func CreateListener(ctx context.Context, log *slog.Logger, addr string) (net.Lis
 		// - Configure the filesystem permissions of the directory containing
 		//   the socket.
 		if err := os.Chmod(absPath, os.ModePerm); err != nil {
-			return nil, trace.Wrap(err, "setting permissions on unix socket", absPath)
+			return nil, trace.Wrap(err, "setting permissions on unix socket %q", absPath)
 		}
 
 		return l, nil

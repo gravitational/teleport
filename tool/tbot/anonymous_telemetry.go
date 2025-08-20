@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
 const (
@@ -106,7 +107,7 @@ func sendTelemetry(
 			data.DestinationsApplication++
 		case *database.OutputConfig:
 			data.DestinationsDatabase++
-		case *config.KubernetesOutput:
+		case *k8s.OutputV1Config:
 			data.DestinationsKubernetes++
 		default:
 			data.DestinationsOther++

@@ -98,7 +98,7 @@ A role matcher can include the following values:
 
 To add the values of `claims_to_roles` to the lists of role matchers, the Auth
 Service evaluates template expressions with the user's traits. See the [Role
-Templates](../../admin-guides/access-controls/guides/role-templates.mdx) for more
+Templates](../../zero-trust-access/rbac-get-started/role-templates.mdx) for more
 information on how Teleport executes template expressions with user traits in
 the `claims_to_roles` field.
 
@@ -514,7 +514,7 @@ following role fields:
 
 The Auth Service evaluates the `claims_to_roles` field using template
 expressions with the user's traits. See the [Role
-Templates](../../admin-guides/access-controls/guides/role-templates.mdx) for more
+Templates](../../zero-trust-access/rbac-get-started/role-templates.mdx) for more
 information on how Teleport executes template expressions with user traits in
 the `claims_to_roles` field.
 
@@ -682,7 +682,7 @@ pagerduty_services:
 
 ### Reading annotations in custom plugins
 
-If you [write your own Access Request plugin](../../admin-guides/api/access-plugin.mdx), the
+If you [write your own Access Request plugin](../access-request-plugins/access-plugin.mdx), the
 program can access system annotations using a function similar to the following:
 
 ```go

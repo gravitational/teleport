@@ -55,15 +55,16 @@ and [Architecture](../../../reference/architecture/machine-id-architecture.mdx) 
 Read the following guides for how to deploy Machine ID on your cloud platform or
 on-prem infrastructure.
 
-| Platform                                   | Installation method                             | Join method                                         |
-|--------------------------------------------|-------------------------------------------------|-----------------------------------------------------|
-| [Linux](linux.mdx)                         | Package manager or TAR archive                  | Static join token                                   |
-| [Linux (TPM)](linux-tpm.mdx)               | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
-| [Linux (Bound Keypair)](bound-keypair.mdx) | Package manager or TAR archive                  | Bound Keypair                                       |
-| [GCP](gcp.mdx)                             | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
-| [AWS](aws.mdx)                             | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
-| [Azure](azure.mdx)                         | Package manager or TAR archive                  | Identity document signed by Azure                   |
-| [Kubernetes](kubernetes.mdx)               | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
+| Platform                               | Installation method                             | Join method                                         |
+|----------------------------------------|-------------------------------------------------|-----------------------------------------------------|
+| [Linux](linux.mdx)                     | Package manager or TAR archive                  | Static join token                                   |
+| [Linux (TPM)](linux-tpm.mdx)           | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
+| [Linux (Bound Keypair)][bound-keypair] | Package manager or TAR archive                  | Bound Keypair                                       |
+| [GCP](gcp.mdx)                         | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
+| [AWS](aws.mdx)                         | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
+| [Azure](azure.mdx)                     | Package manager or TAR archive                  | Identity document signed by Azure                   |
+| [Kubernetes](kubernetes.mdx)           | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
+| [Kubernetes OIDC](kubernetes-oidc.mdx) | Kubernetes pod on a cloud provider with OIDC    | Identity document signed by your cloud provider     |
 
 ### CI/CD
 
@@ -81,3 +82,5 @@ integration and continuous deployment platform
 | [Spacelift](../../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift.mdx)             | Docker Image                                                  | Spacelift-signed identity document       |
 | [Terraform Cloud](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx) | Teleport Terraform Provider via Teleport's Terraform Registry | Terraform Cloud-signed identity document |
 
+
+[bound-keypair]: ../../../reference/machine-id/bound-keypair/getting-started.mdx

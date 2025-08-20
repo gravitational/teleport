@@ -488,6 +488,12 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "docdb,omitempty"
   ];
+
+  // ElastiCacheServerless contains Amazon ElastiCache Serverless metadata.
+  ElastiCacheServerless ElastiCacheServerless = 17 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "elasticache_serverless,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -542,6 +548,12 @@ message ElastiCache {
   bool TransitEncryptionEnabled = 3 [(gogoproto.jsontag) = "transit_encryption_enabled,omitempty"];
   // EndpointType is the type of the endpoint.
   string EndpointType = 4 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+}
+
+// ElastiCacheServerless contains Amazon ElastiCache Serverless metadata.
+message ElastiCacheServerless {
+  // CacheName is an ElastiCache Serverless cache name.
+  string CacheName = 1 [(gogoproto.jsontag) = "cache_name,omitempty"];
 }
 
 // MemoryDB contains AWS MemoryDB specific metadata.
@@ -1269,9 +1281,9 @@ message EncryptionKeyPair {
   uint32 hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
 }
 
-// AgeEncryptionKey is a Bech32 encoded age X25519 public key.
+// A public key to be used as a recipient during age encryption of session recordings.
 message AgeEncryptionKey {
-  // PublicKey is a Bech32 encoded age X25519 public key.
+  // A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
   bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
 }
 
@@ -1804,6 +1816,18 @@ message ProvisionTokenSpecV2Kubernetes {
     // This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
     string JWKS = 1 [(gogoproto.jsontag) = "jwks,omitempty"];
   }
+  message OIDCConfig {
+    // Issuer is the URI of the OIDC issuer. It must have an accessible and
+    // OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should
+    // be a valid URL and must exactly match the `issuer` field in a service
+    // account JWT. For example:
+    // https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+    string Issuer = 1 [(gogoproto.jsontag) = "issuer,omitempty"];
+
+    // InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement
+    // that the issuer must use HTTPS.
+    bool InsecureAllowHTTPIssuer = 2 [(gogoproto.jsontag) = "insecure_allow_http_issuer"];
+  }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
   message Rule {
@@ -1818,6 +1842,7 @@ message ProvisionTokenSpecV2Kubernetes {
   // Service Account token. Support values:
   // - `in_cluster`
   // - `static_jwks`
+  // - `oidc`
   // If unset, this defaults to `in_cluster`.
   string Type = 2 [
     (gogoproto.jsontag) = "type,omitempty",
@@ -1825,6 +1850,8 @@ message ProvisionTokenSpecV2Kubernetes {
   ];
   // StaticJWKS is the configuration specific to the `static_jwks` type.
   StaticJWKSConfig StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
+  // OIDCConfig configures the `oidc` type.
+  OIDCConfig OIDC = 4 [(gogoproto.jsontag) = "oidc,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the
@@ -2427,11 +2454,34 @@ message SessionRecordingConfigV2 {
   ];
 }
 
+// KeyLabel combines a label that can be used to identify one or more keys with a keystore type that
+// determines where the keys can be found.
+message KeyLabel {
+  // Type represents which keystore should be searched when looking up keys by label.
+  string type = 1 [(gogoproto.jsontag) = "type"];
+  // Label is a value that can be used with the related keystore in order to find relevant keys.
+  string label = 2 [(gogoproto.jsontag) = "label"];
+}
+
+// ManualKeyManagementConfig defines whether or not recording encryption keys should be managed externally
+// and how to query those keys.
+message ManualKeyManagementConfig {
+  // Enabled controls whether or recording encryption keys should be managed externally.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ActiveKeys describe which keys should be queried for active recording encryption and replay.
+  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_key,omitempty"];
+  // RotatedKeys describe which keys should be queried for historical replay.
+  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_key,omitempty"];
+}
+
 // SessionRecordingEncryptionConfig configures if and how session recordings
 // should be encrypted.
 message SessionRecordingEncryptionConfig {
   // Enabled controls whether or not session recordings should be encrypted.
-  bool enabled = 1 [(gogoproto.jsontag) = "enabled"];
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ManualKeyManagement defines whether or not recording encryption keys should be managed externally
+  // and how to query those keys.
+  ManualKeyManagementConfig manual_key_management = 2 [(gogoproto.jsontag) = "manual_key_management,omitempty"];
 }
 
 // SessionRecordingConfigSpecV2 is the actual data we care about
@@ -3142,6 +3192,23 @@ message AccessRequestSpecV3 {
 
   // DryRunEnrichment contains the extra info added in response to a dry run request.
   AccessRequestDryRunEnrichment DryRunEnrichment = 23 [(gogoproto.jsontag) = "dry_run_enrichment,omitempty"];
+
+  // RequestKind indicates the kind (short/long-term) of request.
+  AccessRequestKind RequestKind = 24 [(gogoproto.jsontag) = "request_kind,omitempty"];
+
+  // LongTermResourceGrouping contains information about how resources can be grouped
+  // based on Access List promotions for long-term Access Requests.
+  LongTermResourceGrouping LongTermGrouping = 25 [(gogoproto.jsontag) = "long_term_grouping,omitempty"];
+}
+
+// AccessRequestKind represents the kind of Access Request being made (short/long-term).
+enum AccessRequestKind {
+  // UNDEFINED is the default value, and represents an undefined request kind.
+  UNDEFINED = 0;
+  // SHORT_TERM represents a short-term request, either role-based or resource-based.
+  SHORT_TERM = 1;
+  // LONG_TERM represents a long-term resource-based request.
+  LONG_TERM = 2;
 }
 
 enum AccessRequestScope {
@@ -4114,6 +4181,31 @@ message AccessRequestAllowedPromotions {
   repeated AccessRequestAllowedPromotion promotions = 1;
 }
 
+// ResourceIDList represents a list of ResourceID objects.
+message ResourceIDList {
+  repeated ResourceID resource_ids = 1 [(gogoproto.nullable) = false];
+}
+
+// LongTermResourceGrouping contains information about how resources can be grouped
+// based on Access List promotions for long-term Access Requests.
+message LongTermResourceGrouping {
+  // AccessListToResources maps applicable Access List names to the resources they can grant,
+  // including the optimal grouping.
+  map<string, ResourceIDList> AccessListToResources = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "grouped_by_access_list"
+  ];
+  // RecommendedAccessList is the name of the Access List that would provide
+  // access to the most resources. If multiple Access Lists provide the same
+  // number of resources, the first one found will be used.
+  string RecommendedAccessList = 2 [(gogoproto.jsontag) = "recommended_access_list"];
+  // ValidationMessage is a user-friendly message explaining any grouping error, if CanProceed is false.
+  string ValidationMessage = 3 [(gogoproto.jsontag) = "validation_message,omitempty"];
+  // CanProceed represents the validity of the long-term grouping. If all requested
+  // resources cannot be grouped together, this will be false.
+  bool CanProceed = 4 [(gogoproto.jsontag) = "can_proceed"];
+}
+
 // ClaimMapping maps a claim to teleport roles.
 message ClaimMapping {
   // Claim is a claim name.
@@ -4169,6 +4261,8 @@ message BoolValue {
 message UserFilter {
   // SearchKeywords is a list of search keywords to match against resource field values.
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemUsers filters out teleport system users from the results.
+  bool SkipSystemUsers = 2 [(gogoproto.jsontag) = "skip_system_users,omitempty"];
 }
 
 // UserV2 is version 2 resource spec of the user
@@ -5254,6 +5348,10 @@ message OIDCConnectorSpecV3 {
   // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
   // match for identifier-first login.
   repeated string UserMatchers = 21 [(gogoproto.jsontag) = "user_matchers,omitempty"];
+  // RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization
+  // requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
+  // for authorization request parameters.
+  string RequestObjectMode = 22 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -7281,11 +7379,28 @@ message PluginSCIMSettings {
 
   // SamlConnectorName is the name of the SAML Connector that users provisioned
   // by this SCIM plugin will use to log in to Teleport.
-  string saml_connector_name = 1;
+  // DEPRECATED: Use ConnectorInfo instead.
+  // This is old field added when the Okta SCIM plugin was created
+  // and was limited usage to SAML connectors only.
+  string saml_connector_name = 1 [deprecated = true];
 
   // DefaultRole is the default role assigned to users provisioned by this
   // plugin.
-  string default_role = 2;
+  string default_role = 2 [deprecated = true];
+
+  message ConnectorInfo {
+    option (gogoproto.equal) = true;
+    // Name is the name of the connector.
+    string name = 1 [(gogoproto.jsontag) = "name"];
+    // Type is the type of the connector: types.KindSAML, types.KindOIDC, etc.
+    // Note: The name of the connect is not unique across types.
+    string type = 2 [(gogoproto.jsontag) = "type"];
+  }
+
+  // ConnectorInfo contains information about the user's origin as provided
+  // by the SCIM plugin. It enables matching a SAML/OIDC external user
+  // with a SCIM-persisted user, allowing the ephemeral user entry to be updated to SCIM user.
+  ConnectorInfo connector_info = 3 [(gogoproto.jsontag) = "connector_info"];
 }
 
 // PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin
