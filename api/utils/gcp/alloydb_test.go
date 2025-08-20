@@ -128,3 +128,28 @@ func TestAlloyDBResourceNames(t *testing.T) {
 	require.Equal(t, "projects/my-project-123456/locations/europe-west1/clusters/my-cluster", info.ParentClusterName())
 	require.Equal(t, "projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance", info.InstanceName())
 }
+
+func TestValidateAlloyDBEndpointType(t *testing.T) {
+	tests := []struct {
+		name    string
+		str     string
+		wantErr string
+	}{
+		{name: "empty string", str: "", wantErr: ""},
+		{name: "private", str: "private", wantErr: ""},
+		{name: "public", str: "public", wantErr: ""},
+		{name: "psc", str: "psc", wantErr: ""},
+		{name: "caps", str: "PUBLIC", wantErr: `invalid alloy db endpoint type: PUBLIC, expected one of [public private psc]`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateAlloyDBEndpointType(test.str)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

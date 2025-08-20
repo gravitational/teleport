@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
@@ -38,7 +37,7 @@ type AlloyDBAdminClient interface {
 	// GenerateClientCertificate returns a new PEM-encoded client certificate and Root CA suitable for connecting to particular AlloyDB instance.
 	GenerateClientCertificate(ctx context.Context, info gcputils.AlloyDBFullInstanceName, certExpiry time.Time, pkey *keys.PrivateKey) (*tls.Certificate, string, error)
 	// GetEndpointAddress returns endpoint address for given AlloyDB instance and chosen endpoint type.
-	GetEndpointAddress(ctx context.Context, info gcputils.AlloyDBFullInstanceName, endpointType types.AlloyDBEndpointType) (string, error)
+	GetEndpointAddress(ctx context.Context, info gcputils.AlloyDBFullInstanceName, endpointType string) (string, error)
 }
 
 // NewAlloyDBAdminClient returns a AlloyDBAdminClient interface.
@@ -103,7 +102,7 @@ Note that IAM changes may take a few minutes to propagate.`, err)
 }
 
 // GetEndpointAddress returns endpoint address for given AlloyDB instance and chosen endpoint type. Returns an error if chosen endpoint type is not available.
-func (g *gcpAlloyDBAdminClient) GetEndpointAddress(ctx context.Context, info gcputils.AlloyDBFullInstanceName, endpointType types.AlloyDBEndpointType) (string, error) {
+func (g *gcpAlloyDBAdminClient) GetEndpointAddress(ctx context.Context, info gcputils.AlloyDBFullInstanceName, endpointType string) (string, error) {
 	req := &alloydbpb.GetConnectionInfoRequest{Parent: info.InstanceName()}
 
 	resp, err := g.apiClient.GetConnectionInfo(ctx, req)
@@ -125,15 +124,15 @@ Note that IAM changes may take a few minutes to propagate.`, err)
 
 	var addr string
 
-	switch endpointType {
-	case types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT, types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PRIVATE:
+	switch gcputils.AlloyDBEndpointType(endpointType) {
+	case gcputils.AlloyDBEndpointTypePrivate:
 		addr = resp.GetIpAddress()
-	case types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PUBLIC:
+	case gcputils.AlloyDBEndpointTypePublic:
 		addr = resp.GetPublicIpAddress()
-	case types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PSC:
+	case gcputils.AlloyDBEndpointTypePSC:
 		addr = resp.GetPscDnsName()
 	default:
-		return "", trace.BadParameter("unknown endpoint type: %v", endpointType.String())
+		return "", trace.BadParameter("unknown endpoint type: %v", endpointType)
 	}
 
 	if addr == "" {

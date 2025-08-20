@@ -21,9 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"maps"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -998,8 +996,13 @@ func (d *DatabaseV3) IsEqual(i Database) bool {
 // handleAlloyDBConfig validates AlloyDB configuration.
 func (d *DatabaseV3) handleAlloyDBConfig() error {
 	// default to private endpoint type, but only if override isn't set.
-	if d.Spec.GCP.AlloyDB.EndpointType == AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT && d.Spec.GCP.AlloyDB.EndpointOverride == "" {
-		d.Spec.GCP.AlloyDB.EndpointType = AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PRIVATE
+	if d.Spec.GCP.AlloyDB.EndpointType == "" && d.Spec.GCP.AlloyDB.EndpointOverride == "" {
+		d.Spec.GCP.AlloyDB.EndpointType = string(gcputils.AlloyDBEndpointTypePrivate)
+	}
+
+	err := gcputils.ValidateAlloyDBEndpointType(d.Spec.GCP.AlloyDB.EndpointType)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	info, err := gcputils.ParseAlloyDBConnectionURI(d.Spec.URI)
@@ -1348,69 +1351,6 @@ func (d *DatabaseTLSMode) decodeName(name string) error {
 		return nil
 	}
 	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
-}
-
-// AlloyDBEndpointTypeMap is a mapping from string representation to enum value for AlloyDBEndpointType.
-var AlloyDBEndpointTypeMap = map[string]AlloyDBEndpointType{
-	"public":  AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PUBLIC,
-	"private": AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PRIVATE,
-	"psc":     AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PSC,
-}
-
-// AlloyDBEndpointTypeFromString parses given string as AlloyDBEndpointType.
-func AlloyDBEndpointTypeFromString(str string) (AlloyDBEndpointType, error) {
-	return enumFromMap(str, AlloyDBEndpointTypeMap)
-}
-
-func (a *AlloyDBEndpointType) UnmarshalJSON(data []byte) error {
-	unmarshal := func(v any) error {
-		return json.Unmarshal(data, v)
-	}
-	result, err := unmarshalProtoEnum[AlloyDBEndpointType](AlloyDBEndpointTypeMap, unmarshal)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	*a = result
-	return nil
-}
-
-func (a *AlloyDBEndpointType) UnmarshalYAML(unmarshal func(any) error) error {
-	result, err := unmarshalProtoEnum[AlloyDBEndpointType](AlloyDBEndpointTypeMap, unmarshal)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	*a = result
-	return nil
-}
-
-func unmarshalProtoEnum[enumT ~int32](mapping map[string]enumT, unmarshal func(any) error) (enumT, error) {
-	// try as number first.
-	var value int32
-	if err := unmarshal(&value); err == nil {
-		return enumT(value), nil
-	}
-
-	// fallback to string.
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return enumFromMap(str, mapping)
-}
-
-func enumFromMap[enumT ~int32](str string, mapping map[string]enumT) (enumT, error) {
-	// always map the empty string to the default value.
-	if str == "" {
-		return 0, nil
-	}
-
-	enum, found := mapping[str]
-	if !found {
-		keys := slices.Sorted(maps.Keys(mapping))
-		return 0, trace.BadParameter("%T invalid value %v, expected one of %v", enumT(0), str, keys)
-	}
-	return enum, nil
 }
 
 // MarshalJSON supports marshaling enum value into it's string value.

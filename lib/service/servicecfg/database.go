@@ -297,7 +297,7 @@ type DatabaseGCP struct {
 // DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
 type DatabaseGCPAlloyDB struct {
 	// EndpointType is the database endpoint type to use.
-	EndpointType types.AlloyDBEndpointType
+	EndpointType string
 	// EndpointOverride is an override of endpoint address to use.
 	EndpointOverride string
 }

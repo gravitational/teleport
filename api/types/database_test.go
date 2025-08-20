@@ -1141,19 +1141,19 @@ func TestDatabaseAlloyDB(t *testing.T) {
 				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
 				GCP: GCPCloudSQL{
 					AlloyDB: AlloyDB{
-						EndpointType: AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PRIVATE,
+						EndpointType: "private",
 					},
 				},
 			},
 		},
 		{
-			inputName: "endpoint override to endpoint type",
+			inputName: "custom endpoint type",
 			inputSpec: DatabaseSpecV3{
 				Protocol: DatabaseProtocolPostgreSQL,
 				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
 				GCP: GCPCloudSQL{
 					AlloyDB: AlloyDB{
-						EndpointType: AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PUBLIC,
+						EndpointType: "public",
 					},
 				},
 			},
@@ -1162,10 +1162,23 @@ func TestDatabaseAlloyDB(t *testing.T) {
 				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
 				GCP: GCPCloudSQL{
 					AlloyDB: AlloyDB{
-						EndpointType: AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PUBLIC,
+						EndpointType: "public",
 					},
 				},
 			},
+		},
+		{
+			inputName: "invalid endpoint type",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: GCPCloudSQL{
+					AlloyDB: AlloyDB{
+						EndpointType: "does-not-exist",
+					},
+				},
+			},
+			wantErr: "invalid alloy db endpoint type: does-not-exist, expected one of [public private psc]",
 		},
 		{
 			inputName: "endpoint override to IP address",
@@ -1174,7 +1187,7 @@ func TestDatabaseAlloyDB(t *testing.T) {
 				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
 				GCP: GCPCloudSQL{
 					AlloyDB: AlloyDB{
-						EndpointType:     AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT,
+						EndpointType:     "",
 						EndpointOverride: "11.22.33.44",
 					},
 				},
@@ -1184,7 +1197,7 @@ func TestDatabaseAlloyDB(t *testing.T) {
 				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
 				GCP: GCPCloudSQL{
 					AlloyDB: AlloyDB{
-						EndpointType:     AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT,
+						EndpointType:     "",
 						EndpointOverride: "11.22.33.44",
 					},
 				},
@@ -1197,7 +1210,7 @@ func TestDatabaseAlloyDB(t *testing.T) {
 				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
 				GCP: GCPCloudSQL{
 					AlloyDB: AlloyDB{
-						EndpointType:     AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT,
+						EndpointType:     "private",
 						EndpointOverride: "11.22.33.44",
 					},
 				},
@@ -1207,7 +1220,7 @@ func TestDatabaseAlloyDB(t *testing.T) {
 				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
 				GCP: GCPCloudSQL{
 					AlloyDB: AlloyDB{
-						EndpointType:     AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT,
+						EndpointType:     "private",
 						EndpointOverride: "11.22.33.44",
 					},
 				},
@@ -1242,7 +1255,7 @@ func TestDatabaseAlloyDB(t *testing.T) {
 				URI:      "dummy://foo",
 				GCP: GCPCloudSQL{
 					AlloyDB: AlloyDB{
-						EndpointType:     AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT,
+						EndpointType:     "private",
 						EndpointOverride: "11.22.33.44",
 					},
 				},
@@ -1259,7 +1272,7 @@ func TestDatabaseAlloyDB(t *testing.T) {
 					ProjectID:  "my-project-123456",
 					InstanceID: "my-instance",
 					AlloyDB: AlloyDB{
-						EndpointType:     AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT,
+						EndpointType:     "private",
 						EndpointOverride: "11.22.33.44",
 					},
 				},
@@ -1278,59 +1291,6 @@ func TestDatabaseAlloyDB(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestAlloyDBEndpointTypeFromString(t *testing.T) {
-	tests := []struct {
-		name    string
-		str     string
-		want    AlloyDBEndpointType
-		wantErr string
-	}{
-		{name: "empty string", str: "", want: 0, wantErr: ""},
-		{name: "private", str: "private", want: AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PRIVATE, wantErr: ""},
-		{name: "public", str: "public", want: AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PUBLIC, wantErr: ""},
-		{name: "psc", str: "psc", want: AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PSC, wantErr: ""},
-		{name: "caps", str: "PUBLIC", want: 0, wantErr: `types.AlloyDBEndpointType invalid value PUBLIC, expected one of [private psc public]`},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, err := AlloyDBEndpointTypeFromString(test.str)
-			if test.wantErr != "" {
-				require.ErrorContains(t, err, test.wantErr)
-			} else {
-				require.NoError(t, err)
-			}
-			require.Equal(t, test.want, got)
-		})
-	}
-}
-
-// TestAlloyDBEndpointTypeMap ensures no divergence from AlloyDBEndpointType_value.
-func TestAlloyDBEndpointTypeMap(t *testing.T) {
-	const protoPrefix = "ALLOYDB_ENDPOINT_TYPE_"
-
-	t.Run("proto -> local", func(t *testing.T) {
-		for key, value := range AlloyDBEndpointType_value {
-			t.Run(key, func(t *testing.T) {
-				modifiedKey := strings.ToLower(strings.TrimPrefix(key, protoPrefix))
-				require.Equal(t, AlloyDBEndpointType(value), AlloyDBEndpointTypeMap[modifiedKey],
-					"key %v didn't map to modified key %v", key, modifiedKey)
-			})
-		}
-	})
-
-	t.Run("local -> proto", func(t *testing.T) {
-		for key, value := range AlloyDBEndpointTypeMap {
-			t.Run(key, func(t *testing.T) {
-				modifiedKey := strings.ToUpper(protoPrefix + key)
-				require.Equal(t, value, AlloyDBEndpointType(AlloyDBEndpointType_value[modifiedKey]),
-					"key %v didn't map to modified key %v", key, modifiedKey)
-			})
-		}
-	})
-
 }
 
 func TestGetAdminUser(t *testing.T) {

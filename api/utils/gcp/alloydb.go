@@ -116,3 +116,34 @@ func ParseAlloyDBConnectionURI(connectionURI string) (*AlloyDBFullInstanceName, 
 		InstanceID: instance,
 	}, nil
 }
+
+// AlloyDBEndpointType is AlloyDB endpoint type.
+type AlloyDBEndpointType string
+
+const (
+	// AlloyDBEndpointTypePublic is the public endpoint type.
+	AlloyDBEndpointTypePublic AlloyDBEndpointType = "public"
+	// AlloyDBEndpointTypePrivate is the private endpoint type.
+	AlloyDBEndpointTypePrivate AlloyDBEndpointType = "private"
+	// AlloyDBEndpointTypePSC is the PSC endpoint type.
+	AlloyDBEndpointTypePSC AlloyDBEndpointType = "psc"
+)
+
+// AlloyDBEndpointTypes is a list of all known AlloyDB endpoint types.
+var AlloyDBEndpointTypes = []AlloyDBEndpointType{
+	AlloyDBEndpointTypePublic,
+	AlloyDBEndpointTypePrivate,
+	AlloyDBEndpointTypePSC,
+}
+
+func ValidateAlloyDBEndpointType(endpointType string) error {
+	if endpointType == "" {
+		return nil
+	}
+	for _, t := range AlloyDBEndpointTypes {
+		if endpointType == string(t) {
+			return nil
+		}
+	}
+	return trace.BadParameter("invalid alloy db endpoint type: %v, expected one of %v", endpointType, AlloyDBEndpointTypes)
+}
