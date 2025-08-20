@@ -31,7 +31,7 @@ func (r *ListManagedDevicesRequest) query() url.Values {
 	q := make(url.Values)
 	// Select only the fields that we need.
 	// https://learn.microsoft.com/en-us/graph/best-practices-concept#use-projections
-	q.Set("$select", "id,lastSyncDateTime,operatingSystem,serialNumber,model,osVersion")
+	q.Set("$select", "id,lastSyncDateTime,deviceRegistrationState,operatingSystem,serialNumber,model,osVersion")
 
 	// Filter by the time of last sync of a device with Intune.
 	// https://learn.microsoft.com/en-us/graph/filter-query-parameter
@@ -65,14 +65,24 @@ type ManagedDevice struct {
 	ID string `json:"id"`
 	// LastSyncDateTime is the time that the device last completed a successful sync with Intune.
 	LastSyncDateTime time.Time `json:"lastSyncDateTime"`
-	SerialNumber     string    `json:"serialNumber"`
-	Model            string    `json:"model"`
+	// DeviceRegistrationState describes whether a device was fully enrolled within Intune.
+	// Possible values are: notRegistered, registered, revoked, keyConflict, approvalPending,
+	// certificateReset, notRegisteredPendingEnrollment, unknown.
+	DeviceRegistrationState string `json:"deviceRegistrationState"`
+	SerialNumber            string `json:"serialNumber"`
+	Model                   string `json:"model"`
 	// OperatingSystem is the OS of the device, e.g. "Windows", "macOS", "Linux (ubuntu)".
 	OperatingSystem string `json:"operatingSystem"`
 	// OSVersion is the version of the OS, e.g. "10.0.26100.4351" (Windows), "15.5 (24F74)" (macOS),
 	// "24.04" (Linux).
 	OSVersion string `json:"osVersion"`
 }
+
+const (
+	// DeviceRegistrationStateRegistered is DeviceRegistrationState value of [ManagedDevice]
+	// set after the device is fully enrolled into Intune.
+	DeviceRegistrationStateRegistered = "registered"
+)
 
 // ListManagedDevices returns a list of managed devices within Intune.
 // The app authenticated with the Intune API must have at least the

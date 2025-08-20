@@ -243,24 +243,15 @@ func (s *S) Run(ctx context.Context) error {
 		s.config.Spec.SyncDelay = -1
 	}
 
-	// Create the timer and immediately stop/drain it, we'll reset it at the start
-	// of every loop below.
-	timer := time.NewTimer(999 * time.Hour)
-	if !timer.Stop() {
-		<-timer.C // Drain
-	}
-
 	for {
 		offset := s.scheduler.NextOffset()
 		if exitOnSync && offset > 0 {
 			s.logger.InfoContext(ctx, "All immediate syncs are done, exiting [exit_on_sync=true]")
 			return nil
 		}
-		// timer is always drained when we get here.
-		timer.Reset(offset)
 
 		select {
-		case <-timer.C:
+		case <-time.After(offset):
 			// TODO(codingllama): "Downgrade" initial FULL sync to PARTIAL depending
 			//  on device counts?
 			e := s.scheduler.Next()
@@ -298,7 +289,6 @@ func (s *S) Run(ctx context.Context) error {
 			}
 
 		case <-ctx.Done():
-			timer.Stop()
 			s.logger.InfoContext(ctx, "Exited")
 			return ctx.Err()
 		}

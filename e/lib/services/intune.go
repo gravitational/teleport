@@ -58,9 +58,12 @@ func startIntuneService(ctx context.Context, process *service.TeleportProcess, h
 	}
 
 	s, err := intune.NewService(ctx, intune.Config{
-		APIConfig:  apiConfig,
-		Logger:     logger,
-		HTTPClient: httpClient,
+		APIConfig:     apiConfig,
+		Logger:        logger,
+		HTTPClient:    httpClient,
+		StatusSink:    statusSink,
+		Clock:         process.Clock,
+		DevicesClient: conn.Client.DevicesClient(),
 	})
 	if err != nil {
 		code := types.PluginStatusCode_OTHER_ERROR

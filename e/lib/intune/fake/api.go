@@ -51,9 +51,19 @@ func (a *API) SetApps(apps []*api.AppCredentials) {
 	a.mu.Unlock()
 }
 
+// SetManagedDevices copies provided devices and sets it as the inventory in the fake API.
 func (a *API) SetManagedDevices(devices []*api.ManagedDevice) {
 	a.mu.Lock()
-	a.managedDevices = devices
+	a.managedDevices = make([]*api.ManagedDevice, 0, len(devices))
+	for _, d := range devices {
+		if d == nil {
+			a.managedDevices = append(a.managedDevices, nil)
+			continue
+		}
+
+		copiedD := *d
+		a.managedDevices = append(a.managedDevices, &copiedD)
+	}
 	a.mu.Unlock()
 }
 

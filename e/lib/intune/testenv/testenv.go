@@ -14,8 +14,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require" //nolint:depguard // This is a test package.
 
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/e/lib/intune/api"
 	intunefake "github.com/gravitational/teleport/e/lib/intune/fake"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest" //nolint:depguard // This is a test package.
 	"github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -33,29 +38,39 @@ type Env struct {
 	// server is the server that runs the fake API.
 	server *httptest.Server
 	API    *intunefake.API
-
 	// HTTPClient is an [http.Client] with the correct TLS settings to access the Intune API.
 	HTTPClient *http.Client
+
+	deviceEnv     *dtenv.E
+	DevicesClient devicepb.DeviceTrustServiceClient
 }
 
 // Config provides values needed by [Env].
 type Config struct {
 	Clock clockwork.Clock
+	// DeviceTrustEnv makes [Env] prepare a test environment for Device Trust as well. This includes
+	// changing the build type to Enterprise.
+	DeviceTrustEnv bool
 }
 
-// MustNew is like [New] but it fails the test on error.
+// MustNew sets up a new TLS server with the fake Intune API.
 // Automatically cleans up [Env] when the test finishes.
 func MustNew(t *testing.T, config *Config) *Env {
 	t.Helper()
-	env, err := New(config)
-	require.NoError(t, err)
-	t.Cleanup(env.Close)
-	return env
-}
 
-// New sets up a new TLS server with the fake Intune API.
-// The caller is expected to call [Env.Close] once [Env] is no longer needed.
-func New(config *Config) (*Env, error) {
+	if config.DeviceTrustEnv {
+		// Set build type and features.
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.DeviceTrust:            {Enabled: true},
+					entitlements.MobileDeviceManagement: {Enabled: true},
+				},
+			},
+		})
+	}
+
 	level := slog.LevelError + 1 // Silence logging by default.
 	if testing.Verbose() {
 		// The API client logs requests only in trace level.
@@ -87,36 +102,46 @@ func New(config *Config) (*Env, error) {
 		},
 	}
 
-	return &Env{
+	e := &Env{
 		Logger:     logger,
 		Clock:      config.Clock,
 		API:        api,
 		HTTPClient: httpClient,
 		server:     server,
-	}, nil
+	}
+
+	if config.DeviceTrustEnv {
+		var err error
+		e.deviceEnv, err = dtenv.New()
+		require.NoError(t, err)
+		e.DevicesClient = e.deviceEnv.DevicesClient
+	}
+
+	t.Cleanup(func() {
+		require.NoError(t, e.Close())
+	})
+
+	return e
 }
 
 // Close cleans up the TLS server once [Env] is no longer needed.
-func (e *Env) Close() {
+func (e *Env) Close() error {
 	if e.HTTPClient != nil {
 		e.HTTPClient.CloseIdleConnections()
 	}
 	if e.server != nil {
 		e.server.Close()
 	}
+
+	if e.deviceEnv != nil {
+		return e.deviceEnv.Close()
+	}
+	return nil
 }
 
-// MustNewClient is like [NewClient] but it fails the test on error.
+// MustNewClient returns a new Intune client that connects to the fake API served by [Env].
 func (e *Env) MustNewClient(t *testing.T) *api.Client {
-	t.Helper()
-	client, err := e.NewClient(t.Context())
-	require.NoError(t, err)
-	return client
-}
-
-// NewClient returns a new Intune client that connects to the fake API served by [Env].
-func (e *Env) NewClient(ctx context.Context) (*api.Client, error) {
-	client, err := api.NewClient(ctx, api.ClientConfig{
+	client, err := api.NewClient(t.Context(), api.ClientConfig{
 		APIConfig: api.Config{
 			AppCredentials: api.AppCredentials{
 				ClientID:     DefaultApps[0].ClientID,
@@ -128,8 +153,6 @@ func (e *Env) NewClient(ctx context.Context) (*api.Client, error) {
 		Logger:     e.Logger,
 		HTTPClient: e.HTTPClient,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return client, err
+	require.NoError(t, err)
+	return client
 }
