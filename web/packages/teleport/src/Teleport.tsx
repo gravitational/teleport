@@ -197,6 +197,11 @@ function privateOSSRoutes() {
     <Switch>
       {getSharedPrivateRoutes()}
       <Route
+        key="player"
+        path={cfg.routes.player}
+        component={ViewSessionRecordingRoute}
+      />
+      <Route
         path={cfg.routes.root}
         render={() => <Main features={getOSSFeatures()} />}
       />
@@ -212,11 +217,6 @@ export function getSharedPrivateRoutes() {
       component={DesktopSession}
     />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
-    <Route
-      key="player"
-      path={cfg.routes.player}
-      component={ViewSessionRecordingRoute}
-    />,
     <Route
       key="headlessSSO"
       path={cfg.routes.headlessSso}
