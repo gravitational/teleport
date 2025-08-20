@@ -179,8 +179,8 @@ importers:
         specifier: ^2.0.5
         version: 2.0.5(msw@2.10.1(@types/node@22.17.1)(typescript@5.9.2))
       node-gyp:
-        specifier: ^11.2.0
-        version: 11.2.0
+        specifier: ^11.3.0
+        version: 11.3.0
       playwright:
         specifier: ^1.54.2
         version: 1.54.2
@@ -491,17 +491,17 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0
       electron:
-        specifier: 37.1.0
-        version: 37.1.0
+        specifier: 37.3.1
+        version: 37.3.1
       electron-builder:
         specifier: ^26.0.12
         version: 26.0.12
       electron-updater:
-        specifier: ^6.6.5
-        version: 6.6.5
+        specifier: ^6.6.7
+        version: 6.6.7
       electron-vite:
-        specifier: ^3.1.0
-        version: 3.1.0(@swc/core@1.13.3)(vite@6.3.5(@types/node@22.17.1)(yaml@2.8.0))
+        specifier: ^4.0.0
+        version: 4.0.0(@swc/core@1.13.3)(vite@6.3.5(@types/node@22.17.1)(yaml@2.8.0))
       events:
         specifier: 3.3.0
         version: 3.3.0
@@ -3468,8 +3468,8 @@ packages:
     resolution: {integrity: sha512-2/egrNDDnRaxVwK3A+cJq6UOlqOdedGA7JPqCeJjN2Zjk1/QB/6QUi3b714ScIGS7HafFXTyzJEOr5b44I3kvQ==}
     engines: {node: '>=12.0.0'}
 
-  builder-util-runtime@9.3.2:
-    resolution: {integrity: sha512-7QDXJ1FwT6d9ZhG4kuObUUPY8/ENBS/Ky26O4hR5vbeoRGavgekS2Jxv+8sCn/v23aPGU2DXRWEeJuijN2ooYA==}
+  builder-util-runtime@9.3.3:
+    resolution: {integrity: sha512-8AE+77tdJ9XTsK96e55EXJR+ZEK54r8rb0BS8PbEXw57tOX0EWV4BluGW3xkIn+Xvbp+bmQ8gECa15wlcEQxlg==}
     engines: {node: '>=12.0.0'}
 
   builder-util@26.0.11:
@@ -4047,22 +4047,22 @@ packages:
   electron-to-chromium@1.5.194:
     resolution: {integrity: sha512-SdnWJwSUot04UR51I2oPD8kuP2VI37/CADR1OHsFOUzZIvfWJBO6q11k5P/uKNyTT3cdOsnyjkrZ+DDShqYqJA==}
 
-  electron-updater@6.6.5:
-    resolution: {integrity: sha512-jnk38WfByl2Pb0cje02xls/pJkvkq3AQZI7usDCLriU23adkerLTkRrugbCPuUxUOa79nY1g/rokHPWHZFBKyA==}
+  electron-updater@6.6.7:
+    resolution: {integrity: sha512-pqV0ORdUkouyUTg9X3cTCRxFXnP+DaW1cfyMIucIDhv82NcDmSxrK8chcna93kK2nwzyzcI03/NAZmuS60zwXg==}
 
-  electron-vite@3.1.0:
-    resolution: {integrity: sha512-M7aAzaRvSl5VO+6KN4neJCYLHLpF/iWo5ztchI/+wMxIieDZQqpbCYfaEHHHPH6eupEzfvZdLYdPdmvGqoVe0Q==}
-    engines: {node: ^18.0.0 || >=20.0.0}
+  electron-vite@4.0.0:
+    resolution: {integrity: sha512-U3d7GlKjl4BPs1sxYTHn1N8YlMmPvlx1t62UVQ1zouWoBxZs5Hd5yrJcQ+rmMnko/ASbIcx/KFOTXh8YcqLv7w==}
+    engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
       '@swc/core': ^1.0.0
-      vite: ^4.0.0 || ^5.0.0 || ^6.0.0
+      vite: ^5.0.0 || ^6.0.0 || ^7.0.0
     peerDependenciesMeta:
       '@swc/core':
         optional: true
 
-  electron@37.1.0:
-    resolution: {integrity: sha512-Fcr3yfAw4oU392waVZSlrFUQx4P+h/k31+PRgkBY9tFx9E/zxzdPQQj0achZlG1HRDusw3ooQB+OXb9PvufdzA==}
+  electron@37.3.1:
+    resolution: {integrity: sha512-7DhktRLqhe6OJh/Bo75bTI0puUYEmIwSzMinocgO63mx3MVjtIn2tYMzLmAleNIlud2htkjpsMG2zT4PiTCloA==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -5460,8 +5460,8 @@ packages:
     resolution: {integrity: sha512-dPEtOeMvF9VMcYV/1Wb8CPoVAXtp6MKMlcbAt4ddqmGqUJ6fQZFXkNZNkNlfevtNkGtaSoXf/vNNNSvgrdXwtA==}
     engines: {node: '>= 6.13.0'}
 
-  node-gyp@11.2.0:
-    resolution: {integrity: sha512-T0S1zqskVUSxcsSTkAsLc7xCycrRYmtDHadDinzocrThjyQCn5kMlEBSj6H4qDbgsIOSLmmlRIeb0lZXj+UArA==}
+  node-gyp@11.3.0:
+    resolution: {integrity: sha512-9J0+C+2nt3WFuui/mC46z2XCZ21/cKlFDuywULmseD/LlmnOrSeEAE4c/1jw6aybXLmpZnQY3/LmOJfgyHIcng==}
     engines: {node: ^18.17.0 || >=20.5.0}
     hasBin: true
 
@@ -10360,7 +10360,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  builder-util-runtime@9.3.2:
+  builder-util-runtime@9.3.3:
     dependencies:
       debug: 4.4.1
       sax: 1.4.1
@@ -11068,9 +11068,9 @@ snapshots:
 
   electron-to-chromium@1.5.194: {}
 
-  electron-updater@6.6.5:
+  electron-updater@6.6.7:
     dependencies:
-      builder-util-runtime: 9.3.2
+      builder-util-runtime: 9.3.3
       fs-extra: 10.1.0
       js-yaml: 4.1.0
       lazy-val: 1.0.5
@@ -11081,7 +11081,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron-vite@3.1.0(@swc/core@1.13.3)(vite@6.3.5(@types/node@22.17.1)(yaml@2.8.0)):
+  electron-vite@4.0.0(@swc/core@1.13.3)(vite@6.3.5(@types/node@22.17.1)(yaml@2.8.0)):
     dependencies:
       '@babel/core': 7.28.0
       '@babel/plugin-transform-arrow-functions': 7.27.1(@babel/core@7.28.0)
@@ -11095,7 +11095,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@37.1.0:
+  electron@37.3.1:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 22.17.1
@@ -12869,7 +12869,7 @@ snapshots:
 
   node-forge@1.3.1: {}
 
-  node-gyp@11.2.0:
+  node-gyp@11.3.0:
     dependencies:
       env-paths: 2.2.1
       exponential-backoff: 3.1.2
