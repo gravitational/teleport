@@ -23,14 +23,15 @@ import (
 	"iter"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/gravitational/trace"
 )
 
 // segmentRegexp is the regular expression used to validate scope segments. It allows
-// alphanumeric characters, hyphens, underscores, and periods. It also requires that the
-// segment starts and ends with an alphanumeric character.
-var segmentRegexp = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9\-\_\.]*[a-zA-Z0-9]$`)
+// lowercase alphanumeric characters, hyphens, underscores, and periods. It also requires
+// that the segment starts and ends with an alphanumeric character.
+var segmentRegexp = regexp.MustCompile(`^[a-z0-9][a-z0-9\-\_\.]*[a-z0-9]$`)
 
 const (
 	// separator is the character used to separate segments in a scope and is the the value of the root scope.
@@ -136,6 +137,14 @@ func StrongValidateSegment(segment string) error {
 
 	if len(segment) < minSegmentSize {
 		return trace.BadParameter("segment %q is too short (min characters %d)", segment, minSegmentSize)
+	}
+
+	// check for uppercase characters separately. this would be caught by the regex, but its better
+	// UX to call out uppercase characters specifically since its a common mistake.
+	for _, r := range segment {
+		if unicode.IsUpper(r) {
+			return trace.BadParameter("segment %q contains uppercase character(s)", segment)
+		}
 	}
 
 	if !segmentRegexp.MatchString(segment) {
