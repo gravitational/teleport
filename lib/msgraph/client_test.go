@@ -704,6 +704,15 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 		assertRequestedPath(t, directoryRolePath, requestedPath)
 		assertCountQuery(t, foundQuery.Get("$count"))
 	})
+
+	t.Run("unsupported-group-type", func(tt *testing.T) {
+		var groupIDs []string
+		err := client.IterateUsersTransitiveMemberOf(context.Background(), userID, "unsupported-group-type", func(group *Group) bool {
+			groupIDs = append(groupIDs, *group.ID)
+			return true
+		})
+		require.Error(t, err)
+	})
 }
 
 var userGroups = `

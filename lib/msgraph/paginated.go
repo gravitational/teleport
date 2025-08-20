@@ -193,7 +193,7 @@ func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, gro
 		endpoint = path.Join(endpoint, graphNamespaceGroups)
 		query.Add("$filter", securityGroupsFilter)
 	default:
-		trace.BadParameter("unexpected group type %q received, expected types are %q", groupType, types.EntraIDGroupsTypes)
+		return trace.BadParameter("unexpected group type %q received, expected types are %q", groupType, types.EntraIDGroupsTypes)
 	}
 
 	var err error
