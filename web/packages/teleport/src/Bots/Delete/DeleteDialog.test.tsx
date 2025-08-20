@@ -112,9 +112,12 @@ describe('DeleteDialog', () => {
       onComplete,
     });
     await user.click(screen.getByText('Delete Bot'));
-    await waitFor(() => {
-      expect(onComplete).toHaveBeenCalled();
-    });
+    await waitFor(
+      () => {
+        expect(onComplete).toHaveBeenCalled();
+      },
+      { timeout: 5000 }
+    );
   });
 
   it('should show submit error', async () => {

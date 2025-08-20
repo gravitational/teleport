@@ -31,6 +31,7 @@ import DialogHeader from 'design/Dialog/DialogHeader';
 import DialogTitle from 'design/Dialog/DialogTitle';
 import Flex from 'design/Flex';
 import { P } from 'design/Text/Text';
+import { wait } from 'shared/utils/wait';
 
 import { deleteBot } from 'teleport/services/bot/bot';
 
@@ -61,7 +62,19 @@ export function DeleteDialog(props: {
   } = props;
 
   const { mutateAsync, isPending, error } = useMutation({
-    mutationFn: deleteBot,
+    async mutationFn(variables: Parameters<typeof deleteBot>[0]) {
+      const result = await deleteBot(variables);
+
+      // Adds a delay to allow the delete event to propagate to the backend
+      // cache before indicating that the operation is complete. In case a
+      // refresh is triggered immediately.
+      //
+      // TODO(nicholasmarais1158): Use Tanstack Query to fetch the bot list,
+      // then update the query's cache here to avoid needing this delay.
+      await wait(1000);
+
+      return result;
+    },
   });
 
   const handleDelete = async () => {

@@ -137,15 +137,7 @@ export function BotDetails() {
 
   const handleDeleteComplete = () => {
     setShowDeleteConfirmation(false);
-
-    // Adds a delay to allow the delete event to propagate to the backend cache
-    // before returning to the bots list where a refresh is triggered.
-    //
-    // TODO(nicholasmarais1158): Use Tanstack Query to fetch the bot list, then
-    // invalidate/update the query's cache here to avoid needing this delay.
-    setTimeout(() => {
-      history.replace(cfg.getBotsRoute());
-    }, 1000);
+    history.replace(cfg.getBotsRoute());
   };
 
   return (

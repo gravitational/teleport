@@ -576,16 +576,12 @@ describe('BotDetails', () => {
 
       await user.click(screen.getByText('Delete Bot'));
 
-      await waitFor(() => {
-        expect(
-          screen.queryByText('Delete test-bot-name?')
-        ).not.toBeInTheDocument();
-      });
-
-      // The navigation is delayed to account for backend cache lag
+      // The operation is delayed to account for backend cache lag
       await waitFor(
         () => {
-          expect(history.replace).toHaveBeenCalled();
+          expect(
+            screen.queryByText('Delete test-bot-name?')
+          ).not.toBeInTheDocument();
         },
         { timeout: 5000 }
       );
