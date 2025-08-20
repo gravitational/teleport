@@ -518,8 +518,11 @@ func (o *OIDCConnectorV3) Validate() error {
 		}
 	}
 
-	if err := o.checkAndSetEntraIDGroupsProviderDefaults(); err != nil {
-		return trace.Wrap(err)
+	entra := o.GetEntraIDGroupsProvider()
+	if entra != nil {
+		if err := entra.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -649,18 +652,12 @@ func (r *OIDCAuthRequest) Check() error {
 	return nil
 }
 
-func (o *OIDCConnectorV3) checkAndSetEntraIDGroupsProviderDefaults() error {
-	entra := o.GetEntraIDGroupsProvider()
-	if entra == nil {
-		// configuration can be empty for non-EntraID OIDC connector.
-		return nil
+func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
+	if !slices.Contains(entraIDGroupsTypes, e.GroupType) {
+		return trace.BadParameter("expected group type to be one of %q, got %q", entraIDGroupsTypes, e.GroupType)
 	}
 
-	if !slices.Contains(entraIDGroupsTypes, entra.GroupType) {
-		return trace.BadParameter("expected group type to be one of %q, got %q", entraIDGroupsTypes, entra.GroupType)
-	}
-
-	if err := ValidateMSGraphEndpoints("", entra.GraphEndpoint); err != nil {
+	if err := ValidateMSGraphEndpoints("", e.GraphEndpoint); err != nil {
 		return trace.Wrap(err)
 	}
 
