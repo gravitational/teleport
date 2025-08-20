@@ -28,23 +28,23 @@ export default class Logger {
   // Logger.init has already been called
   constructor(private context = '') {}
 
-  warn(message: any, ...args: any[]) {
+  warn = (message: any, ...args: any[]) => {
     this.getLogger().warn(message, ...args);
-  }
+  };
 
-  info(message: any, ...args: any[]) {
+  info = (message: any, ...args: any[]) => {
     this.getLogger().info(message, ...args);
-  }
+  };
 
-  error(message: any, ...args: any[]) {
+  error = (message: any, ...args: any[]) => {
     this.getLogger().error(message, ...args);
-  }
+  };
 
   static init(service: types.LoggerService) {
     Logger.service = service;
   }
 
-  private getLogger(): types.Logger {
+  private getLogger = (): types.Logger => {
     if (!this.logger) {
       if (!Logger.service) {
         throw new Error('Logger is not initialized');
@@ -54,7 +54,7 @@ export default class Logger {
     }
 
     return this.logger;
-  }
+  };
 }
 
 // NullService is a logger service implementation which swallows logs. For use in tests.
