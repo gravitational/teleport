@@ -23,8 +23,8 @@ address managed by VNet that will handle the connection.
 
 VNet's SSH support enables third-party SSH clients to connect to Teleport SSH
 servers with minimal configuration required, while still offering Teleport
-access controls and features like [Per-session MFA](../admin-guides/access-controls/guides/per-session-mfa.mdx)
-and [Hardware Key Support](../admin-guides/access-controls/guides/hardware-key-support.mdx).
+access controls and features like [Per-session MFA](../zero-trust-access/authentication/per-session-mfa.mdx)
+and [Hardware Key Support](../zero-trust-access/authentication/hardware-key-support.mdx).
 
 ![Diagram showing VNet architecture](../../img/vnet/how-it-works.svg)
 
@@ -122,7 +122,7 @@ VNet proxies connections over any port used by the application client. For multi
 number must match one of the target ports of the app. To see a list of target ports, click the
 three dot menu next to an application in Teleport Connect or execute `tsh apps ls`.
 
-If [per-session MFA](../admin-guides/access-controls/guides/per-session-mfa.mdx) is enabled, the
+If [per-session MFA](../zero-trust-access/authentication/per-session-mfa.mdx) is enabled, the
 first connection over each port triggers an MFA check.
 </Admonition>
 

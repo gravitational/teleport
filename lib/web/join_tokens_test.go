@@ -330,7 +330,7 @@ func TestGetTokens(t *testing.T) {
 			resp := GetTokensResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.Len(t, resp.Items, len(tc.expected))
-			require.Empty(t, cmp.Diff(resp.Items, tc.expected, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
+			require.Empty(t, cmp.Diff(tc.expected, resp.Items, cmpopts.IgnoreFields(ui.JoinToken{}, "Content"), cmpopts.SortSlices(func(a, b ui.JoinToken) bool { return a.ID < b.ID })))
 		})
 	}
 }

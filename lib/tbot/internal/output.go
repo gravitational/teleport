@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -281,4 +282,20 @@ func MakeNameOrDiscoveredNamePredicate(name string) string {
 	return fmt.Sprintf("(%v) || (%v)",
 		matchName, matchDiscoveredName,
 	)
+}
+
+func GetClusterNames(
+	ctx context.Context, client *apiclient.Client, connectedClusterName string,
+) ([]string, error) {
+	allClusterNames := []string{connectedClusterName}
+
+	leafClusters, err := client.GetRemoteClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, lc := range leafClusters {
+		allClusterNames = append(allClusterNames, lc.GetName())
+	}
+
+	return allClusterNames, nil
 }

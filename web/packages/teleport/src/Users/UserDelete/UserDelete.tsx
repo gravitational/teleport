@@ -26,15 +26,23 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 
-import userService from 'teleport/services/user';
+import { ResourcesResponse } from 'teleport/services/agents';
+import userService, { User } from 'teleport/services/user';
 import { GetUsersQueryKey } from 'teleport/services/user/hooks';
 
 interface UserDeleteProps {
   username: string;
   onClose(): void;
+  modifyFetchedData: React.Dispatch<
+    React.SetStateAction<ResourcesResponse<User>>
+  >;
 }
 
-export function UserDelete({ username, onClose }: UserDeleteProps) {
+export function UserDelete({
+  username,
+  onClose,
+  modifyFetchedData,
+}: UserDeleteProps) {
   const queryClient = useQueryClient();
 
   const deleteUser = useMutation({
@@ -52,6 +60,11 @@ export function UserDelete({ username, onClose }: UserDeleteProps) {
 
   async function handleDelete() {
     await deleteUser.mutateAsync(username);
+
+    modifyFetchedData(p => {
+      p.agents = p.agents.filter(user => user.name !== username);
+      return p;
+    });
 
     onClose();
   }

@@ -17,6 +17,7 @@ lint:
     - COMMENT_RPC
     - COMMENT_SERVICE
     - PACKAGE_NO_IMPORT_CYCLE
+    - PAGINATION_REQUIRED
     - UNARY_RPC
   except:
     - FIELD_NOT_REQUIRED
@@ -75,6 +76,7 @@ lint:
       - api/proto/teleport/workloadidentity/v1/revocation_service.proto
       - proto/accessgraph/v1alpha/access_graph_service.proto
       - proto/teleport/lib/teleterm/v1/service.proto
+      - api/proto/teleport/recordingmetadata/v1/recordingmetadata_service.proto
 
 breaking:
   use:
@@ -83,3 +85,13 @@ breaking:
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
+
+plugins:
+  - plugin:
+      - env
+      - GOWORK=off
+      - go
+      - -C
+      - ./build.assets/tooling
+      - run
+      - ./cmd/buf-plugin-linters

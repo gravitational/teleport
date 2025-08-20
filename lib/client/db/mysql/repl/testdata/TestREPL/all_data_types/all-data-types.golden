@@ -1,0 +1,255 @@
+Teleport MySQL interactive shell (v19.0.0-dev)
+Connected to instance "mysql-test-container" as user "root".
+Type 'help' or '\h' for help.
+
+(none)> -- temporarily disable note warnings for test consistency
+(none)> set session sql_notes = 0;
+
+0 warnings, 0 rows affected
+
+(none)> CREATE DATABASE IF NOT EXISTS all_data_types;
+
+0 warnings, 1 rows affected
+
+(none)> set session sql_notes = 1;
+
+0 warnings, 0 rows affected
+
+(none)> USE all_data_types;
+
+Default database changed to "all_data_types"
+
+all_data_types> 
+all_data_types> -- without ANSI_QUOTES double quotes are literals
+all_data_types> SET SESSION sql_mode='';
+
+0 warnings, 0 rows affected
+
+all_data_types> SELECT "thing";
+
+thing   
+------- 
+'thing' 
+
+1 row in set
+
+all_data_types> -- with ANSI_QUOTES double quotes are identifiers, which is what
+ we want when
+all_data_types> -- selecting from the table below
+all_data_types> SET SESSION sql_mode='ANSI_QUOTES';
+
+0 warnings, 0 rows affected
+
+all_data_types> SELECT "thing";
+
+ERR ERROR 1054 (42S22): Unknown column 'thing' in 'field list'
+
+all_data_types> 
+all_data_types> CREATE TABLE all_types_demo (
+             ->     "c tinyint"         TINYINT,
+             ->     c_smallint        SMALLINT,
+             ->     c_mediumint       MEDIUMINT,
+             ->     c_int             INT,
+             ->     c_bigint          BIGINT,
+             ->     c_decimal         DECIMAL(10,2),
+             ->     c_float           FLOAT,
+             ->     c_double          DOUBLE,
+             ->     c_bit             BIT(8),
+             ->     c_bool            BOOL,
+             ->     c_date            DATE,
+             ->     c_time            TIME,
+             ->     c_datetime        DATETIME,
+             ->     c_timestamp       TIMESTAMP NULL DEFAULT NULL,
+             ->     c_year            YEAR,
+             ->     c_char            CHAR(5),
+             ->     c_varchar         VARCHAR(10),
+             ->     c_binary          BINARY(3),
+             ->     c_varbinary       VARBINARY(4),
+             ->     c_tinyblob        TINYBLOB,
+             ->     c_blob            BLOB,
+             ->     c_mediumblob      MEDIUMBLOB,
+             ->     c_longblob        LONGBLOB,
+             ->     c_tinytext        TINYTEXT,
+             ->     c_text            TEXT,
+             ->     c_mediumtext      MEDIUMTEXT,
+             ->     c_longtext        LONGTEXT,
+             ->     c_enum            ENUM('foo','bar','baz'),
+             ->     c_set             SET('a','b','c'),
+             ->     c_geometry        GEOMETRY,
+             ->     c_point           POINT,
+             ->     c_linestring      LINESTRING,
+             ->     c_polygon         POLYGON,
+             ->     c_multipoint      MULTIPOINT,
+             ->     c_multilinestring MULTILINESTRING,
+             ->     c_multipolygon    MULTIPOLYGON,
+             ->     c_geometrycoll    GEOMETRYCOLLECTION,
+             ->     c_json            JSON
+             -> );
+
+0 warnings, 0 rows affected
+
+all_data_types> 
+all_data_types> INSERT INTO all_types_demo VALUES (
+             ->     127,
+             ->     32767,
+             ->     8388607,
+             ->     2147483647,
+             ->     9223372036854775807,
+             ->     12345.67,
+             ->     3.14,
+             ->     2.7182818284,
+             ->     b'10101010',
+             ->     1,
+             ->     '2024-07-09',
+             ->     '12:34:56',
+             ->     '2024-07-09 12:34:56',
+             ->     '2024-07-09 12:34:56',
+             ->     2025,
+             ->     'abcde',
+             ->     'abcdefghij',
+             ->     'abc',
+             ->     'defg',
+             ->     'a',
+             ->     'blob',
+             ->     'medblob',
+             ->     'longblob',
+             ->     'tiny',
+             ->     'text',
+             ->     'mediumtext',
+             ->     'longtext',
+             ->     'foo',
+             ->     'a,b',
+             ->     ST_GeomFromText('POINT(1 1)'),
+             ->     ST_GeomFromText('POINT(2 2)'),
+             ->     ST_GeomFromText('LINESTRING(0 0,1 1,2 2)'),
+             ->     ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))'),
+             ->     ST_GeomFromText('MULTIPOINT((0 0),(1 1))'),
+             ->     ST_GeomFromText('MULTILINESTRING((0 0,1 1),(2 2,3 3))'),
+             ->     ST_GeomFromText('MULTIPOLYGON(((0 0,1 0,1 1,0 1,0 0)))'),
+             ->     ST_GeomFromText('GEOMETRYCOLLECTION(POINT(1 2),LINESTRING(0 
+0,1 1))'),
+             ->     JSON_OBJECT('x', 1, 'y', 2)
+             -> );
+
+0 warnings, 1 rows affected
+
+all_data_types> 
+all_data_types> SELECT "c tinyint", `c_smallint`, "c_mediumint" FROM `all_types_
+demo`;
+
+c tinyint c_smallint c_mediumint 
+--------- ---------- ----------- 
+127       32767      8388607     
+
+1 row in set
+
+all_data_types> SELECT c_int, c_bigint, c_decimal FROM all_types_demo;
+
+c_int      c_bigint            c_decimal  
+---------- ------------------- ---------- 
+2147483647 9223372036854775807 '12345.67' 
+
+1 row in set
+
+all_data_types> SELECT c_float, c_double, c_bit FROM all_types_demo;
+
+c_float c_double     c_bit 
+------- ------------ ----- 
+3.14    2.7182818284 'ª'   
+
+1 row in set
+
+all_data_types> SELECT c_bool, c_date, c_time FROM all_types_demo;
+
+c_bool c_date       c_time     
+------ ------------ ---------- 
+1      '2024-07-09' '12:34:56' 
+
+1 row in set
+
+all_data_types> SELECT c_datetime, c_timestamp, c_year FROM all_types_demo;
+
+c_datetime            c_timestamp           c_year 
+--------------------- --------------------- ------ 
+'2024-07-09 12:34:56' '2024-07-09 12:34:56' 2025   
+
+1 row in set
+
+all_data_types> SELECT c_char, c_varchar, c_binary FROM all_types_demo;
+
+c_char  c_varchar    c_binary 
+------- ------------ -------- 
+'abcde' 'abcdefghij' 'abc'    
+
+1 row in set
+
+all_data_types> SELECT c_varbinary, c_tinyblob, c_blob FROM all_types_demo;
+
+c_varbinary c_tinyblob c_blob 
+----------- ---------- ------ 
+'defg'      'a'        'blob' 
+
+1 row in set
+
+all_data_types> SELECT "c_mediumblob",
+             ->        `c_longblob`,
+             ->        c_tinytext
+             -> FROM all_types_demo;
+
+c_mediumblob c_longblob c_tinytext 
+------------ ---------- ---------- 
+'medblob'    'longblob' 'tiny'     
+
+1 row in set
+
+all_data_types> SELECT c_text, c_mediumtext, c_longtext FROM all_types_demo;
+
+c_text c_mediumtext c_longtext 
+------ ------------ ---------- 
+'text' 'mediumtext' 'longtext' 
+
+1 row in set
+
+all_data_types> SELECT c_enum, c_set, ST_AsText(c_geometry) AS c_geometry FROM a
+ll_types_demo;
+
+c_enum c_set c_geometry   
+------ ----- ------------ 
+'foo'  'a,b' 'POINT(1 1)' 
+
+1 row in set
+
+all_data_types> SELECT ST_AsText(c_point) AS c_point, ST_AsText(c_linestring) AS
+ c_linestring, ST_AsText(c_polygon) AS c_polygon FROM all_types_demo;
+
+c_point      c_linestring              c_polygon                        
+------------ ------------------------- -------------------------------- 
+'POINT(2 2)' 'LINESTRING(0 0,1 1,2 2)' 'POLYGON((0 0,1 0,1 1,0 1,0 0))' 
+
+1 row in set
+
+all_data_types> SELECT ST_AsText(c_multipoint) AS c_multipoint, ST_AsText(c_mult
+ilinestring) AS c_multilinestring, ST_AsText(c_multipolygon) AS c_multipolygon F
+ROM all_types_demo;
+
+c_multipoint              c_multilinestring                      c_multipolygon                          
+------------------------- -------------------------------------- --------------------------------------- 
+'MULTIPOINT((0 0),(1 1))' 'MULTILINESTRING((0 0,1 1),(2 2,3 3))' 'MULTIPOLYGON(((0 0,1 0,1 1,0 1,0 0)))' 
+
+1 row in set
+
+all_data_types> SELECT ST_AsText(c_geometrycoll) AS c_geometrycoll, c_json FROM 
+all_types_demo;
+
+c_geometrycoll                                       c_json             
+---------------------------------------------------- ------------------ 
+'GEOMETRYCOLLECTION(POINT(1 2),LINESTRING(0 0,1 1))' '{"x": 1, "y": 2}' 
+
+1 row in set
+
+all_data_types> DROP DATABASE all_data_types;
+
+0 warnings, 1 rows affected
+
+all_data_types> 
+all_data_types> 

@@ -104,6 +104,7 @@ import (
 	_ "github.com/jonboulle/clockwork"
 	_ "github.com/julienschmidt/httprouter"
 	_ "github.com/mitchellh/mapstructure"
+	_ "github.com/ohler55/ojg/jp"
 	_ "github.com/okta/okta-sdk-golang/v2/okta"
 	_ "github.com/okta/okta-sdk-golang/v2/okta/query"
 	_ "github.com/openai/openai-go"

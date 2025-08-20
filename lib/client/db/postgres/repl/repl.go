@@ -57,6 +57,11 @@ func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, err
 		applicationNameParamName: applicationNameParamValue,
 	}
 	config.TLSConfig = nil
+	// disable fallbacks because our fake dialer returns the same connection
+	// each time and pgconn closes a conn on error before using a fallback,
+	// which obscures the actual error and instead shows:
+	// "failed to write startup message (use of closed network connection)"
+	config.Fallbacks = nil
 
 	// Provide a lookup function to avoid having the hostname placeholder to
 	// resolve into something else. Note that the returned value won't be used.

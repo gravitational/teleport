@@ -21,7 +21,7 @@ the stability of Teleport from a security perspective.
 ## Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters, see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx).
+behind-firewall clusters, see [Configure Trusted Clusters](zero-trust-access/management/admin/trustedclusters.mdx).
 
 ## How is Teleport's Community Edition different from Enterprise?
 
@@ -75,7 +75,7 @@ look at [Using OpenSSH Guide](enroll-resources/server-access/openssh/openssh-age
 
 ## Can I copy files from one Teleport node to another?
 
-Yes, Teleport supports [Headless WebAuthn authentication](admin-guides/access-controls/guides/headless.mdx),
+Yes, Teleport supports [Headless WebAuthn authentication](zero-trust-access/authentication/headless.mdx),
 which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
 are not logged in to Teleport or may not have access to a browser.
 
@@ -136,6 +136,11 @@ hosted Okta integration, available in the Enterprise (Cloud) and Enterprise
 
 Refer to the [hosted Okta integration guide](identity-governance/okta/okta.mdx)
 for details on setting up and configuring SCIM support.
+
+You can also set up Teleport to integrate with a SCIM provider to automatically
+synchronize SCIM group memberships with Teleport Access Lists. For details, see
+the [SCIM integration
+documentation](zero-trust-access/management/guides/scim/scim.mdx).
 
 ## Why do I see an alert that some agents are out of date?
 

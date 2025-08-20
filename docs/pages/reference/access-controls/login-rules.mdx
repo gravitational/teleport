@@ -9,7 +9,7 @@ labels:
 
 This page provides details on the expression language that powers Login Rules.
 To learn how to add the first login rule to your cluster, checkout out the
-[Login Rules Guide](../../admin-guides/access-controls/login-rules/guide.mdx).
+[Login Rules Guide](../../zero-trust-access/authentication/login-rules/guide.mdx).
 
 ## YAML specification
 
@@ -792,3 +792,53 @@ Expression | Result
 ---------- | ------
 `union(set("a"), set("b"))` | `("a", "b")`
 `union(set("a", "b"), set("b", "c"))` | `("a", "b", "c")`
+
+
+### `jsonpath`
+
+#### Signature
+
+```go
+func jsonpath(path string) set
+```
+
+#### Description
+
+`jsonpath` returns a new [`set`](#set-type) interpolated from the user's original IdP
+claims using the given [jsonpath query](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html).
+This is intended for use with traditionally unmapped arbitrary JSON claims which are
+used in some custom OIDC solutions.
+
+See [this guide](../../zero-trust-access/sso/sso.mdx#using-an-oidc-provider-with-arbitrary-non-standard-json-claims) for more context.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`path` | `string` | A jsonpath query.
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set` | A new `set` containing the interpolated values.
+
+#### Examples
+
+The examples below operates on the given IdP claims object.
+```json
+{
+  // normal claim - string list
+  "a": ["1", "2", "3"],
+  // unmapped claim - arbitrary object
+  "b": {
+    "c": "d"
+  }
+}
+```
+
+Expression | Result
+---------- | ------
+`jsonpath("$.a")`   | `("1", "2", "3")`
+`jsonpath("$.b.*")` | `("d")`
+`jsonpath("$.*.*")` | `("1", "2", "3", "d")`
