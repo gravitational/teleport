@@ -52,7 +52,7 @@
     "jsdom-testing-mocks": "^1.15.2",
     "msw": "2.10.1",
     "msw-storybook-addon": "^2.0.5",
-    "node-gyp": "^11.2.0",
+    "node-gyp": "^11.3.0",
     "playwright": "^1.54.2",
     "prettier": "^3.6.2",
     "react-select-event": "^5.5.1",
