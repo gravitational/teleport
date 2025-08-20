@@ -4124,6 +4124,27 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"entra_id_groups_provider": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"enabled": {
+							Description: "Enabled specifies groups provider enabled/disabled state. Defaults to false. If enabled, groups provider should honour groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"graph_endpoint": {
+							Description: "Optional Microsoft Graph API endpoint. Defaults to \"graph.microsoft.com\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"group_type": {
+							Description: "GroupType configures group filter behavior. Value can be \"security-groups\", \"directory-roles\", \"all-groups\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "EntraIDGroupsProvider configures out-of-band user groups provider.",
+					Optional:    true,
+				},
 				"google_admin_email": {
 					Description: "GoogleAdminEmail is the email of a google admin to impersonate.",
 					Optional:    true,
@@ -41871,6 +41892,75 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["entra_id_groups_provider"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.EntraIdGroupsProvider = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.EntraIdGroupsProvider = &github_com_gravitational_teleport_api_types.EntraIDGroupsProvider{}
+									obj := obj.EntraIdGroupsProvider
+									{
+										a, ok := tf.Attrs["enabled"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.Enabled = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["group_type"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.group_type"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.group_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.GroupType = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["graph_endpoint"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.graph_endpoint"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.graph_endpoint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.GraphEndpoint = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -43073,6 +43163,104 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 							v.Value = string(obj.RequestObjectMode)
 							v.Unknown = false
 							tf.Attrs["request_object_mode"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["entra_id_groups_provider"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["entra_id_groups_provider"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.EntraIdGroupsProvider == nil {
+									v.Null = true
+								} else {
+									obj := obj.EntraIdGroupsProvider
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["enabled"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled"})
+										} else {
+											v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.Enabled) == false
+											}
+											v.Value = bool(obj.Enabled)
+											v.Unknown = false
+											tf.Attrs["enabled"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["group_type"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.group_type"})
+										} else {
+											v, ok := tf.Attrs["group_type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.entra_id_groups_provider.group_type", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.group_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.GroupType) == ""
+											}
+											v.Value = string(obj.GroupType)
+											v.Unknown = false
+											tf.Attrs["group_type"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["graph_endpoint"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.graph_endpoint"})
+										} else {
+											v, ok := tf.Attrs["graph_endpoint"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.entra_id_groups_provider.graph_endpoint", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.graph_endpoint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.GraphEndpoint) == ""
+											}
+											v.Value = string(obj.GraphEndpoint)
+											v.Unknown = false
+											tf.Attrs["graph_endpoint"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["entra_id_groups_provider"] = v
+							}
 						}
 					}
 				}
