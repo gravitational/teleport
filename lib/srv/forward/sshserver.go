@@ -1114,6 +1114,22 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 // the remote host. Once the session channel has been established, this function's loop handles
 // all the "exec", "subsystem" and "shell" requests.
 func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
+	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+	var sessionParams *tracessh.SessionParams
+	if len(nch.ExtraData()) > 0 {
+		var err error
+		sessionParams, err = sshutils.ParseSessionParams(nch.ExtraData())
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		}
+
+		s.connectionContext.SetSessionParams(sessionParams)
+	}
+
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	// There is no need for the forwarding server to initiate disconnects,
@@ -1140,7 +1156,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
 	// reason/message in the event the channel is rejected.
-	remoteSession, err := s.remoteClient.NewSession(ctx)
+	remoteSession, err := s.remoteClient.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Remote session open failed", "error", err)
 		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)

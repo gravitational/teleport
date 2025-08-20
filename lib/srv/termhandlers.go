@@ -124,8 +124,8 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 		return trace.Wrap(err)
 	}
 
-	if joinID, joinMode := scx.GetJoinParams(); joinID != "" {
-		err := t.SessionRegistry.JoinSession(ctx, ch, scx, joinID, joinMode)
+	if joinSid := scx.GetSessionParams().JoinSessionID; joinSid != "" {
+		err := t.SessionRegistry.JoinSession(ctx, ch, scx, joinSid, scx.GetSessionParams().JoinMode)
 
 		// TODO(Joerger): DELETE IN 20.0.0 - v19+ only set TELEPORT_SESSION
 		// when they want to join a session. Always return an error instead

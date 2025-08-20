@@ -1400,6 +1400,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
+
 			go s.handleSessionRequests(ctx, ccx, identityContext, ch, requests)
 			return
 		default:
@@ -1443,6 +1444,19 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			}
 			decr = d
 		}
+
+		// SessionParams are not passed by old clients (<v19) or OpenSSH clients.
+		if len(nch.ExtraData()) > 0 {
+			sessionParams, err := sshutils.ParseSessionParams(nch.ExtraData())
+			if err != nil {
+				s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+				return
+			}
+
+			ccx.SetSessionParams(sessionParams)
+		}
+
 		ch, requests, err := nch.Accept()
 		if err != nil {
 			s.logger.WarnContext(ctx, "Unable to accept channel", "error", err)
