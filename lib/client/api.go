@@ -28,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -94,7 +93,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -2281,7 +2279,8 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
+
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, "", "", nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
@@ -2435,7 +2434,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	// running shell with a given session means "join" it:
-	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
+	err = nc.RunInteractiveShell(ctx, sessionID.String(), mode, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -3107,18 +3106,6 @@ func (tc *TeleportClient) writeCommandResults(nodes []execResult) error {
 		return trace.Errorf("%d command(s) failed", len(failedNodes))
 	}
 	return nil
-}
-
-func (tc *TeleportClient) newSessionEnv() map[string]string {
-	env := map[string]string{
-		teleport.SSHSessionWebProxyAddr: tc.WebProxyAddr,
-	}
-	if tc.SessionID != "" {
-		env[sshutils.SessionEnvVar] = tc.SessionID
-	}
-
-	maps.Copy(env, tc.ExtraEnvs)
-	return env
 }
 
 // getProxyLogin determines which SSH principal to use when connecting to proxy.

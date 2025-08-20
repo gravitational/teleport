@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Client is a wrapper around ssh.Client that adds tracing support.
@@ -166,9 +167,31 @@ func (c *Client) OpenChannel(
 	}, reqs, err
 }
 
+// SessionParams are session parameters supported by Teleport to provide additional
+// session context or parameters to the server.
+type SessionParams struct {
+	// Reason is a reason attached to started sessions meant to describe their intent.
+	Reason string
+	// Invited is a list of people invited to a session.
+	Invited []string
+	// DisplayParticipantRequirements is set if debug information about participants requirements
+	// should be printed in moderated sessions.
+	DisplayParticipantRequirements bool
+	// JoinSessionID is the ID of a session to join.
+	JoinSessionID string
+	// JoinMode is the participant mode to join the session with.
+	// Required if JoinSessionID is set.
+	JoinMode types.SessionParticipantMode
+}
+
 // NewSession creates a new SSH session that is passed tracing context
 // so that spans may be correlated properly over the ssh connection.
 func (c *Client) NewSession(ctx context.Context) (*Session, error) {
+	return c.NewSessionWithParams(ctx, nil)
+}
+
+// NewSession opens a new Session for this client with the given params.
+func (c *Client) NewSessionWithParams(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 
 	ctx, span := tracer.Start(
@@ -195,9 +218,14 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		contexts:   make(map[string][]context.Context),
 	}
 
+	var sessionData []byte
+	if sessionParams != nil {
+		sessionData = ssh.Marshal(sessionParams)
+	}
+
 	// open a session manually so we can take ownership of the
 	// requests chan
-	ch, reqs, err := wrapper.OpenChannel("session", nil)
+	ch, reqs, err := wrapper.OpenChannel("session", sessionData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
