@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-dev.electron.37.3.1"
+const Version = "19.0.0-dev.gzdunek.21"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.electron.37.3.1"
+const VersionPreRelease = "dev.gzdunek.21"
 const VersionMetadata = ""
