@@ -125,11 +125,13 @@ func (g *TermManager) writeToClients(p []byte) {
 		// writeToClients is called with the lock held, so we need to release it
 		// before calling OnWriteError to avoid a deadlock if OnWriteError
 		// calls DeleteWriter/DeleteReader.
-		g.mu.Unlock()
-		for _, deleteWriter := range toDelete {
-			g.OnWriteError(deleteWriter.key, deleteWriter.err)
-		}
-		g.mu.Lock()
+		func() {
+			g.mu.Unlock()
+			defer g.mu.Lock()
+			for _, deleteWriter := range toDelete {
+				g.OnWriteError(deleteWriter.key, deleteWriter.err)
+			}
+		}()
 	}
 }
 
