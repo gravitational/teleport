@@ -6,13 +6,17 @@ labels:
  - identity-security
 ---
 
-Identity Security provides a framework for visualizing and managing access controls across an organization’s infrastructure.
+Teleport Identity Security help teams expose and eliminate hidden risk in their infrastructure. 
 
-This interface enables administrators to efficiently identify and address potential security risks,
-such as overly broad permissions or conflicting roles, ensuring that access is granted
-on principles of least privilege.
+There are some use cases of Teleport Identity Security  
 
-## How to use Identity Security
+- Find users with the highest standing privilege with the Standing Privilege Dashoard.
+- Visually understand a users access pathways, or resources pathways with Graph Explorer.
+- Quickly query key access pathways with SQL Editor.
+- Know when access pathways change for a critial asset wtih Crown Jewel Alerting.
+- Investiage Identity Breaches by corelating audit logs with Identity Actvitiy Center. 
+
+## How to use Identity Security Graph Explorer 
 
 Identity Security with Access Graph feature can help you to answer questions like:
 
@@ -36,6 +40,14 @@ without creating an Access Request. Details about standing privileges can be fou
 user or bot. 
 
 ![Standing Privileges](../../img/access-graph/standing-privileges.png)
+
+## Dashboard: Identity Actvity Center - Investigate
+
+The Identity Security with Identity Actvity Center dashboard provides a high-level overview of recent identity activity
+across your infrastructure. Injesting and corelating data between IdPs [(]Okta]()), Code (GitHub), Cloud Providers (AWS) and 
+Teleport Audit Log. 
+
+![Investigate](../../img/access-graph/investigate.png)
 
 ## Graph View
 
@@ -153,6 +165,12 @@ SELECT * FROM access_path WHERE identity = 'bob' AND resource = 'postgres';
 Show all access paths for resources with specific labels:
 ```sql
 SELECT * FROM access_path WHERE resource_labels @> '{"key": "value"}';
+```
+
+Show all SSH Keys from SSH Key Scanning 
+
+```sql
+SELECT * FROM ssh_keys;
 ```
 
 You can view more SQL examples in the editor.
