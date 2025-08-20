@@ -54,7 +54,7 @@ func NewStderrLogWriter(ctx context.Context, log *slog.Logger, level slog.Level)
 // Note that the input p may contain arbitrary-length data, which can span
 // multiple lines or include partial lines.
 func (l *StderrLogWriter) Write(p []byte) (int, error) {
-	l.log.Log(l.ctx, l.level, string(p))
+	l.log.Log(l.ctx, l.level, "stderr", "data", string(p))
 	return len(p), nil
 }
 
