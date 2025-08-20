@@ -116,13 +116,23 @@ func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuit
 		if err != nil {
 			return nil, nil, softwareHash, trace.Wrap(err)
 		}
+
 		privateKey, err := keys.ParsePrivateKey(privateKeyPEM)
+		if err != nil {
+			return nil, nil, softwareHash, trace.Wrap(err)
+		}
+
 		decrypter, ok := privateKey.Signer.(crypto.Decrypter)
 		if !ok {
 			return nil, nil, softwareHash, trace.Errorf("could not type assert crypto.Decrypter")
 		}
 
-		return privateKeyPEM, newOAEPDecrypter(softwareHash, decrypter), softwareHash, trace.Wrap(err)
+		privateKeyDER, err := x509.MarshalPKCS8PrivateKey(privateKey.Signer)
+		if err != nil {
+			return nil, nil, softwareHash, trace.Wrap(err)
+		}
+
+		return privateKeyDER, newOAEPDecrypter(softwareHash, decrypter), softwareHash, trace.Wrap(err)
 	}
 
 	key, err := cryptosuites.GenerateDecrypterWithAlgorithm(alg)
