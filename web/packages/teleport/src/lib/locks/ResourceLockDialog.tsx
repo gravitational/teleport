@@ -64,13 +64,11 @@ export function ResourceLockDialog(props: {
   targetName: string;
   /**
    * Called when the user cancels the lock operation.
-   * @returns nothing
    */
   onCancel: () => void;
   /**
    * Called when the user completes the lock operation.
    * @param newLock the newly created lock or undefined if the operation didn't happen
-   * @returns nothing
    */
   onComplete: (newLock: Lock | undefined) => void;
 }) {

@@ -39,18 +39,15 @@ export function DeleteDialog(props: {
   botName: string;
   /**
    * Called when the user cancels the delete operation.
-   * @returns nothing
    */
   onCancel: () => void;
   /**
    * Called when the user completes the delete operation.
-   * @returns nothing
    */
   onComplete: () => void;
   showLockAlternative?: boolean;
   /**
    * Called when the user requests to lock the bot instead of deleting it.
-   * @returns nothing
    */
   onLockRequest?: () => void;
   canLockBot?: boolean;

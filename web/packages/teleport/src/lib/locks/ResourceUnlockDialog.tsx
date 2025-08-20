@@ -58,12 +58,10 @@ export function ResourceUnlockDialog(props: {
   targetName: string;
   /**
    * Called when the user cancels the unlock operation.
-   * @returns nothing
    */
   onCancel: () => void;
   /**
    * Called when the user completes the unlock operation.
-   * @returns nothing
    */
   onComplete: () => void;
 }) {
