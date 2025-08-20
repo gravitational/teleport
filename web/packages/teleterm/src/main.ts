@@ -32,7 +32,6 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import { AppUpdater } from 'teleterm/services/appUpdater';
 import {
   createConfigService,
   runConfigFileMigration,
@@ -87,7 +86,6 @@ async function initializeApp(): Promise<void> {
 
   nativeTheme.themeSource = configService.get('theme').value;
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
-  new AppUpdater();
 
   process.on('uncaughtException', (error, origin) => {
     logger.error('Uncaught exception', origin, error);
@@ -173,10 +171,10 @@ async function initializeApp(): Promise<void> {
   const rootClusterProxyHostAllowList = new Set<string>();
 
   (async () => {
-    const tshdClient = await mainProcess.getTshdClient();
+    const { terminalService } = await mainProcess.getTshdClients();
 
     manageRootClusterProxyHostAllowList({
-      tshdClient,
+      tshdClient: terminalService,
       logger,
       allowList: rootClusterProxyHostAllowList,
     });
