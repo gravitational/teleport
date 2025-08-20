@@ -598,12 +598,26 @@ message DocumentDB {
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
+// GCPCloudSQL contains parameters specific to GCP databases.
+// The name "GCPCloudSQL" is a legacy from a time when only GCP Cloud SQL was supported.
 message GCPCloudSQL {
   // ProjectID is the GCP project ID the Cloud SQL instance resides in.
   string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
   // InstanceID is the Cloud SQL instance ID.
   string InstanceID = 2 [(gogoproto.jsontag) = "instance_id,omitempty"];
+  // AlloyDB contains AlloyDB specific configuration elements.
+  AlloyDB AlloyDB = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "alloydb,omitempty"
+  ];
+}
+
+// AlloyDB contains AlloyDB specific configuration elements.
+message AlloyDB {
+  // EndpointType is the database endpoint type to use. Should be one of: "private", "public", "psc".
+  string EndpointType = 1 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+  // EndpointOverride is an override of endpoint address to use.
+  string EndpointOverride = 2 [(gogoproto.jsontag) = "endpoint_override,omitempty"];
 }
 
 // Azure contains Azure specific database metadata.

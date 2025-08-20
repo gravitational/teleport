@@ -166,12 +166,16 @@ func ValidateDatabase(db types.Database) error {
 			return trace.BadParameter("GCP Spanner database %q address should be %q",
 				db.GetName(), gcputils.SpannerEndpoint)
 		}
+	} else if db.GetType() == types.DatabaseTypeAlloyDB {
+		_, err := gcputils.ParseAlloyDBConnectionURI(db.GetURI())
+		if err != nil {
+			return trace.Wrap(err, "invalid AlloyDB address")
+		}
 	} else if needsURIValidation(db) {
 		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
 			return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
 		}
 	}
-
 	if db.GetTLS().CACert != "" {
 		if _, err := tlsca.ParseCertificatePEM([]byte(db.GetTLS().CACert)); err != nil {
 			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v", db.GetName(), err)
