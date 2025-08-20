@@ -518,7 +518,7 @@ func (o *OIDCConnectorV3) Validate() error {
 		}
 	}
 
-	if err := o.CheckAndSetEntraIDGroupsProviderDefaults(); err != nil {
+	if err := o.checkAndSetEntraIDGroupsProviderDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -649,7 +649,7 @@ func (r *OIDCAuthRequest) Check() error {
 	return nil
 }
 
-func (o *OIDCConnectorV3) CheckAndSetEntraIDGroupsProviderDefaults() error {
+func (o *OIDCConnectorV3) checkAndSetEntraIDGroupsProviderDefaults() error {
 	entra := o.GetEntraIDGroupsProvider()
 	if entra == nil {
 		// configuration can be empty for non-EntraID OIDC connector.
