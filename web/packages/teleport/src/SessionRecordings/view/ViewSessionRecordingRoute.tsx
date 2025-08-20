@@ -15,9 +15,9 @@ import { useSuspenseGetRecordingDuration } from 'teleport/services/recordings/ho
 
 import { RecordingPlayer } from './RecordingPlayer';
 import {
-  ViewTerminalRecording,
+  RecordingWithMetadata,
   type SummarySlot,
-} from './ViewTerminalRecording';
+} from './RecordingWithMetadata';
 
 const validRecordingTypes = ['ssh', 'k8s', 'desktop', 'database'];
 
@@ -53,11 +53,14 @@ export function ViewSessionRecordingRoute({
         <ErrorBoundary
           fallback={
             <ErrorBoundary fallback={<RecordingPlayerError />}>
-              <RecordingPlayerWrapper clusterId={clusterId} sessionId={sid} />
+              <RecordingPlayerWithLoadDuration
+                clusterId={clusterId}
+                sessionId={sid}
+              />
             </ErrorBoundary>
           }
         >
-          <ViewTerminalRecording
+          <RecordingWithMetadata
             clusterId={clusterId}
             sessionId={sid}
             summarySlot={summarySlot}
@@ -79,7 +82,10 @@ export function ViewSessionRecordingRoute({
         errorComponent={RecordingPlayerError}
         loadingComponent={RecordingPlayerLoading}
       >
-        <RecordingPlayerWrapper clusterId={clusterId} sessionId={sid} />
+        <RecordingPlayerWithLoadDuration
+          clusterId={clusterId}
+          sessionId={sid}
+        />
       </ErrorSuspenseWrapper>
     );
   }
@@ -117,12 +123,15 @@ function RecordingPlayerError() {
   );
 }
 
-interface ViewRecordingProps {
+interface RecordingPlayerWithLoadDurationProps {
   clusterId: string;
   sessionId: string;
 }
 
-function RecordingPlayerWrapper({ clusterId, sessionId }: ViewRecordingProps) {
+function RecordingPlayerWithLoadDuration({
+  clusterId,
+  sessionId,
+}: RecordingPlayerWithLoadDurationProps) {
   const { data } = useSuspenseGetRecordingDuration({
     clusterId,
     sessionId,
