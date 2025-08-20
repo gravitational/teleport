@@ -113,6 +113,10 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Detective} text="Detective" />
     <IconBox IconCmpt={Icon.DeviceMobileCamera} text="DeviceMobileCamera" />
     <IconBox IconCmpt={Icon.Devices} text="Devices" />
+    <IconBox
+      IconCmpt={Icon.DotsThreeMoreVertical}
+      text="DotsThreeMoreVertical"
+    />
     <IconBox IconCmpt={Icon.Download} text="Download" />
     <IconBox IconCmpt={Icon.Earth} text="Earth" />
     <IconBox IconCmpt={Icon.Edit} text="Edit" />
