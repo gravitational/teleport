@@ -120,7 +120,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	rc := &ResourceCommand{
 		refs:        services.Refs{e.ref},
 		format:      teleport.YAML,
-		stdout:      f,
+		Stdout:      f,
 		filename:    f.Name(),
 		force:       true,
 		withSecrets: true,
