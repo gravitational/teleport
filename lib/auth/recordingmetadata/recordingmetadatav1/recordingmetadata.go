@@ -25,8 +25,6 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -155,7 +153,7 @@ loop:
 				return nil
 
 			case *apievents.Resize:
-				cols, rows, err := parseTerminalSize(e.TerminalSize)
+				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
 				if err != nil {
 					return trace.Wrap(err, "failed to parse terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
@@ -164,13 +162,13 @@ loop:
 					StartOffset: durationpb.New(e.Time.Sub(startTime)),
 					Event: &pb.SessionRecordingEvent_Resize{
 						Resize: &pb.SessionRecordingResizeEvent{
-							Cols: int32(cols),
-							Rows: int32(rows),
+							Cols: int32(size.W),
+							Rows: int32(size.H),
 						},
 					},
 				})
 
-				vt.Resize(cols, rows)
+				vt.Resize(size.W, size.H)
 
 			case *apievents.SessionEnd:
 				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
@@ -216,17 +214,17 @@ loop:
 				lastActivityTime = e.Time
 				startTime = e.Time
 
-				cols, rows, err := parseTerminalSize(e.TerminalSize)
+				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
 				if err != nil {
 					return trace.Wrap(err, "failed to parse terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
 
 				metadata.ClusterName = e.ClusterName
 
-				metadata.StartCols = int32(cols)
-				metadata.StartRows = int32(rows)
+				metadata.StartCols = int32(size.W)
+				metadata.StartRows = int32(size.H)
 
-				vt.Resize(cols, rows)
+				vt.Resize(size.W, size.H)
 			}
 
 		case err := <-errors:
@@ -315,25 +313,6 @@ func thumbnailEntryToProto(t *thumbnailEntry) *pb.SessionRecordingThumbnail {
 		StartOffset: durationpb.New(t.startOffset),
 		EndOffset:   durationpb.New(t.endOffset),
 	}
-}
-
-func parseTerminalSize(size string) (cols, rows int, err error) {
-	parts := strings.Split(size, ":")
-	if len(parts) != 2 {
-		return 0, 0, trace.BadParameter("invalid terminal size %q", size)
-	}
-
-	cols, err = strconv.Atoi(parts[0])
-	if err != nil {
-		return 0, 0, trace.Wrap(err, "invalid number of columns %q", parts[0])
-	}
-
-	rows, err = strconv.Atoi(parts[1])
-	if err != nil {
-		return 0, 0, trace.Wrap(err, "invalid number of rows %q", parts[1])
-	}
-
-	return cols, rows, nil
 }
 
 func getRandomThumbnail(thumbnails []*thumbnailEntry) *thumbnailEntry {
