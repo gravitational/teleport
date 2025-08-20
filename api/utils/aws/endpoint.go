@@ -58,7 +58,15 @@ func IsRedshiftServerlessEndpoint(uri string) bool {
 // IsElastiCacheEndpoint returns true if the input URI is an ElastiCache
 // endpoint.
 func IsElastiCacheEndpoint(uri string) bool {
-	return isAWSServiceEndpoint(uri, ElastiCacheServiceName)
+	_, err := ParseElastiCacheEndpoint(uri)
+	return err == nil
+}
+
+// IsElastiCacheServerlessEndpoint returns true if the input URI is an ElastiCacheServerless
+// endpoint.
+func IsElastiCacheServerlessEndpoint(uri string) bool {
+	_, err := ParseElastiCacheServerlessEndpoint(uri)
+	return err == nil
 }
 
 // IsMemoryDBEndpoint returns true if the input URI is an MemoryDB
@@ -554,6 +562,58 @@ func trimElastiCacheShardAndNodeID(input string) string {
 		}
 	}
 	return strings.Join(parts, "-")
+}
+
+// ParseElastiCacheServerlessEndpoint extracts the details from the provided
+// ElastiCacheServerless Redis endpoint, which should be in the form
+// <cache_name>.serverless.<region>.cache.amazonaws.com:<port>
+func ParseElastiCacheServerlessEndpoint(endpoint string) (*RedisEndpointInfo, error) {
+	endpoint, err := removeSchemaAndPort(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Remove partition suffix. Note that endpoints for CN regions use the same
+	// format except they end with AWSCNEndpointSuffix.
+	endpointWithoutSuffix, _, err := removePartitionSuffix(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Split into parts to extract details. They look like this in general:
+	//   <cache_name>.serverless.<short-region>.cache
+	//
+	// Note that ElastiCache uses short region codes like "use1".
+	const (
+		nameIdx = iota
+		serverlessIdx
+		shortRegionIdx
+		svcIdx
+		numParts
+	)
+	parts := strings.Split(endpointWithoutSuffix, ".")
+	if len(parts) != numParts || parts[serverlessIdx] != "serverless" || parts[svcIdx] != ElastiCacheServiceName {
+		return nil, trace.BadParameter("unknown ElastiCache Redis endpoint format %q", endpoint)
+	}
+
+	region, ok := ShortRegionToRegion(parts[shortRegionIdx])
+	if !ok {
+		return nil, trace.BadParameter("%v is not a valid region", parts[shortRegionIdx])
+	}
+
+	// Configuration endpoint for Redis with TLS disabled looks like:
+	// example-<randomhex>.serverless.cac1.cache.amazonaws.com:6379
+	info := &RedisEndpointInfo{
+		ID:                       parts[nameIdx],
+		Region:                   region,
+		TransitEncryptionEnabled: true,
+		EndpointType:             ElastiCacheConfigurationEndpoint,
+	}
+	nameParts := strings.Split(info.ID, "-")
+	if len(nameParts) > 1 {
+		info.ID = strings.Join(nameParts[:len(nameParts)-1], "-")
+	}
+	return info, nil
 }
 
 // ParseMemoryDBEndpoint extracts the details from the provided

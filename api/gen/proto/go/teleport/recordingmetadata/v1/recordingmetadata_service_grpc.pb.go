@@ -33,8 +33,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RecordingMetadataService_GetThumbnails_FullMethodName = "/teleport.recordingmetadata.v1.RecordingMetadataService/GetThumbnails"
-	RecordingMetadataService_GetMetadata_FullMethodName   = "/teleport.recordingmetadata.v1.RecordingMetadataService/GetMetadata"
+	RecordingMetadataService_GetThumbnail_FullMethodName = "/teleport.recordingmetadata.v1.RecordingMetadataService/GetThumbnail"
+	RecordingMetadataService_GetMetadata_FullMethodName  = "/teleport.recordingmetadata.v1.RecordingMetadataService/GetMetadata"
 )
 
 // RecordingMetadataServiceClient is the client API for RecordingMetadataService service.
@@ -43,8 +43,8 @@ const (
 //
 // RecordingMetadataService provides methods to retrieve metadata and thumbnails for a session recording.
 type RecordingMetadataServiceClient interface {
-	// GetThumbnails retrieves the thumbnails for many session recordings.
-	GetThumbnails(ctx context.Context, in *GetThumbnailsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetThumbnailsResponse], error)
+	// GetThumbnail retrieves the thumbnail for a session recording.
+	GetThumbnail(ctx context.Context, in *GetThumbnailRequest, opts ...grpc.CallOption) (*GetThumbnailResponse, error)
 	// GetMetadata retrieves the metadata for a session recording.
 	GetMetadata(ctx context.Context, in *GetMetadataRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetMetadataResponseChunk], error)
 }
@@ -57,28 +57,19 @@ func NewRecordingMetadataServiceClient(cc grpc.ClientConnInterface) RecordingMet
 	return &recordingMetadataServiceClient{cc}
 }
 
-func (c *recordingMetadataServiceClient) GetThumbnails(ctx context.Context, in *GetThumbnailsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetThumbnailsResponse], error) {
+func (c *recordingMetadataServiceClient) GetThumbnail(ctx context.Context, in *GetThumbnailRequest, opts ...grpc.CallOption) (*GetThumbnailResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &RecordingMetadataService_ServiceDesc.Streams[0], RecordingMetadataService_GetThumbnails_FullMethodName, cOpts...)
+	out := new(GetThumbnailResponse)
+	err := c.cc.Invoke(ctx, RecordingMetadataService_GetThumbnail_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[GetThumbnailsRequest, GetThumbnailsResponse]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
+	return out, nil
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type RecordingMetadataService_GetThumbnailsClient = grpc.ServerStreamingClient[GetThumbnailsResponse]
 
 func (c *recordingMetadataServiceClient) GetMetadata(ctx context.Context, in *GetMetadataRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetMetadataResponseChunk], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &RecordingMetadataService_ServiceDesc.Streams[1], RecordingMetadataService_GetMetadata_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &RecordingMetadataService_ServiceDesc.Streams[0], RecordingMetadataService_GetMetadata_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +92,8 @@ type RecordingMetadataService_GetMetadataClient = grpc.ServerStreamingClient[Get
 //
 // RecordingMetadataService provides methods to retrieve metadata and thumbnails for a session recording.
 type RecordingMetadataServiceServer interface {
-	// GetThumbnails retrieves the thumbnails for many session recordings.
-	GetThumbnails(*GetThumbnailsRequest, grpc.ServerStreamingServer[GetThumbnailsResponse]) error
+	// GetThumbnail retrieves the thumbnail for a session recording.
+	GetThumbnail(context.Context, *GetThumbnailRequest) (*GetThumbnailResponse, error)
 	// GetMetadata retrieves the metadata for a session recording.
 	GetMetadata(*GetMetadataRequest, grpc.ServerStreamingServer[GetMetadataResponseChunk]) error
 	mustEmbedUnimplementedRecordingMetadataServiceServer()
@@ -115,8 +106,8 @@ type RecordingMetadataServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedRecordingMetadataServiceServer struct{}
 
-func (UnimplementedRecordingMetadataServiceServer) GetThumbnails(*GetThumbnailsRequest, grpc.ServerStreamingServer[GetThumbnailsResponse]) error {
-	return status.Errorf(codes.Unimplemented, "method GetThumbnails not implemented")
+func (UnimplementedRecordingMetadataServiceServer) GetThumbnail(context.Context, *GetThumbnailRequest) (*GetThumbnailResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetThumbnail not implemented")
 }
 func (UnimplementedRecordingMetadataServiceServer) GetMetadata(*GetMetadataRequest, grpc.ServerStreamingServer[GetMetadataResponseChunk]) error {
 	return status.Errorf(codes.Unimplemented, "method GetMetadata not implemented")
@@ -143,16 +134,23 @@ func RegisterRecordingMetadataServiceServer(s grpc.ServiceRegistrar, srv Recordi
 	s.RegisterService(&RecordingMetadataService_ServiceDesc, srv)
 }
 
-func _RecordingMetadataService_GetThumbnails_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GetThumbnailsRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _RecordingMetadataService_GetThumbnail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetThumbnailRequest)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(RecordingMetadataServiceServer).GetThumbnails(m, &grpc.GenericServerStream[GetThumbnailsRequest, GetThumbnailsResponse]{ServerStream: stream})
+	if interceptor == nil {
+		return srv.(RecordingMetadataServiceServer).GetThumbnail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordingMetadataService_GetThumbnail_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordingMetadataServiceServer).GetThumbnail(ctx, req.(*GetThumbnailRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type RecordingMetadataService_GetThumbnailsServer = grpc.ServerStreamingServer[GetThumbnailsResponse]
 
 func _RecordingMetadataService_GetMetadata_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(GetMetadataRequest)
@@ -171,13 +169,13 @@ type RecordingMetadataService_GetMetadataServer = grpc.ServerStreamingServer[Get
 var RecordingMetadataService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.recordingmetadata.v1.RecordingMetadataService",
 	HandlerType: (*RecordingMetadataServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
+	Methods: []grpc.MethodDesc{
 		{
-			StreamName:    "GetThumbnails",
-			Handler:       _RecordingMetadataService_GetThumbnails_Handler,
-			ServerStreams: true,
+			MethodName: "GetThumbnail",
+			Handler:    _RecordingMetadataService_GetThumbnail_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "GetMetadata",
 			Handler:       _RecordingMetadataService_GetMetadata_Handler,

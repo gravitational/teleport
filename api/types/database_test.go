@@ -247,6 +247,53 @@ func TestDatabaseElastiCacheEndpoint(t *testing.T) {
 	})
 }
 
+func TestDatabaseElastiCacheServerlessEndpoint(t *testing.T) {
+	t.Run("valid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "example",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "example-abc123.serverless.cac1.cache.amazonaws.com:6379",
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "ca-central-1",
+			ElastiCacheServerless: ElastiCacheServerless{
+				CacheName: "example",
+			},
+		}, database.GetAWS())
+		require.True(t, database.IsElastiCacheServerless())
+		require.True(t, database.IsAWSHosted())
+		require.True(t, database.IsCloudHosted())
+	})
+
+	t.Run("invalid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "example",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "some.serverless.cache.amazonaws.com:6379",
+			AWS: AWS{
+				Region: "us-east-5",
+				ElastiCacheServerless: ElastiCacheServerless{
+					CacheName: "example",
+				},
+			},
+		})
+
+		// A warning is logged, no error is returned, and AWS metadata is not
+		// updated.
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "us-east-5",
+			ElastiCacheServerless: ElastiCacheServerless{
+				CacheName: "example",
+			},
+		}, database.GetAWS())
+	})
+}
+
 func TestDatabaseMemoryDBEndpoint(t *testing.T) {
 	t.Run("valid URI", func(t *testing.T) {
 		database, err := NewDatabaseV3(Metadata{
