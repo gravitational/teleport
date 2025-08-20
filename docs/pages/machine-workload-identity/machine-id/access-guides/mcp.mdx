@@ -157,6 +157,18 @@ MCP client you are using.
         - `my-mcp-server` with the name of your MCP server as enrolled in Teleport.
     </TabItem>
     <TabItem label="Other">
+        Generally, any MCP client that supports STDIO transport can be used with
+        Teleport MCP access.
+
+        You'll need to configure the MCP client to invoke the `tsh` binary with
+        the following arguments:
+        `tsh mcp connect -i /opt/machine-id/identity --proxy example.teleport.sh:443 my-mcp-server`.
+
+        Modify the example values to match your environment:
+        - `/opt/machine-id/identity` with the path to the identity file
+        produced by `tbot`.
+        - `example.teleport.sh:443` with the address of your Teleport proxy.
+        - `my-mcp-server` with the name of your MCP server as enrolled in Teleport.
     </TabItem>
 </Tabs>
 
