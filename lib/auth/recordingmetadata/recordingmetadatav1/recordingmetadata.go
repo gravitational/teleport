@@ -267,7 +267,10 @@ loop:
 
 	for _, t := range thumbnails {
 		if _, err := protodelim.MarshalTo(metadataBuf, thumbnailEntryToProto(t)); err != nil {
-			return trace.Wrap(err)
+			s.logger.WarnContext(ctx, "Failed to marshal thumbnail entry",
+				"session_id", sessionID, "error", err)
+
+			continue
 		}
 	}
 
