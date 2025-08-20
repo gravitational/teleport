@@ -60,7 +60,7 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (types.ReverseT
 	case types.V2:
 		var r types.ReverseTunnelV2
 		if err := utils.FastUnmarshal(bytes, &r); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := ValidateReverseTunnel(&r); err != nil {
 			return nil, trace.Wrap(err)

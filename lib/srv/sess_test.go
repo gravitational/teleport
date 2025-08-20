@@ -1643,12 +1643,12 @@ func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.Hos
 
 func (f *fakeHostUsersBackend) UserExists(name string) error {
 	if f.users == nil {
-		return trace.NotFound(name)
+		return trace.NotFound("%s", name)
 	}
 
 	_, exists := f.users[name]
 	if !exists {
-		return trace.NotFound(name)
+		return trace.NotFound("%s", name)
 	}
 
 	return nil
