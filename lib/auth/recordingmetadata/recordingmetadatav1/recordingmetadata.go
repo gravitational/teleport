@@ -135,26 +135,22 @@ loop:
 				return nil
 
 			case *apievents.Resize:
-				parts := strings.Split(e.TerminalSize, ":")
-
-				if len(parts) == 2 {
-					cols, rows, err := parseTerminalSize(e.TerminalSize)
-					if err != nil {
-						return trace.Wrap(err, "failed to parse terminal size %q for session %v", e.TerminalSize, sessionID)
-					}
-
-					metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-						StartOffset: durationpb.New(e.Time.Sub(startTime)),
-						Event: &pb.SessionRecordingEvent_Resize{
-							Resize: &pb.SessionRecordingResizeEvent{
-								Cols: int32(cols),
-								Rows: int32(rows),
-							},
-						},
-					})
-
-					vt.Resize(cols, rows)
+				cols, rows, err := parseTerminalSize(e.TerminalSize)
+				if err != nil {
+					return trace.Wrap(err, "failed to parse terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
+
+				metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
+					StartOffset: durationpb.New(e.Time.Sub(startTime)),
+					Event: &pb.SessionRecordingEvent_Resize{
+						Resize: &pb.SessionRecordingResizeEvent{
+							Cols: int32(cols),
+							Rows: int32(rows),
+						},
+					},
+				})
+
+				vt.Resize(cols, rows)
 
 			case *apievents.SessionEnd:
 				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
