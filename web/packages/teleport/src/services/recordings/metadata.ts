@@ -17,7 +17,6 @@
  */
 
 import cfg from 'teleport/config';
-import { getAccessToken } from 'teleport/services/api';
 
 import {
   SessionRecordingMessageType,
