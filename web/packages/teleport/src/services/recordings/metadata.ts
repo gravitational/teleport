@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import {
   SessionRecordingMessageType,
@@ -24,7 +25,6 @@ import {
   type SessionRecordingMetadata,
   type SessionRecordingThumbnail,
 } from './types';
-import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 export interface SessionRecordingMetadataWithFrames {
   metadata: SessionRecordingMetadata;
@@ -49,7 +49,9 @@ export function fetchSessionRecordingMetadata(
       return;
     }
 
-    const ws = new AuthenticatedWebSocket(cfg.getSessionRecordingMetadataUrl(clusterId, sessionId));
+    const ws = new AuthenticatedWebSocket(
+      cfg.getSessionRecordingMetadataUrl(clusterId, sessionId)
+    );
 
     let metadata: SessionRecordingMetadata | null = null;
 
