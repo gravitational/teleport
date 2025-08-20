@@ -80,7 +80,7 @@ export function RecordingThumbnail({
   return (
     <Box
       data-testid="recording-thumbnail"
-      bg={`url("${dataUri}")`}
+      background={`url("${dataUri}")`}
       backgroundPosition={`${bgPosX}% ${bgPosY}%`}
       backgroundSize="400%"
       height="100%"
