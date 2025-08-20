@@ -23,7 +23,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { Danger } from 'design/Alert';
 import Box from 'design/Box';
@@ -37,6 +37,7 @@ import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDrop
 import type { Recording } from 'teleport/services/recordings';
 import { useSuspenseInfiniteListRecordings } from 'teleport/services/recordings/hooks';
 import { KeysEnum } from 'teleport/services/storageService';
+import { generateTerminalSVGStyleTag } from 'teleport/SessionRecordings/svg';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
@@ -131,6 +132,7 @@ export function RecordingsList({
   state,
 }: RecordingsListProps) {
   const ctx = useTeleport();
+  const theme = useTheme();
 
   const { clusterId } = useStickyClusterId();
 
@@ -221,6 +223,11 @@ export function RecordingsList({
     [onPageChange]
   );
 
+  const thumbnailStyles = useMemo(
+    () => generateTerminalSVGStyleTag(theme),
+    [theme]
+  );
+
   const items = useMemo(
     () =>
       recordings
@@ -230,11 +237,20 @@ export function RecordingsList({
             actionSlot={actionSlot}
             key={recording.sid}
             recording={recording}
+            thumbnailStyles={thumbnailStyles}
             viewMode={viewMode}
             density={density}
           />
         )),
-    [actionSlot, recordings, viewMode, density, startIndex, endIndex]
+    [
+      actionSlot,
+      recordings,
+      viewMode,
+      density,
+      startIndex,
+      endIndex,
+      thumbnailStyles,
+    ]
   );
 
   const filtersDisabled = allRecordings.length === 0;

@@ -58,6 +58,7 @@ export interface RecordingItemProps {
   actionSlot?: ActionSlot;
   density: Density;
   recording: Recording;
+  thumbnailStyles: string;
   viewMode: ViewMode;
 }
 
@@ -65,6 +66,7 @@ export function RecordingItem({
   actionSlot,
   density,
   recording,
+  thumbnailStyles,
   viewMode,
 }: RecordingItemProps) {
   const { clusterId } = useStickyClusterId();
@@ -110,6 +112,7 @@ export function RecordingItem({
               <RecordingThumbnail
                 clusterId={clusterId}
                 sessionId={recording.sid}
+                styles={thumbnailStyles}
               />
             </Suspense>
           </ErrorBoundary>
@@ -168,7 +171,7 @@ const RecordingItemContainer = styled(Link).withConfig({
   // We need to specify this when wrapping non-styled components
   shouldForwardProp: prop =>
     !['viewMode', 'density', 'playable'].includes(prop),
-})<Omit<RecordingItemProps, 'recording'> & { playable: boolean }>(
+})<Pick<RecordingItemProps, 'viewMode' | 'density'> & { playable: boolean }>(
   p => css`
     border: 1px solid ${p.theme.colors.spotBackground[1]};
     border-radius: calc(${p.theme.radii[3]}px + ${p.theme.radii[2]}px);
@@ -196,7 +199,9 @@ const RecordingItemContainer = styled(Link).withConfig({
   `
 );
 
-const ThumbnailContainer = styled.div<Omit<RecordingItemProps, 'recording'>>(
+const ThumbnailContainer = styled.div<
+  Pick<RecordingItemProps, 'viewMode' | 'density'>
+>(
   p => css`
     flex-shrink: 0;
     position: relative;
@@ -223,7 +228,9 @@ const ThumbnailContainer = styled.div<Omit<RecordingItemProps, 'recording'>>(
   `
 );
 
-const RecordingDetails = styled.div<Omit<RecordingItemProps, 'recording'>>(
+const RecordingDetails = styled.div<
+  Pick<RecordingItemProps, 'viewMode' | 'density'>
+>(
   p => css`
     display: flex;
     flex-direction: column;

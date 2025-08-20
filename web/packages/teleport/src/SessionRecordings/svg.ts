@@ -17,29 +17,26 @@
  */
 
 import { useMemo } from 'react';
-import { useTheme, type DefaultTheme } from 'styled-components';
+import { type DefaultTheme } from 'styled-components';
 
-export function useThumbnailSvg(svg: string) {
-  const theme = useTheme();
-
+export function useThumbnailSvg(svg: string, styles: string) {
   return useMemo(
-    () => svgToDataURIBase64(injectSVGStyles(svg, theme)),
-    [svg, theme]
+    () => svgToDataURIBase64(injectSVGStyles(svg, styles)),
+    [svg, styles]
   );
 }
 
-export function injectSVGStyles(svg: string, theme: DefaultTheme) {
-  const styles = generateTerminalSVGStyleTag(theme);
-  const styleTag = `<style>${styles}</style>`;
-
+export function injectSVGStyles(svg: string, styles: string) {
   if (svg.includes('<style>')) {
     return svg.replace(/<style>/, `<style>${styles}\n`);
   }
 
+  const styleTag = `<style>${styles}</style>`;
+
   return svg.replace(/<svg[^>]*>/, match => `${match}${styleTag}`);
 }
 
-function generateTerminalSVGStyleTag(theme: DefaultTheme): string {
+export function generateTerminalSVGStyleTag(theme: DefaultTheme): string {
   const colorMap = [
     theme.colors.terminal.black,
     theme.colors.terminal.red,
