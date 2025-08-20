@@ -127,6 +127,7 @@ describe('DeleteDialog', () => {
     await waitFor(() => {
       expect(screen.getByText('something went wrong')).toBeInTheDocument();
     });
+    expect(onComplete).not.toHaveBeenCalled();
   });
 });
 

@@ -74,11 +74,15 @@ export function ResourceUnlockDialog(props: {
     });
 
   const handleUnlock = async () => {
+    let succeeded = false;
     try {
       await unlock();
-      onComplete();
+      succeeded = true;
     } catch {
       // Swallow this error - it's handled as `unlockError` above
+    }
+    if (succeeded) {
+      onComplete();
     }
   };
 

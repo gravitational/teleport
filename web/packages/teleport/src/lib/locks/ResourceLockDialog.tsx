@@ -68,9 +68,9 @@ export function ResourceLockDialog(props: {
   onCancel: () => void;
   /**
    * Called when the user completes the lock operation.
-   * @param newLock the newly created lock or undefined if the operation didn't happen
+   * @param newLock the newly created lock
    */
-  onComplete: (newLock: Lock | undefined) => void;
+  onComplete: (newLock: Lock) => void;
 }) {
   const { targetKind, targetName, onCancel, onComplete } = props;
 
@@ -83,11 +83,14 @@ export function ResourceLockDialog(props: {
   });
 
   const handleLock = async () => {
+    let newLock: Lock | undefined = undefined;
     try {
-      const newLock = await lock(message, ttl);
-      onComplete(newLock);
+      newLock = await lock(message, ttl);
     } catch {
       // Swallow this error - it's handled as `lockError` above
+    }
+    if (newLock) {
+      onComplete(newLock);
     }
   };
 

@@ -66,11 +66,15 @@ export function DeleteDialog(props: {
   });
 
   const handleDelete = async () => {
+    let succeeded = false;
     try {
       await mutateAsync({ botName });
-      onComplete();
+      succeeded = true;
     } catch {
       // Swallow this error - it's handled as `error` above
+    }
+    if (succeeded) {
+      onComplete();
     }
   };
 
