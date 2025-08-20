@@ -19,7 +19,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Alert, Box, ButtonPrimary, ButtonSecondary, Indicator } from 'design';
+import {
+  Alert,
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Indicator,
+} from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -261,21 +268,22 @@ export function EditDialog(props: {
               ) : undefined}
             </DialogContent>
             <DialogFooter>
-              <ButtonPrimary
-                type="submit"
-                mr="3"
-                disabled={
-                  isLoading || isSubmitting || !hasEditPermission || !isDirty
-                }
-              >
-                Save
-              </ButtonPrimary>
-              <ButtonSecondary
-                disabled={isLoading || isSubmitting}
-                onClick={onCancel}
-              >
-                Cancel
-              </ButtonSecondary>
+              <Flex gap={3}>
+                <ButtonPrimary
+                  type="submit"
+                  disabled={
+                    isLoading || isSubmitting || !hasEditPermission || !isDirty
+                  }
+                >
+                  Save
+                </ButtonPrimary>
+                <ButtonSecondary
+                  disabled={isLoading || isSubmitting}
+                  onClick={onCancel}
+                >
+                  Cancel
+                </ButtonSecondary>
+              </Flex>
             </DialogFooter>
           </form>
         )}

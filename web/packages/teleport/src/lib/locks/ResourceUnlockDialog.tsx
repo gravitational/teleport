@@ -24,6 +24,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
+import Flex from 'design/Flex/Flex';
 
 import { LockResourceKind } from 'teleport/LocksV2/NewLock/common';
 
@@ -103,19 +104,20 @@ export function ResourceUnlockDialog(props: {
         ) : undefined}
       </DialogContent>
       <DialogFooter>
-        <ButtonWarning
-          onClick={handleUnlock}
-          mr="3"
-          disabled={isLoading || !canUnlock || unlockPending}
-        >
-          Remove Lock
-        </ButtonWarning>
-        <ButtonSecondary
-          disabled={isLoading || unlockPending}
-          onClick={onCancel}
-        >
-          Cancel
-        </ButtonSecondary>
+        <Flex gap={3}>
+          <ButtonWarning
+            onClick={handleUnlock}
+            disabled={isLoading || !canUnlock || unlockPending}
+          >
+            Remove Lock
+          </ButtonWarning>
+          <ButtonSecondary
+            disabled={isLoading || unlockPending}
+            onClick={onCancel}
+          >
+            Cancel
+          </ButtonSecondary>
+        </Flex>
       </DialogFooter>
     </Dialog>
   );

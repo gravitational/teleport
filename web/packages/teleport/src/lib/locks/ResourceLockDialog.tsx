@@ -26,6 +26,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
+import Flex from 'design/Flex/Flex';
 import Text from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput/FieldInput';
 import { Validation } from 'shared/components/Validation/Validation';
@@ -139,16 +140,20 @@ export function ResourceLockDialog(props: {
         )}
       </Validation>
       <DialogFooter>
-        <ButtonWarning
-          onClick={handleLock}
-          mr="3"
-          disabled={isLoading || !canLock || lockPending}
-        >
-          Create Lock
-        </ButtonWarning>
-        <ButtonSecondary disabled={isLoading || lockPending} onClick={onCancel}>
-          Cancel
-        </ButtonSecondary>
+        <Flex gap={3}>
+          <ButtonWarning
+            onClick={handleLock}
+            disabled={isLoading || !canLock || lockPending}
+          >
+            Create Lock
+          </ButtonWarning>
+          <ButtonSecondary
+            disabled={isLoading || lockPending}
+            onClick={onCancel}
+          >
+            Cancel
+          </ButtonSecondary>
+        </Flex>
       </DialogFooter>
     </Dialog>
   );

@@ -101,8 +101,8 @@ export function DeleteDialog(props: {
         ) : undefined}
       </DialogContent>
       <DialogFooter>
-        <Flex>
-          <ButtonWarning mr="3" disabled={isPending} onClick={handleDelete}>
+        <Flex gap={3}>
+          <ButtonWarning disabled={isPending} onClick={handleDelete}>
             Delete Bot
           </ButtonWarning>
           <ButtonSecondary disabled={isPending} onClick={onCancel} mr="auto">
