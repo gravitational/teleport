@@ -57,6 +57,10 @@ export function generateTerminalSVGStyleTag(theme: DefaultTheme): string {
   ];
 
   const rules: string[] = [
+    '.i { font-style: italic; }',
+    '.b { font-weight: bold; }',
+    '.u { text-decoration: underline; }',
+    `* { font-family: ${theme.fonts.mono} }`,
     `.terminal { fill: ${theme.colors.terminal.foreground}; }`,
     `.bg-default { fill: ${theme.colors.terminal.background}; }`,
   ];
