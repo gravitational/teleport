@@ -14,12 +14,12 @@ require (
 	github.com/gravitational/trace v1.5.1
 	github.com/stretchr/testify v1.10.0
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
-	golang.org/x/mod v0.26.0
+	golang.org/x/mod v0.27.0
 	golang.org/x/oauth2 v0.30.0
-	google.golang.org/protobuf v1.36.7
-	helm.sh/helm/v3 v3.18.5
+	google.golang.org/protobuf v1.36.8
+	helm.sh/helm/v3 v3.18.6
 	howett.net/plist v1.0.1
-	k8s.io/apiextensions-apiserver v0.33.3
+	k8s.io/apiextensions-apiserver v0.33.4
 )
 
 require (
@@ -59,17 +59,17 @@ require (
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
 	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c // indirect
-	golang.org/x/net v0.41.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
-	golang.org/x/tools v0.34.0 // indirect
+	golang.org/x/tools v0.35.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250127172529-29210b9bc287 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/apimachinery v0.33.3 // indirect
+	k8s.io/apimachinery v0.33.4 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
 	pluginrpc.com/pluginrpc v0.5.0 // indirect
