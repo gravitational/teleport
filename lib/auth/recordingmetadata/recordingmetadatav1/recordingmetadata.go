@@ -276,7 +276,7 @@ loop:
 		return trace.Wrap(err)
 	}
 
-	s.logger.InfoContext(ctx, "Uploaded session recording metadata", "path", path)
+	s.logger.DebugContext(ctx, "Uploaded session recording metadata", "path", path)
 
 	thumbnail := getRandomThumbnail(thumbnails)
 
@@ -291,7 +291,7 @@ loop:
 			return trace.Wrap(err)
 		}
 
-		s.logger.InfoContext(ctx, "Uploaded session recording thumbnail", "path", path)
+		s.logger.DebugContext(ctx, "Uploaded session recording thumbnail", "path", path)
 	}
 
 	return nil
