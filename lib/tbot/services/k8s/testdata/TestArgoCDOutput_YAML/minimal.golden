@@ -1,0 +1,3 @@
+type: kubernetes/argo-cd
+selectors:
+  - name: foo
