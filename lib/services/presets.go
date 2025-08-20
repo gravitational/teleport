@@ -860,7 +860,7 @@ func NewPresetIdentitySecurityViewRole() types.Role {
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessGraphViewRoleName,
 			Namespace:   apidefaults.Namespace,
-			Description: "Default Teleport Identity Security View role",
+			Description: "Default Teleport Identity Security viewer role",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.PresetResource,
 			},
