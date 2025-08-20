@@ -1009,6 +1009,10 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
 [Docs](https://goteleport.com/docs/enroll-resources/agents/gcp/)
 - [ ] Join a Teleport node running in a GCP VM.
 
+### Oracle Node Joining
+[Docs](https://goteleport.com/docs/enroll-resources/agents/oracle/)
+- [ ] Join a Teleport node running in an OCI VM.
+
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/admin-guides/management/guides/ec2-tags/)
 and with tag `foo`: `bar`. Verify that a node running on the instance has label
