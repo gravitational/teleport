@@ -52,7 +52,7 @@ Once you have a high-availability storage backend and multiple instances of
 the Auth Service running, you'll need to create a load balancer to evenly
 distribute traffic to all Auth Service instances and have a single point of
 entry for all components that need to communicate with the Auth Service. Use the
-address of the load balancer in the [`auth_server`](./config.mdx) field when
+address of the load balancer in the [`auth_server`](config.mdx) field when
 configuring other components of Teleport.
 
 Configure your load balancer to use Layer 4 (TCP) load balancing, round-robin
@@ -84,7 +84,7 @@ load balancer you'll need to run Teleport with `--insecure-no-tls`
 </Admonition>
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/readyz` [diagnostics endpoint](../zero-trust-access/management/diagnostics/monitoring.mdx) on
+`/readyz` [diagnostics endpoint](../../zero-trust-access/management/diagnostics/monitoring.mdx) on
 machines running Teleport. This endpoint must be enabled by using the
 `--diag-addr` flag to teleport start:
 
