@@ -26,8 +26,9 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // iterateSimple implements pagination for "simple" object lists, where additional logic isn't needed
