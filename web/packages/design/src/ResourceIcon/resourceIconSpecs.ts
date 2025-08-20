@@ -171,6 +171,7 @@ export const resourceIconSpecs = {
   inkeep: forAllThemes(i.inkeep),
   instruqt: { dark: i.instruqtDark, light: i.instruqtLight },
   intellimize: forAllThemes(i.intellimize),
+  intune: forAllThemes(i.intune),
   ipstack: forAllThemes(i.ipstack),
 
   jamf: forAllThemes(i.jamf),
