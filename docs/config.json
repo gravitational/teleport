@@ -101,7 +101,7 @@
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_accesslists/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-accesslists/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-accesslists/",
       "permanent": true
     },
     {
@@ -111,62 +111,62 @@
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_githubconnectors/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-githubconnectors/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-githubconnectors/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_loginrules/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-loginrules/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-loginrules/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_oidcconnectors/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-oidcconnectors/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-oidcconnectors/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_oktaimportrules/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-oktaimportrules/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-oktaimportrules/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_openssheiceserversv2/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-openssheiceserversv2/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-openssheiceserversv2/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_opensshserversv2/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-opensshserversv2/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-opensshserversv2/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_provisiontokens/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-provisiontokens/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-provisiontokens/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_roles/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-roles/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-roles/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_rolesv6/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-rolesv6/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-rolesv6/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_rolesv7/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-rolesv7/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-rolesv7/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_samlconnectors/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-samlconnectors/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-samlconnectors/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_users/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-users/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-users/",
       "permanent": true
     },
     {
@@ -286,7 +286,7 @@
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_trustedclustersv2/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-trustedclustersv2/",
       "permanent": true
     },
     {
@@ -1682,6 +1682,506 @@
     {
       "source": "/zero-trust-access/sso/azuread/",
       "destination": "/zero-trust-access/sso/entra-id/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/backends/",
+      "destination": "/reference/deployment/backends/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/cloud-faq/",
+      "destination": "/cloud-faq/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/config/",
+      "destination": "/reference/deployment/config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/identity-security-config/",
+      "destination": "/reference/deployment/identity-security-config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/join-methods/",
+      "destination": "/reference/deployment/join-methods/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/managed-updates-v2/",
+      "destination": "/reference/deployment/managed-updates-v2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/monitoring/audit/",
+      "destination": "/reference/deployment/monitoring/audit/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/monitoring/metrics/",
+      "destination": "/reference/deployment/monitoring/metrics/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/monitoring/",
+      "destination": "/reference/deployment/monitoring/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/monitoring/tracing-service-configuration/",
+      "destination": "/reference/deployment/monitoring/tracing-service-configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/networking/",
+      "destination": "/reference/deployment/networking/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/",
+      "destination": "/reference/api/operator-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-accesslists/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-accesslists/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-appsv3/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-appsv3/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-autoupdateconfigsv1/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-autoupdateconfigsv1/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-autoupdateversionsv1/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-autoupdateversionsv1/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-botsv1/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-botsv1/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-databasesv3/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-databasesv3/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-githubconnectors/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-githubconnectors/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-loginrules/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-loginrules/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-oidcconnectors/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-oidcconnectors/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-oktaimportrules/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-oktaimportrules/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-openssheiceserversv2/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-openssheiceserversv2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-opensshserversv2/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-opensshserversv2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-provisiontokens/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-provisiontokens/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-roles/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-roles/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-rolesv6/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-rolesv6/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-rolesv7/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-rolesv7/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-rolesv8/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-rolesv8/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-samlconnectors/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-samlconnectors/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-users/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-users/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-workloadidentitiesv1/",
+      "destination": "/reference/api/operator-resources/resources-teleport-dev-workloadidentitiesv1/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/predicate-language/",
+      "destination": "/reference/access-controls/predicate-language/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/resources/",
+      "destination": "/reference/api/resources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/signals/",
+      "destination": "/reference/deployment/signals/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/signature-algorithms/",
+      "destination": "/reference/deployment/signature-algorithms/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/data-sources/",
+      "destination": "/reference/api/terraform-provider-mwi/data-sources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/data-sources/kubernetes/",
+      "destination": "/reference/api/terraform-provider-mwi/data-sources/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/ephemeral-resources/",
+      "destination": "/reference/api/terraform-provider-mwi/ephemeral-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/ephemeral-resources/kubernetes/",
+      "destination": "/reference/api/terraform-provider-mwi/ephemeral-resources/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/",
+      "destination": "/reference/api/terraform-provider-mwi/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/access_list/",
+      "destination": "/reference/api/terraform-provider/data-sources/access_list/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/access_list_member/",
+      "destination": "/reference/api/terraform-provider/data-sources/access_list_member/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/access_monitoring_rule/",
+      "destination": "/reference/api/terraform-provider/data-sources/access_monitoring_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/app/",
+      "destination": "/reference/api/terraform-provider/data-sources/app/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/auth_preference/",
+      "destination": "/reference/api/terraform-provider/data-sources/auth_preference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/autoupdate_config/",
+      "destination": "/reference/api/terraform-provider/data-sources/autoupdate_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/autoupdate_version/",
+      "destination": "/reference/api/terraform-provider/data-sources/autoupdate_version/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/cluster_maintenance_config/",
+      "destination": "/reference/api/terraform-provider/data-sources/cluster_maintenance_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/cluster_networking_config/",
+      "destination": "/reference/api/terraform-provider/data-sources/cluster_networking_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/",
+      "destination": "/reference/api/terraform-provider/data-sources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/database/",
+      "destination": "/reference/api/terraform-provider/data-sources/database/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/dynamic_windows_desktop/",
+      "destination": "/reference/api/terraform-provider/data-sources/dynamic_windows_desktop/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/github_connector/",
+      "destination": "/reference/api/terraform-provider/data-sources/github_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/health_check_config/",
+      "destination": "/reference/api/terraform-provider/data-sources/health_check_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/installer/",
+      "destination": "/reference/api/terraform-provider/data-sources/installer/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/login_rule/",
+      "destination": "/reference/api/terraform-provider/data-sources/login_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/oidc_connector/",
+      "destination": "/reference/api/terraform-provider/data-sources/oidc_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/okta_import_rule/",
+      "destination": "/reference/api/terraform-provider/data-sources/okta_import_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/provision_token/",
+      "destination": "/reference/api/terraform-provider/data-sources/provision_token/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/role/",
+      "destination": "/reference/api/terraform-provider/data-sources/role/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/saml_connector/",
+      "destination": "/reference/api/terraform-provider/data-sources/saml_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/session_recording_config/",
+      "destination": "/reference/api/terraform-provider/data-sources/session_recording_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/static_host_user/",
+      "destination": "/reference/api/terraform-provider/data-sources/static_host_user/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/trusted_cluster/",
+      "destination": "/reference/api/terraform-provider/data-sources/trusted_cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/trusted_device/",
+      "destination": "/reference/api/terraform-provider/data-sources/trusted_device/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/user/",
+      "destination": "/reference/api/terraform-provider/data-sources/user/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/workload_identity/",
+      "destination": "/reference/api/terraform-provider/data-sources/workload_identity/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/access_list/",
+      "destination": "/reference/api/terraform-provider/resources/access_list/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/access_list_member/",
+      "destination": "/reference/api/terraform-provider/resources/access_list_member/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/access_monitoring_rule/",
+      "destination": "/reference/api/terraform-provider/resources/access_monitoring_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/app/",
+      "destination": "/reference/api/terraform-provider/resources/app/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/auth_preference/",
+      "destination": "/reference/api/terraform-provider/resources/auth_preference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/autoupdate_config/",
+      "destination": "/reference/api/terraform-provider/resources/autoupdate_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/autoupdate_version/",
+      "destination": "/reference/api/terraform-provider/resources/autoupdate_version/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/bot/",
+      "destination": "/reference/api/terraform-provider/resources/bot/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/cluster_maintenance_config/",
+      "destination": "/reference/api/terraform-provider/resources/cluster_maintenance_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/cluster_networking_config/",
+      "destination": "/reference/api/terraform-provider/resources/cluster_networking_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/database/",
+      "destination": "/reference/api/terraform-provider/resources/database/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/dynamic_windows_desktop/",
+      "destination": "/reference/api/terraform-provider/resources/dynamic_windows_desktop/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/github_connector/",
+      "destination": "/reference/api/terraform-provider/resources/github_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/health_check_config/",
+      "destination": "/reference/api/terraform-provider/resources/health_check_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/installer/",
+      "destination": "/reference/api/terraform-provider/resources/installer/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/login_rule/",
+      "destination": "/reference/api/terraform-provider/resources/login_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/oidc_connector/",
+      "destination": "/reference/api/terraform-provider/resources/oidc_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/okta_import_rule/",
+      "destination": "/reference/api/terraform-provider/resources/okta_import_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/provision_token/",
+      "destination": "/reference/api/terraform-provider/resources/provision_token/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/",
+      "destination": "/reference/api/terraform-provider/resources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/role/",
+      "destination": "/reference/api/terraform-provider/resources/role/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/saml_connector/",
+      "destination": "/reference/api/terraform-provider/resources/saml_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/server/",
+      "destination": "/reference/api/terraform-provider/resources/server/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/session_recording_config/",
+      "destination": "/reference/api/terraform-provider/resources/session_recording_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/static_host_user/",
+      "destination": "/reference/api/terraform-provider/resources/static_host_user/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/trusted_cluster/",
+      "destination": "/reference/api/terraform-provider/resources/trusted_cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/trusted_device/",
+      "destination": "/reference/api/terraform-provider/resources/trusted_device/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/user/",
+      "destination": "/reference/api/terraform-provider/resources/user/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/workload_identity/",
+      "destination": "/reference/api/terraform-provider/resources/workload_identity/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/",
+      "destination": "/reference/api/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/user-types/",
+      "destination": "/reference/access-controls/user-types/",
       "permanent": true
     }
   ]

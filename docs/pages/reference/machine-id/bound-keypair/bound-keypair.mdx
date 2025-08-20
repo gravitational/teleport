@@ -1,5 +1,6 @@
 ---
 title: Bound Keypair Joining Reference
+sidebar_label: Bound Keypair Joining
 description: "Bound Keypair Joining: Reference and admin guide"
 ---
 
@@ -53,7 +54,7 @@ In particular, the [secure recovery modes](concepts.mdx#recovery) introduce some
 restrictions:
 - Each bot deployment must be issued a unique token. For deployment at scale,
   use of Teleport's
-  [Terraform provider](../../terraform-provider/terraform-provider.mdx) is
+  [Terraform provider](../../api/terraform-provider/terraform-provider.mdx) is
   recommended to create tokens in bulk for each deployment.
 - Each bot deployment must be able to store client-side state (used for
   [join state verification](concepts.mdx#join-state-verification)).
@@ -73,9 +74,9 @@ You can read step-by-step guides on using Bound Keypair Joining with Machine ID:
   components and architecture of Bound Keypair Joining
 - [Bound Keypair Joining Admin Guide](./admin-guide.mdx): Learn how to deploy
   and maintain bots in production with Bound Keypair Joining
-- [Bound Keypair Provision Token Reference](../../join-methods.mdx#bound-keypair-bound_keypair): Learn about the options that can be configured for a `bound_keypair` token
+- [Bound Keypair Provision Token Reference](../../deployment/join-methods.mdx#bound-keypair-bound_keypair): Learn about the options that can be configured for a `bound_keypair` token
 
-[delegated]: ../../join-methods.mdx#delegated-join-methods
+[delegated]: ../../deployment/join-methods.mdx#delegated-join-methods
 [ephemeral]: ../../architecture/machine-id-architecture.mdx#ephemeral-token
-[token]: ../../join-methods.mdx#ephemeral-tokens
-[s-vs-d]: ../../join-methods.mdx#secret-vs-delegated
+[token]: ../../deployment/join-methods.mdx#ephemeral-tokens
+[s-vs-d]: ../../deployment/join-methods.mdx#secret-vs-delegated

@@ -169,7 +169,7 @@ You can find a full list of the supported attributes on the
 [Attributes reference](./attributes.mdx) page.
 
 The WorkloadIdentity resource's fields use Teleport's
-[Predicate Language](../predicate-language.mdx) for templating, allowing you to
+[Predicate Language](../access-controls/predicate-language.mdx) for templating, allowing you to
 apply text manipulation functions like `strings.lower` and `regex.replace`.
 
 ## Rules
@@ -181,7 +181,7 @@ the labels on the WorkloadIdentity resource.
 However, you can further restrict the issuance of credentials based on the
 attributes of the workload using the rules mechanism.
 
-Each rule consists of either a [Predicate Language](../predicate-language.mdx)
+Each rule consists of either a [Predicate Language](../access-controls/predicate-language.mdx)
 expression or a set of conditions. When using the conditions form, all
 conditions within that rule must pass in order for the rule to be considered a
 pass. If you specify multiple rules, then at least one rule must pass in order
@@ -315,7 +315,7 @@ When using the conditions form and comparing attributes which are not strings
 (e.g. a boolean or number), the attribute values will be converted to a string
 representation.
 
-When using the [Predicate Language](../predicate-language.mdx), the attribute
+When using the [Predicate Language](../access-controls/predicate-language.mdx), the attribute
 values will be compared as-is.
 
 ## Infrastructure as Code
@@ -326,4 +326,4 @@ tools.
 
 For further information see:
 
-- [Terraform provider reference: teleport_workload_identity](../terraform-provider/resources/workload_identity.mdx)
+- [Terraform provider reference: teleport_workload_identity](../api/terraform-provider/resources/workload_identity.mdx)

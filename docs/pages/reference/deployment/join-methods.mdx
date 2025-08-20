@@ -17,7 +17,7 @@ join an instance with each join method, but links to the relevant How-To
 guides when possible.
 
 <Admonition type="note" title="Prerequisite">
-You must be familiar with the [Teleport Core concepts](../core-concepts.mdx)
+You must be familiar with the [Teleport Core concepts](../../core-concepts.mdx)
 before reading this page.
 </Admonition>
 
@@ -271,8 +271,8 @@ New Machine & Workload Identity bot deployments should consider upgrading to the
 </Admonition>
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with a Secure Token](../enroll-resources/agents/join-token.mdx).
-- [Deploying Machine ID on Linux](../machine-workload-identity/machine-id/deployment/linux.mdx)
+- How to [Join Services with a Secure Token](../../enroll-resources/agents/join-token.mdx).
+- [Deploying Machine ID on Linux](../../machine-workload-identity/machine-id/deployment/linux.mdx)
 </Admonition>
 
 ### Bound Keypair: `bound_keypair`
@@ -293,8 +293,8 @@ bots, and cannot be used to join other Teleport agent types.
 (!docs/pages/includes/provision-token/bound-keypair-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID with Bound Keypair joining](./machine-id/bound-keypair/getting-started.mdx)
-- [Bound Keypair Reference](./machine-id/bound-keypair/bound-keypair.mdx)
+- [Deploying Machine ID with Bound Keypair joining](../machine-id/bound-keypair/getting-started.mdx)
+- [Bound Keypair Reference](../machine-id/bound-keypair/bound-keypair.mdx)
 </Admonition>
 
 ### AWS IAM role: `iam`
@@ -308,8 +308,8 @@ This is the recommended method to join workload running on AWS.
 (!docs/pages/includes/provision-token/iam-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via AWS IAM Role](../enroll-resources/agents/aws-iam.mdx).
-- [Deploying Machine ID on AWS](../machine-workload-identity/machine-id/deployment/aws.mdx)
+- [Joining Services via AWS IAM Role](../../enroll-resources/agents/aws-iam.mdx).
+- [Deploying Machine ID on AWS](../../machine-workload-identity/machine-id/deployment/aws.mdx)
 </Admonition>
 
 ### AWS EC2 identity document: `ec2`
@@ -333,7 +333,7 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-[Joining Services via AWS EC2 Identity Document](../enroll-resources/agents/aws-ec2.mdx).
+[Joining Services via AWS EC2 Identity Document](../../enroll-resources/agents/aws-ec2.mdx).
 </Admonition>
 
 ### Azure managed identity: `azure`
@@ -345,22 +345,22 @@ behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 (!docs/pages/includes/provision-token/azure-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Azure Managed Identity](../enroll-resources/agents/azure.mdx).
-- [Deploying Machine ID on Azure](../machine-workload-identity/machine-id/deployment/azure.mdx)
+- [Joining Services via Azure Managed Identity](../../enroll-resources/agents/azure.mdx).
+- [Deploying Machine ID on Azure](../../machine-workload-identity/machine-id/deployment/azure.mdx)
 </Admonition>
 
 ### Azure Devops: `azure_devops`
 
 The Azure DevOps is available to any Teleport process running in an Azure DevOps
 pipeline. This join method is typically used with
-[Machine & Workload Identity](../machine-workload-identity/machine-id/introduction.mdx)
+[Machine & Workload Identity](../../machine-workload-identity/machine-id/introduction.mdx)
 to access Teleport-protected resources in Azure DevOps pipelines without the
 use of long-lived secrets.
 
 (!docs/pages/includes/provision-token/azure-devops-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Azure DevOps](../machine-workload-identity/machine-id/deployment/azure-devops.mdx)
+- [Deploying Machine ID on Azure DevOps](../../machine-workload-identity/machine-id/deployment/azure-devops.mdx)
 </Admonition>
 
 ### GCP service account: `gcp`
@@ -374,32 +374,32 @@ on the Teleport process joining the cluster.
 (!docs/pages/includes/provision-token/gcp-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with GCP](../enroll-resources/agents/gcp.mdx).
-- [Deploying Machine ID on GCP](../machine-workload-identity/machine-id/deployment/gcp.mdx)
+- How to [Join Services with GCP](../../enroll-resources/agents/gcp.mdx).
+- [Deploying Machine ID on GCP](../../machine-workload-identity/machine-id/deployment/gcp.mdx)
 </Admonition>
 
 ### GitHub Actions: `github`
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
 Actions runners as well as GitHub Enterprise Server. This join method is
-typically used with [Machine ID](../machine-workload-identity/machine-id/introduction.mdx) to access
+typically used with [Machine ID](../../machine-workload-identity/machine-id/introduction.mdx) to access
 Teleport-protected resources in GitHub Actions pipelines.
 
 (!docs/pages/includes/provision-token/github-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on GitHub Actions](../machine-workload-identity/machine-id/deployment/github-actions.mdx)
+- [Deploying Machine ID on GitHub Actions](../../machine-workload-identity/machine-id/deployment/github-actions.mdx)
 </Admonition>
 
 ### CircleCI: `circleci`
 
-This join method is typically used with [Machine ID](../machine-workload-identity/machine-id/introduction.mdx)
+This join method is typically used with [Machine ID](../../machine-workload-identity/machine-id/introduction.mdx)
 to access Teleport-protected resources in Circle CI pipelines.
 
 (!docs/pages/includes/provision-token/circleci-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Circle CI](../machine-workload-identity/machine-id/deployment/circleci.mdx)
+- [Deploying Machine ID on Circle CI](../../machine-workload-identity/machine-id/deployment/circleci.mdx)
 </Admonition>
 
 ### GitLab: `gitlab`
@@ -407,13 +407,13 @@ to access Teleport-protected resources in Circle CI pipelines.
 Teleport supports secure joining on both cloud-hosted and self-hosted GitLab
 instances. **The minimum supported GitLab version is 15.7**.
 
-This join method is typically used with [MachineID](../machine-workload-identity/machine-id/introduction.mdx)
+This join method is typically used with [MachineID](../../machine-workload-identity/machine-id/introduction.mdx)
 to access Teleport-protected resources in Gitlab CI pipelines.
 
 (!docs/pages/includes/provision-token/gitlab-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on GitLab CI](../machine-workload-identity/machine-id/deployment/gitlab.mdx)
+- [Deploying Machine ID on GitLab CI](../../machine-workload-identity/machine-id/deployment/gitlab.mdx)
 </Admonition>
 
 ### Kubernetes: `kubernetes`
@@ -439,7 +439,7 @@ the pod enters the `Terminated` state.
 (!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Kubernetes ServiceAccount Token](../enroll-resources/agents/kubernetes.mdx)
+- [Joining Services via Kubernetes ServiceAccount Token](../../enroll-resources/agents/kubernetes.mdx)
 </Admonition>
 
 #### Kubernetes JWKS
@@ -460,7 +460,7 @@ to contain the new Kubernetes signing keys (update the
 </Admonition>
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Kubernetes](../machine-workload-identity/machine-id/deployment/kubernetes.mdx)
+- [Deploying Machine ID on Kubernetes](../../machine-workload-identity/machine-id/deployment/kubernetes.mdx)
 </Admonition>
 
 #### Kubernetes OIDC
@@ -487,7 +487,7 @@ version 18.1.5.
 (!docs/pages/includes/provision-token/kubernetes-oidc-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Kubernetes with OIDC](../machine-workload-identity/machine-id/deployment/kubernetes-oidc.mdx)
+- [Deploying Machine ID on Kubernetes with OIDC](../../machine-workload-identity/machine-id/deployment/kubernetes-oidc.mdx)
 </Admonition>
 
 ### Trusted Platform Module: `tpm`
@@ -497,7 +497,7 @@ version 18.1.5.
 (!docs/pages/includes/provision-token/tpm-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Linux: TPM](../machine-workload-identity/machine-id/deployment/linux-tpm.mdx)
+- [Deploying Machine ID on Linux: TPM](../../machine-workload-identity/machine-id/deployment/linux-tpm.mdx)
 </Admonition>
 
 ### Terraform Cloud: `terraform_cloud`
@@ -515,7 +515,7 @@ Support for self-hosted Terraform Enterprise requires Teleport Enterprise.
 (!docs/pages/includes/provision-token/terraform-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Run the Teleport Terraform Provider on Terraform Cloud](../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
+- [Run the Teleport Terraform Provider on Terraform Cloud](../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
 </Admonition>
 
 ### Spacelift: `spacelift`
@@ -527,7 +527,7 @@ deployments).
 (!docs/pages/includes/provision-token/spacelift-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-    - [Run the Teleport Terraform Provider on Spacelift](../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift.mdx)
+    - [Run the Teleport Terraform Provider on Spacelift](../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift.mdx)
 </Admonition>
 
 ### Bitbucket Pipelines: `bitbucket`
@@ -540,7 +540,7 @@ secrets.
 (!docs/pages/includes/provision-token/bitbucket-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Bitbucket Pipelines](../machine-workload-identity/machine-id/deployment/bitbucket.mdx)
+- [Deploying Machine ID on Bitbucket Pipelines](../../machine-workload-identity/machine-id/deployment/bitbucket.mdx)
 </Admonition>
 
 ### Oracle Cloud: `oracle`
@@ -551,7 +551,7 @@ Cloud Compute instance.
 (!docs/pages/includes/provision-token/oracle-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with Oracle Cloud](../enroll-resources/agents/oracle.mdx).
+- How to [Join Services with Oracle Cloud](../../enroll-resources/agents/oracle.mdx).
 </Admonition>
 
 [discovery]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-issuer-discovery
