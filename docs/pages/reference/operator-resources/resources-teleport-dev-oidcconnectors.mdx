@@ -36,6 +36,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |client_redirect_settings|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
 |client_secret|string|ClientSecret is used to authenticate the client. This field supports secret lookup. See the operator documentation for more details.|
 |display|string|Display is the friendly name for this provider.|
+|entra_id_groups_provider|[object](#specentra_id_groups_provider)|EntraIDGroupsProvider configures out-of-band user groups provider.|
 |google_admin_email|string|GoogleAdminEmail is the email of a google admin to impersonate.|
 |google_service_account|string|GoogleServiceAccount is a string containing google service account credentials.|
 |google_service_account_uri|string|GoogleServiceAccountURI is a path to a google service account uri.|
@@ -65,6 +66,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
 |insecure_allowed_cidr_ranges|[]string|a list of CIDRs allowed for HTTP or HTTPS client redirect URLs|
+
+### spec.entra_id_groups_provider
+
+|Field|Type|Description|
+|---|---|---|
+|enabled|boolean|Enabled specifies groups provider enabled/disabled state. Defaults to false. If enabled, groups provider should honour groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.|
+|graph_endpoint|string|Optional Microsoft Graph API endpoint. Defaults to "graph.microsoft.com".|
+|group_type|string|GroupType configures group filter behavior. Value can be "security-groups", "directory-roles", "all-groups".|
 
 ### spec.mfa
 
