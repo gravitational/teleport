@@ -20,7 +20,7 @@ import { RecordingPlayer } from 'teleport/SessionRecordings/view/RecordingPlayer
 
 export type SummarySlot = (sessionId: string) => ReactNode;
 
-interface ViewTerminalRecordingProps {
+interface RecordingWithMetadataProps {
   clusterId: string;
   sessionId: string;
   summarySlot?: SummarySlot;
@@ -122,11 +122,11 @@ const ShowSidebarButton = styled(HideSidebarButton)`
   }
 `;
 
-export function ViewTerminalRecording({
+export function RecordingWithMetadata({
   clusterId,
   sessionId,
   summarySlot,
-}: ViewTerminalRecordingProps) {
+}: RecordingWithMetadataProps) {
   const { data } = useSuspenseGetRecordingMetadata({
     clusterId,
     sessionId,
@@ -145,8 +145,6 @@ export function ViewTerminalRecording({
 
   const startTime = new Date(data.metadata.startTime * 1000);
   const endTime = new Date(data.metadata.endTime * 1000);
-
-  console.log('data', data);
 
   return (
     <Grid sidebarVisible={sidebarVisible}>
