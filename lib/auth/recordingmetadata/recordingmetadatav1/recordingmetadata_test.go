@@ -1,4 +1,5 @@
 /**
+ * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,6 +19,7 @@
 package recordingmetadatav1
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -25,7 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -42,17 +46,20 @@ func TestProcessSessionRecording(t *testing.T) {
 		events             []apievents.AuditEvent
 		expectError        bool
 		expectedThumbnails func(t *testing.T, thumbnailData []byte)
-		expectedMetadata   func(t *testing.T, metadata *pb.SessionRecordingMetadataWithFrames)
+		expectedMetadata   func(t *testing.T, metadata *pb.SessionRecordingMetadata)
+		expectedFrames     func(t *testing.T, frames []*pb.SessionRecordingThumbnail)
 	}{
 		{
 			name:   "basic session with print events",
 			events: generateBasicSession(startTime),
-			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadataWithFrames) {
-				require.NotNil(t, metadata.Metadata)
-				require.NotNil(t, metadata.Metadata.Duration)
-				require.Equal(t, int32(80), metadata.Metadata.StartCols)
-				require.Equal(t, int32(24), metadata.Metadata.StartRows)
-				require.Greater(t, len(metadata.Frames), 0)
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.NotNil(t, metadata)
+				require.NotNil(t, metadata.Duration)
+				require.Equal(t, int32(80), metadata.StartCols)
+				require.Equal(t, int32(24), metadata.StartRows)
+			},
+			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
+				require.Greater(t, len(frames), 0)
 			},
 			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
 				var thumbnail pb.SessionRecordingThumbnail
@@ -64,11 +71,11 @@ func TestProcessSessionRecording(t *testing.T) {
 		{
 			name:   "session with resize events",
 			events: generateSessionWithResize(startTime),
-			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadataWithFrames) {
-				require.NotNil(t, metadata.Metadata)
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.NotNil(t, metadata)
 
 				var hasResize bool
-				for _, event := range metadata.Metadata.Events {
+				for _, event := range metadata.Events {
 					if resize := event.GetResize(); resize != nil {
 						hasResize = true
 						require.Equal(t, int32(120), resize.Cols)
@@ -81,11 +88,11 @@ func TestProcessSessionRecording(t *testing.T) {
 		{
 			name:   "session with inactivity periods",
 			events: generateSessionWithInactivity(startTime),
-			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadataWithFrames) {
-				require.NotNil(t, metadata.Metadata)
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.NotNil(t, metadata)
 
 				var hasInactivity bool
-				for _, event := range metadata.Metadata.Events {
+				for _, event := range metadata.Events {
 					if event.GetInactivity() != nil {
 						hasInactivity = true
 						require.NotNil(t, event.StartOffset)
@@ -98,11 +105,11 @@ func TestProcessSessionRecording(t *testing.T) {
 		{
 			name:   "session with join and leave events",
 			events: generateSessionWithJoinLeave(startTime),
-			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadataWithFrames) {
-				require.NotNil(t, metadata.Metadata)
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.NotNil(t, metadata)
 
 				joinUsers := make(map[string]bool)
-				for _, event := range metadata.Metadata.Events {
+				for _, event := range metadata.Events {
 					if join := event.GetJoin(); join != nil {
 						joinUsers[join.User] = true
 					}
@@ -123,13 +130,14 @@ func TestProcessSessionRecording(t *testing.T) {
 			}
 			uploadHandler := newMockUploadHandler()
 
-			service := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+			service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
 				Streamer:      streamer,
 				UploadHandler: uploadHandler,
 			})
+			require.NoError(t, err)
 
 			ctx := context.Background()
-			err := service.ProcessSessionRecording(ctx, sessionID)
+			err = service.ProcessSessionRecording(ctx, sessionID)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -141,12 +149,15 @@ func TestProcessSessionRecording(t *testing.T) {
 				uploadHandler.mu.Unlock()
 				require.True(t, ok, "metadata should be uploaded")
 
-				var metadata pb.SessionRecordingMetadataWithFrames
-				err = proto.Unmarshal(metadataData, &metadata)
+				metadata, frames, err := unmarshalMetadata(metadataData)
 				require.NoError(t, err)
 
 				if tt.expectedMetadata != nil {
-					tt.expectedMetadata(t, &metadata)
+					tt.expectedMetadata(t, metadata)
+				}
+
+				if tt.expectedFrames != nil {
+					tt.expectedFrames(t, frames)
 				}
 
 				uploadHandler.mu.Lock()
@@ -168,13 +179,14 @@ func TestProcessSessionRecording_StreamError(t *testing.T) {
 	}
 	uploadHandler := newMockUploadHandler()
 
-	service := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
 		Streamer:      streamer,
 		UploadHandler: uploadHandler,
 	})
+	require.NoError(t, err)
 
 	ctx := context.Background()
-	err := service.ProcessSessionRecording(ctx, sessionID)
+	err = service.ProcessSessionRecording(ctx, sessionID)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream error")
 }
@@ -190,13 +202,14 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 	uploadHandler := newMockUploadHandler()
 	uploadHandler.uploadError = errors.New("upload failed")
 
-	service := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
 		Streamer:      streamer,
 		UploadHandler: uploadHandler,
 	})
+	require.NoError(t, err)
 
 	ctx := context.Background()
-	err := service.ProcessSessionRecording(ctx, sessionID)
+	err = service.ProcessSessionRecording(ctx, sessionID)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "upload failed")
 }
@@ -211,10 +224,11 @@ func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 
 	uploadHandler := newMockUploadHandler()
 
-	service := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
 		Streamer:      streamer,
 		UploadHandler: uploadHandler,
 	})
+	require.NoError(t, err)
 
 	processDone := make(chan error, 1)
 	go func() {
@@ -274,13 +288,14 @@ func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
 			}
 			uploadHandler := newMockUploadHandler()
 
-			service := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+			service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
 				Streamer:      streamer,
 				UploadHandler: uploadHandler,
 			})
+			require.NoError(t, err)
 
 			ctx := context.Background()
-			err := service.ProcessSessionRecording(ctx, sessionID)
+			err = service.ProcessSessionRecording(ctx, sessionID)
 
 			require.NoError(t, err)
 
@@ -383,11 +398,11 @@ func generateSessionWithInactivity(startTime time.Time) []apievents.AuditEvent {
 			},
 			Data: []byte("Active\n"),
 		},
-		// 10 second gap
+		// 20 second gap
 		&apievents.SessionPrint{
 			Metadata: apievents.Metadata{
 				Type: "print",
-				Time: startTime.Add(11 * time.Second),
+				Time: startTime.Add(21 * time.Second),
 			},
 			Data: []byte("After inactivity\n"),
 		},
@@ -456,6 +471,33 @@ func generateSessionWithJoinLeave(startTime time.Time) []apievents.AuditEvent {
 		},
 	}
 	return events
+}
+
+func unmarshalMetadata(data []byte) (*pb.SessionRecordingMetadata, []*pb.SessionRecordingThumbnail, error) {
+	reader := bytes.NewReader(data)
+
+	metadata := &pb.SessionRecordingMetadata{}
+	err := protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, metadata)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var frames []*pb.SessionRecordingThumbnail
+
+	for {
+		frame := &pb.SessionRecordingThumbnail{}
+		err := protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, frame)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		frames = append(frames, frame)
+	}
+
+	return metadata, frames, nil
 }
 
 // mockStreamer implements player.Streamer for testing

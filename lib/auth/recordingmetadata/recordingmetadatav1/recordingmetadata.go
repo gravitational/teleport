@@ -1,4 +1,5 @@
 /**
+ * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -21,6 +22,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"math/rand"
 	"strconv"
@@ -37,17 +39,29 @@ import (
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/terminal"
 )
 
+type uploadHandler interface {
+	// UploadMetadata uploads session metadata and returns a URL with the uploaded
+	// file in case of success. Session metadata is a file with a [recordingmetadatav1.SessionRecordingMetadata]
+	// protobuf message containing info about the session (duration, events, etc), as well as
+	// multiple [recordingmetadatav1.SessionRecordingThumbnail] messages (thumbnails).
+	UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	// UploadThumbnail uploads a session thumbnail and returns a URL with uploaded
+	// file in case of success. A thumbnail is [recordingmetadatav1.SessionRecordingThumbnail]
+	// protobuf message which contains the thumbnail as an SVG, and some basic details about the
+	// state of the terminal at the time of the thumbnail capture (terminal size, cursor position).
+	UploadThumbnail(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+}
+
 // RecordingMetadataService processes session recordings to generate metadata and thumbnails.
 type RecordingMetadataService struct {
 	logger        *slog.Logger
 	streamer      player.Streamer
-	uploadHandler events.UploadHandler
+	uploadHandler uploadHandler
 }
 
 // RecordingMetadataServiceConfig defines the configuration for the RecordingMetadataService.
@@ -55,24 +69,31 @@ type RecordingMetadataServiceConfig struct {
 	// Streamer is used to stream session events.
 	Streamer player.Streamer
 	// UploadHandler is used to upload session metadata and thumbnails.
-	UploadHandler events.UploadHandler
+	UploadHandler uploadHandler
 }
 
 const (
 	// inactivityThreshold is the duration after which an inactivity event is recorded.
-	inactivityThreshold = 5 * time.Second
+	inactivityThreshold = 10 * time.Second
 
 	// maxThumbnails is the maximum number of thumbnails to store in the session metadata.
 	maxThumbnails = 1000
 )
 
 // NewRecordingMetadataService creates a new instance of RecordingMetadataService with the provided configuration.
-func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) *RecordingMetadataService {
+func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*RecordingMetadataService, error) {
+	if cfg.Streamer == nil {
+		return nil, trace.BadParameter("streamer is required")
+	}
+	if cfg.UploadHandler == nil {
+		return nil, trace.BadParameter("uploadHandler is required")
+	}
+
 	return &RecordingMetadataService{
 		streamer:      cfg.Streamer,
 		uploadHandler: cfg.UploadHandler,
 		logger:        slog.With(teleport.ComponentKey, "recording_metadata"),
-	}
+	}, nil
 }
 
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
@@ -89,7 +110,6 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 
 	vt := vt10x.New()
 
-	frames := make([]*pb.SessionRecordingThumbnail, 0)
 	metadata := &pb.SessionRecordingMetadata{
 		Events: make([]*pb.SessionRecordingEvent, 0),
 	}
@@ -122,8 +142,8 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 loop:
 	for {
 		select {
-		case evt := <-evts:
-			if evt == nil {
+		case evt, ok := <-evts:
+			if !ok {
 				break loop
 			}
 
@@ -241,30 +261,35 @@ loop:
 	metadata.EndTime = timestamppb.New(lastEvent.GetTime())
 
 	thumbnails := sampler.result()
-	for _, t := range thumbnails {
-		if t == nil || t.state == nil {
-			continue
-		}
 
-		svg := terminal.VtStateToSvg(t.state)
+	metadataBuf := &bytes.Buffer{}
+	writer := bufio.NewWriter(metadataBuf)
 
-		thumbnail := &pb.SessionRecordingThumbnail{
-			Svg:         svg,
-			Cols:        int32(t.state.Cols),
-			Rows:        int32(t.state.Rows),
-			CursorX:     int32(t.state.CursorX),
-			CursorY:     int32(t.state.CursorY),
-			StartOffset: durationpb.New(t.startOffset),
-			EndOffset:   durationpb.New(t.endOffset),
-		}
-
-		frames = append(frames, thumbnail)
+	if _, err := protodelim.MarshalTo(writer, metadata); err != nil {
+		return trace.Wrap(err)
 	}
 
-	thumbnail := getRandomThumbnail(frames)
+	for _, t := range thumbnails {
+		if _, err := protodelim.MarshalTo(writer, thumbnailEntryToProto(t)); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := writer.Flush(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	path, err := s.uploadHandler.UploadMetadata(ctx, sessionID, metadataBuf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.logger.Info("Uploaded session recording metadata", "path", path)
+
+	thumbnail := getRandomThumbnail(thumbnails)
 
 	if thumbnail != nil {
-		b, err := proto.Marshal(thumbnail)
+		b, err := proto.Marshal(thumbnailEntryToProto(thumbnail))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -276,13 +301,6 @@ loop:
 
 		s.logger.Info("Uploaded session recording thumbnail", "path", path)
 	}
-
-	path, err := s.uploadMetadata(ctx, sessionID, metadata, frames)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.logger.Info("Uploaded session recording metadata", "path", path)
 
 	return nil
 }
@@ -308,6 +326,18 @@ func (s *RecordingMetadataService) uploadMetadata(ctx context.Context, sessionID
 	return s.uploadHandler.UploadMetadata(ctx, sessionID, buf)
 }
 
+func thumbnailEntryToProto(t *thumbnailEntry) *pb.SessionRecordingThumbnail {
+	return &pb.SessionRecordingThumbnail{
+		Svg:         terminal.VtStateToSvg(t.state),
+		Cols:        int32(t.state.Cols),
+		Rows:        int32(t.state.Rows),
+		CursorX:     int32(t.state.CursorX),
+		CursorY:     int32(t.state.CursorY),
+		StartOffset: durationpb.New(t.startOffset),
+		EndOffset:   durationpb.New(t.endOffset),
+	}
+}
+
 func parseTerminalSize(size string) (cols, rows int, err error) {
 	parts := strings.Split(size, ":")
 	if len(parts) != 2 {
@@ -327,7 +357,7 @@ func parseTerminalSize(size string) (cols, rows int, err error) {
 	return cols, rows, nil
 }
 
-func getRandomThumbnail(thumbnails []*pb.SessionRecordingThumbnail) *pb.SessionRecordingThumbnail {
+func getRandomThumbnail(thumbnails []*thumbnailEntry) *thumbnailEntry {
 	if len(thumbnails) == 0 {
 		return nil
 	}

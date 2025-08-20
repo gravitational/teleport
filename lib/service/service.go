@@ -2469,10 +2469,13 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
-	recordingMetadataService := recordingmetadatav1.NewRecordingMetadataService(recordingmetadatav1.RecordingMetadataServiceConfig{
+	recordingMetadataService, err := recordingmetadatav1.NewRecordingMetadataService(recordingmetadatav1.RecordingMetadataServiceConfig{
 		Streamer:      authServer,
 		UploadHandler: authServer,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	recordingMetadataProvider.SetService(recordingMetadataService)
 
 	process.setLocalAuth(authServer)
