@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,10 +24,11 @@ type API struct {
 	config Config
 
 	// mu guards all fields below it
-	mu             sync.Mutex
-	apps           []*api.AppCredentials
-	managedDevices []*api.ManagedDevice
-	issuedTokens   map[string]*accessToken // key is [accessToken.token]
+	mu                 sync.Mutex
+	apps               []*api.AppCredentials
+	managedDevices     []*api.ManagedDevice
+	issuedTokens       map[string]*accessToken // key is [accessToken.token]
+	simulatePagingGaps bool
 }
 
 // Config contains values needed by [API].
@@ -64,6 +66,15 @@ func (a *API) SetManagedDevices(devices []*api.ManagedDevice) {
 		copiedD := *d
 		a.managedDevices = append(a.managedDevices, &copiedD)
 	}
+	a.mu.Unlock()
+}
+
+// SetSimulatePagingGaps enables simulation of paging gaps.
+// If set to true, listing devices on Intune will return incomplete pages on most requests.
+// Useful to test undue device deletions during inventory syncs.
+func (a *API) SetSimulatePagingGaps(b bool) {
+	a.mu.Lock()
+	a.simulatePagingGaps = b
 	a.mu.Unlock()
 }
 
@@ -122,15 +133,21 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
 		const managedDevices = "/v1.0/deviceManagement/managedDevices"
+		const managedDevicesSlash = managedDevices + "/"
 
-		if req.URL.Path == managedDevices {
+		if req.URL.Path == managedDevices || req.URL.Path == managedDevicesSlash {
 			handler = a.listManagedDevices
 			break
+		}
+
+		// id guaranteed to be non-empty by the previous conditional.
+		if id, ok := strings.CutPrefix(req.URL.Path, managedDevicesSlash); ok {
+			handler = a.getManagedDevice(id)
 		}
 	}
 
 	if handler == nil {
-		a.replyError(w, 404, api.GraphErrorResource{
+		a.replyError(w, 400, api.GraphErrorResource{
 			Code:    "BadRequest",
 			Message: fmt.Sprintf("Resource not found for %s %q", req.Method, req.URL.Path),
 		})
@@ -393,8 +410,34 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 		devices = devicePage
 	}
 
+	if a.simulatePagingGaps && len(devices) > 0 {
+		devices = devices[1:]
+	}
+
 	a.replyJSON(w, 200, &api.ListManagedDevicesResponse{
 		ManagedDevices: devices,
 		NextLink:       nextLink,
 	})
+}
+
+func (a *API) getManagedDevice(id string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+
+		idx := slices.IndexFunc(a.managedDevices, func(md *api.ManagedDevice) bool {
+			return md.ID == id
+		})
+
+		if idx < 0 {
+			a.replyError(w, 404, api.GraphErrorResource{
+				Code:    "ResourceNotFound",
+				Message: "Resource not found",
+			})
+			return
+		}
+
+		device := a.managedDevices[idx]
+		a.replyJSON(w, 200, device)
+	}
 }

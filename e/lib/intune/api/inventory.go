@@ -31,7 +31,7 @@ func (r *ListManagedDevicesRequest) query() url.Values {
 	q := make(url.Values)
 	// Select only the fields that we need.
 	// https://learn.microsoft.com/en-us/graph/best-practices-concept#use-projections
-	q.Set("$select", "id,lastSyncDateTime,deviceRegistrationState,operatingSystem,serialNumber,model,osVersion")
+	q.Set("$select", selectManagedDevice)
 
 	// Filter by the time of last sync of a device with Intune.
 	// https://learn.microsoft.com/en-us/graph/filter-query-parameter
@@ -78,11 +78,17 @@ type ManagedDevice struct {
 	OSVersion string `json:"osVersion"`
 }
 
+// selectManagedDevice is the value for the $select query param when fetching managed devices so
+// that the client fetches only the fields that it needs.
+const selectManagedDevice = "id,lastSyncDateTime,deviceRegistrationState,operatingSystem,serialNumber,model,osVersion"
+
 const (
 	// DeviceRegistrationStateRegistered is DeviceRegistrationState value of [ManagedDevice]
 	// set after the device is fully enrolled into Intune.
 	DeviceRegistrationStateRegistered = "registered"
 )
+
+const managedDevicesPath = "/v1.0/deviceManagement/managedDevices"
 
 // ListManagedDevices returns a list of managed devices within Intune.
 // The app authenticated with the Intune API must have at least the
@@ -96,7 +102,6 @@ func (c *Client) ListManagedDevices(ctx context.Context, req *ListManagedDevices
 	if req.NextLink != "" {
 		reqURL = req.NextLink
 	} else {
-		const managedDevicesPath = "/v1.0/deviceManagement/managedDevices"
 		u := c.graphURL.JoinPath(managedDevicesPath)
 		u.RawQuery = req.query().Encode()
 		reqURL = u.String()
@@ -107,5 +112,22 @@ func (c *Client) ListManagedDevices(ctx context.Context, req *ListManagedDevices
 		return nil, trace.Wrap(err)
 	}
 	resp := &ListManagedDevicesResponse{}
+	return resp, trace.Wrap(c.doGraphRequest(httpReq, resp))
+}
+
+// GetManagedDevice returns a single device by ID.
+// https://learn.microsoft.com/en-us/graph/api/intune-devices-manageddevice-get?view=graph-rest-1.0
+func (c *Client) GetManagedDevice(ctx context.Context, id string) (*ManagedDevice, error) {
+	u := c.graphURL.JoinPath(managedDevicesPath, id)
+	q := u.Query()
+	q.Set("$select", selectManagedDevice)
+	u.RawQuery = q.Encode()
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil /* body */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &ManagedDevice{}
 	return resp, trace.Wrap(c.doGraphRequest(httpReq, resp))
 }

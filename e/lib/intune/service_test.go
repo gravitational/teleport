@@ -20,11 +20,6 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
-const (
-	waitForDeviceSyncTimeout = 5 * time.Second
-	waitForDeviceSyncTick    = 100 * time.Millisecond
-)
-
 var devicesCmpOpts = []cmp.Option{
 	cmpopts.SortSlices(func(a, b *devicepb.Device) bool {
 		return a.AssetTag < b.AssetTag
@@ -33,6 +28,8 @@ var devicesCmpOpts = []cmp.Option{
 	protocmp.IgnoreFields(&devicepb.Device{}, "api_version", "id", "create_time", "update_time"),
 	protocmp.IgnoreFields(&devicepb.DeviceProfile{}, "update_time"),
 }
+
+var source = &devicepb.DeviceSource{Name: "intune", Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE}
 
 // TestRun_fullSync runs a full sync once and verifies that only valid devices are pushed to
 // Teleport.
@@ -105,30 +102,15 @@ func TestRun_fullSync(t *testing.T) {
 	}
 	fakeAPI.SetManagedDevices(intuneDevices)
 
-	source := &devicepb.DeviceSource{Name: "intune", Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE}
-	wantDevices := []*devicepb.Device{
+	// Create a device that is going to get removed during a full sync since it comes from Intune but
+	// has no matching external ID.
+	mustBulkCreateDevices(t, devicesClient, []*devicepb.Device{
 		{
-			OsType:       devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag:     intuneDevices[0].SerialNumber,
-			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-			Source:       source,
-			Profile: &devicepb.DeviceProfile{
-				ModelIdentifier: intuneDevices[0].Model,
-				OsVersion:       "13.4.1",
-				OsBuild:         "22F82",
-				ExternalId:      intuneDevices[0].ID,
-			},
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "deleteonfullsync1",
+			Source:   source,
 		},
-		{
-			OsType:       devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag:     intuneDevices[1].SerialNumber,
-			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-			Source:       source,
-			Profile: &devicepb.DeviceProfile{
-				ExternalId: intuneDevices[1].ID,
-			},
-		},
-	}
+	})
 
 	s := serviceFromEnv(t, env, syncPeriods{})
 
@@ -138,13 +120,31 @@ func TestRun_fullSync(t *testing.T) {
 		}
 	}()
 
-	// Wait for devices to by synced.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		got := listAllDevices(t, devicesClient)
-		if diff := cmp.Diff(wantDevices, got, devicesCmpOpts...); diff != "" {
-			c.Errorf("Run sync mismatch (-want +got)\n%s", diff)
-		}
-	}, waitForDeviceSyncTimeout, waitForDeviceSyncTick)
+	// Wait for devices to be synced.
+	waitForDevices(t, devicesClient,
+		[]*devicepb.Device{
+			{
+				OsType:       devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag:     intuneDevices[0].SerialNumber,
+				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				Source:       source,
+				Profile: &devicepb.DeviceProfile{
+					ModelIdentifier: intuneDevices[0].Model,
+					OsVersion:       "13.4.1",
+					OsBuild:         "22F82",
+					ExternalId:      intuneDevices[0].ID,
+				},
+			},
+			{
+				OsType:       devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag:     intuneDevices[1].SerialNumber,
+				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				Source:       source,
+				Profile: &devicepb.DeviceProfile{
+					ExternalId: intuneDevices[1].ID,
+				},
+			},
+		})
 }
 
 // TestRun_partialSync runs two partial syncs. It verifies that partial syncs use the highest
@@ -187,8 +187,6 @@ func TestRun_partialSync(t *testing.T) {
 		},
 	}
 	fakeAPI.SetManagedDevices(intuneDevices)
-
-	source := &devicepb.DeviceSource{Name: "intune", Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE}
 
 	// Create a device that would get removed during a full sync. Later on verify that it wasn't
 	// removed by a partial sync.
@@ -312,7 +310,6 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	fakeAPI.SetManagedDevices(intuneDevices)
 	// Create a device with missing details which would get removed during a full sync. Its existence
 	// confirms that only a partial sync took place.
-	source := &devicepb.DeviceSource{Name: "intune", Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE}
 	mustBulkCreateDevices(t, devicesClient, []*devicepb.Device{
 		{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
@@ -361,6 +358,91 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	}, syncPeriodFull*2, 100*time.Millisecond, "Expected a full sync to happen and remove one device")
 }
 
+// TestRun_deviceConfirmation simulates a situation where, for whatever reason, the Intune client
+// didn't receive a device from the API despite the device still being present in the Intune
+// inventory. The service is supposed to check if the device indeed doesn't exist in Intune before
+// removing it from Teleport's inventory.
+func TestRun_deviceConfirmation(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 2, 3, 4, 5, 0, time.UTC))
+	env := testenv.MustNew(t, &testenv.Config{
+		Clock:          clock,
+		DeviceTrustEnv: true,
+	})
+	fakeAPI := env.API
+	devicesClient := env.DevicesClient
+
+	t0 := clock.Now()
+
+	intuneDevices := []*api.ManagedDevice{
+		{
+			ID:                      "1",
+			LastSyncDateTime:        t0,
+			DeviceRegistrationState: "registered",
+			SerialNumber:            "CXXXXXXXXX01",
+			Model:                   "MacBookPro9,2",
+			OperatingSystem:         "macOS",
+			OSVersion:               "13.4.1 (22F82)",
+		},
+		{
+			ID:                      "2",
+			LastSyncDateTime:        t0,
+			DeviceRegistrationState: "registered",
+			SerialNumber:            "DYXXXXXXXX02",
+			OperatingSystem:         "macOS",
+		},
+		{
+			ID:                      "3",
+			LastSyncDateTime:        t0,
+			DeviceRegistrationState: "registered",
+			SerialNumber:            "EZXXXXXXXX03",
+			OperatingSystem:         "macOS",
+		},
+	}
+	fakeAPI.SetManagedDevices(intuneDevices)
+
+	s := serviceFromEnv(t, env, syncPeriods{})
+
+	// Perform a full sync and verify that all devices got saved.
+	_, err := s.RunFullSync(t.Context())
+	require.NoError(t, err)
+	waitSynced(t, devicesClient, 3)
+
+	// Simulate a gap in Intune response.
+	fakeAPI.SetSimulatePagingGaps(true)
+	// Remove the third device from Intune.
+	fakeAPI.SetManagedDevices(intuneDevices[:2])
+
+	// Verify that a full sync doesn't remove the first device despite the list endpoint not returning
+	// the first device (because of paging gaps) and that a full sync does remove the third device
+	// since it's no longer in Intune.
+	_, err = s.RunFullSync(t.Context())
+	require.NoError(t, err)
+	waitForDevices(
+		t, devicesClient, []*devicepb.Device{
+			{
+				OsType:       devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag:     intuneDevices[0].SerialNumber,
+				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				Source:       source,
+				Profile: &devicepb.DeviceProfile{
+					ModelIdentifier: intuneDevices[0].Model,
+					OsVersion:       "13.4.1",
+					OsBuild:         "22F82",
+					ExternalId:      intuneDevices[0].ID,
+				},
+			},
+			{
+				OsType:       devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag:     intuneDevices[1].SerialNumber,
+				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				Source:       source,
+				Profile: &devicepb.DeviceProfile{
+					ExternalId: intuneDevices[1].ID,
+				},
+			},
+		})
+}
+
 func listAllDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient) []*devicepb.Device {
 	t.Helper()
 	var devs []*devicepb.Device
@@ -384,6 +466,21 @@ func waitSynced(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient, n
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.Len(c, listAllDevices(t, devicesClient), num, "Unexpected number of devices")
 	}, 1*time.Second, 100*time.Millisecond, msgAndArgs...)
+}
+
+func waitForDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient, wantDevices []*devicepb.Device) {
+	t.Helper()
+	const (
+		waitForDeviceSyncTimeout = 5 * time.Second
+		waitForDeviceSyncTick    = 100 * time.Millisecond
+	)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		got := listAllDevices(t, devicesClient)
+		if diff := cmp.Diff(wantDevices, got, devicesCmpOpts...); diff != "" {
+			c.Errorf("Device mismatch (-want +got)\n%s", diff)
+		}
+	}, waitForDeviceSyncTimeout, waitForDeviceSyncTick)
 }
 
 type syncPeriods struct {

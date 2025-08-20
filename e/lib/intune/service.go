@@ -9,11 +9,13 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 
 	"github.com/gravitational/teleport"
@@ -310,12 +312,13 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 			return time.Time{}, trace.BadParameter("unexpected payload %T, expecting missing_devices", missingDevicesResp.Payload)
 		}
 
-		// TODO(ravicious): Confirm missing devices similar to how the Jamf service does it.
 		// At the end of a full sync, the auth server reports to the Intune integration all devices from
 		// Intune that are in the Teleport inventory but weren't observed during this sync. The job of
 		// the Intune integration is to verify that those devices are indeed not present in Intune.
-		// This will be implemented in a subsequent PR.
-		devicesToRemove := missingDevicesResp.GetMissingDevices().GetDevices()
+		devicesToRemove, err := s.confirmMissingDevices(ctx, missingDevicesResp.GetMissingDevices().GetDevices())
+		if err != nil {
+			return time.Time{}, trace.Wrap(err, "confirming missing devices in Intune")
+		}
 
 		if err := stream.Send(&devicepb.SyncInventoryRequest{
 			Payload: &devicepb.SyncInventoryRequest_DevicesToRemove{
@@ -425,6 +428,77 @@ func (s *Service) getDevicesPage(ctx context.Context, req *api.ListManagedDevice
 		teleportToIntuneIdx:    teleportToIntuneIdx,
 		deviceLastSyncDateTime: highLastSyncDateTime,
 	}, nil
+}
+
+// confirmMissingDevices takes missing Teleport devices as reported by the auth server and queries
+// Intune for them one by one to confirm whether a Teleport device indeed doesn't have an Intune
+// counterpart.
+func (s *Service) confirmMissingDevices(ctx context.Context, missingDevices []*devicepb.Device) ([]*devicepb.Device, error) {
+	group, groupCtx := errgroup.WithContext(ctx)
+	const intuneGroupLimit = 8 // Arbitrary. Not too many, not too few.
+	group.SetLimit(intuneGroupLimit)
+
+	var devicesMux sync.Mutex // guards devicesToRemove
+	devicesToRemove := make([]*devicepb.Device, 0, len(missingDevices))
+	markForRemoval := func(d *devicepb.Device) {
+		devicesMux.Lock()
+		devicesToRemove = append(devicesToRemove, d)
+		devicesMux.Unlock()
+	}
+
+	// Concurrently query devices in Intune.
+	// We are looking for either confirmation that the device doesn't exist, or an existing but
+	// mismatched device.
+	for _, missingDevice := range missingDevices {
+		id := missingDevice.Profile.GetExternalId()
+		if id == "" {
+			s.cfg.Logger.DebugContext(ctx,
+				"Marking device without external_id for removal",
+				"device", missingDevice,
+			)
+			markForRemoval(missingDevice)
+			continue
+		}
+
+		group.Go(func() error {
+			apiError := &api.Error{}
+			// Note: this gets a device by ID, but during syncs we skip devices where device registration
+			// state is different than "registered". This means we might keep around devices which
+			// deviceRegistrationState in Intune has changed since they were initially added to Teleport,
+			// e.g., because they were reset in Intune and are yet to be assigned to a new user. This
+			// seems OK for the moment, as devices can be removed by other means (such as `tctl devices
+			// rm`), but it is a point of attention.
+			intuneDevice, err := s.intune.GetManagedDevice(groupCtx, id)
+			switch {
+			case errors.As(err, &apiError) && apiError.StatusCode == http.StatusNotFound:
+				s.cfg.Logger.DebugContext(ctx, "Device not found in Intune, marking for removal", "device", missingDevice)
+				markForRemoval(missingDevice)
+
+			case err != nil:
+				// Unexpected error
+				s.cfg.Logger.DebugContext(ctx, "Skipping removal of device, query failed",
+					"error", err, "device", missingDevice)
+
+			case operatingSystemToOSType(intuneDevice.OperatingSystem) == missingDevice.OsType &&
+				intuneDevice.SerialNumber == missingDevice.AssetTag:
+				s.cfg.Logger.DebugContext(ctx, "Skipping removal, device found in Intune", "device", missingDevice)
+
+			default:
+				// ID matches the wrong device.
+				s.cfg.Logger.DebugContext(ctx, "Marking mismatched device for removal",
+					"intune_device", intuneDevice, "device", missingDevice)
+				markForRemoval(missingDevice)
+			}
+
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return devicesToRemove, nil
 }
 
 // logSyncResult logs the result of submitting devices to the auth server to either be upserted or
