@@ -43,6 +43,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -50,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -1095,6 +1097,40 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 // the remote host. Once the session channel has been established, this function's loop handles
 // all the "exec", "subsystem" and "shell" requests.
 func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
+	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+	if len(nch.ExtraData()) > 0 {
+		var sessionParams apisshutils.SessionParams
+		if err := ssh.Unmarshal(nch.ExtraData(), &sessionParams); err != nil {
+			s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+
+			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		}
+
+		if sessionParams.JoinSessionID != "" {
+			sid, err := session.ParseID(sessionParams.JoinSessionID)
+			if err != nil {
+				// TODO(Joerger): Add better errors/logs
+				s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+				if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+					s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+				}
+				return
+			}
+
+			if err := s.sessionRegistry.CheckJoinSession(*sid); err != nil {
+				s.logger.WarnContext(ctx, "Unable to accept channel", "error", err)
+				if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+					s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+				}
+			}
+		}
+
+		s.connectionContext.SetSessionParams(&sessionParams)
+	}
+
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	// There is no need for the forwarding server to initiate disconnects,
@@ -1153,20 +1189,6 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	defer s.logger.DebugContext(ctx, "Closing session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
 
 	for {
-		// Update the context with the session ID.
-		err := scx.CreateOrJoinSession(ctx, s.sessionRegistry)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "unable create or join session", "error", err)
-
-			// Write the error to channel and close it.
-			s.stderrWrite(ctx, ch, fmt.Sprintf("unable to update context: %v", err))
-			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
-			if err != nil {
-				s.logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
-			}
-			return
-		}
-
 		select {
 		case result := <-scx.SubsystemResultCh:
 			// Subsystem has finished executing, close the channel and session.

@@ -20,6 +20,7 @@ package srv
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -588,51 +590,9 @@ func (c *ServerContext) ID() int {
 	return c.id
 }
 
-// SessionID returns the ID of the session in the context.
-func (c *ServerContext) SessionID() rsession.ID {
-	return c.ConnectionContext.GetSessionID()
-}
-
 // GetServer returns the underlying server which this context was created in.
 func (c *ServerContext) GetServer() Server {
 	return c.srv
-}
-
-// CreateOrJoinSession will look in the SessionRegistry for the session ID. If
-// no session is found, a new one is created. If one is found, it is returned.
-func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionRegistry) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// As SSH conversation progresses, at some point a session will be created and
-	// its ID will be added to the environment
-	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
-	if !found {
-		return nil
-	}
-
-	// make sure whatever session is requested is a valid session
-	id, err := rsession.ParseID(ssid)
-	if err != nil {
-		return trace.BadParameter("invalid session ID %s", ssid)
-	}
-
-	// update ctx with the session if it exists
-	if sess, found := reg.findSession(*id); found {
-		c.session = sess
-		c.ConnectionContext.SetSessionID(*id)
-		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
-	} else {
-		// TODO(capnspacehook): DELETE IN 19.0.0 - by then all supported
-		// clients should only set TELEPORT_SESSION when they want to
-		// join a session. Always return an error instead of using a
-		// new ID.
-		//
-		// The session ID the client sent was not found, ignore it; the
-		// connection's ID will be used as the session ID later.
-		c.Logger.DebugContext(ctx, "Sent session ID not found, using connection ID")
-	}
-
-	return nil
 }
 
 // TrackActivity keeps track of all activity on ssh.Channel. The caller should
@@ -699,6 +659,34 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 	return c.Parent().GetEnv(key)
 }
 
+func (c *ServerContext) GetSessionParams() apisshutils.SessionParams {
+	if sessionParams := c.Parent().GetSessionParams(); sessionParams != nil {
+		return *sessionParams
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// TODO(Joerger): DELETE IN v20.0.0 - clients provide sessions params upfront in the
+	// session channel request rather than env variables.
+	// Try to make session params from env variables, the old way clients provided them.
+	sessionParams := apisshutils.SessionParams{
+		Reason:                         c.env[teleport.EnvSSHSessionReason],
+		DisplayParticipantRequirements: utils.AsBool(c.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
+		// TODO(Joerger): Any reason to grab it from the connection context env? Do we need connection context env?
+		JoinSessionID: c.env[sshutils.SessionEnvVar],
+		JoinMode:      types.SessionParticipantMode(c.env[teleport.EnvSSHJoinMode]),
+	}
+
+	if invitedUsers := c.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {
+		if err := json.Unmarshal([]byte(invitedUsers), &sessionParams.Invited); err != nil {
+			slog.WarnContext(context.Background(), "Failed to parse invited users", "error", err)
+		}
+	}
+
+	return sessionParams
+}
+
 // setSession sets the context's session
 func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Channel) {
 	c.mu.Lock()
@@ -721,6 +709,14 @@ func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.session
+}
+
+// SessionID returns the ID of the session in the context.
+func (c *ServerContext) SessionID() rsession.ID {
+	if sess := c.getSession(); sess != nil {
+		return sess.id
+	}
+	return ""
 }
 
 func (c *ServerContext) SetAllowFileCopying(allow bool) {

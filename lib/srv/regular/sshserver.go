@@ -52,6 +52,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -65,6 +66,7 @@ import (
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
@@ -1394,12 +1396,15 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		// commands on a server. In the case of proxy mode subsystem and agent
 		// forwarding requests occur over the "session" channel.
 		case teleport.ChanSession:
+			// TODO(Joerger): Is there any reason to handle session params here?
+
 			ch, requests, err := nch.Accept()
 			if err != nil {
 				s.logger.WarnContext(ctx, "Unable to accept channel", "error", err)
 				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
+
 			go s.handleSessionRequests(ctx, ccx, identityContext, ch, requests)
 			return
 		default:
@@ -1443,6 +1448,36 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			}
 			decr = d
 		}
+
+		// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+		if len(nch.ExtraData()) > 0 {
+			var sessionParams apisshutils.SessionParams
+			if err := ssh.Unmarshal(nch.ExtraData(), &sessionParams); err != nil {
+				s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+				return
+			}
+
+			if sessionParams.JoinSessionID != "" {
+				sid, err := session.ParseID(sessionParams.JoinSessionID)
+				if err != nil {
+					// TODO(Joerger): Add better errors/logs
+					s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+					s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+					return
+				}
+
+				if err := s.reg.CheckJoinSession(*sid); err != nil {
+					s.logger.WarnContext(ctx, "Unable to accept channel", "error", err)
+					s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+				}
+			}
+
+			ccx.SetSessionParams(&sessionParams)
+		}
+
+		// TODO(Joerger): We can check join permissions here, before accepting the channel. This should result in better error UX.
+
 		ch, requests, err := nch.Accept()
 		if err != nil {
 			s.logger.WarnContext(ctx, "Unable to accept channel", "error", err)
@@ -1629,21 +1664,6 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	})
 
 	for {
-		// update scx with the session ID:
-		if !s.proxyMode {
-			err := scx.CreateOrJoinSession(ctx, s.reg)
-			if err != nil {
-				scx.Logger.ErrorContext(ctx, "Unable to update context", "error", err)
-
-				// write the error to channel and close it
-				s.writeStderr(ctx, trackingChan, fmt.Sprintf("unable to update context: %v", err))
-				_, err := trackingChan.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
-				if err != nil {
-					scx.Logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
-				}
-				return
-			}
-		}
 		select {
 		case creq := <-scx.SubsystemResultCh:
 			// this means that subsystem has finished executing and
