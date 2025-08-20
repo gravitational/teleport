@@ -53,6 +53,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -1785,4 +1786,8 @@ type ClientI interface {
 	// RecordingMetadataServiceClient returns a client for the session recording
 	// metadata service.
 	RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient
+
+	// SummarizerServiceClient returns a client for the session recording
+	// summarizer service.
+	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
 }

@@ -204,6 +204,16 @@ func (s *UnimplementedService) ListInferencePolicies(
 	return nil, requireEnterprise()
 }
 
+// IsEnabled is supposed to tell if the summarizer is enabled by the license
+// and configured, but it always returns false. In contrast to other methods
+// here, it doesn't return an error, since not having an enterprise license is
+// still a valid case from this method's perspective.
+func (s *UnimplementedService) IsEnabled(
+	ctx context.Context, req *summarizerv1pb.IsEnabledRequest,
+) (*summarizerv1pb.IsEnabledResponse, error) {
+	return &summarizerv1pb.IsEnabledResponse{Enabled: false}, nil
+}
+
 func requireEnterprise() error {
 	return trace.AccessDenied(
 		"session recording summarization is only available with an enterprise license that supports Teleport Identity Security")
