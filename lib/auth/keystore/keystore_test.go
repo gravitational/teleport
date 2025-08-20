@@ -600,9 +600,21 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		},
 		kmsClient:         testGCPKMSClient,
 		clockworkOverride: clock,
+		RSAKeyPairSource: func(alg cryptosuites.Algorithm) ([]byte, []byte, error) {
+			switch alg {
+			case cryptosuites.RSA2048:
+				return testRSA2048PrivateKeyPEM, nil, nil
+			case cryptosuites.RSA4096:
+				return testRSA4096PrivateKeyPEM, nil, nil
+			}
+
+			return nil, nil, trace.Errorf("unexpected algorithm: %v", alg)
+		},
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{
+		rsaKeyPairSource: baseOpts.RSAKeyPairSource,
+	})
 	backends = append(backends, &backendDesc{
 		name:                "software",
 		config:              servicecfg.KeystoreConfig{},

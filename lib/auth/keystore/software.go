@@ -38,7 +38,7 @@ type softwareKeyStore struct {
 }
 
 // RSAKeyPairSource is a function type which returns new RSA keypairs.
-type RSAKeyPairSource func() (priv []byte, pub []byte, err error)
+type RSAKeyPairSource func(algo cryptosuites.Algorithm) (priv []byte, pub []byte, err error)
 
 type softwareConfig struct {
 	rsaKeyPairSource RSAKeyPairSource
@@ -65,7 +65,7 @@ func (s *softwareKeyStore) keyTypeDescription() string {
 // an equivalent crypto.Signer.
 func (s *softwareKeyStore) generateSigner(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
 	if alg == cryptosuites.RSA2048 && s.rsaKeyPairSource != nil {
-		privateKeyPEM, _, err := s.rsaKeyPairSource()
+		privateKeyPEM, _, err := s.rsaKeyPairSource(alg)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -110,6 +110,20 @@ func (d oaepDecrypter) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.De
 // identifier for softwareKeyStore is a pem-encoded private key, and can be passed to getDecrypter later to get
 // an equivalent crypto.Decrypter.
 func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
+	if alg == cryptosuites.RSA4096 && s.rsaKeyPairSource != nil {
+		privateKeyPEM, _, err := s.rsaKeyPairSource(alg)
+		if err != nil {
+			return nil, nil, softwareHash, trace.Wrap(err)
+		}
+		privateKey, err := keys.ParsePrivateKey(privateKeyPEM)
+		decrypter, ok := privateKey.Signer.(crypto.Decrypter)
+		if !ok {
+			return nil, nil, softwareHash, trace.Errorf("could not type assert crypto.Decrypter")
+		}
+
+		return privateKeyPEM, newOAEPDecrypter(softwareHash, decrypter), softwareHash, trace.Wrap(err)
+	}
+
 	key, err := cryptosuites.GenerateDecrypterWithAlgorithm(alg)
 	if err != nil {
 		return nil, nil, softwareHash, trace.Wrap(err)
