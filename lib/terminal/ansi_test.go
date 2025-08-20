@@ -222,7 +222,7 @@ func TestTerminalStateToANSI(t *testing.T) {
 			tt.setup(vt)
 
 			state := vt.DumpState()
-			ansi := terminalStateToANSI(state)
+			ansi := VtStateToANSI(state)
 
 			if golden.ShouldSet() {
 				golden.Set(t, []byte(ansi))
