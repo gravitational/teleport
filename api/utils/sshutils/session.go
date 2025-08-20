@@ -20,6 +20,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // chanSize sets the amount of buffering SSH connections. This is
@@ -41,11 +43,26 @@ func NewSessionClient() *SessionClient {
 	return &SessionClient{}
 }
 
+// SessionParams are session parameters supported by Teleport to provide additional
+// session context or directives (joining).
+type SessionParams struct {
+	Reason                         string
+	Invited                        []string
+	DisplayParticipantRequirements bool
+	JoinSessionID                  string
+	JoinMode                       types.SessionParticipantMode
+}
+
 // NewSession opens a new Session for this client.
-func (c *SessionClient) NewSession(conn ssh.Conn) (*ssh.Session, error) {
+func (c *SessionClient) NewSession(conn ssh.Conn, sessionParams *SessionParams) (*ssh.Session, error) {
+	var sessionData []byte
+	if sessionParams != nil {
+		sessionData = ssh.Marshal(sessionParams)
+	}
+
 	// open a session manually so we can take ownership of the
 	// requests chan
-	ch, reqs, err := conn.OpenChannel("session", nil)
+	ch, reqs, err := conn.OpenChannel("session", sessionData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

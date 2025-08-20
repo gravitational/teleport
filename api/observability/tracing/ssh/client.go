@@ -166,6 +166,11 @@ func (c *Client) OpenChannel(
 
 // NewSession opens a new Session for this client.
 func (c *Client) NewSession(ctx context.Context) (*Session, error) {
+	return c.NewSessionWithParams(ctx, nil)
+}
+
+// NewSession opens a new Session for this client with the given params.
+func (c *Client) NewSessionWithParams(ctx context.Context, sessionParams *sshutils.SessionParams) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start(
 		ctx,
@@ -191,7 +196,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		contexts:   make(map[string][]context.Context),
 	}
 
-	session, err := c.sessionClient.NewSession(wrapper)
+	session, err := c.sessionClient.NewSession(wrapper, sessionParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
