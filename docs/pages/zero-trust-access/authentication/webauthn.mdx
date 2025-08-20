@@ -19,7 +19,7 @@ these alone may not be sufficient to protect against sophisticated attacks targe
 Attackers are constantly evolving their techniques, and traditional security measures may have limitations
 or vulnerabilities that can be exploited.
 
-![IdP threat vector tree](../../../../img/access-controls/idp-graph.png)
+![IdP threat vector tree](../../../img/access-controls/idp-graph.png)
 
 To enhance your defense against IdP compromises, we recommend implementing the following comprehensive security measures.
 
@@ -37,7 +37,7 @@ It's compatible with hardware keys (e.g., YubiKeys, SoloKeys) and biometric auth
 
 - The `tctl` admin tool and `tsh` client tool.
 
-  Visit [Installation](../../../installation/installation.mdx) for instructions on downloading `tctl` and `tsh`.
+  Visit [Installation](../../installation/installation.mdx) for instructions on downloading `tctl` and `tsh`.
 
 - WebAuthn hardware device, such as YubiKey or SoloKey
 
@@ -157,7 +157,7 @@ $ tsh login --proxy=example.teleport.sh
 
 <Admonition type="note">
   WebAuthn for logging in to Teleport is only required for [local users](
-  ../../../reference/access-controls/authentication.mdx#local-no-authentication-connector).
+  ../../reference/access-controls/authentication.mdx#local-no-authentication-connector).
   SSO users should configure multi-factor authentication in their SSO provider.
 </Admonition>
 
@@ -178,7 +178,7 @@ when starting new:
 <Admonition type="note">
   In addition to per-session MFA, enable login MFA in your SSO provider and/or
   for all [local Teleport
-  users](../../../reference/access-controls/authentication.mdx)
+  users](../../reference/access-controls/authentication.mdx)
   to improve security.
 </Admonition>
 
@@ -363,7 +363,7 @@ enrolls the user's device in their next Teleport (`tsh`) login.
 
 For auto-enrollment to work, the following conditions must be met:
 - A device must be registered. Registration may be [manual](#implement-cluster-wide-device-trust) or performed using an
-integration, like the [Jamf Pro integration](../../../identity-governance/device-trust/jamf-integration.mdx).
+integration, like the [Jamf Pro integration](../../identity-governance/device-trust/jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
 
 ### Step 1/2. Enable auto-enrollment in your cluster settings
@@ -492,6 +492,6 @@ Update the `cluster_auth_preference` definition to include the following content
 For additional cluster hardening measures, see:
 
 - [Passwordless Authentication](./passwordless.mdx): Provides passwordless and usernameless authentication.
-- [Locking](../../../identity-governance/locking.mdx): Lock access to active user sessions or hosts.
+- [Locking](../../identity-governance/locking.mdx): Lock access to active user sessions or hosts.
 - [Moderated Sessions](./joining-sessions.mdx): Require session auditors and allow fine-grained live session access.
 - [Hardware Key Support](./hardware-key-support.mdx): Enforce the use of hardware-based private keys.
