@@ -22,7 +22,7 @@ import (
 
 // externalAuditStorageGenerate generates a new ExternalAuditStorage configuration
 // and saves it as the current draft.
-func externalAuditStorageGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func externalAuditStorageGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
 
 	var req ui.GenerateDraftExternalAuditStorageRequest
@@ -30,7 +30,7 @@ func externalAuditStorageGenerate(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	userClient, err := sctx.GetUserClient(ctx, site)
+	userClient, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,10 +175,10 @@ func (h *Plugin) getExternalAuditStorageBootstrapScript(w http.ResponseWriter, r
 }
 
 // enableExternalAuditStorageDraft promotes the current draft ExternalAuditStorage to active.
-func (h *Plugin) externalAuditStoragePromote(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Plugin) externalAuditStoragePromote(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
 
-	userClient, err := sctx.GetUserClient(ctx, site)
+	userClient, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -193,10 +193,10 @@ func (h *Plugin) externalAuditStoragePromote(w http.ResponseWriter, r *http.Requ
 }
 
 // externalAuditStorageGetCluster returns the current active ExternalAuditStorage.
-func (h *Plugin) externalAuditStorageGetCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Plugin) externalAuditStorageGetCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
 
-	userClient, err := sctx.GetUserClient(ctx, site)
+	userClient, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -211,10 +211,10 @@ func (h *Plugin) externalAuditStorageGetCluster(w http.ResponseWriter, r *http.R
 }
 
 // externalAuditStorageGetDraft returns the current draft ExternalAuditStorage.
-func (h *Plugin) externalAuditStorageGetDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Plugin) externalAuditStorageGetDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
 
-	userClient, err := sctx.GetUserClient(ctx, site)
+	userClient, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -229,10 +229,10 @@ func (h *Plugin) externalAuditStorageGetDraft(w http.ResponseWriter, r *http.Req
 }
 
 // externalAuditStorageDeleteDraft deletes the current ExternalAuditStorage draft.
-func (h *Plugin) externalAuditStorageDeleteDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Plugin) externalAuditStorageDeleteDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
 
-	userClient, err := sctx.GetUserClient(ctx, site)
+	userClient, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,10 +247,10 @@ func (h *Plugin) externalAuditStorageDeleteDraft(w http.ResponseWriter, r *http.
 }
 
 // externalAuditStorageDeleteCluster deletes the current active ExternalAuditStorage.
-func (h *Plugin) externalAuditStorageDeleteCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Plugin) externalAuditStorageDeleteCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
 
-	userClient, err := sctx.GetUserClient(ctx, site)
+	userClient, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

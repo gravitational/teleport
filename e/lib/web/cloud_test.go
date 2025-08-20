@@ -344,7 +344,7 @@ func TestPlugin_withCloudClusterCache(t *testing.T) {
 	webPlugin, err := NewPlugin(Config{})
 	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodGet, "/foo/bar", nil)
-	fn := func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (any, error) {
+	fn := func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cluster reversetunnelclient.Cluster, cloudClient cloud.Client) (any, error) {
 		counter++
 		if counter == 1 {
 			return nil, errors.New("error")
@@ -367,26 +367,26 @@ func TestPlugin_withCloudClusterCache(t *testing.T) {
 
 	// error when cache is empty returns error
 	handler := webPlugin.withCloudClusterCache(fn)
-	_, err = handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	_, err = handler(httptest.NewRecorder(), r, nil, &mockCluster{name: "localhost"}, nil)
 	require.Error(t, err)
 
 	// successful response returns
-	res2, err := handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	res2, err := handler(httptest.NewRecorder(), r, nil, &mockCluster{name: "localhost"}, nil)
 	require.NoError(t, err)
 	require.Equal(t, "ok", res2)
 
 	// error when cache is populated returns cache
-	res3, err := handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	res3, err := handler(httptest.NewRecorder(), r, nil, &mockCluster{name: "localhost"}, nil)
 	require.NoError(t, err)
 	require.Equal(t, "ok", res3)
 
 	// successful response returns when cache is populated
-	res4, err := handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	res4, err := handler(httptest.NewRecorder(), r, nil, &mockCluster{name: "localhost"}, nil)
 	require.NoError(t, err)
 	require.Equal(t, "ok2", res4)
 
 	// unauthorized response returns error
-	_, err = handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	_, err = handler(httptest.NewRecorder(), r, nil, &mockCluster{name: "localhost"}, nil)
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 }

@@ -88,25 +88,35 @@ func (*stubProxySettings) GetProxySettings(ctx context.Context) (*webclient.Prox
 	return &webclient.ProxySettings{}, nil
 }
 
-type mockSite struct {
+type mockCluster struct {
 	name string
-	reversetunnelclient.RemoteSite
+	reversetunnelclient.Cluster
 }
 
-func (m mockSite) GetName() string {
+func (m mockCluster) GetName() string {
 	return m.name
 }
 
 // stubTunnel stubs out the reversetunnelclient.Server for the web.Handler.
 // tests here require the reversetunnelclient server so we use a stubbed implementation.
 type stubTunnel struct {
-	site reversetunnelclient.RemoteSite
+	cluster reversetunnelclient.Cluster
 }
 
-func (*stubTunnel) GetSites() ([]reversetunnelclient.RemoteSite, error) { return nil, nil }
+// TODO(tross): Delete once the reversetunnelclient.Tunnel interface is updated
+func (*stubTunnel) GetSites() ([]reversetunnelclient.Cluster, error) { return nil, nil }
 
-func (s *stubTunnel) GetSite(n string) (reversetunnelclient.RemoteSite, error) {
-	return s.site, nil
+// TODO(tross): Delete once the reversetunnelclient.Tunnel interface is updated
+func (s *stubTunnel) GetSite(n string) (reversetunnelclient.Cluster, error) {
+	return s.cluster, nil
+}
+
+func (s *stubTunnel) Clusters(context.Context) ([]reversetunnelclient.Cluster, error) {
+	return []reversetunnelclient.Cluster{s.cluster}, nil
+}
+
+func (s *stubTunnel) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return s.cluster, nil
 }
 
 type webSuiteOption func(*webSuiteOptions)
@@ -268,7 +278,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 
 	handler, err := web.NewHandler(web.Config{
 		Proxy: &stubTunnel{
-			site: &mockSite{name: "localhost"},
+			cluster: &mockCluster{name: "localhost"},
 		},
 		ProxyWebAddr:                    *utils.MustParseAddr(s.webServer.Listener.Addr().String()),
 		AuthServers:                     utils.FromAddr(s.testAuthServer.TLS.Addr()),
