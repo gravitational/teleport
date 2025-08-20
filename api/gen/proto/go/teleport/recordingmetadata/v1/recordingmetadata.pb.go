@@ -25,6 +25,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -305,7 +306,13 @@ type SessionRecordingMetadata struct {
 	// StartCols is the number of columns in the terminal at the start of the session.
 	StartCols int32 `protobuf:"varint,3,opt,name=start_cols,json=startCols,proto3" json:"start_cols,omitempty"`
 	// StartRows is the number of rows in the terminal at the start of the session.
-	StartRows     int32 `protobuf:"varint,4,opt,name=start_rows,json=startRows,proto3" json:"start_rows,omitempty"`
+	StartRows int32 `protobuf:"varint,4,opt,name=start_rows,json=startRows,proto3" json:"start_rows,omitempty"`
+	// StartTime is the start time of the session recording.
+	StartTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	// EndTime is the end time of the session recording.
+	EndTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	// ClusterName is the name of the cluster where the session recording took place.
+	ClusterName   string `protobuf:"bytes,7,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -368,60 +375,25 @@ func (x *SessionRecordingMetadata) GetStartRows() int32 {
 	return 0
 }
 
-// SessionRecordingMetadataWithFrames contains metadata and frames for a session recording.
-// This is used to store the metadata and frames together in a single message.
-type SessionRecordingMetadataWithFrames struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Metadata is the metadata of the session recording.
-	Metadata *SessionRecordingMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// Frames is the frames captured during the session recording.
-	Frames        []*SessionRecordingThumbnail `protobuf:"bytes,2,rep,name=frames,proto3" json:"frames,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SessionRecordingMetadataWithFrames) Reset() {
-	*x = SessionRecordingMetadataWithFrames{}
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SessionRecordingMetadataWithFrames) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SessionRecordingMetadataWithFrames) ProtoMessage() {}
-
-func (x *SessionRecordingMetadataWithFrames) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
+func (x *SessionRecordingMetadata) GetStartTime() *timestamppb.Timestamp {
 	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SessionRecordingMetadataWithFrames.ProtoReflect.Descriptor instead.
-func (*SessionRecordingMetadataWithFrames) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *SessionRecordingMetadataWithFrames) GetMetadata() *SessionRecordingMetadata {
-	if x != nil {
-		return x.Metadata
+		return x.StartTime
 	}
 	return nil
 }
 
-func (x *SessionRecordingMetadataWithFrames) GetFrames() []*SessionRecordingThumbnail {
+func (x *SessionRecordingMetadata) GetEndTime() *timestamppb.Timestamp {
 	if x != nil {
-		return x.Frames
+		return x.EndTime
 	}
 	return nil
+}
+
+func (x *SessionRecordingMetadata) GetClusterName() string {
+	if x != nil {
+		return x.ClusterName
+	}
+	return ""
 }
 
 // SessionRecordingThumbnail is a thumbnail of a session recording.
@@ -447,7 +419,7 @@ type SessionRecordingThumbnail struct {
 
 func (x *SessionRecordingThumbnail) Reset() {
 	*x = SessionRecordingThumbnail{}
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[6]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -459,7 +431,7 @@ func (x *SessionRecordingThumbnail) String() string {
 func (*SessionRecordingThumbnail) ProtoMessage() {}
 
 func (x *SessionRecordingThumbnail) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[6]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -472,7 +444,7 @@ func (x *SessionRecordingThumbnail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRecordingThumbnail.ProtoReflect.Descriptor instead.
 func (*SessionRecordingThumbnail) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{6}
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SessionRecordingThumbnail) GetSvg() []byte {
@@ -528,7 +500,7 @@ var File_teleport_recordingmetadata_v1_recordingmetadata_proto protoreflect.File
 
 const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\n" +
-	"5teleport/recordingmetadata/v1/recordingmetadata.proto\x12\x1dteleport.recordingmetadata.v1\x1a\x1egoogle/protobuf/duration.proto\"\xa0\x03\n" +
+	"5teleport/recordingmetadata/v1/recordingmetadata.proto\x12\x1dteleport.recordingmetadata.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa0\x03\n" +
 	"\x15SessionRecordingEvent\x12<\n" +
 	"\fstart_offset\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
 	"\n" +
@@ -544,17 +516,18 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\x04user\x18\x01 \x01(\tR\x04user\"E\n" +
 	"\x1bSessionRecordingResizeEvent\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\x05R\x04cols\x12\x12\n" +
-	"\x04rows\x18\x02 \x01(\x05R\x04rows\"\xdd\x01\n" +
+	"\x04rows\x18\x02 \x01(\x05R\x04rows\"\xf2\x02\n" +
 	"\x18SessionRecordingMetadata\x125\n" +
 	"\bduration\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\bduration\x12L\n" +
 	"\x06events\x18\x02 \x03(\v24.teleport.recordingmetadata.v1.SessionRecordingEventR\x06events\x12\x1d\n" +
 	"\n" +
 	"start_cols\x18\x03 \x01(\x05R\tstartCols\x12\x1d\n" +
 	"\n" +
-	"start_rows\x18\x04 \x01(\x05R\tstartRows\"\xcb\x01\n" +
-	"\"SessionRecordingMetadataWithFrames\x12S\n" +
-	"\bmetadata\x18\x01 \x01(\v27.teleport.recordingmetadata.v1.SessionRecordingMetadataR\bmetadata\x12P\n" +
-	"\x06frames\x18\x02 \x03(\v28.teleport.recordingmetadata.v1.SessionRecordingThumbnailR\x06frames\"\x83\x02\n" +
+	"start_rows\x18\x04 \x01(\x05R\tstartRows\x129\n" +
+	"\n" +
+	"start_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
+	"\bend_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
+	"\fcluster_name\x18\a \x01(\tR\vclusterName\"\x83\x02\n" +
 	"\x19SessionRecordingThumbnail\x12\x10\n" +
 	"\x03svg\x18\x01 \x01(\fR\x03svg\x12\x12\n" +
 	"\x04cols\x18\x02 \x01(\x05R\x04cols\x12\x12\n" +
@@ -577,29 +550,29 @@ func file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP() []
 	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescData
 }
 
-var file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_goTypes = []any{
-	(*SessionRecordingEvent)(nil),              // 0: teleport.recordingmetadata.v1.SessionRecordingEvent
-	(*SessionRecordingInactivityEvent)(nil),    // 1: teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
-	(*SessionRecordingJoinEvent)(nil),          // 2: teleport.recordingmetadata.v1.SessionRecordingJoinEvent
-	(*SessionRecordingResizeEvent)(nil),        // 3: teleport.recordingmetadata.v1.SessionRecordingResizeEvent
-	(*SessionRecordingMetadata)(nil),           // 4: teleport.recordingmetadata.v1.SessionRecordingMetadata
-	(*SessionRecordingMetadataWithFrames)(nil), // 5: teleport.recordingmetadata.v1.SessionRecordingMetadataWithFrames
-	(*SessionRecordingThumbnail)(nil),          // 6: teleport.recordingmetadata.v1.SessionRecordingThumbnail
-	(*durationpb.Duration)(nil),                // 7: google.protobuf.Duration
+	(*SessionRecordingEvent)(nil),           // 0: teleport.recordingmetadata.v1.SessionRecordingEvent
+	(*SessionRecordingInactivityEvent)(nil), // 1: teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
+	(*SessionRecordingJoinEvent)(nil),       // 2: teleport.recordingmetadata.v1.SessionRecordingJoinEvent
+	(*SessionRecordingResizeEvent)(nil),     // 3: teleport.recordingmetadata.v1.SessionRecordingResizeEvent
+	(*SessionRecordingMetadata)(nil),        // 4: teleport.recordingmetadata.v1.SessionRecordingMetadata
+	(*SessionRecordingThumbnail)(nil),       // 5: teleport.recordingmetadata.v1.SessionRecordingThumbnail
+	(*durationpb.Duration)(nil),             // 6: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),           // 7: google.protobuf.Timestamp
 }
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_depIdxs = []int32{
-	7,  // 0: teleport.recordingmetadata.v1.SessionRecordingEvent.start_offset:type_name -> google.protobuf.Duration
-	7,  // 1: teleport.recordingmetadata.v1.SessionRecordingEvent.end_offset:type_name -> google.protobuf.Duration
+	6,  // 0: teleport.recordingmetadata.v1.SessionRecordingEvent.start_offset:type_name -> google.protobuf.Duration
+	6,  // 1: teleport.recordingmetadata.v1.SessionRecordingEvent.end_offset:type_name -> google.protobuf.Duration
 	1,  // 2: teleport.recordingmetadata.v1.SessionRecordingEvent.inactivity:type_name -> teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
 	2,  // 3: teleport.recordingmetadata.v1.SessionRecordingEvent.join:type_name -> teleport.recordingmetadata.v1.SessionRecordingJoinEvent
 	3,  // 4: teleport.recordingmetadata.v1.SessionRecordingEvent.resize:type_name -> teleport.recordingmetadata.v1.SessionRecordingResizeEvent
-	7,  // 5: teleport.recordingmetadata.v1.SessionRecordingMetadata.duration:type_name -> google.protobuf.Duration
+	6,  // 5: teleport.recordingmetadata.v1.SessionRecordingMetadata.duration:type_name -> google.protobuf.Duration
 	0,  // 6: teleport.recordingmetadata.v1.SessionRecordingMetadata.events:type_name -> teleport.recordingmetadata.v1.SessionRecordingEvent
-	4,  // 7: teleport.recordingmetadata.v1.SessionRecordingMetadataWithFrames.metadata:type_name -> teleport.recordingmetadata.v1.SessionRecordingMetadata
-	6,  // 8: teleport.recordingmetadata.v1.SessionRecordingMetadataWithFrames.frames:type_name -> teleport.recordingmetadata.v1.SessionRecordingThumbnail
-	7,  // 9: teleport.recordingmetadata.v1.SessionRecordingThumbnail.start_offset:type_name -> google.protobuf.Duration
-	7,  // 10: teleport.recordingmetadata.v1.SessionRecordingThumbnail.end_offset:type_name -> google.protobuf.Duration
+	7,  // 7: teleport.recordingmetadata.v1.SessionRecordingMetadata.start_time:type_name -> google.protobuf.Timestamp
+	7,  // 8: teleport.recordingmetadata.v1.SessionRecordingMetadata.end_time:type_name -> google.protobuf.Timestamp
+	6,  // 9: teleport.recordingmetadata.v1.SessionRecordingThumbnail.start_offset:type_name -> google.protobuf.Duration
+	6,  // 10: teleport.recordingmetadata.v1.SessionRecordingThumbnail.end_offset:type_name -> google.protobuf.Duration
 	11, // [11:11] is the sub-list for method output_type
 	11, // [11:11] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
@@ -623,7 +596,7 @@ func file_teleport_recordingmetadata_v1_recordingmetadata_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc), len(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

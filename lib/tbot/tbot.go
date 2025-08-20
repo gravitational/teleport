@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"runtime"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -118,6 +119,10 @@ func (b *Bot) getClient() *apiclient.Client {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+	b.log.InfoContext(
+		ctx, "Initializing tbot",
+		"version", versionLogValue(),
+	)
 
 	if err := metrics.RegisterPrometheusCollectors(
 		metrics.BuildCollector(),
@@ -216,9 +221,16 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *ssh.MultiplexerConfig:
 			services = append(services, ssh.MultiplexerServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, clientMetrics))
 		case *k8s.OutputV1Config:
-			services = append(services, k8s.OutputV1ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+			services = append(services, k8s.OutputV1ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
 		case *k8s.OutputV2Config:
-			services = append(services, k8s.OutputV2ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+			services = append(services, k8s.OutputV2ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
+		case *k8s.ArgoCDOutputConfig:
+			services = append(services, k8s.ArgoCDServiceBuilder(
+				svcCfg,
+				k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
+				k8s.WithInsecure(b.cfg.ConnectionConfig().Insecure),
+				k8s.WithALPNUpgradeCache(alpnUpgradeCache),
+			))
 		case *ssh.HostOutputConfig:
 			services = append(services, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.OutputConfig:
@@ -363,4 +375,12 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	return nil
+}
+
+func versionLogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("teleport", teleport.Version),
+		slog.String("teleport_git", teleport.Gitref),
+		slog.String("go", runtime.Version()),
+	)
 }

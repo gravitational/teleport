@@ -22,8 +22,8 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 
 // RecordingMetadataService provides methods to retrieve metadata and thumbnails for a session recording.
 service RecordingMetadataService {
-  // GetThumbnails retrieves the thumbnails for many session recordings.
-  rpc GetThumbnails(GetThumbnailsRequest) returns (stream GetThumbnailsResponse);
+  // GetThumbnail retrieves the thumbnail for a session recording.
+  rpc GetThumbnail(GetThumbnailRequest) returns (GetThumbnailResponse);
   // GetMetadata retrieves the metadata for a session recording.
   rpc GetMetadata(GetMetadataRequest) returns (stream GetMetadataResponseChunk);
 }
@@ -39,18 +39,16 @@ message GetMetadataResponseChunk {
   }
 }
 
-// GetThumbnailsRequest is a request for retrieving multiple session's thumbnails.
-message GetThumbnailsRequest {
-  // SessionIds are the ID of the sessions whose thumbnails are being requested.
-  repeated string session_ids = 1;
+// GetThumbnailRequest is a request for a session's thumbnail.
+message GetThumbnailRequest {
+  // SessionId is the ID of the session whose thumbnail is being requested.
+  string session_id = 1;
 }
 
-// GetThumbnailsResponse is a response for retrieving multiple session's thumbnails.
-message GetThumbnailsResponse {
-  // SessionId is the ID of the session for which the thumbnail is being retrieved.
-  string session_id = 1;
-  // Thumbnail is the thumbnail of the session.
-  teleport.recordingmetadata.v1.SessionRecordingThumbnail thumbnail = 2;
+// GetThumbnailResponse is a response for retrieving a session's thumbnail.
+message GetThumbnailResponse {
+  // Thumbnail is the thumbnail for the session.
+  teleport.recordingmetadata.v1.SessionRecordingThumbnail thumbnail = 1;
 }
 
 // GetMetadataRequest is a request for retrieving a session's metadata.
