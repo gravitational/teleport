@@ -23,48 +23,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
-	core "k8s.io/client-go/testing"
 )
 
 func TestDestinationKubernetesSecret(t *testing.T) {
 	t.Setenv("POD_NAMESPACE", "test-namespace")
-
-	// Hack a reactor into the Kubernetes client-go fake client set as it
-	// doesn't currently support Apply :)
-	// https://github.com/kubernetes/kubernetes/issues/99953
-	fakeClientSet := func(objects ...runtime.Object) *fake.Clientset {
-		f := fake.NewSimpleClientset(objects...)
-		f.PrependReactor("patch", "secrets", func(action core.Action) (handled bool, ret runtime.Object, err error) {
-			pa := action.(core.PatchAction)
-			if pa.GetPatchType() == types.ApplyPatchType {
-				react := core.ObjectReaction(f.Tracker())
-				_, _, err := react(
-					core.NewGetAction(pa.GetResource(), pa.GetNamespace(), pa.GetName()),
-				)
-				if kubeerrors.IsNotFound(err) {
-					_, _, err = react(
-						core.NewCreateAction(pa.GetResource(), pa.GetNamespace(), &corev1.Secret{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      pa.GetName(),
-								Namespace: pa.GetNamespace(),
-							},
-						}),
-					)
-					if err != nil {
-						return false, nil, err
-					}
-				}
-				return react(action)
-			}
-			return false, nil, nil
-		})
-		return f
-	}
 
 	tests := []struct {
 		name string
@@ -76,7 +40,7 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 			name: "no existing secret",
 			dest: &SecretDestination{
 				Name: "my-secret",
-				k8s:  fakeClientSet(),
+				k8s:  fake.NewClientset(),
 			},
 		},
 		{
@@ -87,14 +51,14 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 					"key": "value",
 					"bar": "baz",
 				},
-				k8s: fakeClientSet(),
+				k8s: fake.NewClientset(),
 			},
 		},
 		{
 			name: "existing secret",
 			dest: &SecretDestination{
 				Name: "my-secret",
-				k8s: fakeClientSet(&corev1.Secret{
+				k8s: fake.NewClientset(&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "my-secret",
 						Namespace: "test-namespace",

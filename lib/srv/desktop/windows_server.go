@@ -87,6 +87,7 @@ const (
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
 var computerAttributes = []string{
 	attrName,
+	attrDescription,
 	attrCommonName,
 	attrDistinguishedName,
 	attrDNSHostName,

@@ -108,6 +108,7 @@ func TestREPL(t *testing.T) {
 			require.NoError(t, err)
 			testREPL.(*REPL).testPassword = testSrv.password
 			testREPL.(*REPL).disableQueryTimings = true
+			testREPL.(*REPL).teleportVersion = "19.0.0-dev"
 			err = testREPL.Run(t.Context())
 			require.NoError(t, err)
 			goldenName := strings.ReplaceAll(test.name, " ", "-")
