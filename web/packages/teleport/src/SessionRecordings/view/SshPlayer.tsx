@@ -62,7 +62,7 @@ export default function Player({ sid, clusterId, durationMs }) {
 
   return (
     <StyledPlayer>
-      <Flex flex="1" flexDirection="column" overflow="auto">
+      <Flex height="calc(100% - 56px)" flexDirection="column">
         <Xterm tty={tty} />
       </Flex>
       <ProgressBar
@@ -92,11 +92,9 @@ const StatusBox = props => (
 
 const StyledPlayer = styled.div`
   display: flex;
-  height: 100%;
-  width: 100%;
-  position: absolute;
   flex-direction: column;
-  flex: 1;
+  width: 100%;
+  height: 100%;
   justify-content: space-between;
 `;
 
