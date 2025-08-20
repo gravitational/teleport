@@ -90,7 +90,9 @@ func (h *Handler) getSessionRecordingMetadata(
 
 	metadata, err := stream.Recv()
 	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to receive metadata", "session_id", sessionID, "error", err)
+		if !trace.IsNotFound(err) {
+			h.logger.ErrorContext(ctx, "failed to receive metadata", "session_id", sessionID, "error", err)
+		}
 		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
 			Error: err.Error(),
 		})
