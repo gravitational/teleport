@@ -14192,7 +14192,9 @@ type OIDCConnectorMFASettings struct {
 	MaxAge Duration `protobuf:"varint,6,opt,name=max_age,json=maxAge,proto3,casttype=Duration" json:"max_age,omitempty"`
 	// RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization
 	// requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
-	// for authorization request parameters.
+	// for authorization request parameters. If omitted, MFA flows will default to the `RequestObjectMode` behavior
+	// specified in the base OIDC connector. Set this property to 'none' to explicitly disable request objects for
+	// the MFA client.
 	RequestObjectMode    string   `protobuf:"bytes,7,opt,name=RequestObjectMode,proto3" json:"request_object_mode,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
