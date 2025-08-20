@@ -96,6 +96,9 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
 // It streams session events, generates metadata, and uploads thumbnails and metadata.
 func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	evts, errors := s.streamer.StreamSessionEvents(ctx, sessionID, 0)
 
 	var startTime time.Time
