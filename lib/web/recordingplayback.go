@@ -290,13 +290,16 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 
 	s.stream.lastEndTime = req.endOffset
 
+	eventsChan := s.stream.eventsChan
+	errorsChan := s.stream.errorsChan
+
 	s.stream.Unlock()
 
-	go s.streamEvents(ctx, req)
+	go s.streamEvents(ctx, req, eventsChan, errorsChan)
 }
 
 // streamEvents streams session events to the client.
-func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest) {
+func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest, eventsChan <-chan apievents.AuditEvent, errorsChan <-chan error) {
 	defer func() {
 		s.mu.Lock()
 		s.activeTask = nil
@@ -424,7 +427,7 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest)
 
 			return
 
-		case err := <-s.stream.errorsChan:
+		case err := <-errorsChan:
 			flushBatch()
 			if err != nil {
 				s.sendError(err, req.requestID)
@@ -433,7 +436,7 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest)
 
 			return
 
-		case evt, ok := <-s.stream.eventsChan:
+		case evt, ok := <-eventsChan:
 			if !ok {
 				flushBatch()
 				if req.requestCurrentScreen && !screenSent && inTimeRange {
