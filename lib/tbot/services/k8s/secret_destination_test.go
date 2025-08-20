@@ -165,7 +165,11 @@ func TestDestinationKubernetesSecret_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: &SecretDestination{
-				Name: "my-secret",
+				Name:      "my-secret",
+				Namespace: "my-namespace",
+				Labels: map[string]string{
+					"key": "value",
+				},
 			},
 		},
 	}
