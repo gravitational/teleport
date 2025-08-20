@@ -82,11 +82,17 @@ export interface SessionRecordingError {
 type WrappedMessage<TType extends SessionRecordingMessageType, TData> = {
   type: TType;
   data: TData;
-}
+};
 
 export type SessionRecordingMessage =
-  | WrappedMessage<SessionRecordingMessageType.Thumbnail, SessionRecordingThumbnail>
-  | WrappedMessage<SessionRecordingMessageType.Metadata, SessionRecordingMetadata>
+  | WrappedMessage<
+      SessionRecordingMessageType.Thumbnail,
+      SessionRecordingThumbnail
+    >
+  | WrappedMessage<
+      SessionRecordingMessageType.Metadata,
+      SessionRecordingMetadata
+    >
   | WrappedMessage<SessionRecordingMessageType.Error, SessionRecordingError>;
 
 interface BaseSessionRecordingEvent {
