@@ -18,12 +18,20 @@
 
 import { ComponentType } from 'react';
 
-import { ButtonPrimary, ButtonSecondary, Flex, P3, Stack, Text } from 'design';
+import {
+  ButtonBorder,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  P3,
+  Stack,
+  Text,
+} from 'design';
 import { Alert } from 'design/Alert';
-import { Info, Warning } from 'design/Icon';
+import { Info } from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
+import { SpaceProps } from 'design/system';
 import { UnreachableCluster } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
-import { getErrorMessage } from 'shared/utils/error';
 
 import { Platform } from 'teleterm/mainProcess/types';
 import {
@@ -50,34 +58,41 @@ import {
  * Hidden for `update-not-available` and `checking-for-update` events,
  * unless there's an issue that prevents autoupdates from working.
  */
-export function WidgetView(props: {
+export function WidgetView({
+  clusterGetter,
+  onDownload,
+  onInstall,
+  onMore,
+  platform,
+  updateEvent,
+  ...rest
+}: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
   clusterGetter: ClusterGetter;
   onMore(): void;
   onDownload(): void;
   onInstall(): void;
-}) {
-  const getClusterName = clusterNameGetter(props.clusterGetter);
-  const { updateEvent } = props;
+} & SpaceProps) {
+  const getClusterName = clusterNameGetter(clusterGetter);
   const { autoUpdatesStatus } = updateEvent;
 
-  const issueRequiringAttention = findAutoUpdatesIssuesRequiringAttention(
-    autoUpdatesStatus,
-    getClusterName
-  );
+  const issueRequiringAttention =
+    autoUpdatesStatus &&
+    findAutoUpdatesIssuesRequiringAttention(autoUpdatesStatus, getClusterName);
 
   if (issueRequiringAttention) {
     return (
       <Alert
         kind="danger"
-        width="100%"
         mb={0}
-        details={issueRequiringAttention}
-        secondaryAction={{
-          content: 'Resolve',
-          onClick: props.onMore,
-        }}
+        details={
+          <Stack gap={2}>
+            {issueRequiringAttention}
+            {/*TODO(gzdunek): Allow Alert to show buttons at the bottom. */}
+            <ButtonBorder onClick={onMore}>Resolve</ButtonBorder>
+          </Stack>
+        }
       >
         App updates are disabled
       </Alert>
@@ -89,13 +104,15 @@ export function WidgetView(props: {
     return (
       <Alert
         kind="danger"
-        width="100%"
         mb={0}
-        details={updateEvent.error.message}
-        secondaryAction={{
-          content: 'More',
-          onClick: props.onMore,
-        }}
+        {...rest}
+        details={
+          <Stack gap={2}>
+            {updateEvent.error.message}
+            {/*TODO(gzdunek): Allow Alert to show buttons at the bottom. */}
+            <ButtonBorder onClick={onMore}>More</ButtonBorder>
+          </Stack>
+        }
       >
         Unable to check for app updates
       </Alert>
@@ -111,8 +128,8 @@ export function WidgetView(props: {
 
   const { description, button } = makeUpdaterContent({
     updateEvent,
-    onDownload: props.onDownload,
-    onInstall: props.onInstall,
+    onDownload,
+    onInstall,
   });
 
   const unreachableClusters =
@@ -125,22 +142,32 @@ export function WidgetView(props: {
   return (
     <AvailableUpdate
       version={updateEvent.update.version}
-      platform={props.platform}
+      platform={platform}
       description={description}
       unreachableClusters={unreachableClusters}
       downloadHost={downloadBaseUrl}
-      onMore={props.onMore}
+      onMore={onMore}
       getClusterName={getClusterName}
       primaryButton={
         button ? { name: button.name, onClick: button.action } : undefined
       }
+      {...rest}
     />
   );
 }
 
-function AvailableUpdate(props: {
+function AvailableUpdate({
+  description,
+  downloadHost,
+  onMore,
+  platform,
+  primaryButton,
+  unreachableClusters,
+  version,
+  ...rest
+}: {
   version: string;
-  description: string | { Icon: ComponentType<IconProps>; text: string };
+  description: string;
   unreachableClusters: UnreachableCluster[];
   downloadHost: string;
   platform: Platform;
@@ -150,17 +177,16 @@ function AvailableUpdate(props: {
     name: string;
     onClick(): void;
   };
-}) {
-  const hasUnreachableClusters = !!props.unreachableClusters.length;
+} & SpaceProps) {
+  const hasUnreachableClusters = !!unreachableClusters.length;
   const isNonTeleportServer =
-    props.downloadHost && !isTeleportDownloadHost(props.downloadHost);
+    downloadHost && !isTeleportDownloadHost(downloadHost);
 
   return (
     // Mimics a neutral alert.
     <Stack
       justifyContent="space-between"
       gap={1}
-      width="100%"
       css={`
         border: 1px solid ${props => props.theme.colors.text.disabled};
         background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
@@ -168,10 +194,11 @@ function AvailableUpdate(props: {
       borderRadius={3}
       px={3}
       py="12px"
+      {...rest}
     >
       <Flex width="100%" alignItems="center" justifyContent="space-between">
         <Flex gap={1} alignItems="center" width="100%">
-          {props.platform === 'darwin' ? (
+          {platform === 'darwin' ? (
             <img alt="App icon" height="50px" src={iconMac} />
           ) : (
             <img
@@ -182,24 +209,17 @@ function AvailableUpdate(props: {
             />
           )}
           <Stack gap={0}>
-            <Text bold>Teleport Connect {props.version}</Text>
-            {typeof props.description === 'object' ? (
-              <Flex gap={1}>
-                <props.description.Icon size="small" />
-                <P3>{props.description.text}</P3>
-              </Flex>
-            ) : (
-              <P3>{props.description}</P3>
-            )}
+            <Text bold>Teleport Connect {version}</Text>
+            <P3>{description}</P3>
           </Stack>
         </Flex>
         <Flex gap={2}>
-          {props.primaryButton && (
-            <ButtonPrimary size="small" onClick={props.primaryButton.onClick}>
-              {props.primaryButton.name}
+          {primaryButton && (
+            <ButtonPrimary size="small" onClick={primaryButton.onClick}>
+              {primaryButton.name}
             </ButtonPrimary>
           )}
-          <ButtonSecondary size="small" onClick={props.onMore}>
+          <ButtonSecondary size="small" onClick={onMore}>
             More
           </ButtonSecondary>
         </Flex>
@@ -208,14 +228,14 @@ function AvailableUpdate(props: {
         <Stack ml={1}>
           {hasUnreachableClusters && (
             <IconAndText
-              Icon={Warning}
+              Icon={Info}
               text="Unable to retrieve accepted client versions from some clusters."
             />
           )}
           {isNonTeleportServer && (
             <IconAndText
               Icon={Info}
-              text={`Using ${props.downloadHost} as the update server.`}
+              text={`Using ${downloadHost} as the update server.`}
             />
           )}
         </Stack>
@@ -248,7 +268,7 @@ function makeUpdaterContent({
   onDownload(): void;
   onInstall(): void;
 }): {
-  description: string | { Icon: ComponentType<IconProps>; text: string };
+  description: string;
   button?: {
     name: string;
     action(): void;
@@ -283,10 +303,7 @@ function makeUpdaterContent({
       };
     case 'error':
       return {
-        description: {
-          Icon: Warning,
-          text: getErrorMessage(updateEvent.error),
-        },
+        description: 'Update failed',
       };
   }
 }

@@ -76,6 +76,7 @@ lint:
       - api/proto/teleport/workloadidentity/v1/revocation_service.proto
       - proto/accessgraph/v1alpha/access_graph_service.proto
       - proto/teleport/lib/teleterm/v1/service.proto
+      - api/proto/teleport/recordingmetadata/v1/recordingmetadata_service.proto
 
 breaking:
   use:

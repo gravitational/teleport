@@ -856,6 +856,17 @@ ensure-gotestsum:
 	go install gotest.tools/gotestsum@latest
 endif
 
+#
+# Install goda to lint testing symbols
+#
+.PHONY: ensure-goda
+ensure-goda:
+# Install goda if it's not already installed
+ ifeq (, $(shell command -v goda))
+	go install github.com/loov/goda@latest
+endif
+
+
 DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
@@ -1213,6 +1224,27 @@ lint-no-actions: lint-sh lint-license
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
 
+
+#
+# Checks that testing symbols and the testify library is not included in binaries.
+# 
+# 
+.PHONY: lint-test-symbols
+lint-test-symbols: ensure-goda
+	@testing_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	if [ "$$testing_count" -gt 0 ]; then \
+		echo ""; \
+		echo "FAIL: \"testing\" is included in binaries"; \
+	fi; \
+	testify_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, github.com/stretchr/testify/...)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	if [ "$$testify_count" -gt 0 ]; then \
+		echo ""; \
+		echo "FAIL: \"github.com/stretchr/testify\" is included in binaries"; \
+	fi; \
+	if [ "$$testing_count" -gt 0 ] || [ "$$testify_count" -gt 0 ]; then \
+		exit 1; \
+	fi
+
 #
 # Runs the clippy linter and rustfmt on our rust modules
 # (a no-op if cargo and rustc are not installed)
@@ -1539,27 +1571,38 @@ enter/arm:
 
 BUF := buf
 
+#
+# Install buf to lint, format and generate code from protobuf files.
+#
+.PHONY: ensure-buf
+ensure-buf: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-buf-version)
+ensure-buf:
+# Install buf if it's not already installed.
+ifeq (, $(shell command -v $(BUF)))
+	go install github.com/bufbuild/buf/cmd/buf@$(NEED_VERSION)
+endif
+
 # protos/all runs build, lint and format on all protos.
 # Use `make grpc` to regenerate protos inside buildbox.
 .PHONY: protos/all
 protos/all: protos/build protos/lint protos/format
 
 .PHONY: protos/build
-protos/build: buf/installed
+protos/build: ensure-buf
 	$(BUF) build
 
 .PHONY: protos/format
-protos/format: buf/installed
+protos/format: ensure-buf
 	$(BUF) format -w
 
 .PHONY: protos/lint
-protos/lint: buf/installed
+protos/lint: ensure-buf
 	$(BUF) lint
 	$(BUF) lint --config=buf-legacy.yaml api/proto
 
 .PHONY: protos/breaking
 protos/breaking: BASE=origin/master
-protos/breaking: buf/installed
+protos/breaking: ensure-buf
 	@echo Checking compatibility against BASE=$(BASE)
 	buf breaking . --against '.git#branch=$(BASE)'
 
@@ -1568,13 +1611,6 @@ lint-protos: protos/lint
 
 .PHONY: lint-breaking
 lint-breaking: protos/breaking
-
-.PHONY: buf/installed
-buf/installed:
-	@if ! type -p $(BUF) >/dev/null; then \
-		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
-		exit 1; \
-	fi
 
 GODERIVE := $(TOOLINGDIR)/bin/goderive
 # derive will generate derived functions for our API.

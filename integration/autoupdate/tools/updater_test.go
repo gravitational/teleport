@@ -69,9 +69,7 @@ func TestUpdate(t *testing.T) {
 	out, err := cmd.Output()
 	require.NoError(t, err)
 
-	matches := pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[0], matches[1])
+	matchVersion(t, string(out), testVersions[0])
 
 	// Execute version command again with setting the new version which must
 	// trigger re-execution of the same command after downloading requested version.
@@ -83,9 +81,7 @@ func TestUpdate(t *testing.T) {
 	out, err = cmd.Output()
 	require.NoError(t, err)
 
-	matches = pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[1], matches[1])
+	matchVersion(t, string(out), testVersions[1])
 }
 
 // TestParallelUpdate launches multiple updater commands in parallel while defining a new version.
@@ -258,9 +254,7 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	out, err := cmd.Output()
 	require.NoError(t, err)
 
-	matches := pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[0], matches[1])
+	matchVersion(t, string(out), testVersions[0])
 
 	// Next update is set with the base URL env variable, must download new version.
 	t.Setenv(autoupdate.BaseURLEnvVar, baseURL)
@@ -272,7 +266,12 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	out, err = cmd.Output()
 	require.NoError(t, err)
 
-	matches = pattern.FindStringSubmatch(string(out))
+	matchVersion(t, string(out), testVersions[1])
+}
+
+func matchVersion(t *testing.T, output string, version string) {
+	t.Helper()
+	matches := pattern.FindStringSubmatch(output)
 	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[1], matches[1])
+	require.Equal(t, version, matches[1])
 }

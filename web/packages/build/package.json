@@ -34,6 +34,7 @@
     "jsdom": "^26.1.0",
     "rollup-plugin-visualizer": "^6.0.3",
     "typescript-eslint": "^8.39.1",
+    "vite-plugin-compression": "^0.5.1",
     "vite-plugin-wasm": "^3.5.0",
     "vite-tsconfig-paths": "^5.1.4"
   }

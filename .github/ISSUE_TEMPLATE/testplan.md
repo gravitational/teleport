@@ -1493,8 +1493,9 @@ GODEBUG='inittrace=1' teleport version 2>&1 | rg '^init' | awk '{print $8 " byte
 - [ ] Verify [AWS console access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
   - [ ] Can interact with AWS using `tsh` commands.
-    - [ ] `tsh aws`
-    - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
+    - [ ] `tsh aws sts get-caller-identity`
+    - [ ] `tsh aws s3 ls`
+    - [ ] `tsh aws s3 cp ./file s3://<bucket>/test`
 - [ ] Verify [Azure CLI access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/azure/) with `tsh apps login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
@@ -1662,6 +1663,8 @@ manualy testing.
     - [ ] Postgres
 - [ ] Verify database access via Web UI
   - [ ] Postgres
+  - [ ] CockroachDB
+  - [ ] MySQL
 - [ ] Verify database health checks
   - [ ] Dynamic `health_check_config` resource create, read, update, delete operations are supported using `tctl`
   - [ ] Database servers (`$ tctl get db_server`) include `db_server.status.target_health` info
