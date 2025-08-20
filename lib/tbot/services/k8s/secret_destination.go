@@ -291,7 +291,12 @@ func (dks *SecretDestination) Read(ctx context.Context, name string) ([]byte, er
 }
 
 func (dks *SecretDestination) String() string {
-	return fmt.Sprintf("%s: %s", SecretDestinationType, dks.Name)
+	return fmt.Sprintf(
+		"%s: %s/%s",
+		SecretDestinationType,
+		dks.Namespace,
+		dks.Name,
+	)
 }
 
 func (dks *SecretDestination) MarshalYAML() (any, error) {
