@@ -26,6 +26,7 @@ import { useThumbnailSvg } from 'teleport/SessionRecordings/svg';
 interface RecordingThumbnailProps {
   clusterId: string;
   sessionId: string;
+  styles: string;
 }
 
 // zoomLevel determines how far the thumbnail is zoomed in.
@@ -35,6 +36,7 @@ const zoomLevel = 5;
 export function RecordingThumbnail({
   clusterId,
   sessionId,
+  styles,
 }: RecordingThumbnailProps) {
   const { data } = useSuspenseGetRecordingThumbnail(
     {
@@ -73,7 +75,7 @@ export function RecordingThumbnail({
     return { bgPosX, bgPosY };
   }, [data.cols, data.cursorX, data.cursorY, data.rows]);
 
-  const dataUri = useThumbnailSvg(data.svg);
+  const dataUri = useThumbnailSvg(data.svg, styles);
 
   return (
     <Box
