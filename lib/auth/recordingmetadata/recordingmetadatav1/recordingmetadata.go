@@ -24,7 +24,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 	"time"
@@ -284,7 +284,7 @@ loop:
 		return trace.Wrap(err)
 	}
 
-	s.logger.Info("Uploaded session recording metadata", "path", path)
+	s.logger.InfoContext(ctx, "Uploaded session recording metadata", "path", path)
 
 	thumbnail := getRandomThumbnail(thumbnails)
 
@@ -299,31 +299,10 @@ loop:
 			return trace.Wrap(err)
 		}
 
-		s.logger.Info("Uploaded session recording thumbnail", "path", path)
+		s.logger.InfoContext(ctx, "Uploaded session recording thumbnail", "path", path)
 	}
 
 	return nil
-}
-
-func (s *RecordingMetadataService) uploadMetadata(ctx context.Context, sessionID session.ID, metadata *pb.SessionRecordingMetadata, frames []*pb.SessionRecordingThumbnail) (string, error) {
-	buf := &bytes.Buffer{}
-	writer := bufio.NewWriter(buf)
-
-	if _, err := protodelim.MarshalTo(writer, metadata); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	for _, frame := range frames {
-		if _, err := protodelim.MarshalTo(writer, frame); err != nil {
-			return "", trace.Wrap(err)
-		}
-	}
-
-	if err := writer.Flush(); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return s.uploadHandler.UploadMetadata(ctx, sessionID, buf)
 }
 
 func thumbnailEntryToProto(t *thumbnailEntry) *pb.SessionRecordingThumbnail {
@@ -362,7 +341,7 @@ func getRandomThumbnail(thumbnails []*thumbnailEntry) *thumbnailEntry {
 		return nil
 	}
 
-	randomIndex := rand.Intn(len(thumbnails))
+	randomIndex := rand.IntN(len(thumbnails))
 
 	return thumbnails[randomIndex]
 }

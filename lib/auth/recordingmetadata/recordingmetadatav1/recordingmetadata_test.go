@@ -59,7 +59,7 @@ func TestProcessSessionRecording(t *testing.T) {
 				require.Equal(t, int32(24), metadata.StartRows)
 			},
 			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
-				require.Greater(t, len(frames), 0)
+				require.NotEmpty(t, frames)
 			},
 			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
 				var thumbnail pb.SessionRecordingThumbnail
