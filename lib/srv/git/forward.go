@@ -400,11 +400,24 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 		return
 	}
 
+	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+	var sessionParams *tracessh.SessionParams
+	if len(nch.ExtraData()) > 0 {
+		var err error
+		sessionParams, err = sshutils.ParseSessionParams(nch.ExtraData())
+		if err != nil {
+			s.reply.RejectWithAcceptError(ctx, nch, err)
+			return
+		}
+
+		ccx.SetSessionParams(sessionParams)
+	}
+
 	if s.remoteClient == nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, trace.NotFound("missing remote client"))
 		return
 	}
-	remoteSession, err := s.remoteClient.NewSession(ctx)
+	remoteSession, err := s.remoteClient.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, err)
 		return

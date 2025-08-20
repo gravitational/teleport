@@ -20,6 +20,7 @@ package srv
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -587,31 +588,6 @@ func (c *ServerContext) ID() int {
 	return c.id
 }
 
-// GetJoinParams gets join params if they are set.
-//
-// These params (env vars) are set synchronously between the "session" channel request
-// and the "shell" / "exec" channel request. Therefore, these params are only guaranteed
-// to be accurately set during and after the "shell" / "exec" channel request.
-//
-// TODO(Joerger): Rather than relying on the out-of-band env var params, we should
-// provide session params upfront as extra data in the session channel request.
-func (c *ServerContext) GetJoinParams() (string, types.SessionParticipantMode) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	sid, found := c.getEnvLocked(sshutils.SessionEnvVar)
-	if !found {
-		return "", ""
-	}
-
-	mode := types.SessionPeerMode // default
-	if modeString, found := c.getEnvLocked(teleport.EnvSSHJoinMode); found {
-		mode = types.SessionParticipantMode(modeString)
-	}
-
-	return sid, mode
-}
-
 // SessionID returns the ID of the session in the context.
 //
 // This value is not set until during and after the "shell" / "exec" channel request.
@@ -693,6 +669,34 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 		return val, true
 	}
 	return c.Parent().GetEnv(key)
+}
+
+func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
+	// If the client is up to date (>=v19), it will have provided session params upfront
+	// in the session channel request.
+	if sessionParams := c.Parent().GetSessionParams(); sessionParams != nil {
+		return *sessionParams
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// TODO(Joerger): DELETE IN v20.0.0 - The client is old (<v19) and will provide session
+	// params from env variables sometime between the session channel request and shell request.
+	sessionParams := tracessh.SessionParams{
+		Reason:                         c.env[teleport.EnvSSHSessionReason],
+		DisplayParticipantRequirements: utils.AsBool(c.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
+		JoinSessionID:                  c.env[sshutils.SessionEnvVar],
+		JoinMode:                       types.SessionParticipantMode(c.env[teleport.EnvSSHJoinMode]),
+	}
+
+	if invitedUsers := c.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {
+		if err := json.Unmarshal([]byte(invitedUsers), &sessionParams.Invited); err != nil {
+			slog.WarnContext(context.Background(), "Failed to parse invited users", "error", err)
+		}
+	}
+
+	return sessionParams
 }
 
 // setSession sets the context's session
