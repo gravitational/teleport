@@ -13,8 +13,8 @@ still allowing users to receive temporary access without manual approval.
 In this guide, we'll walk through how to configure Teleport RBAC and demonstrate
 example use cases for automatic reviews:
 
-- Automatically approve requests when a user from a particular team requests a specific role.
-- Automatically approve requests when a user from a particular team requests a specific resource.
+- Automatically approve role requests from users on a specific team.
+- Automatically approve resource requests from users on a specific team.
 
 ## How it works
 
@@ -113,10 +113,8 @@ Rule via the Teleport Web UI:
    - **Review decision**: `APPROVED`
 4. Click **Create Rule**
 
-This automatic review rule will ensure that Access Requests for the `access`
-role will be automatically reviewed for approval if the Teleport user traits
-requirements are satisfied. In this case, any user with the traits `team: demo`
-will satisfy the requirement.
+This rule automatically approves Access Requests for the `access` role if the
+user has the trait `team: demo`.
 
 To verify the new automatic review rule, create an Access Request via the Teleport
 Web UI:
@@ -157,10 +155,8 @@ Rule via the Teleport Web UI:
    - **Review decision**: `APPROVED`
 4. Click **Create Rule**
 
-This automatic review rule ensures that Access Requests for the `access`
-role and for resources labeled `env: demo` are automatically reviewed for
-approval if the Teleport user traits requirements are satisfied. In this case,
-any user with the traits `team: demo` will satisfy the requirement.
+This rule automatically approves Access Requests for the `access` role and
+resources labeled `env: demo` if the user has the trait `team: demo`.
 
 To verify the new automatic review rule, create an Access Request via the Teleport
 Web UI:
