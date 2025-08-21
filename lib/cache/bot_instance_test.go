@@ -39,7 +39,7 @@ func TestBotInstanceCache(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*machineidv1.BotInstance]{
+	testResources153(t, p, testFuncs[*machineidv1.BotInstance]{
 		newResource: func(key string) (*machineidv1.BotInstance, error) {
 			return &machineidv1.BotInstance{
 				Kind:     types.KindBotInstance,
@@ -55,7 +55,7 @@ func TestBotInstanceCache(t *testing.T) {
 		cacheGet: func(ctx context.Context, key string) (*machineidv1.BotInstance, error) {
 			return p.cache.GetBotInstance(ctx, "bot-1", key)
 		},
-		cacheList: func(ctx context.Context) ([]*machineidv1.BotInstance, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*machineidv1.BotInstance, error) {
 			results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 			return results, err
 		},
@@ -79,7 +79,7 @@ func TestBotInstanceCache(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return p.botInstanceService.DeleteAllBotInstances(ctx)
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestBotInstanceCachePaging tests that items from the cache are paginated.
