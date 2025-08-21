@@ -25,12 +25,15 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/accesslist"
 	"github.com/gravitational/teleport/e/lib/auth/machineid/workloadidentityv1"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/externalauditstorage/externalauditstoragev1"
@@ -339,6 +342,31 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}
 
 	p.authServer.AuthServer.RegisterLoginHook(uac.OnLogin)
+
+	if modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled {
+		p.logger.InfoContext(ctx, "Session summarizer enabled")
+		sessionSummarizer, err := summarizer.NewSessionSummarizer(summarizer.SummarizerConfig{
+			Backend:         p.authServer.AuthServer,
+			Streamer:        p.authServer.AuthServer,
+			ResourceGetter:  p.authServer.AuthServer,
+			SummaryUploader: p.authServer.AuthServer,
+			Clock:           p.authServer.AuthServer.GetClock(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		p.authServer.AuthServer.SetSummarizerService(sessionSummarizer)
+
+		summarizerService, err := summarizerv1.NewService(summarizerv1.ServiceConfig{
+			Authorizer:        p.authServer.Authorizer,
+			Backend:           p.authServer.AuthServer,
+			SummaryDownloader: p.authServer.AuthServer,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		summarizerv1pb.RegisterSummarizerServiceServer(gRPCServer, summarizerService)
+	}
 
 	if err := p.registerResourceUsageService(p.authServer, resourceusagev1.ServiceConfig{
 		GetDevicesUsageFunc: deviceService.GetResourceDevicesUsage,

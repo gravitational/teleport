@@ -692,3 +692,7 @@ test-go-integration:
 .PHONY: configure-git
 configure-git:
 	@./scripts/configure-git.sh
+
+.PHONY: obfuscate-prompts
+obfuscate-prompts:
+	go run ./tooling/obfuscate-prompts
