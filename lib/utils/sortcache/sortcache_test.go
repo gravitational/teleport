@@ -18,8 +18,10 @@
 package sortcache
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -437,4 +439,87 @@ func TestSortCachePagination(t *testing.T) {
 		}
 		require.Equal(t, -1, i)
 	})
+}
+
+type numericResource struct {
+	ID    string
+	Count int
+}
+
+func TestCustomCompare(t *testing.T) {
+	t.Parallel()
+
+	cache := New(Config[numericResource, string]{
+		Indexes: map[string]func(numericResource) string{
+			"id":    func(r numericResource) string { return r.ID },
+			"count": func(r numericResource) string { return fmt.Sprintf("%d/%s", r.Count, r.ID) },
+		},
+		CustomCompareFns: map[string]func(a, b string) bool{
+			"count": func(a, b string) bool {
+				partsA := strings.Split(a, "/")
+				partsB := strings.Split(b, "/")
+
+				if len(partsA) < 2 || len(partsB) < 2 {
+					return a < b
+				}
+
+				countA, errA := strconv.Atoi(partsA[0])
+				countB, errB := strconv.Atoi(partsB[0])
+
+				if errA != nil || errB != nil {
+					return a < b
+				}
+
+				if countA != countB {
+					return countA < countB
+				}
+				return a < b
+			},
+		},
+	})
+
+	items := []numericResource{
+		{ID: "apple", Count: 100},
+		{ID: "banana", Count: 2},
+		{ID: "cherry", Count: 30},
+		{ID: "cloud", Count: 30},
+		{ID: "elephant", Count: 5},
+		{ID: "dog", Count: 5},
+		{ID: "fox", Count: 2},
+	}
+
+	for _, item := range items {
+		cache.Put(item)
+	}
+
+	var results []numericResource
+	for item := range cache.Ascend("count", "", "") {
+		results = append(results, item)
+	}
+
+	require.Equal(t, []numericResource{
+		{ID: "banana", Count: 2},
+		{ID: "fox", Count: 2},
+		{ID: "dog", Count: 5},
+		{ID: "elephant", Count: 5},
+		{ID: "cherry", Count: 30},
+		{ID: "cloud", Count: 30},
+		{ID: "apple", Count: 100},
+	}, results)
+
+	// Test that "id" index uses lexicographic sorting (no custom compare)
+	var idResults []numericResource
+	for item := range cache.Ascend("id", "", "") {
+		idResults = append(idResults, item)
+	}
+
+	require.Equal(t, []numericResource{
+		{ID: "apple", Count: 100},
+		{ID: "banana", Count: 2},
+		{ID: "cherry", Count: 30},
+		{ID: "cloud", Count: 30},
+		{ID: "dog", Count: 5},
+		{ID: "elephant", Count: 5},
+		{ID: "fox", Count: 2},
+	}, idResults)
 }

@@ -38,6 +38,10 @@ type Config[T any, I comparable] struct {
 	// members *must* be treated as immutable once passed to [New]. Since there is no default index,
 	// at least one index must be supplied for [SortCache] to be usable.
 	Indexes map[I]func(T) string
+	// CustomCompareFns is an optional map of index names to custom comparison functions for sorting keys.
+	// If nil or if an index is not present in the map, uses default lexicographic string comparison.
+	// This allows for custom sorting behavior such as numeric sorting when keys represent numbers as strings.
+	CustomCompareFns map[I]func(a, b string) bool
 }
 
 // SortCache is a helper for storing values that must be sortable across
@@ -67,11 +71,16 @@ func New[T any, I comparable](cfg Config[T, I]) *SortCache[T, I] {
 	trees := make(map[I]*btree.BTreeG[entry], len(cfg.Indexes))
 
 	for index := range cfg.Indexes {
-		trees[index] = btree.NewG(bTreeDegree, func(a, b entry) bool {
-			return a.key < b.key
-		})
+		if compareFn, exists := cfg.CustomCompareFns[index]; exists {
+			trees[index] = btree.NewG(bTreeDegree, func(a, b entry) bool {
+				return compareFn(a.key, b.key)
+			})
+		} else {
+			trees[index] = btree.NewG(bTreeDegree, func(a, b entry) bool {
+				return a.key < b.key
+			})
+		}
 	}
-
 	return &SortCache[T, I]{
 		indexes: cfg.Indexes,
 		trees:   trees,
