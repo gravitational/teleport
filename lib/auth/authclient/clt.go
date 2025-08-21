@@ -1220,7 +1220,7 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 }
 
 func (v *ValidateTrustedClusterRequest) ToProto() (*proto.ValidateTrustedClusterRequest, error) {
-	// Convert to interface type.
+	// Convert from interface type.
 	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
 	for _, certAuthority := range v.CAs {
 		cast, ok := certAuthority.(*types.CertAuthorityV2)
