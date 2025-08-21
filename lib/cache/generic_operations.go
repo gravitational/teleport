@@ -29,7 +29,7 @@ type genericGetter[T any, I comparable] struct {
 	// cache to performe the primary read from.
 	cache *Cache
 	// collection that contains the item.
-	collection *collection[T, I]
+	collection *collection[T, I, string]
 	// index of the collection to read with.
 	index I
 	// upstreamGet is used to retrieve the item if the
@@ -67,7 +67,7 @@ type genericLister[T any, I comparable] struct {
 	// cache to performe the primary read from.
 	cache *Cache
 	// collection that contains the item.
-	collection *collection[T, I]
+	collection *collection[T, I, string]
 	// index of the collection to read with.
 	index I
 	// isDesc indicates whether the lister should retrieve items in descending order.

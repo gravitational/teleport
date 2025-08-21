@@ -33,13 +33,13 @@ type userGroupIndex string
 
 const userGroupNameIndex userGroupIndex = "name"
 
-func newUserGroupCollection(upstream services.UserGroups, w types.WatchKind) (*collection[types.UserGroup, userGroupIndex], error) {
+func newUserGroupCollection(upstream services.UserGroups, w types.WatchKind) (*collection[types.UserGroup, userGroupIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter UserGroups")
 	}
 
-	return &collection[types.UserGroup, userGroupIndex]{
-		store: newStore(
+	return &collection[types.UserGroup, userGroupIndex, string]{
+		store: newStringStore(
 			types.KindUserGroup,
 			types.UserGroup.Clone,
 			map[userGroupIndex]func(types.UserGroup) string{

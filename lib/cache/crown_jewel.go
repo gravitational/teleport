@@ -34,13 +34,13 @@ type crownJewelIndex string
 
 const crownJewelNameIndex crownJewelIndex = "name"
 
-func newCrownJewelCollection(upstream services.CrownJewels, w types.WatchKind) (*collection[*crownjewelv1.CrownJewel, crownJewelIndex], error) {
+func newCrownJewelCollection(upstream services.CrownJewels, w types.WatchKind) (*collection[*crownjewelv1.CrownJewel, crownJewelIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter CrownJewels")
 	}
 
-	return &collection[*crownjewelv1.CrownJewel, crownJewelIndex]{
-		store: newStore(
+	return &collection[*crownjewelv1.CrownJewel, crownJewelIndex, string]{
+		store: newStringStore(
 			types.KindCrownJewel,
 			proto.CloneOf[*crownjewelv1.CrownJewel],
 			map[crownJewelIndex]func(*crownjewelv1.CrownJewel) string{

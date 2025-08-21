@@ -33,13 +33,13 @@ type tunnelConnectionIndex string
 
 const tunnelConnectionNameIndex tunnelConnectionIndex = "name"
 
-func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (*collection[types.TunnelConnection, tunnelConnectionIndex], error) {
+func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (*collection[types.TunnelConnection, tunnelConnectionIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Trust")
 	}
 
-	return &collection[types.TunnelConnection, tunnelConnectionIndex]{
-		store: newStore(
+	return &collection[types.TunnelConnection, tunnelConnectionIndex, string]{
+		store: newStringStore(
 			types.KindTunnelConnection,
 			types.TunnelConnection.Clone,
 			map[tunnelConnectionIndex]func(types.TunnelConnection) string{
@@ -121,13 +121,13 @@ type remoteClusterIndex string
 
 const remoteClusterNameIndex remoteClusterIndex = "name"
 
-func newRemoteClusterCollection(upstream services.Trust, w types.WatchKind) (*collection[types.RemoteCluster, remoteClusterIndex], error) {
+func newRemoteClusterCollection(upstream services.Trust, w types.WatchKind) (*collection[types.RemoteCluster, remoteClusterIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Trust")
 	}
 
-	return &collection[types.RemoteCluster, remoteClusterIndex]{
-		store: newStore(
+	return &collection[types.RemoteCluster, remoteClusterIndex, string]{
+		store: newStringStore(
 			types.KindRemoteCluster,
 			types.RemoteCluster.Clone,
 			map[remoteClusterIndex]func(types.RemoteCluster) string{

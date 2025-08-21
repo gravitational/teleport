@@ -29,13 +29,13 @@ type proxyServerIndex string
 
 const proxyServerNameIndex = "name"
 
-func newProxyServerCollection(p services.Presence, w types.WatchKind) (*collection[types.Server, proxyServerIndex], error) {
+func newProxyServerCollection(p services.Presence, w types.WatchKind) (*collection[types.Server, proxyServerIndex, string], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.Server, proxyServerIndex]{
-		store: newStore(
+	return &collection[types.Server, proxyServerIndex, string]{
+		store: newStringStore(
 			types.KindProxy,
 			types.Server.DeepCopy,
 			map[proxyServerIndex]func(types.Server) string{

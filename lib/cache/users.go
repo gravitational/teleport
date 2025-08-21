@@ -33,13 +33,13 @@ type userIndex string
 
 const userNameIndex userIndex = "name"
 
-func newUserCollection(upstream services.UsersService, w types.WatchKind) (*collection[types.User, userIndex], error) {
+func newUserCollection(upstream services.UsersService, w types.WatchKind) (*collection[types.User, userIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter UsersService")
 	}
 
-	return &collection[types.User, userIndex]{
-		store: newStore(
+	return &collection[types.User, userIndex, string]{
+		store: newStringStore(
 			types.KindUser,
 			types.User.Clone,
 			map[userIndex]func(types.User) string{

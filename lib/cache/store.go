@@ -27,28 +27,50 @@ import (
 )
 
 // store persists cached resources directly in memory.
-type store[T any, I comparable] struct {
+type store[T any, I comparable, E comparable] struct {
 	kind    string
-	cache   *sortcache.SortCache[T, I]
+	cache   *sortcache.SortCache[T, I, E]
 	clone   func(T) T
-	indexes map[I]func(T) string
+	indexes map[I]func(T) E
+}
+
+func newStringStore[T any, I comparable](	
+	kind string,
+	clone func(T) T,
+	indexes map[I]func(T) string,
+) *store[T, I, string] {
+	return &store[T, I, string]{
+		kind:    kind,
+		clone:   clone,
+		indexes: indexes,
+		cache: sortcache.New(sortcache.Config[T, I, string]{
+			Indexes:  indexes,
+			LessFunc: func(a, b string) bool { return a < b},
+		}),
+	}
 }
 
 // newStore creates a store that will index the resource
 // based on the provided indexes.
-func newStore[T any, I comparable](kind string, clone func(T) T, indexes map[I]func(T) string) *store[T, I] {
-	return &store[T, I]{
+func newStore[T any, I comparable, E comparable](
+	kind string,
+	clone func(T) T,
+	indexes map[I]func(T) E,
+	less func(E, E) bool,
+) *store[T, I, E] {
+	return &store[T, I, E]{
 		kind:    kind,
 		clone:   clone,
 		indexes: indexes,
-		cache: sortcache.New(sortcache.Config[T, I]{
-			Indexes: indexes,
+		cache: sortcache.New(sortcache.Config[T, I, E]{
+			Indexes:  indexes,
+			LessFunc: less,
 		}),
 	}
 }
 
 // clear removes all items from the store.
-func (s *store[T, I]) clear() error {
+func (s *store[T, I, E]) clear() error {
 	start := time.Now()
 	s.cache.Clear()
 	backendmetrics.BatchWriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
@@ -58,7 +80,7 @@ func (s *store[T, I]) clear() error {
 }
 
 // put adds a new item, or updates an existing item.
-func (s *store[T, I]) put(t T) error {
+func (s *store[T, I, E]) put(t T) error {
 	start := time.Now()
 	s.cache.Put(s.clone(t))
 	backendmetrics.WriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
@@ -68,7 +90,7 @@ func (s *store[T, I]) put(t T) error {
 }
 
 // delete removes the provided item if any of the indexes match.
-func (s *store[T, I]) delete(t T) error {
+func (s *store[T, I, E]) delete(t T) error {
 	start := time.Now()
 	for idx, transform := range s.indexes {
 		s.cache.Delete(idx, transform(t))
@@ -81,7 +103,7 @@ func (s *store[T, I]) delete(t T) error {
 }
 
 // len returns the number of values currently stored.
-func (s *store[T, I]) len() int {
+func (s *store[T, I, E]) len() int {
 	return s.cache.Len()
 }
 
@@ -90,7 +112,7 @@ func (s *store[T, I]) len() int {
 //
 // It is the responsibility of the caller to clone the resource
 // before propagating it further.
-func (s *store[T, I]) get(index I, key string) (T, error) {
+func (s *store[T, I, E]) get(index I, key E) (T, error) {
 	start := time.Now()
 	t, ok := s.cache.Get(index, key)
 	backendmetrics.ReadLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
@@ -109,7 +131,7 @@ func (s *store[T, I]) get(index I, key string) (T, error) {
 //
 // It is the responsibility of the caller to clone the resource
 // before propagating it further.
-func (s *store[T, I]) resources(index I, start, stop string) iter.Seq[T] {
+func (s *store[T, I, E]) resources(index I, start, stop E) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		defer func() {
 			backendmetrics.StreamingRequests.WithLabelValues("cache").Inc()
@@ -126,7 +148,7 @@ func (s *store[T, I]) resources(index I, start, stop string) iter.Seq[T] {
 }
 
 // count returns the number of items that exist in the provided range.
-func (s *store[T, I]) count(index I, start, stop string) int {
+func (s *store[T, I, E]) count(index I, start, stop E) int {
 	var n int
 	for range s.cache.Ascend(index, start, stop) {
 		n++

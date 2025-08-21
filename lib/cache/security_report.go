@@ -33,13 +33,13 @@ type auditQueryIndex string
 
 const auditQueryNameIndex auditQueryIndex = "name"
 
-func newAuditQueryCollection(upstream services.SecReports, w types.WatchKind) (*collection[*secreports.AuditQuery, auditQueryIndex], error) {
+func newAuditQueryCollection(upstream services.SecReports, w types.WatchKind) (*collection[*secreports.AuditQuery, auditQueryIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter SecReports")
 	}
 
-	return &collection[*secreports.AuditQuery, auditQueryIndex]{
-		store: newStore(
+	return &collection[*secreports.AuditQuery, auditQueryIndex, string]{
+		store: newStringStore(
 			types.KindAuditQuery,
 			(*secreports.AuditQuery).Clone,
 			map[auditQueryIndex]func(*secreports.AuditQuery) string{
@@ -132,13 +132,13 @@ type securityReportIndex string
 
 const securityReportNameIndex securityReportIndex = "name"
 
-func newSecurityReportCollection(upstream services.SecReports, w types.WatchKind) (*collection[*secreports.Report, securityReportIndex], error) {
+func newSecurityReportCollection(upstream services.SecReports, w types.WatchKind) (*collection[*secreports.Report, securityReportIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter SecReports")
 	}
 
-	return &collection[*secreports.Report, securityReportIndex]{
-		store: newStore(
+	return &collection[*secreports.Report, securityReportIndex, string]{
+		store: newStringStore(
 			types.KindSecurityReport,
 			(*secreports.Report).Clone,
 			map[securityReportIndex]func(*secreports.Report) string{
@@ -231,13 +231,13 @@ type securityReportStateIndex string
 
 const securityReportStateNameIndex securityReportStateIndex = "name"
 
-func newSecurityReportStateCollection(upstream services.SecReports, w types.WatchKind) (*collection[*secreports.ReportState, securityReportStateIndex], error) {
+func newSecurityReportStateCollection(upstream services.SecReports, w types.WatchKind) (*collection[*secreports.ReportState, securityReportStateIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter SecReports")
 	}
 
-	return &collection[*secreports.ReportState, securityReportStateIndex]{
-		store: newStore(
+	return &collection[*secreports.ReportState, securityReportStateIndex, string]{
+		store: newStringStore(
 			types.KindSecurityReportState,
 			(*secreports.ReportState).Clone,
 			map[securityReportStateIndex]func(*secreports.ReportState) string{

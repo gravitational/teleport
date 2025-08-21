@@ -31,13 +31,13 @@ type samlIdPServiceProviderIndex string
 
 const samlIdPServiceProviderNameIndex samlIdPServiceProviderIndex = "name"
 
-func newSAMLIdPServiceProviderCollection(upstream services.SAMLIdPServiceProviders, w types.WatchKind) (*collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex], error) {
+func newSAMLIdPServiceProviderCollection(upstream services.SAMLIdPServiceProviders, w types.WatchKind) (*collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
 	}
 
-	return &collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]{
-		store: newStore(
+	return &collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex, string]{
+		store: newStringStore(
 			types.KindSAMLIdPServiceProvider,
 			types.SAMLIdPServiceProvider.Copy,
 			map[samlIdPServiceProviderIndex]func(types.SAMLIdPServiceProvider) string{

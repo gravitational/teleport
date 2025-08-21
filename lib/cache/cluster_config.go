@@ -34,13 +34,13 @@ type clusterNameIndex string
 
 const clusterNameDefaultIndex clusterNameIndex = "name"
 
-func newClusterNameCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterName, clusterNameIndex], error) {
+func newClusterNameCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterName, clusterNameIndex, string], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.ClusterName, clusterNameIndex]{
-		store: newStore(
+	return &collection[types.ClusterName, clusterNameIndex, string]{
+		store: newStringStore(
 			types.KindClusterName,
 			types.ClusterName.Clone,
 			map[clusterNameIndex]func(types.ClusterName) string{
@@ -100,13 +100,13 @@ type clusterAuditConfigIndex string
 
 const clusterAuditConfigNameIndex clusterAuditConfigIndex = "name"
 
-func newClusterAuditConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterAuditConfig, clusterAuditConfigIndex], error) {
+func newClusterAuditConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterAuditConfig, clusterAuditConfigIndex, string], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.ClusterAuditConfig, clusterAuditConfigIndex]{
-		store: newStore(
+	return &collection[types.ClusterAuditConfig, clusterAuditConfigIndex, string]{
+		store: newStringStore(
 			types.KindClusterAuditConfig,
 			types.ClusterAuditConfig.Clone,
 			map[clusterAuditConfigIndex]func(types.ClusterAuditConfig) string{
@@ -170,13 +170,13 @@ type clusterNetworkingConfigIndex string
 
 const clusterNetworkingConfigNameIndex clusterNetworkingConfigIndex = "name"
 
-func newClusterNetworkingConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex], error) {
+func newClusterNetworkingConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex, string], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex]{
-		store: newStore(
+	return &collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex, string]{
+		store: newStringStore(
 			types.KindClusterNetworkingConfig,
 			types.ClusterNetworkingConfig.Clone,
 			map[clusterNetworkingConfigIndex]func(types.ClusterNetworkingConfig) string{
@@ -236,13 +236,13 @@ type authPreferenceIndex string
 
 const authPreferenceNameIndex authPreferenceIndex = "name"
 
-func newAuthPreferenceCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.AuthPreference, authPreferenceIndex], error) {
+func newAuthPreferenceCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.AuthPreference, authPreferenceIndex, string], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.AuthPreference, authPreferenceIndex]{
-		store: newStore(
+	return &collection[types.AuthPreference, authPreferenceIndex, string]{
+		store: newStringStore(
 			types.KindClusterAuthPreference,
 			types.AuthPreference.Clone,
 			map[authPreferenceIndex]func(types.AuthPreference) string{
@@ -296,13 +296,13 @@ type sessionRecordingConfigIndex string
 
 const sessionRecordingConfigNameIndex sessionRecordingConfigIndex = "name"
 
-func newSessionRecordingConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.SessionRecordingConfig, sessionRecordingConfigIndex], error) {
+func newSessionRecordingConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.SessionRecordingConfig, sessionRecordingConfigIndex, string], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]{
-		store: newStore(
+	return &collection[types.SessionRecordingConfig, sessionRecordingConfigIndex, string]{
+		store: newStringStore(
 			types.KindSessionRecordingConfig,
 			types.SessionRecordingConfig.Clone,
 			map[sessionRecordingConfigIndex]func(types.SessionRecordingConfig) string{
@@ -356,13 +356,13 @@ type accessGraphSettingsIndex string
 
 const accessGraphSettingsNameIndex accessGraphSettingsIndex = "name"
 
-func newAccessGraphSettingsCollection(upstream services.ClusterConfiguration, w types.WatchKind) (*collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex], error) {
+func newAccessGraphSettingsCollection(upstream services.ClusterConfiguration, w types.WatchKind) (*collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]{
-		store: newStore(
+	return &collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex, string]{
+		store: newStringStore(
 			types.KindAccessGraphSettings,
 			proto.CloneOf[*clusterconfigv1.AccessGraphSettings],
 			map[accessGraphSettingsIndex]func(*clusterconfigv1.AccessGraphSettings) string{

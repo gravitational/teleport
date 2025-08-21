@@ -29,13 +29,13 @@ type pluginStaticCredentialsIndex string
 
 const pluginStaticCredentialsNameIndex pluginStaticCredentialsIndex = "name"
 
-func newPluginStaticCredentialsCollection(upstream services.PluginStaticCredentials, w types.WatchKind) (*collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex], error) {
+func newPluginStaticCredentialsCollection(upstream services.PluginStaticCredentials, w types.WatchKind) (*collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter PluginStaticCredentials")
 	}
 
-	return &collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]{
-		store: newStore(
+	return &collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex, string]{
+		store: newStringStore(
 			types.KindPluginStaticCredentials,
 			types.PluginStaticCredentials.Clone,
 			map[pluginStaticCredentialsIndex]func(types.PluginStaticCredentials) string{

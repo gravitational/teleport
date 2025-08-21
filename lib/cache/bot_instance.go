@@ -67,13 +67,13 @@ func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
 	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
 }
 
-func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) (*collection[*machineidv1.BotInstance, botInstanceIndex], error) {
+func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) (*collection[*machineidv1.BotInstance, botInstanceIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter upstream (BotInstance)")
 	}
 
-	return &collection[*machineidv1.BotInstance, botInstanceIndex]{
-		store: newStore(
+	return &collection[*machineidv1.BotInstance, botInstanceIndex, string]{
+		store: newStringStore(
 			types.KindBotInstance,
 			proto.CloneOf[*machineidv1.BotInstance],
 			map[botInstanceIndex]func(*machineidv1.BotInstance) string{

@@ -38,13 +38,13 @@ type databaseIndex string
 
 const databaseNameIndex = "name"
 
-func newDatabaseCollection(upstream services.Databases, w types.WatchKind) (*collection[types.Database, databaseIndex], error) {
+func newDatabaseCollection(upstream services.Databases, w types.WatchKind) (*collection[types.Database, databaseIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Databases")
 	}
 
-	return &collection[types.Database, databaseIndex]{
-		store: newStore(
+	return &collection[types.Database, databaseIndex, string]{
+		store: newStringStore(
 			types.KindDatabase,
 			func(d types.Database) types.Database {
 				return d.Copy()
@@ -198,13 +198,13 @@ type databaseServerIndex string
 
 const databaseServerNameIndex databaseServerIndex = "name"
 
-func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseServer, databaseServerIndex], error) {
+func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseServer, databaseServerIndex, string], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.DatabaseServer, databaseServerIndex]{
-		store: newStore(
+	return &collection[types.DatabaseServer, databaseServerIndex, string]{
+		store: newStringStore(
 			types.KindDatabaseServer,
 			types.DatabaseServer.Copy,
 			map[databaseServerIndex]func(types.DatabaseServer) string{
@@ -259,13 +259,13 @@ type databaseServiceIndex string
 
 const databaseServiceNameIndex databaseServiceIndex = "name"
 
-func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseService, databaseServiceIndex], error) {
+func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseService, databaseServiceIndex, string], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Databases")
 	}
 
-	return &collection[types.DatabaseService, databaseServiceIndex]{
-		store: newStore(
+	return &collection[types.DatabaseService, databaseServiceIndex, string]{
+		store: newStringStore(
 			types.KindDatabaseService,
 			types.DatabaseService.Clone,
 			map[databaseServiceIndex]func(types.DatabaseService) string{
@@ -307,13 +307,13 @@ type databaseObjectIndex string
 
 const databaseObjectNameIndex databaseObjectIndex = "name"
 
-func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.WatchKind) (*collection[*dbobjectv1.DatabaseObject, databaseObjectIndex], error) {
+func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.WatchKind) (*collection[*dbobjectv1.DatabaseObject, databaseObjectIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter DatabaseObjects")
 	}
 
-	return &collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
-		store: newStore(
+	return &collection[*dbobjectv1.DatabaseObject, databaseObjectIndex, string]{
+		store: newStringStore(
 			types.KindDatabaseObject,
 			proto.CloneOf[*dbobjectv1.DatabaseObject],
 			map[databaseObjectIndex]func(*dbobjectv1.DatabaseObject) string{

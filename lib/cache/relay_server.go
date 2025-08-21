@@ -33,13 +33,13 @@ type relayServerIndex struct{}
 
 var relayServerNameIndex = relayServerIndex{}
 
-func newRelayServerCollection(upstream services.Presence, w types.WatchKind) (*collection[*presencev1.RelayServer, relayServerIndex], error) {
+func newRelayServerCollection(upstream services.Presence, w types.WatchKind) (*collection[*presencev1.RelayServer, relayServerIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[*presencev1.RelayServer, relayServerIndex]{
-		store: newStore(
+	return &collection[*presencev1.RelayServer, relayServerIndex, string]{
+		store: newStringStore(
 			types.KindRelayServer,
 			proto.CloneOf[*presencev1.RelayServer],
 			map[relayServerIndex]func(*presencev1.RelayServer) string{

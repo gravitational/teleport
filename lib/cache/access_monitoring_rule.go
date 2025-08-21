@@ -34,13 +34,13 @@ type accessMonitoringRuleIndex string
 
 const accessMonitoringRuleNameIndex accessMonitoringRuleIndex = "name"
 
-func newAccessMonitoringRuleCollection(upstream services.AccessMonitoringRules, w types.WatchKind) (*collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex], error) {
+func newAccessMonitoringRuleCollection(upstream services.AccessMonitoringRules, w types.WatchKind) (*collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Integrations")
 	}
 
-	return &collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]{
-		store: newStore(
+	return &collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex, string]{
+		store: newStringStore(
 			types.KindAccessMonitoringRule,
 			proto.CloneOf[*accessmonitoringrulesv1.AccessMonitoringRule],
 			map[accessMonitoringRuleIndex]func(*accessmonitoringrulesv1.AccessMonitoringRule) string{

@@ -31,13 +31,13 @@ type integrationIndex string
 
 const integrationNameIndex integrationIndex = "name"
 
-func newIntegrationCollection(upstream services.Integrations, w types.WatchKind) (*collection[types.Integration, integrationIndex], error) {
+func newIntegrationCollection(upstream services.Integrations, w types.WatchKind) (*collection[types.Integration, integrationIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Integrations")
 	}
 
-	return &collection[types.Integration, integrationIndex]{
-		store: newStore(
+	return &collection[types.Integration, integrationIndex, string]{
+		store: newStringStore(
 			types.KindIntegration,
 			types.Integration.Clone,
 			map[integrationIndex]func(types.Integration) string{

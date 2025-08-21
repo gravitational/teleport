@@ -34,13 +34,13 @@ type staticHostUserIndex string
 
 const staticHostUserNameIndex staticHostUserIndex = "name"
 
-func newStaticHostUserCollection(upstream services.StaticHostUser, w types.WatchKind) (*collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex], error) {
+func newStaticHostUserCollection(upstream services.StaticHostUser, w types.WatchKind) (*collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter StaticHostUser")
 	}
 
-	return &collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex]{
-		store: newStore(
+	return &collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex, string]{
+		store: newStringStore(
 			types.KindStaticHostUser,
 			proto.CloneOf[*userprovisioningv2.StaticHostUser],
 			map[staticHostUserIndex]func(*userprovisioningv2.StaticHostUser) string{

@@ -90,7 +90,7 @@ func (c *NotificationCacheConfig) CheckAndSetDefaults() error {
 type UserNotificationCache struct {
 	rw           sync.RWMutex
 	cfg          NotificationCacheConfig
-	primaryCache *sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex]
+	primaryCache *sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex, string]
 	ttlCache     *utils.FnCache
 	initC        chan struct{}
 	closeContext context.Context
@@ -102,7 +102,7 @@ type UserNotificationCache struct {
 type GlobalNotificationCache struct {
 	rw           sync.RWMutex
 	cfg          NotificationCacheConfig
-	primaryCache *sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex]
+	primaryCache *sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex, string]
 	ttlCache     *utils.FnCache
 	initC        chan struct{}
 	closeContext context.Context
@@ -236,8 +236,8 @@ func (c *UserNotificationCache) StreamUserNotifications(ctx context.Context, use
 
 // fetch initializes a sortcache with all existing user-specific notifications. This is used to set up the initialize the primary cache, and
 // to create a temporary cache as a fallback in case the primary cache is ever unhealthy.
-func (c *UserNotificationCache) fetch(ctx context.Context) (*sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex], error) {
-	cache := sortcache.New(sortcache.Config[*notificationsv1.Notification, notificationsCacheIndex]{
+func (c *UserNotificationCache) fetch(ctx context.Context) (*sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex, string], error) {
+	cache := sortcache.New(sortcache.Config[*notificationsv1.Notification, notificationsCacheIndex, string]{
 		Indexes: map[notificationsCacheIndex]func(*notificationsv1.Notification) string{
 			notificationKey: func(n *notificationsv1.Notification) string {
 				return GetUserSpecificKey(n)
@@ -282,7 +282,7 @@ func GetUserSpecificKey(n *notificationsv1.Notification) string {
 
 // read gets a read-only view into a valid cache state. it prefers reading from the primary cache, but will fallback
 // to a periodically reloaded temporary state when the primary state is unhealthy.
-func (c *UserNotificationCache) read(ctx context.Context) (*sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex], error) {
+func (c *UserNotificationCache) read(ctx context.Context) (*sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex, string], error) {
 	c.rw.RLock()
 	primary := c.primaryCache
 	c.rw.RUnlock()
@@ -294,7 +294,7 @@ func (c *UserNotificationCache) read(ctx context.Context) (*sortcache.SortCache[
 		return primary, nil
 	}
 
-	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "user-notification-cache", func(ctx context.Context) (*sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex], error) {
+	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "user-notification-cache", func(ctx context.Context) (*sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex, string], error) {
 		return c.fetch(ctx)
 	})
 
@@ -345,8 +345,8 @@ func (c *GlobalNotificationCache) StreamGlobalNotifications(ctx context.Context,
 
 // fetch initializes a sortcache with all existing global notifications. This is used to set up the initialize the primary cache, and
 // to create a temporary cache as a fallback in case the primary cache is ever unhealthy.
-func (c *GlobalNotificationCache) fetch(ctx context.Context) (*sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex], error) {
-	cache := sortcache.New(sortcache.Config[*notificationsv1.GlobalNotification, notificationsCacheIndex]{
+func (c *GlobalNotificationCache) fetch(ctx context.Context) (*sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex, string], error) {
+	cache := sortcache.New(sortcache.Config[*notificationsv1.GlobalNotification, notificationsCacheIndex, string]{
 		Indexes: map[notificationsCacheIndex]func(*notificationsv1.GlobalNotification) string{
 			notificationID: func(gn *notificationsv1.GlobalNotification) string {
 				return gn.GetMetadata().GetName()
@@ -380,7 +380,7 @@ func (c *GlobalNotificationCache) fetch(ctx context.Context) (*sortcache.SortCac
 
 // read gets a read-only view into a valid cache state. it prefers reading from the primary cache, but will fallback
 // to a periodically reloaded temporary state when the primary state is unhealthy.
-func (c *GlobalNotificationCache) read(ctx context.Context) (*sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex], error) {
+func (c *GlobalNotificationCache) read(ctx context.Context) (*sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex, string], error) {
 	c.rw.RLock()
 	primary := c.primaryCache
 	c.rw.RUnlock()
@@ -392,7 +392,7 @@ func (c *GlobalNotificationCache) read(ctx context.Context) (*sortcache.SortCach
 		return primary, nil
 	}
 
-	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "global-notification-cache", func(ctx context.Context) (*sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex], error) {
+	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "global-notification-cache", func(ctx context.Context) (*sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex, string], error) {
 		return c.fetch(ctx)
 	})
 

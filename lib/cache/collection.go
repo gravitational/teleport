@@ -26,12 +26,12 @@ import (
 )
 
 // collection is responsible for managing a cached resource.
-type collection[T any, I comparable] struct {
+type collection[T any, I comparable, E comparable] struct {
 	// fetcher is called by fetch to retrieve and seed the
 	// store with all known resources from upstream.
 	fetcher func(ctx context.Context, loadSecrets bool) ([]T, error)
 	// store persists all resources in memory.
-	store *store[T, I]
+	store *store[T, I, E]
 	// watch contains the kind of resource being monitored.
 	watch types.WatchKind
 	// headerTransform is used when handling delete events in [onDelete]. Since
@@ -53,7 +53,7 @@ type collection[T any, I comparable] struct {
 	singleton bool
 }
 
-func (c collection[_, _]) watchKind() types.WatchKind {
+func (c collection[_, _, _]) watchKind() types.WatchKind {
 	return c.watch
 }
 
@@ -63,7 +63,7 @@ func (c collection[_, _]) watchKind() types.WatchKind {
 // specified.
 //
 // This is a no-op if the configured filter does not return true.
-func (c *collection[T, _]) onDelete(r types.Resource) error {
+func (c *collection[T, _, E]) onDelete(r types.Resource) error {
 	switch t := r.(type) {
 	case interface{ UnwrapT() T }:
 		tt := t.UnwrapT()
@@ -98,7 +98,7 @@ func (c *collection[T, _]) onDelete(r types.Resource) error {
 // An error is returned if the resource is of an unexpected type
 //
 // This is a no-op if the configured filter does not return true.
-func (c *collection[T, _]) onPut(r types.Resource) error {
+func (c *collection[T, _, E]) onPut(r types.Resource) error {
 	switch t := r.(type) {
 	case interface{ UnwrapT() T }:
 		tt := t.UnwrapT()
@@ -121,7 +121,7 @@ func (c *collection[T, _]) onPut(r types.Resource) error {
 }
 
 // fetch populates the store with items received by the configured fetcher.
-func (c collection[T, _]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
+func (c collection[T, _, E]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
 	// Singleton objects will only get deleted or updated, not both
 	// TODO(tross|fspmarshall|espadolini) investigate if special singleton
 	// behavior can be removed.

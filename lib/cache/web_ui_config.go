@@ -29,13 +29,13 @@ type webUIConfigIndex string
 
 const webUIConfigNameIndex webUIConfigIndex = "name"
 
-func newWebUIConfigCollection(upstream services.ClusterConfiguration, w types.WatchKind) (*collection[types.UIConfig, webUIConfigIndex], error) {
+func newWebUIConfigCollection(upstream services.ClusterConfiguration, w types.WatchKind) (*collection[types.UIConfig, webUIConfigIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.UIConfig, webUIConfigIndex]{
-		store: newStore(
+	return &collection[types.UIConfig, webUIConfigIndex, string]{
+		store: newStringStore(
 			types.KindUIConfig,
 			types.UIConfig.Clone,
 			map[webUIConfigIndex]func(types.UIConfig) string{

@@ -31,7 +31,7 @@ type certAuthorityIndex string
 
 const certAuthorityIDIndex certAuthorityIndex = "id"
 
-func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collection[types.CertAuthority, certAuthorityIndex], error) {
+func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collection[types.CertAuthority, certAuthorityIndex, string], error) {
 	if t == nil {
 		return nil, trace.BadParameter("missing parameter Trust")
 	}
@@ -39,8 +39,8 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 	var filter types.CertAuthorityFilter
 	filter.FromMap(w.Filter)
 
-	return &collection[types.CertAuthority, certAuthorityIndex]{
-		store: newStore(
+	return &collection[types.CertAuthority, certAuthorityIndex, string]{
+		store: newStringStore(
 			types.KindCertAuthority,
 			types.CertAuthority.Clone,
 			map[certAuthorityIndex]func(types.CertAuthority) string{

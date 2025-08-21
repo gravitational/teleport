@@ -28,13 +28,13 @@ type authServerIndex string
 
 const authServerNameIndex authServerIndex = "name"
 
-func newAuthServerCollection(p services.Presence, w types.WatchKind) (*collection[types.Server, authServerIndex], error) {
+func newAuthServerCollection(p services.Presence, w types.WatchKind) (*collection[types.Server, authServerIndex, string], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.Server, authServerIndex]{
-		store: newStore(
+	return &collection[types.Server, authServerIndex, string]{
+		store: newStringStore(
 			types.KindAuthServer,
 			types.Server.DeepCopy,
 			map[authServerIndex]func(types.Server) string{

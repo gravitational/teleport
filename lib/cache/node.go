@@ -31,13 +31,13 @@ type nodeIndex string
 
 const nodeNameIndex nodeIndex = "name"
 
-func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[types.Server, nodeIndex], error) {
+func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[types.Server, nodeIndex, string], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.Server, nodeIndex]{
-		store: newStore(
+	return &collection[types.Server, nodeIndex, string]{
+		store: newStringStore(
 			types.KindNode,
 			types.Server.DeepCopy,
 			map[nodeIndex]func(types.Server) string{

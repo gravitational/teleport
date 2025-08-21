@@ -32,13 +32,13 @@ type pluginIndex string
 
 const pluginNameIndex pluginIndex = "name"
 
-func newPluginsCollection(service services.Plugins, watch types.WatchKind) (*collection[types.Plugin, pluginIndex], error) {
+func newPluginsCollection(service services.Plugins, watch types.WatchKind) (*collection[types.Plugin, pluginIndex, string], error) {
 	if service == nil {
 		return nil, trace.BadParameter("missing parameter Plugin Service")
 	}
 
-	return &collection[types.Plugin, pluginIndex]{
-		store: newStore(
+	return &collection[types.Plugin, pluginIndex, string]{
+		store: newStringStore(
 			types.KindPlugin,
 			types.Plugin.Clone,
 			map[pluginIndex]func(types.Plugin) string{

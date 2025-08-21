@@ -27,7 +27,7 @@ import (
 
 func TestResourceStore(t *testing.T) {
 	t.Parallel()
-	store := newStore(
+	store := newStringStore(
 		"int",
 		func(i int) int { return i },
 		map[string]func(i int) string{
@@ -68,4 +68,65 @@ func TestResourceStore(t *testing.T) {
 	require.ErrorIs(t, err, &trace.NotFoundError{Message: `"int" "0" does not exist`})
 
 	require.Zero(t, store.len())
+}
+
+type numericResource struct {
+	ID      string
+	Count   int
+	Members int
+}
+
+type numericResourceEntry struct {
+	ID    string
+	Count int
+}
+
+func TestStoreWithCustomIndexEntry(t *testing.T) {
+	t.Parallel()
+
+	store := newStore(
+		"numericResource",
+		func(r numericResource) numericResource { return r },
+		map[string]func(numericResource) numericResourceEntry{
+			"id":    func(r numericResource) numericResourceEntry { return numericResourceEntry{ID: r.ID} },
+			"count": func(r numericResource) numericResourceEntry { return numericResourceEntry{Count: r.Count, ID: r.ID} },
+		},
+		func(a, b numericResourceEntry) bool {
+			if a.Count < b.Count {
+				return true
+			}
+
+			if a.Count > b.Count {
+				return false
+			}
+
+			return a.ID < b.ID
+		},
+	)
+
+	items := []numericResource{
+		{ID: "apple", Count: 100},
+		{ID: "banana", Count: 2},
+		{ID: "cherry", Count: 30},
+		{ID: "cloud", Count: 30},
+		{ID: "elephant", Count: 5},
+		{ID: "dog", Count: 5},
+		{ID: "fox", Count: 2},
+	}
+
+	for _, item := range items {
+		require.NoError(t, store.put(item))
+	}
+
+	results := slices.Collect(store.resources("count", numericResourceEntry{}, numericResourceEntry{}))
+
+	require.Equal(t, []numericResource{
+		{ID: "banana", Count: 2},
+		{ID: "fox", Count: 2},
+		{ID: "dog", Count: 5},
+		{ID: "elephant", Count: 5},
+		{ID: "cherry", Count: 30},
+		{ID: "cloud", Count: 30},
+		{ID: "apple", Count: 100},
+	}, results)
 }

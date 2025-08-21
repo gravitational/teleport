@@ -35,13 +35,13 @@ type windowsDesktopServiceIndex string
 
 const windowsDesktopServiceNameIndex windowsDesktopServiceIndex = "name"
 
-func newWindowsDesktopServiceCollection(upstream services.Presence, w types.WatchKind) (*collection[types.WindowsDesktopService, windowsDesktopServiceIndex], error) {
+func newWindowsDesktopServiceCollection(upstream services.Presence, w types.WatchKind) (*collection[types.WindowsDesktopService, windowsDesktopServiceIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.WindowsDesktopService, windowsDesktopServiceIndex]{
-		store: newStore(
+	return &collection[types.WindowsDesktopService, windowsDesktopServiceIndex, string]{
+		store: newStringStore(
 			types.KindWindowsDesktopService,
 			types.WindowsDesktopService.Clone,
 			map[windowsDesktopServiceIndex]func(types.WindowsDesktopService) string{
@@ -185,13 +185,13 @@ type windowsDesktopIndex string
 
 const windowsDesktopNameIndex windowsDesktopIndex = "name"
 
-func newWindowsDesktopCollection(upstream services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktop, windowsDesktopIndex], error) {
+func newWindowsDesktopCollection(upstream services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktop, windowsDesktopIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter WindowsDesktops")
 	}
 
-	return &collection[types.WindowsDesktop, windowsDesktopIndex]{
-		store: newStore(
+	return &collection[types.WindowsDesktop, windowsDesktopIndex, string]{
+		store: newStringStore(
 			types.KindWindowsDesktop,
 			types.WindowsDesktop.Copy,
 			map[windowsDesktopIndex]func(types.WindowsDesktop) string{
@@ -345,13 +345,13 @@ type dynamicWindowsDesktopIndex string
 
 const dynamicWindowsDesktopNameIndex dynamicWindowsDesktopIndex = "name"
 
-func newDynamicWindowsDesktopCollection(upstream services.DynamicWindowsDesktops, w types.WatchKind) (*collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex], error) {
+func newDynamicWindowsDesktopCollection(upstream services.DynamicWindowsDesktops, w types.WatchKind) (*collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter DynamicWindowsDesktops")
 	}
 
-	return &collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]{
-		store: newStore(
+	return &collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex, string]{
+		store: newStringStore(
 			types.KindDynamicWindowsDesktop,
 			types.DynamicWindowsDesktop.Copy,
 			map[dynamicWindowsDesktopIndex]func(types.DynamicWindowsDesktop) string{

@@ -34,13 +34,13 @@ type kubeServerIndex string
 
 const kubeServerNameIndex kubeServerIndex = "name"
 
-func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*collection[types.KubeServer, kubeServerIndex], error) {
+func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*collection[types.KubeServer, kubeServerIndex, string], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.KubeServer, kubeServerIndex]{
-		store: newStore(
+	return &collection[types.KubeServer, kubeServerIndex, string]{
+		store: newStringStore(
 			types.KindKubeServer,
 			types.KubeServer.Copy,
 			map[kubeServerIndex]func(types.KubeServer) string{
@@ -95,13 +95,13 @@ type kubeClusterIndex string
 
 const kubeClusterNameIndex = "name"
 
-func newKubernetesClusterCollection(k services.Kubernetes, w types.WatchKind) (*collection[types.KubeCluster, kubeClusterIndex], error) {
+func newKubernetesClusterCollection(k services.Kubernetes, w types.WatchKind) (*collection[types.KubeCluster, kubeClusterIndex, string], error) {
 	if k == nil {
 		return nil, trace.BadParameter("missing parameter Kubernetes")
 	}
 
-	return &collection[types.KubeCluster, kubeClusterIndex]{
-		store: newStore(
+	return &collection[types.KubeCluster, kubeClusterIndex, string]{
+		store: newStringStore(
 			types.KindKubernetesCluster,
 			types.KubeCluster.Copy,
 			map[kubeClusterIndex]func(types.KubeCluster) string{
@@ -175,13 +175,13 @@ type kubeWaitingContainerIndex string
 
 const kubeWaitingContainerNameIndex kubeWaitingContainerIndex = "name"
 
-func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContainer, w types.WatchKind) (*collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex], error) {
+func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContainer, w types.WatchKind) (*collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter KubeWaitingContainers")
 	}
 
-	return &collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]{
-		store: newStore(
+	return &collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex, string]{
+		store: newStringStore(
 			types.KindKubeWaitingContainer,
 			proto.CloneOf[*kubewaitingcontainerv1.KubernetesWaitingContainer],
 			map[kubeWaitingContainerIndex]func(*kubewaitingcontainerv1.KubernetesWaitingContainer) string{

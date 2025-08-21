@@ -31,13 +31,13 @@ type oktaImportRuleIndex string
 
 const oktaImportRuleNameIndex oktaImportRuleIndex = "name"
 
-func newOktaImportRuleCollection(upstream services.Okta, w types.WatchKind) (*collection[types.OktaImportRule, oktaImportRuleIndex], error) {
+func newOktaImportRuleCollection(upstream services.Okta, w types.WatchKind) (*collection[types.OktaImportRule, oktaImportRuleIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Okta")
 	}
 
-	return &collection[types.OktaImportRule, oktaImportRuleIndex]{
-		store: newStore(
+	return &collection[types.OktaImportRule, oktaImportRuleIndex, string]{
+		store: newStringStore(
 			types.KindOktaImportRule,
 			types.OktaImportRule.Clone,
 			map[oktaImportRuleIndex]func(types.OktaImportRule) string{
@@ -99,13 +99,13 @@ type oktaAssignmentIndex string
 
 const oktaAssignmentNameIndex oktaAssignmentIndex = "name"
 
-func newOktaImportAssignmentCollection(upstream services.Okta, w types.WatchKind) (*collection[types.OktaAssignment, oktaAssignmentIndex], error) {
+func newOktaImportAssignmentCollection(upstream services.Okta, w types.WatchKind) (*collection[types.OktaAssignment, oktaAssignmentIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Okta")
 	}
 
-	return &collection[types.OktaAssignment, oktaAssignmentIndex]{
-		store: newStore(
+	return &collection[types.OktaAssignment, oktaAssignmentIndex, string]{
+		store: newStringStore(
 			types.KindOktaAssignment,
 			types.OktaAssignment.Copy,
 			map[oktaAssignmentIndex]func(types.OktaAssignment) string{

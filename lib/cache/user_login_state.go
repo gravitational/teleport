@@ -31,13 +31,13 @@ type userLoginStateIndex string
 
 const userLoginStateNameIndex userLoginStateIndex = "name"
 
-func newUserLoginStateCollection(upstream services.UserLoginStates, w types.WatchKind) (*collection[*userloginstate.UserLoginState, userLoginStateIndex], error) {
+func newUserLoginStateCollection(upstream services.UserLoginStates, w types.WatchKind) (*collection[*userloginstate.UserLoginState, userLoginStateIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter UserTasks")
 	}
 
-	return &collection[*userloginstate.UserLoginState, userLoginStateIndex]{
-		store: newStore(
+	return &collection[*userloginstate.UserLoginState, userLoginStateIndex, string]{
+		store: newStringStore(
 			types.KindUserLoginState,
 			(*userloginstate.UserLoginState).Clone,
 			map[userLoginStateIndex]func(*userloginstate.UserLoginState) string{

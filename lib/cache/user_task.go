@@ -34,13 +34,13 @@ type userTaskIndex string
 
 const userTaskNameIndex userTaskIndex = "name"
 
-func newUserTaskCollection(upstream services.UserTasks, w types.WatchKind) (*collection[*usertasksv1.UserTask, userTaskIndex], error) {
+func newUserTaskCollection(upstream services.UserTasks, w types.WatchKind) (*collection[*usertasksv1.UserTask, userTaskIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter UserTasks")
 	}
 
-	return &collection[*usertasksv1.UserTask, userTaskIndex]{
-		store: newStore(
+	return &collection[*usertasksv1.UserTask, userTaskIndex, string]{
+		store: newStringStore(
 			types.KindUserTask,
 			proto.CloneOf[*usertasksv1.UserTask],
 			map[userTaskIndex]func(*usertasksv1.UserTask) string{

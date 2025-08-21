@@ -36,20 +36,21 @@ type accessListIndex string
 
 const accessListNameIndex accessListIndex = "name"
 
-func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex], error) {
+func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AccessLists")
 	}
 
-	return &collection[*accesslist.AccessList, accessListIndex]{
-		store: newStore(
+	return &collection[*accesslist.AccessList, accessListIndex, string]{
+		store: newStringStore(
 			types.KindAccessList,
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
 				accessListNameIndex: func(al *accesslist.AccessList) string {
 					return al.GetMetadata().Name
 				},
-			}),
+			},
+		),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAccessLists))
 			return out, trace.Wrap(err)
@@ -144,13 +145,13 @@ const (
 	accessListMemberKindIndex accessListMemberIndex = "kind"
 )
 
-func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessListMember, accessListMemberIndex], error) {
+func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessListMember, accessListMemberIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AccessLists")
 	}
 
-	return &collection[*accesslist.AccessListMember, accessListMemberIndex]{
-		store: newStore(
+	return &collection[*accesslist.AccessListMember, accessListMemberIndex, string]{
+		store: newStringStore(
 			types.KindAccessListMember,
 			(*accesslist.AccessListMember).Clone,
 			map[accessListMemberIndex]func(*accesslist.AccessListMember) string{
@@ -160,7 +161,8 @@ func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchK
 				accessListMemberKindIndex: func(r *accesslist.AccessListMember) string {
 					return r.Spec.AccessList + "/" + r.Spec.MembershipKind + "/" + r.GetName()
 				},
-			}),
+			},
+		),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAllAccessListMembers))
 			return out, trace.Wrap(err)
@@ -297,20 +299,21 @@ type accessListReviewIndex string
 
 const accessListReviewNameIndex = "name"
 
-func newAccessListReviewCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.Review, accessListReviewIndex], error) {
+func newAccessListReviewCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.Review, accessListReviewIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AccessLists")
 	}
 
-	return &collection[*accesslist.Review, accessListReviewIndex]{
-		store: newStore(
+	return &collection[*accesslist.Review, accessListReviewIndex, string]{
+		store: newStringStore(
 			types.KindAccessListReview,
 			(*accesslist.Review).Clone,
 			map[accessListReviewIndex]func(*accesslist.Review) string{
 				accessListReviewNameIndex: func(r *accesslist.Review) string {
 					return r.Spec.AccessList + "/" + r.GetName()
 				},
-			}),
+			},
+		),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.Review, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAllAccessListReviews))
 			return out, trace.Wrap(err)

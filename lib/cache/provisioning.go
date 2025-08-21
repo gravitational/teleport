@@ -33,13 +33,13 @@ type principalStateIndex string
 
 const principalStateNameIndex principalStateIndex = "name"
 
-func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.WatchKind) (*collection[*provisioningv1.PrincipalState, principalStateIndex], error) {
+func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.WatchKind) (*collection[*provisioningv1.PrincipalState, principalStateIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter ProvisioningStates")
 	}
 
-	return &collection[*provisioningv1.PrincipalState, principalStateIndex]{
-		store: newStore(
+	return &collection[*provisioningv1.PrincipalState, principalStateIndex, string]{
+		store: newStringStore(
 			types.KindProvisioningPrincipalState,
 			proto.CloneOf[*provisioningv1.PrincipalState],
 			map[principalStateIndex]func(*provisioningv1.PrincipalState) string{

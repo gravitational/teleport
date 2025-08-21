@@ -35,13 +35,13 @@ type workloadIdentityIndex string
 
 const workloadIdentityNameIndex workloadIdentityIndex = "name"
 
-func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types.WatchKind) (*collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex], error) {
+func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types.WatchKind) (*collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter WorkloadIdentities")
 	}
 
-	return &collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
-		store: newStore(
+	return &collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex, string]{
+		store: newStringStore(
 			types.KindWorkloadIdentity,
 			proto.CloneOf[*workloadidentityv1pb.WorkloadIdentity],
 			map[workloadIdentityIndex]func(*workloadidentityv1pb.WorkloadIdentity) string{

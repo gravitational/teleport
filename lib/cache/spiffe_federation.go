@@ -35,13 +35,13 @@ type spiffeFederationIndex string
 
 const spiffeFederationNameIndex spiffeFederationIndex = "name"
 
-func newSPIFFEFederationCollection(upstream services.SPIFFEFederations, w types.WatchKind) (*collection[*machineidv1.SPIFFEFederation, spiffeFederationIndex], error) {
+func newSPIFFEFederationCollection(upstream services.SPIFFEFederations, w types.WatchKind) (*collection[*machineidv1.SPIFFEFederation, spiffeFederationIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter SPIFFEFederations")
 	}
 
-	return &collection[*machineidv1.SPIFFEFederation, spiffeFederationIndex]{
-		store: newStore(
+	return &collection[*machineidv1.SPIFFEFederation, spiffeFederationIndex, string]{
+		store: newStringStore(
 			types.KindSPIFFEFederation,
 			proto.CloneOf[*machineidv1.SPIFFEFederation],
 			map[spiffeFederationIndex]func(*machineidv1.SPIFFEFederation) string{

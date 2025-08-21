@@ -36,13 +36,13 @@ type healthCheckConfigIndex string
 
 const healthCheckConfigNameIndex healthCheckConfigIndex = "name"
 
-func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w types.WatchKind) (*collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex], error) {
+func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w types.WatchKind) (*collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter HealthCheckConfigReader")
 	}
 
-	return &collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
-		store: newStore(
+	return &collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex, string]{
+		store: newStringStore(
 			types.KindHealthCheckConfig,
 			proto.CloneOf[*healthcheckconfigv1.HealthCheckConfig],
 			map[healthCheckConfigIndex]func(*healthcheckconfigv1.HealthCheckConfig) string{

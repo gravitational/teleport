@@ -33,13 +33,13 @@ type webSessionIndex string
 
 const webSessionNameIndex webSessionIndex = "name"
 
-func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKind) (*collection[types.WebSession, webSessionIndex], error) {
+func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKind) (*collection[types.WebSession, webSessionIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter WebSession")
 	}
 
-	return &collection[types.WebSession, webSessionIndex]{
-		store: newStore(
+	return &collection[types.WebSession, webSessionIndex, string]{
+		store: newStringStore(
 			types.KindWebSession,
 			types.WebSession.Copy,
 			map[webSessionIndex]func(types.WebSession) string{
@@ -112,13 +112,13 @@ const (
 	appSessionUserIndex appSessionIndex = "user"
 )
 
-func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*collection[types.WebSession, appSessionIndex], error) {
+func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*collection[types.WebSession, appSessionIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AppSession")
 	}
 
-	return &collection[types.WebSession, appSessionIndex]{
-		store: newStore(
+	return &collection[types.WebSession, appSessionIndex, string]{
+		store: newStringStore(
 			types.KindAppSession,
 			types.WebSession.Copy,
 			map[appSessionIndex]func(types.WebSession) string{
@@ -241,13 +241,13 @@ type snowflakeSessionIndex string
 
 const snowflakeSessionNameIndex snowflakeSessionIndex = "name"
 
-func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.WatchKind) (*collection[types.WebSession, snowflakeSessionIndex], error) {
+func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.WatchKind) (*collection[types.WebSession, snowflakeSessionIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AppSession")
 	}
 
-	return &collection[types.WebSession, snowflakeSessionIndex]{
-		store: newStore(
+	return &collection[types.WebSession, snowflakeSessionIndex, string]{
+		store: newStringStore(
 			types.KindSnowflakeSession,
 			types.WebSession.Copy,
 			map[snowflakeSessionIndex]func(types.WebSession) string{

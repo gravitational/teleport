@@ -33,13 +33,13 @@ type userNotificationIndex string
 
 const userNotificationNameIndex userNotificationIndex = "name"
 
-func newUserNotificationCollection(upstream services.NotificationGetter, w types.WatchKind) (*collection[*notificationsv1.Notification, userNotificationIndex], error) {
+func newUserNotificationCollection(upstream services.NotificationGetter, w types.WatchKind) (*collection[*notificationsv1.Notification, userNotificationIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter NotificationGetter")
 	}
 
-	return &collection[*notificationsv1.Notification, userNotificationIndex]{
-		store: newStore(
+	return &collection[*notificationsv1.Notification, userNotificationIndex, string]{
+		store: newStringStore(
 			types.KindNotification,
 			proto.CloneOf[*notificationsv1.Notification],
 			map[userNotificationIndex]func(*notificationsv1.Notification) string{
@@ -77,13 +77,13 @@ type globalNotificationIndex string
 
 const globalNotificationNameIndex globalNotificationIndex = "name"
 
-func newGlobalNotificationCollection(upstream services.NotificationGetter, w types.WatchKind) (*collection[*notificationsv1.GlobalNotification, globalNotificationIndex], error) {
+func newGlobalNotificationCollection(upstream services.NotificationGetter, w types.WatchKind) (*collection[*notificationsv1.GlobalNotification, globalNotificationIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter NotificationGetter")
 	}
 
-	return &collection[*notificationsv1.GlobalNotification, globalNotificationIndex]{
-		store: newStore(
+	return &collection[*notificationsv1.GlobalNotification, globalNotificationIndex, string]{
+		store: newStringStore(
 			types.KindGlobalNotification,
 			proto.CloneOf[*notificationsv1.GlobalNotification],
 			map[globalNotificationIndex]func(*notificationsv1.GlobalNotification) string{

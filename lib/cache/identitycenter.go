@@ -34,13 +34,13 @@ type identityCenterAccountIndex string
 
 const identityCenterAccountNameIndex identityCenterAccountIndex = "name"
 
-func newIdentityCenterAccountCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.Account, identityCenterAccountIndex], error) {
+func newIdentityCenterAccountCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.Account, identityCenterAccountIndex, string], error) {
 	if ic == nil {
 		return nil, trace.BadParameter("missing parameter IdentityCenter")
 	}
 
-	return &collection[*identitycenterv1.Account, identityCenterAccountIndex]{
-		store: newStore(
+	return &collection[*identitycenterv1.Account, identityCenterAccountIndex, string]{
+		store: newStringStore(
 			types.KindIdentityCenterAccount,
 			proto.CloneOf[*identitycenterv1.Account],
 			map[identityCenterAccountIndex]func(*identitycenterv1.Account) string{
@@ -161,13 +161,13 @@ type identityCenterAccountAssignmentIndex string
 
 const identityCenterAccountAssignmentNameIndex identityCenterAccountAssignmentIndex = "name"
 
-func newIdentityCenterAccountAssignmentCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex], error) {
+func newIdentityCenterAccountAssignmentCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex, string], error) {
 	if ic == nil {
 		return nil, trace.BadParameter("missing parameter IdentityCenter")
 	}
 
-	return &collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]{
-		store: newStore(
+	return &collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex, string]{
+		store: newStringStore(
 			types.KindIdentityCenterAccountAssignment,
 			proto.CloneOf[*identitycenterv1.AccountAssignment],
 			map[identityCenterAccountAssignmentIndex]func(*identitycenterv1.AccountAssignment) string{
@@ -301,13 +301,13 @@ type identityCenterPrincipalAssignmentIndex string
 
 const identityCenterPrincipalAssignmentNameIndex identityCenterPrincipalAssignmentIndex = "name"
 
-func newIdentityCenterPrincipalAssignmentCollection(upstream services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex], error) {
+func newIdentityCenterPrincipalAssignmentCollection(upstream services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter IdentityCenter")
 	}
 
-	return &collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]{
-		store: newStore(
+	return &collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex, string]{
+		store: newStringStore(
 			types.KindIdentityCenterPrincipalAssignment,
 			proto.CloneOf[*identitycenterv1.PrincipalAssignment],
 			map[identityCenterPrincipalAssignmentIndex]func(*identitycenterv1.PrincipalAssignment) string{

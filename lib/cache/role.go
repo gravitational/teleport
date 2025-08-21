@@ -29,13 +29,13 @@ type roleIndex string
 
 const roleNameIndex roleIndex = "name"
 
-func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.Role, roleIndex], error) {
+func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.Role, roleIndex, string], error) {
 	if a == nil {
 		return nil, trace.BadParameter("missing parameter Access")
 	}
 
-	return &collection[types.Role, roleIndex]{
-		store: newStore(
+	return &collection[types.Role, roleIndex, string]{
+		store: newStringStore(
 			types.KindRole,
 			types.Role.Clone,
 			map[roleIndex]func(types.Role) string{

@@ -34,13 +34,13 @@ type gitServerIndex string
 
 const gitServerNameIndex gitServerIndex = "name"
 
-func newGitServerCollection(upstream services.GitServerGetter, w types.WatchKind) (*collection[types.Server, gitServerIndex], error) {
+func newGitServerCollection(upstream services.GitServerGetter, w types.WatchKind) (*collection[types.Server, gitServerIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter GitServerGetter")
 	}
 
-	return &collection[types.Server, gitServerIndex]{
-		store: newStore(
+	return &collection[types.Server, gitServerIndex, string]{
+		store: newStringStore(
 			types.KindGitServer,
 			types.Server.DeepCopy,
 			map[gitServerIndex]func(types.Server) string{

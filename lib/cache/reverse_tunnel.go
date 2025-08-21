@@ -32,13 +32,13 @@ type reverseTunnelIndex string
 
 const reverseTunnelNameIndex reverseTunnelIndex = "name"
 
-func newReverseTunnelCollection(upstream services.Presence, w types.WatchKind) (*collection[types.ReverseTunnel, reverseTunnelIndex], error) {
+func newReverseTunnelCollection(upstream services.Presence, w types.WatchKind) (*collection[types.ReverseTunnel, reverseTunnelIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.ReverseTunnel, reverseTunnelIndex]{
-		store: newStore(
+	return &collection[types.ReverseTunnel, reverseTunnelIndex, string]{
+		store: newStringStore(
 			types.KindReverseTunnel,
 			types.ReverseTunnel.Clone,
 			map[reverseTunnelIndex]func(types.ReverseTunnel) string{

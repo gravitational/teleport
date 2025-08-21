@@ -571,15 +571,15 @@ func (c *Cache) setReadStatus(ok bool, confirmedKinds map[resourceKind]types.Wat
 
 // acquireReadGuard provides a readGuard that may be used to determine how
 // a cache read should operate. The returned guard *must* be released to prevent deadlocks.
-func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (readGuard[T, I], error) {
+func acquireReadGuard[T any, I, E comparable](cache *Cache, c *collection[T, I, E]) (readGuard[T, I, E], error) {
 	if cache.closed.Load() {
-		return readGuard[T, I]{}, trace.Errorf("cache is closed")
+		return readGuard[T, I, E]{}, trace.Errorf("cache is closed")
 	}
 	cache.rw.RLock()
 
 	if cache.ok {
 		if _, kindOK := cache.confirmedKinds[resourceKind{kind: c.watch.Kind, subkind: c.watch.SubKind}]; kindOK {
-			return readGuard[T, I]{
+			return readGuard[T, I, E]{
 				cacheRead: true,
 				release:   cache.rw.RUnlock,
 				store:     c.store,
@@ -588,28 +588,28 @@ func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (r
 	}
 
 	cache.rw.RUnlock()
-	return readGuard[T, I]{
+	return readGuard[T, I, E]{
 		cacheRead: false,
 	}, nil
 }
 
 // readGuard holds a reference to a read-only "collection" T. If the referenced resource is in the cache,
 // then readGuard also holds the release function for the read lock, and ensures that it is not double-called.
-type readGuard[T any, I comparable] struct {
+type readGuard[T any, I, E comparable] struct {
 	cacheRead bool
-	store     *store[T, I]
+	store     *store[T, I, E]
 	once      sync.Once
 	release   func()
 }
 
 // ReadCache checks if this readGuard holds a cache reference.
-func (r *readGuard[T, I]) ReadCache() bool {
+func (r *readGuard[T, I, E]) ReadCache() bool {
 	return r.cacheRead
 }
 
 // Release releases the read lock if it is held.  This method
 // can be called multiple times.
-func (r *readGuard[T, I]) Release() {
+func (r *readGuard[T, I, E]) Release() {
 	r.once.Do(func() {
 		if r.release == nil {
 			return

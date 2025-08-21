@@ -32,13 +32,13 @@ type recordingEncryptionIndex string
 
 const recordingEncryptionNameIndex recordingEncryptionIndex = "name"
 
-func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w types.WatchKind) (*collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex], error) {
+func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w types.WatchKind) (*collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter RecordingEncryption")
 	}
 
-	return &collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]{
-		store: newStore(
+	return &collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex, string]{
+		store: newStringStore(
 			types.KindRecordingEncryption,
 			proto.CloneOf[*recordingencryptionv1.RecordingEncryption],
 			map[recordingEncryptionIndex]func(*recordingencryptionv1.RecordingEncryption) string{

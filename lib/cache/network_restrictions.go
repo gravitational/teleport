@@ -29,13 +29,13 @@ type networkingRestrictionIndex string
 
 const networkingRestrictionNameIndex networkingRestrictionIndex = "name"
 
-func newNetworkingRestrictionCollection(upstream services.Restrictions, w types.WatchKind) (*collection[types.NetworkRestrictions, networkingRestrictionIndex], error) {
+func newNetworkingRestrictionCollection(upstream services.Restrictions, w types.WatchKind) (*collection[types.NetworkRestrictions, networkingRestrictionIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Restrictions")
 	}
 
-	return &collection[types.NetworkRestrictions, networkingRestrictionIndex]{
-		store: newStore(
+	return &collection[types.NetworkRestrictions, networkingRestrictionIndex, string]{
+		store: newStringStore(
 			types.KindNetworkRestrictions,
 			types.NetworkRestrictions.Clone,
 			map[networkingRestrictionIndex]func(types.NetworkRestrictions) string{

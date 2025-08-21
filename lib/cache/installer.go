@@ -29,13 +29,13 @@ type installerIndex string
 
 const installerNameIndex installerIndex = "name"
 
-func newInstallerCollection(upstream services.ClusterConfiguration, w types.WatchKind) (*collection[types.Installer, installerIndex], error) {
+func newInstallerCollection(upstream services.ClusterConfiguration, w types.WatchKind) (*collection[types.Installer, installerIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.Installer, installerIndex]{
-		store: newStore(
+	return &collection[types.Installer, installerIndex, string]{
+		store: newStringStore(
 			types.KindInstaller,
 			types.Installer.Clone,
 			map[installerIndex]func(types.Installer) string{

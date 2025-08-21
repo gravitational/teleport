@@ -32,13 +32,13 @@ type appIndex string
 
 const appNameIndex appIndex = "name"
 
-func newAppCollection(upstream services.Applications, w types.WatchKind) (*collection[types.Application, appIndex], error) {
+func newAppCollection(upstream services.Applications, w types.WatchKind) (*collection[types.Application, appIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Applications")
 	}
 
-	return &collection[types.Application, appIndex]{
-		store: newStore(
+	return &collection[types.Application, appIndex, string]{
+		store: newStringStore(
 			types.KindApp,
 			func(a types.Application) types.Application {
 				return a.Copy()
@@ -185,13 +185,13 @@ type appServerIndex string
 
 const appServerNameIndex appServerIndex = "name"
 
-func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection[types.AppServer, appServerIndex], error) {
+func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection[types.AppServer, appServerIndex, string], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.AppServer, appServerIndex]{
-		store: newStore(
+	return &collection[types.AppServer, appServerIndex, string]{
+		store: newStringStore(
 			types.KindAppServer,
 			types.AppServer.Copy,
 			map[appServerIndex]func(types.AppServer) string{

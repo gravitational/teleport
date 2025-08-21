@@ -36,13 +36,13 @@ type autoUpdateConfigIndex string
 
 const autoUpdateConfigNameIndex autoUpdateConfigIndex = "name"
 
-func newAutoUpdateConfigCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex], error) {
+func newAutoUpdateConfigCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AutoUpdateServiceGetter")
 	}
 
-	return &collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]{
-		store: newStore(
+	return &collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex, string]{
+		store: newStringStore(
 			types.KindAutoUpdateConfig,
 			proto.CloneOf[*autoupdatev1.AutoUpdateConfig],
 			map[autoUpdateConfigIndex]func(*autoupdatev1.AutoUpdateConfig) string{
@@ -103,13 +103,13 @@ type autoUpdateVersionIndex string
 
 const autoUpdateVersionNameIndex autoUpdateVersionIndex = "name"
 
-func newAutoUpdateVersionCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex], error) {
+func newAutoUpdateVersionCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AutoUpdateServiceGetter")
 	}
 
-	return &collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]{
-		store: newStore(
+	return &collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex, string]{
+		store: newStringStore(
 			types.KindAutoUpdateVersion,
 			proto.CloneOf[*autoupdatev1.AutoUpdateVersion],
 			map[autoUpdateVersionIndex]func(*autoupdatev1.AutoUpdateVersion) string{
@@ -166,13 +166,13 @@ type autoUpdateAgentRolloutIndex string
 
 const autoUpdateAgentRolloutNameIndex autoUpdateAgentRolloutIndex = "name"
 
-func newAutoUpdateRolloutCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex], error) {
+func newAutoUpdateRolloutCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AutoUpdateServiceGetter")
 	}
 
-	return &collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]{
-		store: newStore(
+	return &collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex, string]{
+		store: newStringStore(
 			types.KindAutoUpdateAgentRollout,
 			proto.CloneOf[*autoupdatev1.AutoUpdateAgentRollout],
 			map[autoUpdateAgentRolloutIndex]func(*autoupdatev1.AutoUpdateAgentRollout) string{
@@ -229,13 +229,13 @@ type autoUpdateAgentReportIndex string
 
 const autoUpdateAgentReportNameIndex autoUpdateAgentReportIndex = "name"
 
-func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex], error) {
+func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AutoUpdateAgentReports")
 	}
 
-	return &collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
-		store: newStore(
+	return &collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex, string]{
+		store: newStringStore(
 			types.KindSecurityReport,
 			proto.CloneOf[*autoupdatev1.AutoUpdateAgentReport],
 			map[autoUpdateAgentReportIndex]func(*autoupdatev1.AutoUpdateAgentReport) string{

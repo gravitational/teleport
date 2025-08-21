@@ -33,13 +33,13 @@ type discoveryConfigIndex string
 
 const discoveryConfigNameIndex discoveryConfigIndex = "name"
 
-func newDiscoveryConfigCollection(upstream services.DiscoveryConfigs, w types.WatchKind) (*collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex], error) {
+func newDiscoveryConfigCollection(upstream services.DiscoveryConfigs, w types.WatchKind) (*collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter DiscoveryConfigs")
 	}
 
-	return &collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]{
-		store: newStore(
+	return &collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex, string]{
+		store: newStringStore(
 			types.KindDiscoveryConfig,
 			(*discoveryconfig.DiscoveryConfig).Clone,
 			map[discoveryConfigIndex]func(*discoveryconfig.DiscoveryConfig) string{

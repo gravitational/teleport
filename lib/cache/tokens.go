@@ -33,13 +33,13 @@ type staticTokensIndex string
 
 const staticTokensNameIndex staticTokensIndex = "name"
 
-func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.StaticTokens, staticTokensIndex], error) {
+func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.StaticTokens, staticTokensIndex, string], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfig")
 	}
 
-	return &collection[types.StaticTokens, staticTokensIndex]{
-		store: newStore(
+	return &collection[types.StaticTokens, staticTokensIndex, string]{
+		store: newStringStore(
 			types.KindStaticTokens,
 			types.StaticTokens.Clone,
 			map[staticTokensIndex]func(types.StaticTokens) string{
@@ -92,13 +92,13 @@ type provisionTokenIndex string
 
 const provisionTokenStoreNameIndex provisionTokenIndex = "name"
 
-func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*collection[types.ProvisionToken, provisionTokenIndex], error) {
+func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*collection[types.ProvisionToken, provisionTokenIndex, string], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Provisioner")
 	}
 
-	return &collection[types.ProvisionToken, provisionTokenIndex]{
-		store: newStore(
+	return &collection[types.ProvisionToken, provisionTokenIndex, string]{
+		store: newStringStore(
 			types.KindToken,
 			types.ProvisionToken.Clone,
 			map[provisionTokenIndex]func(types.ProvisionToken) string{

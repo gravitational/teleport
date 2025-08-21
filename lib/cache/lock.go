@@ -30,13 +30,13 @@ type lockIndex string
 
 const lockNameIndex lockIndex = "name"
 
-func newLockCollection(upstream services.Access, w types.WatchKind) (*collection[types.Lock, lockIndex], error) {
+func newLockCollection(upstream services.Access, w types.WatchKind) (*collection[types.Lock, lockIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Access")
 	}
 
-	return &collection[types.Lock, lockIndex]{
-		store: newStore(
+	return &collection[types.Lock, lockIndex, string]{
+		store: newStringStore(
 			types.KindLock,
 			types.Lock.Clone,
 			map[lockIndex]func(types.Lock) string{

@@ -28,13 +28,13 @@ type webTokenIndex string
 
 const webTokenNameIndex webTokenIndex = "name"
 
-func newWebTokenCollection(upstream types.WebTokenInterface, w types.WatchKind) (*collection[types.WebToken, webTokenIndex], error) {
+func newWebTokenCollection(upstream types.WebTokenInterface, w types.WatchKind) (*collection[types.WebToken, webTokenIndex, string], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter WebTokenInterface")
 	}
 
-	return &collection[types.WebToken, webTokenIndex]{
-		store: newStore(
+	return &collection[types.WebToken, webTokenIndex, string]{
+		store: newStringStore(
 			types.KindWebToken,
 			types.WebToken.Clone,
 			map[webTokenIndex]func(types.WebToken) string{
