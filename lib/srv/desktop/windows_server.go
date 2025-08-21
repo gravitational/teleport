@@ -41,6 +41,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -377,7 +378,17 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			return nil, trace.Wrap(err)
 		}
 		if err := s.ca.Update(s.closeCtx, tc); err != nil {
-			return nil, trace.Wrap(err)
+			// Update makes calls over an LDAP connection to publish the CRL.
+			// If the connection fails and we've been given an `Addr`, we should
+			// retry as this could be a transient error. If LocateServer is
+			// enabled, we should fail fast and not retry as there's likely a
+			// larger connectivity issue.
+			if s.cfg.LDAPConfig.Addr != "" {
+				s.cfg.Logger.WarnContext(s.closeCtx, "Failed to establish initial connection with LDAP server, will retry in background", "addr", s.cfg.LDAPConfig.Addr, "error", err)
+				s.startUpdateRetryProcess(ctx, tc)
+			} else {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
@@ -1276,4 +1287,26 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	}
 
 	return len(s), nil
+}
+
+// startUpdateRetryProcess starts a background process that periodically attempts
+// to establish an LDAP connection for the certificate authority.
+func (s *WindowsService) startUpdateRetryProcess(ctx context.Context, tlsConfig *tls.Config) error {
+	linear, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First: 1 * time.Minute,
+		Step:  1 * time.Minute,
+		Max:   10 * time.Minute,
+		Clock: s.cfg.Clock,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		linear.For(ctx, func() error {
+			return s.ca.Update(ctx, tlsConfig)
+		})
+	}()
+
+	return nil
 }

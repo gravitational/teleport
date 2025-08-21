@@ -392,8 +392,10 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 		)
 
 		if err != nil {
-			// If the connection fails, try the next server
-			c.Logger.DebugContext(ctx, "Error connecting to LDAP server, trying next available server", "server", server, "error", err)
+			if c.LocateServer.Enabled {
+				// If the connection fails and we're using LocateServer, log that a server failed.
+				c.Logger.DebugContext(ctx, "Error connecting to LDAP server, trying next available server", "server", server, "error", err)
+			}
 			continue
 		}
 
