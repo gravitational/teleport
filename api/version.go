@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.1.7-dev.sshah-entraid-groups.1"
+const Version = "18.1.7-dev.sshah-entraid-groups.2"
 
 const VersionMajor = 18
 const VersionMinor = 1
 const VersionPatch = 7
-const VersionPreRelease = "dev.sshah-entraid-groups.1"
+const VersionPreRelease = "dev.sshah-entraid-groups.2"
 const VersionMetadata = ""
