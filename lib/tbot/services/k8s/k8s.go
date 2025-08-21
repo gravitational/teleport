@@ -20,8 +20,11 @@ package k8s
 
 import (
 	"go.opentelemetry.io/otel"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -29,3 +32,36 @@ var (
 	tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/k8s")
 	log    = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 )
+
+// WithDefaultCredentialLifetime sets the service's default credential lifetime.
+func WithDefaultCredentialLifetime(lifetime bot.CredentialLifetime) DefaultCredentialLifetimeOption {
+	return DefaultCredentialLifetimeOption{lifetime}
+}
+
+// DefaultCredentialLifetimeOption is returned from WithDefaultCredentialLifetime.
+type DefaultCredentialLifetimeOption struct{ lifetime bot.CredentialLifetime }
+
+// WithKubernetesClient sets the service's Kubernetes client. It's used in tests.
+func WithKubernetesClient(k8s kubernetes.Interface) KubernetesClientOption {
+	return KubernetesClientOption{k8s}
+}
+
+// KubernetesClientOption is returned from WithKubernetesClient.
+type KubernetesClientOption struct{ client kubernetes.Interface }
+
+// WithInsecure controls whether the service will verify proxy certificates.
+func WithInsecure(insecure bool) InsecureOption {
+	return InsecureOption{insecure}
+}
+
+// InsecureOption is returned from WithInsecure.
+type InsecureOption struct{ insecure bool }
+
+// WithALPNUpgradeCache sets the service's ALPN upgrade cache so that it can be
+// shared with other services.
+func WithALPNUpgradeCache(cache *internal.ALPNUpgradeCache) ALPNUpgradeCacheOption {
+	return ALPNUpgradeCacheOption{cache}
+}
+
+// ALPNUpgradeCacheOption is returned from WithALPNUpgradeCache.
+type ALPNUpgradeCacheOption struct{ cache *internal.ALPNUpgradeCache }
