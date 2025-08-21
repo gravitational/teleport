@@ -377,7 +377,17 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			return nil, trace.Wrap(err)
 		}
 		if err := s.ca.Update(s.closeCtx, tc); err != nil {
-			return nil, trace.Wrap(err)
+			// Update makes calls over an LDAP connection to publish the CRL.
+			// If the connection fails and we've been given an `Addr`, we should
+			// retry as this could be a transient error. If LocateServer is
+			// enabled, we should fail fast and not retry as there's likely a
+			// larger connectivity issue.
+			if s.cfg.LDAPConfig.Addr != "" {
+				s.cfg.Logger.WarnContext(s.closeCtx, "Failed to establish initial connection with LDAP server, will retry in background", "addr", s.cfg.LDAPConfig.Addr, "error", err)
+				s.startUpdateRetryProcess(tc)
+			} else {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
@@ -1276,4 +1286,33 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	}
 
 	return len(s), nil
+}
+
+// startUpdateRetryProcess starts a background process that periodically attempts
+// to establish an LDAP connection for the certificate authority.
+func (s *WindowsService) startUpdateRetryProcess(tlsConfig *tls.Config) {
+	retryInterval := 1 * time.Minute
+
+	go func() {
+		s.cfg.Logger.InfoContext(s.closeCtx, "Starting LDAP connection retry process", "interval", retryInterval)
+
+		ticker := s.cfg.Clock.NewTicker(retryInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.closeCtx.Done():
+				s.cfg.Logger.DebugContext(s.closeCtx, "LDAP retry process stopped")
+				return
+			case <-ticker.Chan():
+				if err := s.ca.Update(s.closeCtx, tlsConfig); err != nil {
+					s.cfg.Logger.WarnContext(s.closeCtx, "LDAP connection retry failed, will continue retrying",
+						"addr", s.cfg.LDAPConfig.Addr, "error", err, "next_retry", retryInterval)
+				} else {
+					s.cfg.Logger.InfoContext(s.closeCtx, "Successfully established LDAP connection", "addr", s.cfg.LDAPConfig.Addr)
+					return
+				}
+			}
+		}
+	}()
 }
