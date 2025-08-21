@@ -629,6 +629,8 @@
     "kubernetesdiscovery",
     "kvno",
     "lastname",
+    "langchain",
+    "langgraph",
     "ldapsearch",
     "leaderelection",
     "leafcluster",
