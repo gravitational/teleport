@@ -82,15 +82,15 @@ type Config struct {
 	Client *tracing.Client
 
 	// WaitForDelayedClient indicates that the client is not available at the
-	// time the Provider is being created. If this is set to true,
-	// ReportDelayedClient is expected to be called on the Provider. Spans will
-	// be buffered in memory until ReportDelayedClient is called.
+	// time the Provider is being created. If this is set to true, SetClient is
+	// expected to be called on the Provider. A limited number of spans will be
+	// buffered in memory until SetDelayedClient is called.
 	WaitForDelayedClient bool
 	// WaitForDelayedResourceAttrs indicates that some resource attributes are
-	// not available at the time the Provider is being created.
-	// If this is set to true, ReportDelayedResourceAttrs is expected to be
-	// called on the Provider. Spans will be buffered in memory until
-	// ReportDelayedResourceAttrs is called.
+	// not available at the time the Provider is being created. If this is set
+	// to true, SetDelayedResourceAttrs is expected to be called on the
+	// Provider. A limited number of spans will be buffered in memory until
+	// SetDelayedResourceAttrs is called.
 	WaitForDelayedResourceAttrs bool
 
 	// exporterURL is the parsed value of ExporterURL that is populated
@@ -250,14 +250,14 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	return provider, nil
 }
 
-// ReportDelayedResourceAttrs reports resource attributes that were not
-// available when the Provider was created. The context may be used to upload
-// buffered spans to the upstream client.
-func (p *Provider) ReportDelayedResourceAttrs(ctx context.Context, attrs []attribute.KeyValue) error {
+// SetDelayedResourceAttrs sets resource attributes that were not available
+// when the Provider was created but should be included in all exported spans.
+// The context may be used to upload buffered spans to the upstream client.
+func (p *Provider) SetDelayedResourceAttrs(ctx context.Context, attrs []attribute.KeyValue) error {
 	if p.bufferedClient == nil {
-		return trace.BadParameter("ReportDelayedResourceAttrs called without setting cfg.WaitForDelayedAttributes")
+		return trace.BadParameter("SetDelayedResourceAttrs called without setting cfg.WaitForDelayedAttributes")
 	}
-	return trace.Wrap(p.bufferedClient.reportDelayedResourceAttrs(ctx, attrs))
+	return trace.Wrap(p.bufferedClient.setDelayedResourceAttrs(ctx, attrs))
 }
 
 // ClosableClient is an [otlptrace.Client] implementation that can also be closed.
@@ -266,13 +266,13 @@ type ClosableClient interface {
 	io.Closer
 }
 
-// ReportDelayedClient reports a tracing client to the Provider that was not
-// available when the Provider was created. Ownership is transferred to the
-// Provider, it should not be closed by the caller. The context may be used to
-// upload buffered spans to the client.
-func (p *Provider) ReportDelayedClient(ctx context.Context, clt ClosableClient) error {
+// SetClient provides a tracing client to the Provider that was not available
+// when the Provider was created. Ownership is transferred to the Provider, it
+// should not be closed by the caller. The context may be used to upload
+// buffered spans to the client.
+func (p *Provider) SetClient(ctx context.Context, clt ClosableClient) error {
 	if p.bufferedClient == nil {
-		return trace.BadParameter("ReportDelayedClient called without setting cfg.WaitForDelayedClient")
+		return trace.BadParameter("SetClient called without setting cfg.WaitForDelayedClient")
 	}
-	return trace.Wrap(p.bufferedClient.reportDelayedClient(ctx, clt))
+	return trace.Wrap(p.bufferedClient.setClient(ctx, clt))
 }

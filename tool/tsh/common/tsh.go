@@ -1990,7 +1990,7 @@ func initializeTracing(cf *CLIConf) func() {
 
 	if cf.command == "login" {
 		// Don't call RetryWithRelogin below if the user is trying to log in.
-		// Rely on [onLogin] to report the delayed client to the tracing provider.
+		// Rely on [onLogin] to set the delayed client on the tracing provider.
 		cf.waitingForTracingClient = true
 		return flush(provider)
 	}
@@ -2008,7 +2008,7 @@ func initializeTracing(cf *CLIConf) func() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := provider.ReportDelayedClient(cf.Context, clt); err != nil {
+		if err := provider.SetClient(cf.Context, clt); err != nil {
 			return trace.NewAggregate(err, clt.Close())
 		}
 		return nil
@@ -2176,8 +2176,8 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 				logger.DebugContext(cf.Context, "Failed to create tracing client after login", "error", err)
 				return
 			}
-			if err := cf.TracingProvider.ReportDelayedClient(cf.Context, tracingClient); err != nil {
-				logger.DebugContext(cf.Context, "Failed to report tracing client to trace provider after login", "error", err)
+			if err := cf.TracingProvider.SetClient(cf.Context, tracingClient); err != nil {
+				logger.DebugContext(cf.Context, "Failed to set tracing client on trace provider after login", "error", err)
 				tracingClient.Close()
 			}
 		}()

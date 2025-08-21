@@ -338,7 +338,7 @@ func (b *bufferedClient) uploadTracesToClient(ctx context.Context, protoSpans []
 	return trace.Wrap(b.client.UploadTraces(ctx, protoSpans))
 }
 
-func (b *bufferedClient) reportDelayedResourceAttrs(ctx context.Context, attrs []attribute.KeyValue) error {
+func (b *bufferedClient) setDelayedResourceAttrs(ctx context.Context, attrs []attribute.KeyValue) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !b.waitingForDelayedResourceAttrs {
@@ -351,7 +351,7 @@ func (b *bufferedClient) reportDelayedResourceAttrs(ctx context.Context, attrs [
 	return nil
 }
 
-func (b *bufferedClient) reportDelayedClient(ctx context.Context, client ClosableClient) error {
+func (b *bufferedClient) setClient(ctx context.Context, client ClosableClient) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !b.waitingForClient {

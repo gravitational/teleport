@@ -4029,7 +4029,7 @@ func (process *TeleportProcess) initTracingService() error {
 			delayedResourceAttrs = append(delayedResourceAttrs,
 				attribute.String(tracing.HostIDKey, hostUUID))
 		}
-		if err := process.TracingProvider.ReportDelayedResourceAttrs(process.GracefulExitContext(), delayedResourceAttrs); err != nil {
+		if err := process.TracingProvider.SetDelayedResourceAttrs(process.GracefulExitContext(), delayedResourceAttrs); err != nil {
 			logger.WarnContext(process.ExitContext(), "Failed to report delayed resource attributes to tracing provider", "error", err)
 		}
 	}()
