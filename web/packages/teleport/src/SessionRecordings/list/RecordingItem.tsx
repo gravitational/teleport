@@ -77,7 +77,7 @@ export function RecordingItem({
   );
 
   const duration = useMemo(
-    () => formatDuration(recording.duration),
+    () => formatSessionRecordingDuration(recording.duration),
     [recording.duration]
   );
 
@@ -356,7 +356,7 @@ function getRecordingTypeInfo(type: RecordingType): {
   }
 }
 
-function formatDuration(ms: number): string {
+export function formatSessionRecordingDuration(ms: number): string {
   const roundedMs = Math.round(ms / 1000) * 1000;
 
   const units = [

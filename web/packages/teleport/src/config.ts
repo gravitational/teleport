@@ -925,10 +925,15 @@ const cfg = {
     return route;
   },
 
-  getSessionRecordingMetadataUrl(clusterId: string, sessionId: string) {
+  getSessionRecordingMetadataUrl(
+    clusterId: string,
+    sessionId: string,
+    fqdn: string
+  ) {
     return generatePath(cfg.api.sessionRecording.metadata, {
       clusterId,
       sessionId,
+      fqdn,
     });
   },
 
