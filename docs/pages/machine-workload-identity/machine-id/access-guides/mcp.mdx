@@ -44,10 +44,14 @@ will access MCP servers. For more information, see the
 ## Step 1/3. Configure RBAC
 
 First, Teleport must be configured to allow the credentials produced by the bot
-to access MCP servers in your infrastructure. In this example, access will be
-granted to all MCP servers and all tools within those servers. This is done by
-creating a role that grants the necessary permissions and then assigning this
-role to the Bot.
+to access MCP servers in your infrastructure. This is done by creating a role
+that specifies label matchers for the MCP server that you want to grant access
+to, and, specifying with tools within the MCP server that should be accessible.
+
+In our example, we will grant access to an MCP server that has been labelled
+with `env: dev` and allow access to all tools within that MCP server.
+
+Create a file named `role.yaml` with the following content:
 
 ```yaml
 kind: role
@@ -57,16 +61,14 @@ metadata:
 spec:
   allow:
     app_labels:
-      '*': '*'
+      'env': 'dev'
     mcp:
       tools: ['*']
 ```
 
-Replace `example-role` with a descriptive name related to your use case.
-
-In a production environment, you should adjust `app_labels` and `tools` to
-restrict this access to only the MCP servers and tools that the bot will need
-to access.
+Replace `example-role` with a descriptive name related to your use case, adjust
+the `app_labels` to match the labels of your MCP server, and modify the
+`mcp.tools` field to specify which tools you want to allow access to.
 
 Use `tctl create -f ./role.yaml` to create the role.
 
@@ -131,7 +133,7 @@ MCP client you are using.
                     "args": [
                         "mcp",
                         "connect",
-                        "-i", "/path",
+                        "-i", "/opt/machine-id/identity",
                         "--proxy", "example.teleport.sh:443",
                         "my-mcp-server",
                     ],
