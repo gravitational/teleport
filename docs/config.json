@@ -2556,6 +2556,11 @@
       "permanent": true
     },
     {
+      "source": "/upgrading/upgrading-reference/",
+      "destination": "/upgrading/upgrading-manual/",
+      "permanent": true
+    },
+    {
       "source": "/admin-guides/deploy-a-cluster/access-graph/self-hosted/",
       "destination": "/identity-security/access-graph/self-hosted/",
       "permanent": true
