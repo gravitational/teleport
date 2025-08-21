@@ -12,8 +12,10 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -523,4 +525,37 @@ func (s *Service) insecureGetSummary(
 	}
 
 	return summary, sessionAuditEvent, nil
+}
+
+// IsEnabled checks if the summarizer should be considered enabled. Session
+// summarizer considers itself enabled if there's at least one model configured
+// in the backend. This is not perfect, since whether the summarizer is
+// configured NOW doesn't tell us if it was configured IN THE PAST (and may
+// have generated data). This is all we've got for now, though.
+func (s *Service) IsEnabled(
+	ctx context.Context, req *pb.IsEnabledRequest,
+) (res *pb.IsEnabledResponse, err error) {
+	//  TODO(bl-nero): Figure out a better way to do this.
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// This endpoint can only be called by the proxy itself.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled {
+		return &pb.IsEnabledResponse{Enabled: false}, nil
+	}
+
+	models, _, err := s.backend.ListInferenceModels(ctx, 1, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &pb.IsEnabledResponse{
+		Enabled: len(models) > 0,
+	}, nil
 }
