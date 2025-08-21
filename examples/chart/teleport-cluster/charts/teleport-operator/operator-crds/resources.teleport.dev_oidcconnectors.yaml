@@ -96,6 +96,28 @@ spec:
               display:
                 description: Display is the friendly name for this provider.
                 type: string
+              entra_id_groups_provider:
+                description: EntraIDGroupsProvider configures out-of-band user groups
+                  provider.
+                nullable: true
+                properties:
+                  enabled:
+                    description: Enabled specifies groups provider enabled/disabled
+                      state. Defaults to false. If enabled, groups provider should
+                      honour groups claim source. User may choose to disable it if
+                      they are using integrations such as SCIM or similar groups importer
+                      as connector based role mapping may be not needed in such a
+                      scenario.
+                    type: boolean
+                  graph_endpoint:
+                    description: Optional Microsoft Graph API endpoint. Defaults to
+                      "graph.microsoft.com".
+                    type: string
+                  group_type:
+                    description: GroupType configures group filter behavior. Value
+                      can be "security-groups", "directory-roles", "all-groups".
+                    type: string
+                type: object
               google_admin_email:
                 description: GoogleAdminEmail is the email of a google admin to impersonate.
                 type: string
