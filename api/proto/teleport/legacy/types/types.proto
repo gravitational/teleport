@@ -1282,11 +1282,11 @@ message JWTKeyPair {
   PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
 }
 
-// EncryptionKeyPair is a PEM encoded keypair used for encrypting and decrypting data.
+// EncryptionKeyPair is a PKIX ASN.1 DER encoded keypair used for encrypting and decrypting data.
 message EncryptionKeyPair {
-  // PublicKey is a PEM encoded public key.
+  // PublicKey is a PKIX ASN.1 DER encoded public key.
   bytes public_key = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
-  // PrivateKey is a PEM encoded private key.
+  // PrivateKey is a PKCS#8 ASN.1 DER encoded private key.
   bytes private_key = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
   // PrivateKeyType is the type of the PrivateKey.
   PrivateKeyType private_key_type = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
@@ -1297,7 +1297,7 @@ message EncryptionKeyPair {
 
 // A public key to be used as a recipient during age encryption of session recordings.
 message AgeEncryptionKey {
-  // A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
+  // A PKIX ASN.1 DER encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
   bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
 }
 

@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"errors"
 	"io"
 	"sync"
@@ -34,7 +35,6 @@ import (
 
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -94,7 +94,7 @@ func (f *fakeKeyStore) genKeys() (crypto.Decrypter, []byte, error) {
 		f.cacheIdx = 0
 	}
 
-	publicKey, err := keys.MarshalPublicKey(decrypter.Public())
+	publicKey, err := x509.MarshalPKIXPublicKey(decrypter.Public())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -123,7 +123,7 @@ func (f *fakeKeyStore) createKey() (crypto.Decrypter, []byte, error) {
 }
 
 func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.EncryptionKeyPair, error) {
-	decrypter, pubPEM, err := f.createKey()
+	decrypter, pubDER, err := f.createKey()
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptos
 		return nil, errors.New("expected RSA private key")
 	}
 
-	privatePEM, err := keys.MarshalDecrypter(private)
+	privateDER, err := x509.MarshalPKCS8PrivateKey(private)
 	if err != nil {
 		return nil, err
 	}
@@ -142,8 +142,8 @@ func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptos
 	f.keys[label] = append(f.keys[label], private)
 
 	return &types.EncryptionKeyPair{
-		PrivateKey:     privatePEM,
-		PublicKey:      pubPEM,
+		PrivateKey:     privateDER,
+		PublicKey:      pubDER,
 		PrivateKeyType: f.keyType,
 		Hash:           uint32(crypto.SHA256),
 	}, nil
@@ -154,12 +154,12 @@ func (f *fakeKeyStore) GetDecrypter(ctx context.Context, keyPair *types.Encrypti
 		return nil, errors.New("could not access decrypter")
 	}
 
-	private, err := keys.ParsePrivateKey(keyPair.PrivateKey)
+	private, err := x509.ParsePKCS8PrivateKey(keyPair.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	decrypter, ok := private.Signer.(crypto.Decrypter)
+	decrypter, ok := private.(crypto.Decrypter)
 	if !ok {
 		return nil, errors.New("private key should have been a decrypter")
 	}
@@ -410,9 +410,9 @@ func TestUnwrapKey(t *testing.T) {
 
 	encryptionKeys := src.GetEncryptionKeys()
 	require.Len(t, encryptionKeys, 1)
-	pubKeyPEM := encryptionKeys[0].PublicKey
+	pubKeyDER := encryptionKeys[0].PublicKey
 
-	pubKey, err := keys.ParsePublicKey(pubKeyPEM)
+	pubKey, err := x509.ParsePKIXPublicKey(pubKeyDER)
 	require.NoError(t, err)
 
 	rsaPubKey, ok := pubKey.(*rsa.PublicKey)

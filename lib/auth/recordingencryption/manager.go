@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -235,7 +234,7 @@ func (m *Manager) ensureManualEncryptionKeys(manualKeyCfg types.ManualKeyManagem
 
 	var encryptionKeys []*recordingencryptionv1.KeyPair
 	for _, decrypter := range activeDecrypters {
-		pubKey, err := keys.MarshalPublicKey(decrypter.Public())
+		pubKey, err := x509.MarshalPKIXPublicKey(decrypter.Public())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -536,7 +535,7 @@ func Fingerprint(pubKey crypto.PublicKey) (string, error) {
 
 // fingerprints a public RSA key encoded as PEM-wrapped PKIX.
 func fingerprintPEM(pubKeyPEM []byte) (string, error) {
-	pubKey, err := keys.ParsePublicKey(pubKeyPEM)
+	pubKey, err := x509.ParsePKIXPublicKey(pubKeyPEM)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

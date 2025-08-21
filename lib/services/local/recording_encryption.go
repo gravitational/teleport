@@ -18,13 +18,13 @@ package local
 
 import (
 	"context"
+	"crypto/x509"
 
 	"github.com/gravitational/trace"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -113,7 +113,7 @@ func (s *RecordingEncryptionService) GetRecordingEncryption(ctx context.Context)
 
 // CreateRotatedKey creates a new RotatedKey in the backend keyed on the fingerprint of the given public key.
 func (s *RecordingEncryptionService) CreateRotatedKey(ctx context.Context, key *types.EncryptionKeyPair) (*recordingencryptionv1.RotatedKey, error) {
-	parsed, err := keys.ParsePublicKey(key.PublicKey)
+	parsed, err := x509.ParsePKIXPublicKey(key.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

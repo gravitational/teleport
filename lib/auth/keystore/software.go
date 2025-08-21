@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"crypto/x509"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -115,13 +116,23 @@ func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuit
 		if err != nil {
 			return nil, nil, softwareHash, trace.Wrap(err)
 		}
+
 		privateKey, err := keys.ParsePrivateKey(privateKeyPEM)
+		if err != nil {
+			return nil, nil, softwareHash, trace.Wrap(err)
+		}
+
 		decrypter, ok := privateKey.Signer.(crypto.Decrypter)
 		if !ok {
 			return nil, nil, softwareHash, trace.Errorf("could not type assert crypto.Decrypter")
 		}
 
-		return privateKeyPEM, newOAEPDecrypter(softwareHash, decrypter), softwareHash, trace.Wrap(err)
+		privateKeyDER, err := x509.MarshalPKCS8PrivateKey(privateKey.Signer)
+		if err != nil {
+			return nil, nil, softwareHash, trace.Wrap(err)
+		}
+
+		return privateKeyDER, newOAEPDecrypter(softwareHash, decrypter), softwareHash, trace.Wrap(err)
 	}
 
 	key, err := cryptosuites.GenerateDecrypterWithAlgorithm(alg)
@@ -129,12 +140,12 @@ func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuit
 		return nil, nil, softwareHash, trace.Wrap(err)
 	}
 
-	privateKeyPEM, err := keys.MarshalDecrypter(key)
+	privateKey, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
 		return nil, nil, softwareHash, trace.Wrap(err)
 	}
 
-	return privateKeyPEM, newOAEPDecrypter(softwareHash, key), softwareHash, trace.Wrap(err)
+	return privateKey, newOAEPDecrypter(softwareHash, key), softwareHash, trace.Wrap(err)
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
@@ -144,14 +155,14 @@ func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicK
 
 // getDecrypter returns a crypto.Decrypter for the given pem-encoded private key.
 func (s *softwareKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
-	privateKey, err := keys.ParsePrivateKey(rawKey)
+	privateKey, err := x509.ParsePKCS8PrivateKey(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	decrypter, ok := privateKey.Signer.(crypto.Decrypter)
+	decrypter, ok := privateKey.(crypto.Decrypter)
 	if !ok {
-		return nil, trace.Errorf("unsupported encryption key type %T", privateKey.Signer)
+		return nil, trace.Errorf("unsupported encryption key type %T", privateKey)
 	}
 
 	return newOAEPDecrypter(softwareHash, decrypter), nil
