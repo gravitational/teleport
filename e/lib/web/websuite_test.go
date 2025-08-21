@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -134,6 +135,7 @@ type webSuiteOptions struct {
 	clock                       clockwork.Clock
 	roundTripper                http.RoundTripper
 	accessGraphHTTPValidation   func(*testing.T, *http.Request)
+	uploadHandler               events.MultipartHandler
 }
 
 func withAccessGraphFeatures(features string) webSuiteOption {
@@ -163,6 +165,12 @@ func withRoundTripper(tr http.RoundTripper) webSuiteOption {
 func withAccessGraphValidation(f func(*testing.T, *http.Request)) webSuiteOption {
 	return func(o *webSuiteOptions) {
 		o.accessGraphHTTPValidation = f
+	}
+}
+
+func withUploadHandler(h events.MultipartHandler) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.uploadHandler = h
 	}
 }
 
@@ -241,6 +249,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 				SecondFactor: "otp",
 			},
 			RunWhileLockedRetryInterval: options.runWhileLockedRetryInterval,
+			UploadHandler:               options.uploadHandler,
 		},
 		TLS: &authtest.TLSServerConfig{
 			APIConfig: &auth.APIConfig{PluginRegistry: pluginRegistry},

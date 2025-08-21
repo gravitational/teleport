@@ -411,6 +411,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	p.registerTeleportInviteHandlers()
 	p.registerCloudHandlers()
 	p.registerSCIMHandlers()
+	p.registerSummarizerHandlers()
 
 	return nil
 }
