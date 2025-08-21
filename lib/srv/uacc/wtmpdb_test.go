@@ -18,7 +18,6 @@ package uacc
 
 import (
 	"database/sql"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -45,21 +44,16 @@ func assertDBEntry(t *testing.T, db *sql.DB, key int64, expectUsername, expectTT
 	assert.Equal(t, expectLogoutTime.UnixMicro(), logoutTs.Int64)
 }
 
-func touchFile(t *testing.T, name string) {
-	file, err := os.OpenFile(name, os.O_RDONLY|os.O_CREATE, 0644)
-	require.NoError(t, err)
-	require.NoError(t, file.Close())
-}
-
 func TestWtmpdb(t *testing.T) {
 	t.Parallel()
 	// Create database.
 	dbFile := filepath.Join(t.TempDir(), "wtmp.db")
-	touchFile(t, dbFile)
+	db, err := sql.Open("sqlite3", dbFile)
+	require.NoError(t, err)
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
+	require.NoError(t, err)
 
 	wtmpdb, err := NewWtmpdbBackend(dbFile)
-	require.NoError(t, err)
-	_, err = wtmpdb.db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
 	require.NoError(t, err)
 
 	// Log a user in.

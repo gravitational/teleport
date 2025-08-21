@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/mattn/go-sqlite3"
-	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -49,10 +48,6 @@ func NewWtmpdbBackend(dbPath string) (*WtmpdbBackend, error) {
 		return nil, trace.NotFound("no wtmpdb at %q", dbPath)
 	}
 	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
