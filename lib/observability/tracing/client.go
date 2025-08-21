@@ -312,6 +312,13 @@ func (b *bufferedClient) UploadTraces(ctx context.Context, protoSpans []*otlp.Re
 		return b.uploadTracesToClient(ctx, protoSpans, b.delayedResourceAttrs)
 	}
 	b.bufferedSpans = append(b.bufferedSpans, protoSpans)
+	const maxBufferedSpanBatches = 32
+	if len(b.bufferedSpans) > maxBufferedSpanBatches {
+		// nil out the pointer in the backing array before reslicing so the GC
+		// can reclaim the memory, these batches of spans could be relatively large.
+		b.bufferedSpans[0] = nil
+		b.bufferedSpans = b.bufferedSpans[1:]
+	}
 	b.mu.Unlock()
 	return nil
 }
@@ -327,7 +334,7 @@ func (b *bufferedClient) uploadTracesToClient(ctx context.Context, protoSpans []
 		}
 		protoSpan.Resource.Attributes = append(protoSpan.Resource.Attributes, delayedResourceAttrs...)
 	}
-	// Upload the spans will all attributes to the real client.
+	// Upload the spans with all attributes to the real client.
 	return trace.Wrap(b.client.UploadTraces(ctx, protoSpans))
 }
 
