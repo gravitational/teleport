@@ -25,7 +25,6 @@ import (
 	"maps"
 	"slices"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -35,6 +34,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"testing/synctest"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
