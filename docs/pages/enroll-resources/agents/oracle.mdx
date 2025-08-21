@@ -121,3 +121,11 @@ proxy_service:
 
 Once you have started Teleport, confirm that your service is able to connect to
 and join your cluster.
+
+## Troubleshooting
+
+### Join fails with error `oci api error: Not Found`
+
+This error likely means that the instance does not have the required permissions.
+Check if the identity domain you created the dynamic group in has the Compute
+service active; if it doesn't, try creating the group in a domain that does.
