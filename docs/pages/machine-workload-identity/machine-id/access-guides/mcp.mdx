@@ -1,0 +1,209 @@
+---
+title: Machine & Workload Identity with MCP Access
+description: How to use Machine & Workload Identity to access MCP servers
+labels:
+ - how-to
+ - mwi
+---
+
+Teleport protects and control access to Model Context Protocol (MCP) servers.
+Machine & Workload Identity (MWI) can then be used to grant machines and
+workloads secure and short-lived access to these MCP servers without the need
+for long-lived static secrets.
+
+In this guide, you will configure `tbot` to produce short-lived credentials that
+can be used by an MCP client to access MCP servers enrolled within your Teleport
+cluster.
+
+This guide focuses on granting machines access to MCP servers. If you wish to
+grant human users access to MCP servers, you should instead refer to the
+[MCP Access with Stdio MCP Server guide](../../../enroll-resources/mcp-access/stdio.mdx).
+
+## How it works
+
+The Teleport Application Access agent is deployed in front of the MCP server
+that you wish to protect access to. This agent is responsible for enforcing
+access control based on roles configured in Teleport.
+
+The Machine & Workload Identity agent, `tbot`, is installed on the machine
+that will require access to the MCP server. It is responsible for authenticating
+to the Teleport cluster and producing an identity file that can be used by the
+MCP client to access the MCP server through the Teleport Proxy.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- If you have not already connected your MCP server to Teleport, follow
+the [MCP Getting Started guide](../../../enroll-resources/mcp-access/getting-started.mdx).
+- (!docs/pages/includes/tctl.mdx!)
+- `tbot` and `tsh` must already be installed and configured on the machine that
+will access MCP servers. For more information, see the
+[deployment guides](../deployment/deployment.mdx).
+
+## Step 1/3. Configure RBAC
+
+First, Teleport must be configured to allow the credentials produced by the bot
+to access MCP servers in your infrastructure. This is done by creating a role
+that specifies label matchers for the MCP server that you want to grant access
+to, and, specifying with tools within the MCP server that should be accessible.
+
+In our example, we will grant access to an MCP server that has been labelled
+with `env: dev` and allow access to all tools within that MCP server.
+
+Create a file named `role.yaml` with the following content:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: example-role
+spec:
+  allow:
+    app_labels:
+      'env': 'dev'
+    mcp:
+      tools: ['*']
+```
+
+Replace `example-role` with a descriptive name related to your use case, adjust
+the `app_labels` to match the labels of your MCP server, and modify the
+`mcp.tools` field to specify which tools you want to allow access to.
+
+Use `tctl create -f ./role.yaml` to create the role.
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+Now, use `tctl bots update` to add the role to the Bot. Replace `example`
+with the name of the Bot you created in the deployment guide and `example-role`
+with the name of the role you just created:
+
+```code
+$ tctl bots update example --add-roles example-role
+```
+
+## Step 2/3. Configure `tbot`
+
+Next, you'll configure `tbot` to output an identity file. This identity file
+will then be used by the MCP client to authenticate to Teleport. This is done
+using the `identity` service type.
+
+The service will need to be configured with a destination. In this example,
+the `directory` type will be used. This will write artifacts to the specified
+directory on disk. Ensure that this directory is writable by the user that
+`tbot` runs as, and that it can be read by the Linux user that the MCP client
+will be running as.
+
+Modify your `tbot` configuration to add an `identity` service:
+
+```yaml
+services:
+  - type: identity
+    allow_reissue: true
+    destination:
+      type: directory
+      path: /opt/machine-id
+```
+
+Ensure that you replace `/opt/machine-id` with the directory you have chosen.
+
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to use the credentials.
+
+## Step 3/3. Connect your MCP client
+
+You can now configure your MCP client to use the credentials produced by `tbot`
+to access MCP servers. The exact steps you need to take will depend on the
+MCP client you are using.
+
+<Tabs>
+    <TabItem label="LangGraph">
+        For compatibility with LangGraph, use the `langchain-mcp-adapters`
+        package. This package implements an MCP client and exposes the tools
+        from an MCP server in the same way as tools defined natively in Python.
+
+        Instantiate a `MultiServerMCPClient` and configure it to call
+        `tsh mcp connect` with the identity file produced by `tbot`:
+
+        ```python
+            from langchain_mcp_adapters.client import MultiServerMCPClient
+            client = MultiServerMCPClient({
+                "my-mcp-server": {
+                    "command": "tsh"
+                    "args": [
+                        "mcp",
+                        "connect",
+                        "-i", "/opt/machine-id/identity",
+                        "--proxy", "example.teleport.sh:443",
+                        "my-mcp-server",
+                    ],
+                    "transport": "stdio",
+                },
+            })
+            tools = await client.get_tools()
+        ```
+
+       Modify the example values to match your environment:
+       - `/opt/machine-id/identity` with the path to the identity file
+          produced by `tbot`.
+       - `example.teleport.sh:443` with the address of your Teleport proxy.
+       - `my-mcp-server` with the name of your MCP server as enrolled in Teleport.
+
+        See the [LangGraph documentation](https://langchain-ai.github.io/langgraph/agents/mcp/)
+        for further details.
+    </TabItem>
+    <TabItem label="Claude Desktop">
+       To configure Claude Desktop to call an MCP server through Teleport,
+       add an entry to `claude_desktop_config.json` that invokes
+       `tsh mcp connect` with the identity file produced by `tbot`:
+
+        ```json
+            {
+                "mcpServers": {
+                    "teleport-mcp-teleport-mcp-demo": {
+                        "command": "tsh",
+                        "args": [
+                           "mcp",
+                            "connect",
+                            "-i",
+                            "/opt/machine-id/identity",
+                            "--proxy",
+                            "example.teleport.sh:443",
+                            "my-mcp-server"
+                        ]
+                    }
+                }
+            }
+        ```
+
+        Modify the example values to match your environment:
+        - `/opt/machine-id/identity` with the path to the identity file
+        produced by `tbot`.
+        - `example.teleport.sh:443` with the address of your Teleport proxy.
+        - `my-mcp-server` with the name of your MCP server as enrolled in Teleport.
+
+        See the [Claude Desktop documentation](https://modelcontextprotocol.io/quickstart/user)
+        for further details.
+    </TabItem>
+    <TabItem label="Other">
+        Generally, any MCP client that supports STDIO transport can be used with
+        Teleport MCP access.
+
+        You'll need to configure the MCP client to invoke the `tsh` binary with
+        the following arguments:
+        `tsh mcp connect -i /opt/machine-id/identity --proxy example.teleport.sh:443 my-mcp-server`.
+
+        Modify the example values to match your environment:
+        - `/opt/machine-id/identity` with the path to the identity file
+        produced by `tbot`.
+        - `example.teleport.sh:443` with the address of your Teleport proxy.
+        - `my-mcp-server` with the name of your MCP server as enrolled in Teleport.
+    </TabItem>
+</Tabs>
+
+## Next steps
+
+- Read the [MCP access documentation](../../../enroll-resources/mcp-access/mcp-access.mdx)
+to learn more about Teleport's MCP integration and RBAC controls.
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+all the available configuration options for `tbot`.
