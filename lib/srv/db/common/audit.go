@@ -387,6 +387,7 @@ func MakeDatabaseMetadata(session *Session) events.DatabaseMetadata {
 	return events.DatabaseMetadata{
 		DatabaseService:  session.Database.GetName(),
 		DatabaseProtocol: session.Database.GetProtocol(),
+		DatabaseLabels:   session.Database.GetAllLabels(),
 		DatabaseURI:      session.Database.GetURI(),
 		DatabaseName:     session.DatabaseName,
 		DatabaseUser:     session.DatabaseUser,
