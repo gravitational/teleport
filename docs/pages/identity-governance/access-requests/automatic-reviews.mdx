@@ -10,6 +10,12 @@ Teleport supports automatic reviews of Access Requests. This
 feature enables teams to enforce a zero standing privilege policy, while
 still allowing users to receive temporary access without manual approval.
 
+In this guide, we'll walk through how to configure Teleport RBAC and demonstrate
+example use cases for automatic reviews:
+
+- Automatically approve requests when a user from a particular team requests a specific role.
+- Automatically approve requests when a user from a particular team requests a specific resource.
+
 ## How it works
 
 Automatic reviews are triggered by Access Automation Rules. These rules instruct
@@ -28,29 +34,53 @@ requests access to the `access` role.
 - This feature requires Teleport Identity Governance.
 - This guide requires at least one labeled SSH server.
 
-## Step 1/5. Create a requester user
+## Step 1/2. Create a requester role and user
 
-In this example, we'll first create a user named `demo-access-requester` and
-assign it the preset `requester` role.
+In this example, we'll first create:
 
-The preset `requester` role includes the necessary permissions to allow a user
-to request access to any resource that the preset `access` role permits.
+- A role named `demo-access-request`, which allows users to request access to the
+`access` role and any resources that the `access` role can access.
+- A user named `demo-access-requester`, assigned the above role.
+
+### Create the role
+
+Create a role configuration file named `demo-role.yaml`:
+
+```yaml
+# demo-role.yaml
+kind: role
+version: v7
+metadata:
+  name: demo-access-request
+spec:
+  allow:
+    request:
+      roles:
+      - access
+      search_as_roles:
+      - access
+```
+
+Create the role with:
+```code
+$ tctl create demo-role.yaml
+```
 
 ### Create the user
 
 Use the following command to create the user and assign the role:
 ```code
-$ tctl users add --roles=requester demo-access-requester
+$ tctl users add --roles=demo-access-request demo-access-requester
 ```
 
 Alternatively, you can assign the role after creating the user:
 
-  (!docs/pages/includes/add-role-to-user.mdx role="requester" user="\`demo-access-requester\`"!)
+  (!docs/pages/includes/add-role-to-user.mdx role="demo-access-request" user="\`demo-access-requester\`"!)
 
-## Step 2/5. Assign user traits
+## Step 2/2. Assign user traits
 
 To allow automatic review rules to evaluate the requesting user, assign them
-traits via the Teleport Web UI.
+traits via the Teleport Web UI:
 
 1. Go to **Zero Trust Access** -> **Users**
 2. Next to `demo-access-requester`, click **Options** -> **Edit...**
@@ -70,20 +100,53 @@ does not support wildcard or regular expressions.
   by the IdP.
 </Admonition>
 
-## Step 3/5. Retrieve resource label
+## Role-based automatic reviews
 
-List your SSH servers to identify available labels:
+To demonstrate role-based automatic reviews, create the following Access Automation
+Rule via the Teleport Web UI:
+
+1. Go to **Identity Governance** -> **Access Requests** -> **Set Up Access Automation Rules**
+2. Click **Create New Access Automation Rule** -> **Automatic Review Rule**
+3. Configure the rule and set:
+   - **Name of requested roles to match**: `access`
+   - **User Traits to match**: `team: demo`
+   - **Review decision**: `APPROVED`
+4. Click **Create Rule**
+
+This automatic review rule will ensure that Access Requests for the `access`
+role will be automatically reviewed for approval if the Teleport user traits
+requirements are satisfied. In this case, any user with the traits `team: demo`
+will satisfy the requirement.
+
+To verify the new automatic review rule, create an Access Request via the Teleport
+Web UI:
+
+1. Log in as `demo-access-requester`
+2. Go to **Identity Governance** -> **Access Requests** and click **New Access Request**
+3. Change the request type from **Resources** to **Roles**
+4. Add the `access` role to the Access Request
+5. Click **Proceed to Request**, then **Submit Request**
+
+At this point, the new Access Request should have been created, automatically
+reviewed, and transitioned into an `APPROVED` state. Navigate **Back to Listings**
+and verify the Access Request status. It might take a second for the review to
+process, so you may have to refresh the page.
+
+## Resource-based automatic reviews
+
+Before creating an Access Automation Rule, ensure that you have at least one
+labeled SSH server connected to your Teleport cluster:
 
 ```code
+# List your SSH servers to identify available labels:
 $ tsh ls
 Node Name   Address    Labels
 ----------- ---------- -------------------------------
 teleport-00 ⟵ Tunnel  env=demo
 ```
 
-## Step 4/5. Create automatic review rule
-
-Next, define the automatic review rule via the Teleport Web UI.
+To demonstrate resource-based automatic reviews, create the following Access Automation
+Rule via the Teleport Web UI:
 
 1. Go to **Identity Governance** -> **Access Requests** -> **Set Up Access Automation Rules**
 2. Click **Create New Access Automation Rule** -> **Automatic Review Rule**
@@ -94,17 +157,14 @@ Next, define the automatic review rule via the Teleport Web UI.
    - **Review decision**: `APPROVED`
 4. Click **Create Rule**
 
-![Create Automatic Review Rule Editor](../../../img/access-controls/automatic-reviews/create-automatic-review-rule.png)
-
 This automatic review rule ensures that Access Requests for the `access`
 role and for resources labeled `env: demo` are automatically reviewed for
 approval if the Teleport user traits requirements are satisfied. In this case,
 any user with the traits `team: demo` will satisfy the requirement.
 
-## Step 5/5. Verify automatic review rule
-
 To verify the new automatic review rule, create an Access Request via the Teleport
-Web UI.
+Web UI:
+
 1. Log in as `demo-access-requester`
 2. Go to **Identity Governance** -> **Access Requests** and click **New Access Request**
 3. Add the SSH server you'd like to request access to.
@@ -114,8 +174,6 @@ At this point, the new Access Request should have been created, automatically
 reviewed, and transitioned into an `APPROVED` state. Navigate **Back to Listings**
 and verify the Access Request status. It might take a second for the review to
 process, so you may have to refresh the page.
-
-![View Access Requests](../../../img/access-controls/automatic-reviews/view-access-requests.png)
 
 ## Troubleshooting
 
