@@ -253,11 +253,20 @@ func hasAccessFunc(ctx RuleContext) func() predicate.BoolPredicate {
 				return false
 			}
 
-			return NewAccessCheckerWithRoleSet(&AccessInfo{
+			checker := NewAccessCheckerWithRoleSet(&AccessInfo{
 				Roles:    []string{role.GetName()},
 				Traits:   nil,
 				Username: "",
-			}, "", RoleSet{role}).CheckAccess(accessCheckableResource, AccessState{}) == nil
+			},
+				"",
+				RoleSet{role},
+			)
+			// We do not enforce MFA or Device Trust for this check because
+			// we don't have a way of checking it from the context.
+			return checker.CheckAccess(accessCheckableResource, AccessState{
+				MFARequired: MFARequiredNever,
+				MFAVerified: true,
+			}) == nil
 		}
 	}
 }
@@ -813,6 +822,8 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 }
 
 // predicateContainsAll is a custom function to test if all entries in a []string
+// are contained in another []string. Order does not matter, but all entries
+// in the second slice must be present in the first slice.
 func predicateContainsAll(a, b any) predicate.BoolPredicate {
 	return func() bool {
 		aval, ok := a.([]string)

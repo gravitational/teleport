@@ -233,9 +233,6 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 // This is used to reconstruct the resource that was active at the time of the session end event
 // for audit log RBAC purposes.
 func rebuildResourceFromSessionEndEvent(event apievents.AuditEvent) types.Resource {
-	if event == nil {
-		return nil
-	}
 	switch sEnd := event.(type) {
 	case *apievents.SessionEnd:
 		if sEnd == nil {
@@ -291,7 +288,7 @@ func rebuildResourceFromSessionEndEvent(event apievents.AuditEvent) types.Resour
 		return &types.DatabaseV3{
 			Kind: types.KindDatabase,
 			Metadata: types.Metadata{
-				Name:      sEnd.DatabaseName,
+				Name:      sEnd.DatabaseService,
 				Namespace: apidefaults.Namespace,
 				Labels:    sEnd.DatabaseLabels,
 			},

@@ -61,6 +61,9 @@ func UnmarshalTraits(data []byte, traits *Traits) error {
 
 // Clone returns a copy of the Traits map.
 func (l Traits) Clone() Traits {
+	if l == nil {
+		return nil
+	}
 	clone := make(Traits, len(l))
 	for key, vals := range l {
 		clone[key] = slices.Clone(vals)
