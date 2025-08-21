@@ -23,6 +23,7 @@ import (
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/events"
@@ -306,22 +307,41 @@ func (s *SessionSummarizer) summarize(
 	// wildly inconsistent behavior when overwriting existing files, so we can
 	// only save the terminal state. Fix this and then enable the pending state.
 
-	go s.summarizeNow(ctx, sessionID, provider, kind, pendingResult)
+	go s.summarizeNowAndReportMetrics(ctx, sessionID, provider, kind, pendingResult)
 	return nil
 }
 
-// summarizeNow summarizes the session recording synchronously and uploads the
-// result. All errors are logged, but not returned. Regardless of the outcome,
-// an attempt is made to upload the summary. The provided context is only used
-// to create a new one with appropriate timeout and can be canceled at any time
-// without affecting the summarization process.
-func (s *SessionSummarizer) summarizeNow(
+func (s *SessionSummarizer) summarizeNowAndReportMetrics(
 	ctx context.Context,
 	sessionID session.ID,
 	provider InferenceProvider,
 	kind types.SessionKind,
 	pendingResult *summarizerv1pb.Summary,
 ) {
+	metrics.SummarizationsTotal.WithLabelValues(pendingResult.ModelName).Inc()
+	err := s.summarizeNow(ctx, sessionID, provider, kind, pendingResult)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to summarize session", "session_id", sessionID, "error", err)
+		metrics.SummarizationErrors.WithLabelValues(pendingResult.ModelName).Inc()
+	}
+}
+
+// summarizeNow summarizes the session recording synchronously and uploads the
+// result. If it's unable to summarize, it stores an error in the summary
+// object. Regardless of the outcome, an attempt is then made to upload the
+// summary. Any error that occurred either when summarizing or saving the
+// summary is returned.
+//
+// The provided context is only used to create a new one with appropriate
+// timeout and can be canceled at any time without affecting the summarization
+// process.
+func (s *SessionSummarizer) summarizeNow(
+	ctx context.Context,
+	sessionID session.ID,
+	provider InferenceProvider,
+	kind types.SessionKind,
+	pendingResult *summarizerv1pb.Summary,
+) error {
 	// TODO(bl-nero): Make the timeout configurable, or at least depend on the
 	// provider.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTimeout)
@@ -334,39 +354,47 @@ func (s *SessionSummarizer) summarizeNow(
 	reader := newSessionReader(ctx, s.streamer, sessionID)
 	defer reader.Close()
 
-	err := s.concurrencyLimiter.Acquire(ctx, 1)
-	if err != nil {
-		log.ErrorContext(ctx, "Failed to acquire the concurrency limiter semaphore", "error", err)
+	metrics.SummarizationsPending.WithLabelValues(pendingResult.ModelName).Inc()
+	// sumErr is a summarization error that can be saved into the summary state
+	// and needs to be returned regardless of the state of other operations.
+	sumErr := s.concurrencyLimiter.Acquire(ctx, 1)
+	metrics.SummarizationsPending.WithLabelValues(pendingResult.ModelName).Dec()
+	metrics.SummarizationsRunning.WithLabelValues(pendingResult.ModelName).Inc()
+	defer metrics.SummarizationsRunning.WithLabelValues(pendingResult.ModelName).Dec()
+	if sumErr != nil {
+		sumErr = trace.Wrap(sumErr, "Failed to acquire the concurrency limiter semaphore")
+		// log.ErrorContext(ctx, "Failed to acquire the concurrency limiter semaphore", "error", sumErr)
 		result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
-		result.ErrorMessage = err.Error()
+		result.ErrorMessage = sumErr.Error()
 	} else {
 		defer s.concurrencyLimiter.Release(1)
-		summary, err := provider.Summarize(ctx, sessionID, kind, reader)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to summarize session", "error", err)
+		var summaryContent string // Need to declare it here to prevent shadowing sumErr
+		summaryContent, sumErr = provider.Summarize(ctx, sessionID, kind, reader)
+		if sumErr != nil {
+			sumErr = trace.Wrap(sumErr)
+			// log.ErrorContext(ctx, "Failed to summarize session", "error", sumErr)
 			result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
-			result.ErrorMessage = err.Error()
+			result.ErrorMessage = sumErr.Error()
 		} else {
 			result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS
-			result.Content = summary
+			result.Content = summaryContent
 		}
 	}
 
 	result.InferenceFinishedAt = timestamppb.New(s.clock.Now().UTC())
 	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(result)
 	if err != nil {
-		log.ErrorContext(ctx, "Failed to marshal summary result", "error", err)
-		return
+		return trace.NewAggregate(sumErr, trace.Wrap(err, "failed to marshal summary result"))
 	}
 
 	log.DebugContext(ctx, "Uploading session summary")
 	path, err := s.summaryUploader.UploadSummary(ctx, sessionID, bytes.NewReader(rBytes))
 	if err != nil {
-		log.ErrorContext(ctx, "Failed to upload summary result", "error", err)
-		return
+		return trace.NewAggregate(sumErr, trace.Wrap(err, "failed to upload summary result"))
 	}
 
 	log.DebugContext(ctx, "Session summary uploaded", "path", path)
+	return sumErr
 }
 
 // SummarizeWithoutEndEvent summarizes a session recording with a given ID.
@@ -469,10 +497,11 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 	switch providerCfg := model.Spec.Provider.(type) {
 	case *summarizerv1pb.InferenceModelSpec_Openai:
 		p, err := openai.NewProvider(ctx, openai.ProviderConfig{
-			Spec:             providerCfg.Openai,
-			Backend:          s.backend,
-			MaxSessionLength: model.GetSpec().GetMaxSessionLengthBytes(),
-			ClientFactory:    s.openAIClientFactory,
+			Spec:              providerCfg.Openai,
+			Backend:           s.backend,
+			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
+			ClientFactory:     s.openAIClientFactory,
+			ModelResourceName: modelName,
 		})
 		return p, trace.Wrap(err)
 	default:
