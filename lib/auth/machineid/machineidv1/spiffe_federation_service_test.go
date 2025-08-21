@@ -118,8 +118,9 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 					Name: "example.com",
 				},
 				UserMetadata: events.UserMetadata{
-					User:     authorizedUser.GetName(),
-					UserKind: events.UserKind_USER_KIND_HUMAN,
+					User:      authorizedUser.GetName(),
+					UserKind:  events.UserKind_USER_KIND_HUMAN,
+					UserRoles: authorizedUser.GetRoles(),
 				},
 			},
 		},
@@ -284,8 +285,9 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 					Name: name,
 				},
 				UserMetadata: events.UserMetadata{
-					User:     authorizedUser.GetName(),
-					UserKind: events.UserKind_USER_KIND_HUMAN,
+					User:      authorizedUser.GetName(),
+					UserKind:  events.UserKind_USER_KIND_HUMAN,
+					UserRoles: authorizedUser.GetRoles(),
 				},
 			},
 		},
