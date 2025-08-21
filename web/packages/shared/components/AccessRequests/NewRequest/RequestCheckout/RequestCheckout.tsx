@@ -52,6 +52,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import {
   LongTermGroupingErrors,
   shouldShowLongTermGroupingErrors,
+  UNSUPPORTED_KINDS,
 } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
@@ -360,9 +361,7 @@ export function RequestCheckout<T extends PendingListItem>({
           requestKind,
           pendingAccessRequests,
           dryRunResponse,
-        }) ||
-        !dryRunResponse?.longTermResourceGrouping ||
-        dryRunResponse.longTermResourceGrouping.canProceed
+        })
       ) {
         return;
       }
@@ -377,7 +376,7 @@ export function RequestCheckout<T extends PendingListItem>({
 
       const isInOptimalGrouping = grouping.some(i => i.name === item.id);
 
-      if (!isInAnyGrouping) {
+      if (!isInAnyGrouping || UNSUPPORTED_KINDS.includes(item.kind)) {
         return {
           background: theme.colors.interactive.tonal.danger[0],
           borderTopColor: theme.colors.interactive.tonal.danger[2],
@@ -448,12 +447,20 @@ export function RequestCheckout<T extends PendingListItem>({
               </Box>
             </Alert>
           )}
-          {fetchStatus === 'loading' && (
-            <Box mt={5} textAlign="center">
+          {fetchStatus === 'loading' ? (
+            <Box
+              textAlign="center"
+              // roughly align with the 'normal' height of the side-panel
+              // and prevent jitter from Indicator sub-pixel rendering
+              css={`
+                min-height: 30vh;
+                display: grid;
+                place-items: center;
+              `}
+            >
               <Indicator delay="none" />
             </Box>
-          )}
-          {fetchStatus === 'loaded' && (
+          ) : (
             <div>
               {createAttempt.status === 'success' ? (
                 <>
