@@ -33,7 +33,7 @@ func TestUserTasks(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*usertasksv1.UserTask]{
+	testResources153(t, p, testFuncs[*usertasksv1.UserTask]{
 		newResource: func(name string) (*usertasksv1.UserTask, error) {
 			return newUserTasks(t), nil
 		},
@@ -45,10 +45,10 @@ func TestUserTasks(t *testing.T) {
 			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
 			return items, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*usertasksv1.UserTask, error) {
 			items, _, err := p.cache.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
 			return items, trace.Wrap(err)
 		},
 		deleteAll: p.userTasks.DeleteAllUserTasks,
-	})
+	}, withSkipPaginationTest())
 }
