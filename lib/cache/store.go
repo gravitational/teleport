@@ -34,16 +34,32 @@ type store[T any, I comparable] struct {
 	indexes map[I]func(T) string
 }
 
+// StoreOption configures a store during construction.
+type StoreOption[T any, I comparable] func(*sortcache.Config[T, I])
+
+// WithCustomCompareFns adds custom comparison functions to the store.
+func WithCustomCompareFns[T any, I comparable](customCompareFns map[I]func(a, b string) bool) StoreOption[T, I] {
+	return func(cfg *sortcache.Config[T, I]) {
+		cfg.CustomCompareFns = customCompareFns
+	}
+}
+
 // newStore creates a store that will index the resource
 // based on the provided indexes.
-func newStore[T any, I comparable](kind string, clone func(T) T, indexes map[I]func(T) string) *store[T, I] {
+func newStore[T any, I comparable](kind string, clone func(T) T, indexes map[I]func(T) string, opts ...StoreOption[T, I]) *store[T, I] {
+	config := sortcache.Config[T, I]{
+		Indexes: indexes,
+	}
+
+	for _, opt := range opts {
+		opt(&config)
+	}
+
 	return &store[T, I]{
 		kind:    kind,
 		clone:   clone,
 		indexes: indexes,
-		cache: sortcache.New(sortcache.Config[T, I]{
-			Indexes: indexes,
-		}),
+		cache:   sortcache.New(config),
 	}
 }
 

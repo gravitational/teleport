@@ -19,6 +19,8 @@ package sortcache
 
 import (
 	"iter"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/google/btree"
@@ -313,4 +315,29 @@ func (c *SortCache[T, I]) Len() int {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 	return len(c.values)
+}
+
+// NumericPrefixCompare returns a comparison function that sorts keys by their numeric prefix.
+// Keys are expected to be in the format "number/suffix" where the numeric part is used for
+// sorting and the suffix is used as a secondary sort key for ties.
+// If parsing fails, falls back to lexicographic comparison.
+func NumericPrefixCompare(a, b string) bool {
+	partsA := strings.Split(a, "/")
+	partsB := strings.Split(b, "/")
+
+	if len(partsA) < 2 || len(partsB) < 2 {
+		return a < b
+	}
+
+	countA, errA := strconv.Atoi(partsA[0])
+	countB, errB := strconv.Atoi(partsB[0])
+
+	if errA != nil || errB != nil {
+		return a < b
+	}
+
+	if countA != countB {
+		return countA < countB
+	}
+	return a < b
 }

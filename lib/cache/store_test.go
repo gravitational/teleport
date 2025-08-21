@@ -17,12 +17,15 @@
 package cache
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
 func TestResourceStore(t *testing.T) {
@@ -68,4 +71,52 @@ func TestResourceStore(t *testing.T) {
 	require.ErrorIs(t, err, &trace.NotFoundError{Message: `"int" "0" does not exist`})
 
 	require.Zero(t, store.len())
+}
+
+type numericResource struct {
+	ID    string
+	Count int
+}
+
+func TestResourceStoreWithCustomCompareFns(t *testing.T) {
+	t.Parallel()
+
+	customCompareFns := map[string]func(a, b string) bool{
+		"count": sortcache.NumericPrefixCompare,
+	}
+
+	store := newStore(
+		"numericResource",
+		func(r numericResource) numericResource { return r },
+		map[string]func(numericResource) string{
+			"id":    func(r numericResource) string { return r.ID },
+			"count": func(r numericResource) string { return fmt.Sprintf("%d/%s", r.Count, r.ID) },
+		},
+		WithCustomCompareFns[numericResource](customCompareFns))
+
+	items := []numericResource{
+		{ID: "apple", Count: 100},
+		{ID: "banana", Count: 2},
+		{ID: "cherry", Count: 30},
+		{ID: "cloud", Count: 30},
+		{ID: "elephant", Count: 5},
+		{ID: "dog", Count: 5},
+		{ID: "fox", Count: 2},
+	}
+
+	for _, item := range items {
+		require.NoError(t, store.put(item))
+	}
+
+	results := slices.Collect(store.resources("count", "", ""))
+
+	require.Equal(t, []numericResource{
+		{ID: "banana", Count: 2},
+		{ID: "fox", Count: 2},
+		{ID: "dog", Count: 5},
+		{ID: "elephant", Count: 5},
+		{ID: "cherry", Count: 30},
+		{ID: "cloud", Count: 30},
+		{ID: "apple", Count: 100},
+	}, results)
 }

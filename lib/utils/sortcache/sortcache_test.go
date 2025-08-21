@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -455,26 +454,7 @@ func TestCustomCompare(t *testing.T) {
 			"count": func(r numericResource) string { return fmt.Sprintf("%d/%s", r.Count, r.ID) },
 		},
 		CustomCompareFns: map[string]func(a, b string) bool{
-			"count": func(a, b string) bool {
-				partsA := strings.Split(a, "/")
-				partsB := strings.Split(b, "/")
-
-				if len(partsA) < 2 || len(partsB) < 2 {
-					return a < b
-				}
-
-				countA, errA := strconv.Atoi(partsA[0])
-				countB, errB := strconv.Atoi(partsB[0])
-
-				if errA != nil || errB != nil {
-					return a < b
-				}
-
-				if countA != countB {
-					return countA < countB
-				}
-				return a < b
-			},
+			"count": NumericPrefixCompare,
 		},
 	})
 
