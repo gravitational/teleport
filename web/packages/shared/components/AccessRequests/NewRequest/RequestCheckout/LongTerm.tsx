@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { Alert } from 'design/Alert';
-import Flex from 'design/Flex';
-import Text from 'design/Text';
 import {
   PendingListItem,
   RequestCheckoutProps,
@@ -27,6 +25,10 @@ import {
   LongTermResourceGrouping,
   RequestKind,
 } from 'shared/services/accessRequests';
+
+// UNSUPPORTED_KINDS is a list of resource_ids that are not supported
+// for long-term requests.
+export const UNSUPPORTED_KINDS = ['namespace', 'windows_desktop'];
 
 // LongTermGroupingErrors displays any errors related to long-term
 // resource grouping, such as uncovered or incompatible resources.
@@ -45,14 +47,15 @@ export const LongTermGroupingErrors = <
     !grouping?.accessListToResources?.[grouping?.recommendedAccessList]?.length
   ) {
     return (
-      <Alert kind="danger" wrapContents>
-        <Flex flexDirection="column" gap={1}>
-          <Text>Long-term access unavailable</Text>
-          <Text typography="body2" bold={false}>
-            {grouping.validationMessage ||
-              'No resources are available for long-term access'}
-          </Text>
-        </Flex>
+      <Alert
+        kind="danger"
+        details={
+          grouping.validationMessage ||
+          'No resources are available for long-term access'
+        }
+        wrapContents
+      >
+        Long-term access unavailable
       </Alert>
     );
   }
@@ -107,16 +110,11 @@ const LongTermUnavailableError = <T extends PendingListItem = PendingListItem>({
             }))
           ),
       }}
+      details={message}
+      wrapContents
     >
-      <Flex flexDirection="column" gap={1}>
-        <Text>
-          Long-term access is not available for{' '}
-          {plural ? 'some selected resources' : 'a selected resource'}
-        </Text>
-        <Text typography="body2" bold={false}>
-          {message}
-        </Text>
-      </Flex>
+      Long-term access is not available for{' '}
+      {plural ? 'some selected resources' : 'a selected resource'}
     </Alert>
   );
 };
@@ -155,17 +153,10 @@ const GroupingResourcesError = <T extends PendingListItem = PendingListItem>({
             }))
           ),
       }}
+      details={message}
       wrapContents
     >
-      <Flex flexDirection="column" gap={1}>
-        <Text>
-          {plural ? 'Resources' : 'Resource'} cannot be grouped for long-term
-          access
-        </Text>
-        <Text typography="body2" bold={false}>
-          {message}
-        </Text>
-      </Flex>
+      {plural ? 'Resources' : 'Resource'} cannot be grouped for long-term access
     </Alert>
   );
 };
@@ -177,7 +168,7 @@ const joinResourceNames = <T extends PendingListItem = PendingListItem>(
   resources: T[]
 ) =>
   new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(
-    resources.map(r => r.name)
+    resources.map(r => (r.kind === 'namespace' ? r.subResourceName : r.name))
   );
 
 // findIncompatibleLongTermResources iterates through the
@@ -220,7 +211,9 @@ const findUncoveredLongTermResources = <
   const groupings = Object.values(grouping.accessListToResources || {}).flat();
 
   return pendingRequests.filter(
-    item => !groupings.some(i => item.id === i.name)
+    item =>
+      UNSUPPORTED_KINDS.includes(item.kind) ||
+      !groupings.some(i => i.name === item.id)
   );
 };
 
@@ -240,12 +233,13 @@ export const shouldShowLongTermGroupingErrors = <
 }) => {
   if (
     requestKind !== RequestKind.LongTerm ||
-    !dryRunResponse ||
+    !dryRunResponse?.longTermResourceGrouping ||
     dryRunResponse.requestKind !== requestKind
   ) {
     return false;
   }
-  if (pendingAccessRequests.some(r => r.kind === 'namespace')) {
+  // If any unsupported kinds are present, show errors immediately
+  if (pendingAccessRequests.some(r => UNSUPPORTED_KINDS.includes(r.kind))) {
     return true;
   }
 
