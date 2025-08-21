@@ -329,7 +329,7 @@ func TestMatchApplicationServers(t *testing.T) {
 	expectedContent := "Hello application"
 	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
 	tunnel := &reversetunnelclient.FakeServer{
-		Clusters: []reversetunnelclient.Cluster{
+		FakeClusters: []reversetunnelclient.Cluster{
 			fakeCluster,
 		},
 	}
@@ -419,14 +419,14 @@ func TestHealthCheckAppServer(t *testing.T) {
 			authClient.appServers = tc.appServersFunc(t, fakeCluster)
 
 			tunnel := &reversetunnelclient.FakeServer{
-				Clusters: []reversetunnelclient.Cluster{fakeCluster},
+				FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
 			}
 
 			appHandler, err := NewHandler(ctx, &HandlerConfig{
 				Clock:                 fakeClock,
 				AuthClient:            authClient,
 				AccessPoint:           authClient,
-				ProxyClient:           tunnel,
+				ClusterGetter:         tunnel,
 				CipherSuites:          utils.DefaultCipherSuites(),
 				IntegrationAppHandler: &mockIntegrationAppHandler{},
 			})
@@ -443,12 +443,12 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, proxyClient reversetunnelclient.Tunnel) *testServer {
+func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, clusterGetter reversetunnelclient.ClusterGetter) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
 		Clock:                 clock,
 		AuthClient:            authClient,
 		AccessPoint:           authClient,
-		ProxyClient:           proxyClient,
+		ClusterGetter:         clusterGetter,
 		CipherSuites:          utils.DefaultCipherSuites(),
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	})
@@ -831,8 +831,8 @@ func TestHandlerAuthenticate(t *testing.T) {
 		Clock:       fakeClock,
 		AuthClient:  authClient,
 		AccessPoint: authClient,
-		ProxyClient: &reversetunnelclient.FakeServer{
-			Clusters: []reversetunnelclient.Cluster{fakeCluster},
+		ClusterGetter: &reversetunnelclient.FakeServer{
+			FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
 		},
 		CipherSuites:          utils.DefaultCipherSuites(),
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
