@@ -15415,12 +15415,17 @@ func (m *ListProvisionTokensResponse) GetNextKey() string {
 // ValidateTrustedClusterRequest is the request for the ValidateTrustedCluster
 // RPC.
 type ValidateTrustedClusterRequest struct {
-	Token                string                   `protobuf:"bytes,1,opt,name=Token,proto3" json:"Token,omitempty"`
-	CertAuthorities      []*types.CertAuthorityV2 `protobuf:"bytes,2,rep,name=CertAuthorities,proto3" json:"CertAuthorities,omitempty"`
-	TeleportVersion      string                   `protobuf:"bytes,3,opt,name=TeleportVersion,proto3" json:"TeleportVersion,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
-	XXX_unrecognized     []byte                   `json:"-"`
-	XXX_sizecache        int32                    `json:"-"`
+	// Token is the join token to use to join.
+	Token string `protobuf:"bytes,1,opt,name=Token,proto3" json:"Token,omitempty"`
+	// CertAuthorities are the certificate authorities submitted from the leaf to
+	// the root as part of the join process.
+	CertAuthorities []*types.CertAuthorityV2 `protobuf:"bytes,2,rep,name=CertAuthorities,proto3" json:"CertAuthorities,omitempty"`
+	// TeleportVersion is the version of Teleport that the leaf cluster is
+	// running.
+	TeleportVersion      string   `protobuf:"bytes,3,opt,name=TeleportVersion,proto3" json:"TeleportVersion,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *ValidateTrustedClusterRequest) Reset()         { *m = ValidateTrustedClusterRequest{} }
@@ -15480,6 +15485,8 @@ func (m *ValidateTrustedClusterRequest) GetTeleportVersion() string {
 // ValidateTrustedClusterResponse is the response for the ValidateTrustedCluster
 // RPC.
 type ValidateTrustedClusterResponse struct {
+	// CertAuthorities are the certificate authorities of the root cluster that
+	// should be trusted by the leaf cluster.
 	CertAuthorities      []*types.CertAuthorityV2 `protobuf:"bytes,1,rep,name=CertAuthorities,proto3" json:"CertAuthorities,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
 	XXX_unrecognized     []byte                   `json:"-"`

@@ -2763,14 +2763,21 @@ message ListProvisionTokensResponse {
 // ValidateTrustedClusterRequest is the request for the ValidateTrustedCluster
 // RPC.
 message ValidateTrustedClusterRequest {
+  // Token is the join token to use to join.
   string Token = 1;
+  // CertAuthorities are the certificate authorities submitted from the leaf to
+  // the root as part of the join process.
   repeated types.CertAuthorityV2 CertAuthorities = 2;
+  // TeleportVersion is the version of Teleport that the leaf cluster is
+  // running.
   string TeleportVersion = 3;
 }
 
 // ValidateTrustedClusterResponse is the response for the ValidateTrustedCluster
 // RPC.
 message ValidateTrustedClusterResponse {
+  // CertAuthorities are the certificate authorities of the root cluster that
+  // should be trusted by the leaf cluster.
   repeated types.CertAuthorityV2 CertAuthorities = 1;
 }
 
