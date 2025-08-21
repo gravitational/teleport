@@ -21,18 +21,14 @@ clusters using Teleport's Kubernetes Access.
 - Argo CD [installed](https://argo-cd.readthedocs.io/en/latest/#quick-start)
   in a Kubernetes cluster. This cluster does not need to be enrolled into
   Teleport.
-
 - The Kubernetes cluster to which you'd like Argo CD to deploy applications.
   This cluster must be enrolled into Teleport, if you have not already done this,
   follow the [Enroll a Kubernetes Cluster](../../../enroll-resources/kubernetes-access/getting-started.mdx)
   guide.
-
 - (!docs/pages/includes/tctl.mdx!)
-
 - To configure Kubernetes and deploy `tbot` you will need
   [`kubectl`](https://kubernetes.io/docs/tasks/tools/) and
   [`helm`](https://helm.sh/docs/intro/install/) installed.
-
 - To check clusters have been registered with Argo CD, you will need the
   [`argocd` CLI](https://argo-cd.readthedocs.io/en/stable/cli_installation/)
   installed.
@@ -141,8 +137,8 @@ we need to configure a join token. There are a number of different available
 [methods](../../../reference/join-methods.mdx), but for this guide we will use
 the `kubernetes` method with a static JWKS.
 
-Please refer to the [Deploying tbot on Kubernetes](../../deployment/kubernetes.mdx)
-and [Deploying tbot on Kubernetes with OIDC](../../deployment/kubernetes-oidc.mdx)
+Please refer to the [Deploying tbot on Kubernetes](../deployment/kubernetes.mdx)
+and [Deploying tbot on Kubernetes with OIDC](../deployment/kubernetes-oidc.mdx)
 guides for more in-depth information.
 
 First, run the following commands to determine the JWKS-formatted public key:
