@@ -519,25 +519,19 @@ func DestinationFromURI(uriString string) (destination.Destination, error) {
 		}
 		return &destination.Memory{}, nil
 	case "kubernetes-secret":
-		if uri.Host != "" {
-			return nil, trace.BadParameter(
-				"kubernetes-secret scheme should not be specified with host",
-			)
-		}
 		if uri.Path == "" {
 			return nil, trace.BadParameter(
 				"kubernetes-secret scheme should have a path specified",
 			)
 		}
 		// kubernetes-secret:///my-secret
-		// TODO(noah): Eventually we'll support namespace in the host part of
-		// the URI. For now, we'll default to the namespace tbot is running in.
 
 		// Path will be prefixed with '/' so we'll strip it off.
 		secretName := strings.TrimPrefix(uri.Path, "/")
 
 		return &k8s.SecretDestination{
-			Name: secretName,
+			Name:      secretName,
+			Namespace: uri.Host,
 		}, nil
 	default:
 		return nil, trace.BadParameter(
