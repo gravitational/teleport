@@ -492,10 +492,10 @@ func TestDelayed(t *testing.T) {
 			}
 
 			if len(tc.delayedResourceAttrs) > 0 {
-				require.NoError(t, provider.ReportDelayedResourceAttrs(t.Context(), tc.delayedResourceAttrs))
+				require.NoError(t, provider.SetDelayedResourceAttrs(t.Context(), tc.delayedResourceAttrs))
 			}
 			if tc.delayClient {
-				require.NoError(t, provider.ReportDelayedClient(t.Context(), delayedClient))
+				require.NoError(t, provider.SetClient(t.Context(), delayedClient))
 			}
 
 			for i := range spanCount / 2 {
