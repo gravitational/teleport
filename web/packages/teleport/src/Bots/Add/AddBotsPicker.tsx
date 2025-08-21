@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { JSX } from 'react';
-import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Link as ExternalLink, Flex, ResourceIcon, Text } from 'design';
-import { Server } from 'design/Icon';
+import { Box, Flex, ResourceIcon, Text } from 'design';
+import { ResourceIconName } from 'design/ResourceIcon';
 import { P } from 'design/Text/Text';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';
-import { IntegrationTile } from 'teleport/Integrations';
+import { IntegrationTile, Tile } from 'teleport/Integrations';
+import { IntegrationTag } from 'teleport/Integrations/Enroll';
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollKind,
@@ -39,98 +38,138 @@ import useTeleport from 'teleport/useTeleport';
 import { InfoGuide } from '../InfoGuide';
 import { BotFlowType } from '../types';
 
-type BotIntegration = {
+export type BotIntegration = {
   title: string;
+  description: string;
   link: string;
-  icon: JSX.Element;
+  icon: ResourceIconName;
   guided: boolean;
+  type: 'bot';
   kind: IntegrationEnrollKind;
+  tags: IntegrationTag[];
 };
 
 const StyledResourceIcon = styled(ResourceIcon)`
   margin: 0 auto;
   height: 100%;
   min-width: 0;
-  max-width: 80px;
+  max-width: 72px;
 `;
 
-const integrations: BotIntegration[] = [
+export const integrations: BotIntegration[] = [
   {
     title: 'GitHub Actions + SSH',
+    description: 'Use Machine ID to power GitHub CI/CD workflows',
     link: cfg.getBotsNewRoute(BotFlowType.GitHubActions),
-    icon: <StyledResourceIcon name="github" />,
+    icon: 'github',
     kind: IntegrationEnrollKind.MachineIDGitHubActions,
+    type: 'bot',
     guided: true,
+    tags: ['bot', 'cicd'],
   },
   {
     title: 'CircleCI',
+    description: 'Use Machine ID to power CircleCI CI/CD workflows',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/circleci/',
-    icon: <StyledResourceIcon name="circleci" />,
+    icon: 'circleci',
     kind: IntegrationEnrollKind.MachineIDCircleCI,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'cicd'],
   },
   {
     title: 'GitLab CI/CD',
+    description: 'Use Machine ID to power GitLab CI/CD workflows',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/gitlab/',
-    icon: <StyledResourceIcon name="gitlab" />,
+    icon: 'gitlab',
     kind: IntegrationEnrollKind.MachineIDGitLab,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'cicd'],
   },
   {
     title: 'Jenkins',
+    description:
+      'Use Machine ID to eliminate long-lived credentials in Jenkins.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/jenkins/',
-    icon: <StyledResourceIcon name="jenkins" />,
+    icon: 'jenkins',
     kind: IntegrationEnrollKind.MachineIDJenkins,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'cicd'],
   },
   {
     title: 'Ansible',
+    description:
+      'Use Machine ID to eliminate long-lived credentials from auth with Linux hosts.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/access-guides/ansible/',
-    icon: <StyledResourceIcon name="ansible" />,
+    icon: 'ansible',
     kind: IntegrationEnrollKind.MachineIDAnsible,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'cicd'],
   },
   {
     title: 'Spacelift',
+    description: '',
     link: 'https://goteleport.com/docs/admin-guides/infrastructure-as-code/terraform-provider/spacelift/',
-    icon: <StyledResourceIcon name="spacelift" />,
+    icon: 'spacelift',
     kind: IntegrationEnrollKind.MachineIDSpacelift,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'cicd'],
   },
   {
     title: 'AWS',
+    description: 'Connect EC2 instances and RDS databases seamlessly.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/aws/',
-    icon: <StyledResourceIcon name="aws" />,
+    icon: 'aws',
     kind: IntegrationEnrollKind.MachineIDAWS,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'resourceaccess'],
   },
   {
     title: 'GCP',
+    description: 'Connect GCE instances and CloudSQL databases seamlessly.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/gcp/',
-    icon: <StyledResourceIcon name="googlecloud" />,
+    icon: 'googlecloud',
     kind: IntegrationEnrollKind.MachineIDGCP,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'resourceaccess'],
   },
   {
     title: 'Azure',
+    description:
+      'Use Machine ID to eliminate long-lived credentials on Azure VMs',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/azure/',
-    icon: <StyledResourceIcon name="azure" />,
+    icon: 'azure',
     kind: IntegrationEnrollKind.MachineIDAzure,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'resourceaccess'],
   },
   {
     title: 'Kubernetes',
+    description:
+      'Use Machine ID to eliminate long-lived credentials for Kubernetes workloads',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/kubernetes/',
-    icon: <StyledResourceIcon name="kube" />,
+    icon: 'kube',
     kind: IntegrationEnrollKind.MachineIDKubernetes,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'resourceaccess'],
   },
   {
     title: 'Generic',
+    description: 'Use Machine ID to Integrate generic server with Teleport.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/getting-started/',
-    icon: <Server size={80} />,
+    icon: 'server',
     kind: IntegrationEnrollKind.MachineID,
+    type: 'bot',
     guided: false,
+    tags: ['bot', 'resourceaccess'],
   },
 ];
 
@@ -159,41 +198,63 @@ export function BotTiles({
   hasCreateBotPermission: boolean;
 }) {
   return (
-    <Flex gap={3} flexWrap="wrap">
+    <div
+      css={`
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 16px;
+      `}
+    >
       {integrations.map(i => (
         <Box key={i.title}>
-          {i.guided ? (
-            <GuidedTile
-              integration={i}
-              hasCreateBotPermission={hasCreateBotPermission}
-            />
-          ) : (
-            <ExternalLinkTile integration={i} />
-          )}
+          <BotTile
+            integration={i}
+            hasCreateBotPermission={hasCreateBotPermission}
+          />
         </Box>
       ))}
-    </Flex>
+    </div>
   );
 }
 
+export function BotTile({
+  integration,
+  hasCreateBotPermission,
+}: {
+  integration: BotIntegration;
+  hasCreateBotPermission: boolean;
+}) {
+  if (integration.guided) {
+    return (
+      <GuidedTile
+        integration={integration}
+        hasCreateBotPermission={hasCreateBotPermission}
+      />
+    );
+  }
+  return <ExternalLinkTile integration={integration} />;
+}
+
 function ExternalLinkTile({ integration }: { integration: BotIntegration }) {
+  const onBotClick = () => {
+    userEventService.captureIntegrationEnrollEvent({
+      event: IntegrationEnrollEvent.Started,
+      eventData: {
+        id: crypto.randomUUID(),
+        kind: integration.kind,
+      },
+    });
+  };
+
   return (
-    <IntegrationTile
-      as={ExternalLink}
-      href={integration.link}
-      target="_blank"
-      onClick={() => {
-        userEventService.captureIntegrationEnrollEvent({
-          event: IntegrationEnrollEvent.Started,
-          eventData: {
-            id: crypto.randomUUID(),
-            kind: integration.kind,
-          },
-        });
-      }}
-    >
-      <TileContent icon={integration.icon} title={integration.title} />
-    </IntegrationTile>
+    <Tile
+      title={integration.title}
+      description={integration.description}
+      tags={integration.tags}
+      link={{ external: true, url: integration.link, onClick: onBotClick }}
+      icon={integration.icon}
+      hasAccess={true}
+    />
   );
 }
 
@@ -204,38 +265,55 @@ function GuidedTile({
   integration: BotIntegration;
   hasCreateBotPermission: boolean;
 }) {
-  return (
-    <IntegrationTile
-      as={Link}
-      to={{
-        pathname: hasCreateBotPermission ? integration.link : null,
-        state: { previousPathname: location.pathname },
-      }}
-      onClick={() => {
-        if (!hasCreateBotPermission) {
-          return;
-        }
-        userEventService.captureIntegrationEnrollEvent({
-          event: IntegrationEnrollEvent.Started,
-          eventData: {
-            id: crypto.randomUUID(),
-            kind: integration.kind,
-          },
-        });
-      }}
-    >
-      {hasCreateBotPermission ? (
-        <BadgeGuided>Guided</BadgeGuided>
-      ) : (
+  const onBotClick = () => {
+    if (!hasCreateBotPermission) {
+      return;
+    }
+    userEventService.captureIntegrationEnrollEvent({
+      event: IntegrationEnrollEvent.Started,
+      eventData: {
+        id: crypto.randomUUID(),
+        kind: integration.kind,
+      },
+    });
+  };
+
+  let renderBadge = undefined;
+
+  if (!hasCreateBotPermission) {
+    renderBadge = () => {
+      return (
         <ToolTipNoPermBadge>
           <div>
             You don’t have sufficient permissions to create bots. Reach out to
             your Teleport administrator to request additional permissions.
           </div>
         </ToolTipNoPermBadge>
-      )}
-      <TileContent icon={integration.icon} title={integration.title} />
-    </IntegrationTile>
+      );
+    };
+  }
+
+  return (
+    <Tile
+      title={integration.title}
+      description={integration.description}
+      tags={integration.tags}
+      hasAccess={true}
+      icon={integration.icon}
+      link={{ url: integration.link, onClick: onBotClick }}
+      renderBadge={renderBadge}
+    />
+  );
+}
+
+function TileContent({ icon, title }) {
+  return (
+    <>
+      <Flex flexBasis={100}>
+        <StyledResourceIcon name={icon} />
+      </Flex>
+      <Text>{title}</Text>
+    </>
   );
 }
 
@@ -244,7 +322,7 @@ export function DisplayTile({
   title,
 }: {
   title: string;
-  icon: JSX.Element;
+  icon: ResourceIconName;
 }) {
   return (
     <HoverIntegrationTile>
@@ -252,27 +330,6 @@ export function DisplayTile({
     </HoverIntegrationTile>
   );
 }
-
-function TileContent({ icon, title }) {
-  return (
-    <>
-      <Flex flexBasis={100}>{icon}</Flex>
-      <Text>{title}</Text>
-    </>
-  );
-}
-
-const BadgeGuided = styled.div`
-  position: absolute;
-  background: ${props => props.theme.colors.brand};
-  color: ${props => props.theme.colors.text.primaryInverse};
-  padding: 0px 6px;
-  border-top-right-radius: 8px;
-  border-bottom-left-radius: 8px;
-  top: 0px;
-  right: 0px;
-  font-size: 10px;
-`;
 
 const HoverIntegrationTile = styled(IntegrationTile)`
   background: none;

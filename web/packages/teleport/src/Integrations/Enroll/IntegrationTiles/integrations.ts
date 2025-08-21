@@ -21,6 +21,30 @@ import { ResourceIconName } from 'design/ResourceIcon';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
+export const integrationTagOptions = [
+  { value: 'ai', label: 'AI / MCP' },
+  { value: 'bot', label: 'Bot' },
+  { value: 'cicd', label: 'CI/CD' },
+  { value: 'devicetrust', label: 'Device Trust' },
+  { value: 'idp', label: 'IdP' },
+  { value: 'jit', label: 'JIT Review' },
+  { value: 'multicloud', label: 'Multi-Cloud' },
+  { value: 'notifications', label: 'Notifications' },
+  { value: 'resourceaccess', label: 'Resource Access' },
+] as const satisfies { value: string; label: string }[];
+
+export type IntegrationTag = Extract<
+  (typeof integrationTagOptions)[number],
+  { value: string }
+>['value'];
+
+export function isIntegrationTag(tag: unknown): tag is IntegrationTag {
+  return (
+    typeof tag === 'string' &&
+    integrationTagOptions.some(option => option.value === tag)
+  );
+}
+
 export type IntegrationTileSpec = {
   /**
    * In enterprise, resource type 'plugin' and type 'integration' are mixed.
@@ -32,6 +56,8 @@ export type IntegrationTileSpec = {
   kind: IntegrationKind;
   icon: ResourceIconName;
   name: string;
+  description: string;
+  tags: IntegrationTag[];
 };
 
 // Add new integrations here sorted by 'name' field.
@@ -39,14 +65,19 @@ const integrations: IntegrationTileSpec[] = [
   {
     type: 'integration',
     kind: IntegrationKind.ExternalAuditStorage,
-    icon: 'aws',
+    description:
+      'Store audit events and session recordings on AWS infrastructure.',
+    icon: 'awssimplestorageservices3',
     name: 'AWS External Audit Storage',
+    tags: ['resourceaccess'],
   },
   {
     type: 'integration',
     kind: IntegrationKind.AwsOidc,
     icon: 'aws',
     name: 'AWS OIDC Identity Provider',
+    description: 'Use an AWS OIDC integration to interact with AWS.',
+    tags: ['idp'],
   },
   {
     type: 'integration',
