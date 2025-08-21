@@ -72,10 +72,10 @@ export const NoCodeIntegrationDescription = () => (
  * and plugin tiles.
  */
 export const IntegrationIcon = styled(ResourceIcon).withConfig({
-  shouldForwardProp: (prop) => prop !== 'size',
+  shouldForwardProp: prop => prop !== 'size',
 })<{ size?: number }>`
   margin: 0 auto;
-  min-width: 0;
   height: 100%;
+  min-width: 0;
   ${({ size }) => size && `max-width: ${size}px;`}
 `;
