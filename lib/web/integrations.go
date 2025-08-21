@@ -211,7 +211,11 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		}
 
 		spec := integration.GetAWSRolesAnywhereIntegrationSpec()
-		spec.TrustAnchorARN = req.AWSRA.TrustAnchorARN
+
+		if req.AWSRA.TrustAnchorARN != "" {
+			spec.TrustAnchorARN = req.AWSRA.TrustAnchorARN
+		}
+
 		spec.ProfileSyncConfig = &types.AWSRolesAnywhereProfileSyncConfig{
 			Enabled:            req.AWSRA.ProfileSyncConfig.Enabled,
 			ProfileARN:         req.AWSRA.ProfileSyncConfig.ProfileARN,

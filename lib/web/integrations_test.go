@@ -163,11 +163,27 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, createData, resp)
 
-	// Update integration
-	updatedTrustAnchor := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/00000000-0000-0000-0000-123456789012"
+	// Update integration without TrustAnchorARN
 	syncProfileARN := "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/00000000-0000-0000-0000-123456789012"
 	syncRoleARN := "arn:aws:iam::123456789012:role/testrole"
 	updateIntegration := ui.UpdateIntegrationRequest{
+		AWSRA: &ui.IntegrationAWSRASpec{
+			ProfileSyncConfig: ui.AWSRAProfileSync{
+				Enabled:            false,
+				ProfileARN:         syncProfileARN,
+				RoleARN:            syncRoleARN,
+				ProfileNameFilters: []string{},
+			},
+		},
+	}
+	updateEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
+	updateResp, err := authPack.clt.PutJSON(ctx, updateEndpoint, updateIntegration)
+	require.NoError(t, err)
+	require.Equal(t, 200, updateResp.Code())
+
+	// Update integration
+	updatedTrustAnchor := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/00000000-0000-0000-0000-123456789012"
+	updateIntegration = ui.UpdateIntegrationRequest{
 		AWSRA: &ui.IntegrationAWSRASpec{
 			TrustAnchorARN: updatedTrustAnchor,
 			ProfileSyncConfig: ui.AWSRAProfileSync{
@@ -178,8 +194,8 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 			},
 		},
 	}
-	updateEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-	updateResp, err := authPack.clt.PutJSON(ctx, updateEndpoint, updateIntegration)
+	updateEndpoint = authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
+	updateResp, err = authPack.clt.PutJSON(ctx, updateEndpoint, updateIntegration)
 	require.NoError(t, err)
 	require.Equal(t, 200, updateResp.Code())
 

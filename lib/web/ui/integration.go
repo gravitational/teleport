@@ -85,15 +85,6 @@ type AWSRAProfileSync struct {
 	ProfileNameFilters []string `json:"filters"`
 }
 
-// CheckAndSetDefaults for the aws oidc integration spec.
-func (r *IntegrationAWSRASpec) CheckAndSetDefaults() error {
-	if r.TrustAnchorARN == "" {
-		return trace.BadParameter("missing awsra.trustAnchorArn field")
-	}
-
-	return nil
-}
-
 // IntegrationGitHub contains the specific fields for the `github` subkind integration.
 type IntegrationGitHub struct {
 	Organization string `json:"organization"`
@@ -305,11 +296,6 @@ type UpdateIntegrationRequest struct {
 func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if r.AWSRA != nil {
-		if err := r.AWSRA.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
