@@ -201,9 +201,9 @@ Server ID                            Hostname      Services Version Upgrader
 
 1. Determine the Teleport version to install by querying the Teleport Proxy
    Service. This way, the Teleport installation has the same major version as
-   the automatic updater. 
+   the updater. 
 
-   Replace <Var name="stable/cloud" /> with the name of your automatic update
+   Replace <Var name="stable/cloud" /> with the name of your update
    channel. For cloud-hosted Teleport Enterprise accounts, this is always
    `stable/cloud`:
 
@@ -411,3 +411,153 @@ until the next reconciliation, you can trigger an event.
    ```code
    $ sudo systemctl enable --now teleport-upgrade.timer
    ```
+
+## Working with the teleport-upgrade tool
+
+This section explains advanced usage of the v1 `teleport-upgrade` script for Linux.
+Note that this tool is no longer actively developed, and the Managed Updates v2
+`teleport-update` binary should be used instead.
+For Managed Updates v2 instructions, see [Managed Updates for
+Agents (v2)](./agent-managed-updates.mdx).
+
+### `teleport-upgrade` commands
+
+The `teleport-upgrade` tool provides some basic commands to verify and perform an
+update of the Teleport Agent.
+
+```code
+$ teleport-upgrade help
+USAGE: /usr/sbin/teleport-upgrade <command>
+
+Tool for automatic upgrades of Teleport Agents.
+
+Commands:
+  run           check for and potentially apply a teleport upgrade.
+  dry-run       check for new teleport version but do not upgrade.
+  force         performs an upgrade if an upgrade is available.
+  version       print the current version of /usr/sbin/teleport-upgrade.
+  help          show this help text.
+```
+
+The `dry-run` command can be used to check for an available update without performing
+an update.
+```code
+# Example output when teleport is already on the latest compatible version.
+$ teleport-upgrade dry-run
+[i] no upgrades available (14.3.14 == 14.3.14) [ 582 ]
+
+# Example output when an update is available.
+$ teleport-upgrade dry-run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] within maintenance window, upgrade will be attempted. [ 596 ]
+```
+
+The `run` command performs an update if available.
+```code
+# Successful teleport update from 13.4.14 to 14.3.14.
+$ teleport-upgrade run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] within maintenance window, upgrade will be attempted. [ 596 ]
+[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
+[...]
+[i] gracefully restarting Teleport (if already running) [ 449 ]
+
+# Teleport updates are not attempted when outside the maintenance window.
+$ teleport-upgrade run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
+```
+
+The `force` command performs an update immediately even when outside the maintenance
+window.
+```code
+$ teleport-upgrade force
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
+[...]
+[i] gracefully restarting Teleport (if already running) [ 449 ]
+```
+
+### Configuring the `teleport-upgrade` tool
+
+1. Create the upgrade configuration directory:
+
+   ```code
+   $ sudo mkdir -p /etc/teleport-upgrade.d/
+   ```
+
+1. If you changed the agent user to run as non-root, create
+   `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user,
+   assigning <Var name="your-teleport-user" /> to the name of your Teleport
+   user. Otherwise, you can skip this step:
+
+   ```code 
+   $ sudo touch /etc/teleport-upgrade.d/schedule 
+   $ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule 
+   ```
+
+   1. Configure the upgrader to connect to your version server and subscribe to
+      the right release channel:
+
+   ```code 
+   $ echo "<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default" | sudo tee /etc/teleport-upgrade.d/endpoint
+   ```
+
+   Make sure not to include `https://` as a prefix to the server address, nor
+   suffix the endpoint with `/version`.
+
+### Choosing a release channel
+
+When [configuring the updater](#configuring-the-teleport-upgrade-tool), you can
+select a release channel.
+
+The following channels are available for APT, YUM, and Zypper repos:
+
+| Channel name      | Description                                                                                |
+|-------------------|--------------------------------------------------------------------------------------------|
+| `stable/<major>`  | Receives releases for the specified major release line, i.e. `v(=teleport.major_version=)` |
+| `stable/cloud`    | Rolling channel that receives releases compatible with current Cloud version               |
+| `stable/rolling`  | Rolling channel that receives all published Teleport releases                              |
+
+### Updating the updater
+
+The updater is designed to be minimal and relatively stable, but the updater will
+receive updates on occasion. Currently, the updater does not have the capability
+to update itself. Updates to the `teleport-ent-updater` package must be done manually.
+
+The `teleport-ent-updater` will be backwards compatible with older versions of Teleport,
+so you can always update the `teleport-ent-updater` package to the latest available
+version.
+
+### Version locking
+
+As of Teleport `15.1.10`, a version locking mechanism is enabled by the updater.
+This mechanism locks the version of Teleport and prevents manual updates of the Teleport
+package. This prevents unintentional updates during routine system maintenance, or
+an accidental update by a user. The updater still has the capability to update the
+Teleport package, and all updates of Teleport are expected to be performed by the
+updater.
+
+The version locking mechanism is implemented using the features of the package managers.
+In case a user would like to manually update the Teleport version, this can be done
+with the following commands.
+
+With the `apt` package manager CLI, the `--allow-change-held-packages` flag must be provided
+to bypass the version lock.
+```code
+$ apt-get install --allow-change-held-packages "teleport-ent=<target-version>"
+```
+
+With the `yum` package manager CLI, the `--disableexcludes="teleport"` flag must be provided
+to bypass the version lock.
+```code
+$ yum install --disablerepo="*" --enablerepo="teleport" --disableexcludes="teleport" "teleport-ent-<target-version>"
+```
+
+With the `zypper` package manager CLI, the lock must be disabled and then re-enabled
+after the update.
+```code
+$ zypper removelock "teleport-ent"
+$ zypper install --repo="teleport" "teleport-ent-<target-version>"
+$ zypper addlock "teleport-ent"
+```
