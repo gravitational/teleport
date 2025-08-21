@@ -825,6 +825,34 @@ func NewPresetTerraformProviderRole() types.Role {
 	return role
 }
 
+// NewPresetMCPAccessRole returns a new pre-defined role for accessing MCP
+// servers.
+func NewPresetMCPAccessRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetMCPAccessRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Access to MCP servers",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AppLabels: map[string]apiutils.Strings{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				MCP: &types.MCPPermissions{
+					Tools: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+	return role
+}
+
 // NewPresetHealthCheckConfig returns a preset default health_check_config that
 // enables health checks for all resources.
 func NewPresetHealthCheckConfig() *healthcheckconfigv1.HealthCheckConfig {
@@ -873,8 +901,9 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 		teleport.SystemIdentityCenterAccessRoleName: {
 			types.TeleportInternalResourceType: types.SystemResource,
 		},
-		// Group access, reviewer and requester are intentionally not added here as there may be
-		// existing customer defined roles that have these labels.
+		// These roles are intentionally not added here as there may be existing
+		// customer defined roles that have these labels:
+		// group-access, reviewer, requester, mcp-access
 	}
 }
 
@@ -1036,7 +1065,7 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 	// Check if the role has a TeleportInternalResourceType attached. We do this after setting the role metadata
 	// labels because we set the role metadata labels for roles that have been well established (access,
 	// editor, auditor) that may not already have this label set, but we don't set it for newer roles
-	// (group-access, reviewer, requester) that may have customer definitions.
+	// (group-access, reviewer, requester, mcp-access) that may have customer definitions.
 	resourceType := labels[types.TeleportInternalResourceType]
 	if resourceType != types.PresetResource && resourceType != types.SystemResource {
 		return nil, trace.AlreadyExists("not modifying user created role")
