@@ -378,10 +378,10 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 
 func (p *DatabasePack) WaitForLeaf(t *testing.T) {
 	helpers.WaitForProxyCount(p.Leaf.Cluster, p.Root.Cluster.Secrets.SiteName, 1)
-	site, err := p.Root.Cluster.Tunnel.GetSite(p.Leaf.Cluster.Secrets.SiteName)
+	cluster, err := p.Root.Cluster.Tunnel.Cluster(t.Context(), p.Leaf.Cluster.Secrets.SiteName)
 	require.NoError(t, err)
 
-	accessPoint, err := site.CachingAccessPoint()
+	accessPoint, err := cluster.CachingAccessPoint()
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -234,7 +234,7 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 		)
 		defer span.End()
 
-		targetCluster, err := f.cfg.ReverseTunnelSrv.GetSite(clusterName)
+		targetCluster, err := f.cfg.ReverseTunnelSrv.Cluster(ctx, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -309,7 +309,7 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 		// Use the local reversetunnel.Site which knows how to dial by serverID
 		// (for "kubernetes_service" connected over a tunnel) and falls back to
 		// direct dial if needed.
-		localCluster, err := f.cfg.ReverseTunnelSrv.GetSite(f.cfg.ClusterName)
+		localCluster, err := f.cfg.ReverseTunnelSrv.Cluster(ctx, f.cfg.ClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
