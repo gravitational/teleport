@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,6 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Integrations } from './Integrations';
-export { IntegrationList } from './IntegrationList';
-export { IntegrationTile, Tile } from './Enroll/common';
+import styled from 'styled-components';
+
+export const Container = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 16px;
+`;

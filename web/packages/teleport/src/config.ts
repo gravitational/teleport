@@ -826,7 +826,10 @@ const cfg = {
   },
 
   getBotsNewRoute(type?: string) {
-    return generatePath(cfg.routes.botsNew, { type });
+    let route = generatePath(
+      generatePath(cfg.routes.integrationEnroll, { type })
+    );
+    return `${route}?kinds=bot`;
   },
 
   getAppsRoute(clusterId: string) {
