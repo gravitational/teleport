@@ -1,0 +1,274 @@
+---
+title: Teleport Client Tool Managed Updates
+description: Explains how to use Teleport client tools (`tsh` and `tctl`) managed updates.
+labels:
+ - conceptual
+ - platform-wide
+---
+
+This documentation explains how to keep Teleport client tools like `tsh` and `tctl` up-to-date.
+Updates can be managed by cluster or self-managed, ensuring tools are secure, free from bugs,
+and compatible with your Teleport cluster.
+
+For detailed information on managed updates in Teleport Connect, see [Teleport Connect Managed updates](../connect-your-client/teleport-connect.mdx#managed-updates).
+
+Why keep client tools updated?
+
+- **Security**: Updates deliver patches for known vulnerabilities.
+- **Bug Fixes**: Resolved issues are pushed to endpoints.
+- **Compatibility**: Avoid manual understanding of [Teleport component compatibility rules](overview.mdx#component-compatibility).
+
+## How it works
+
+When you run `tsh login`, the tsh tool will check if updates are enabled for your cluster.
+If your client version differs from the cluster's required version, it will:
+
+1. Download the updated version.
+2. Validate the package with a checksum.
+3. Extract the package and store the binaries in `~/.tsh/bin` (`$TELEPORT_HOME/bin`).
+4. Records the client tools version advertised by the cluster in `~/.tsh/bin/.config.json`(`$TELEPORT_HOME/bin/.config.json`).
+5. Re-execute using the updated version (with the same environment variables).
+
+### Key features
+
+**Binary Management**: Original binaries are preserved, and updates are stored separately.
+Updates are installed in the `$TELEPORT_HOME/bin` folder (if `TELEPORT_HOME` is not defined, the home folder is used `$HOME/.tsh/bin`).
+When client tools (`tctl` or `tsh`) are executed from any other path, they consistently check for binaries in the update
+folder and re-execute them if found.
+
+**Validation**: Downloaded packages are verified with a hash sum to ensure integrity.
+Package downloads are directed to the `cdn.teleport.dev` endpoint and depend on the operating system,
+platform, and edition. The edition must be identified by the original client tools binary.
+The URL pattern is as follows:
+- `https://cdn.teleport.dev/teleport-{ent-}vX.Y.Z-{linux,darwin,windows}-{amd64,arm64,arm,386}-{fips-}bin.{tar.gz,pkg,zip}`
+- `https://cdn.teleport.dev/teleport-{ent-}vX.Y.Z-{linux,darwin,windows}-{amd64,arm64,arm,386}-{fips-}bin.{tar.gz,pkg,zip}.sha256`
+The base URL of the CDN can be overridden using the `TELEPORT_CDN_BASE_URL` environment variable.
+Allows mirroring the CDN in a private network or using custom builds.
+
+**Concurrency**: Tools use a locking mechanism to enable smooth operation during updates.
+Only one process can acquire the lock to update client tools, while other processes wait for the lock to be released.
+If the first process cancels the update, the next process in line will initiate the update.
+
+### Multi-cluster support and multi-version caching
+
+Client tools managed updates support multi-cluster environments. When you log in to different clusters that use
+different versions (including different major versions), the client makes a request to the `/v1/webapi/find` endpoint
+before executing the login command. This request retrieves the client tools version required by the target cluster.
+The specified version is then downloaded, extracted to the tools directory, and used to re-execute the command.
+As a result, the login command runs using the version required by that cluster.
+
+The required version for each cluster is tracked in `$TELEPORT_HOME/bin/.config.json` (defaults to `~/.tsh/bin/.config.json`).
+This file stores the proxy address, the required version for each cluster, and the update mode.
+If managed updates are disabled for a cluster (i.e., the mode is set to "disable"), re-execution
+is skipped and the currently installed version is used instead.
+
+Example of managed updates configuration file:
+```json
+{
+  "version": "v1",
+  "configs": {
+    "proxy1.example.com": {"version": "18.1.0","disabled": false},
+    "proxy2.example.com": {"version": "17.5.5","disabled": false},
+    "proxy3.example.com": {"version": "16.5.5","disabled": false},
+    "proxy4.example.com": {"version": "16.5.5","disabled": true}
+  }
+}
+```
+
+By default, client tools managed updates store up to three different versions in the `$TELEPORT_HOME/bin` directory.
+If multiple clusters require the same version, a single shared copy is used. Once the update process is complete,
+the relative path to the client tools is recorded in the configuration file.
+
+```json
+{
+  "version": "v1",
+  "configs": {
+    "proxy1.example.com": {"version": "18.1.0","disabled": false}
+  },
+  "tools": [
+    {
+      "version": "18.1.0",
+      "path": {
+        "tctl": "1921b970-807f-4d36-a769-fbda149d8970-update-pkg-v2/tctl-18.1.0.pkg/Payload/tctl.app/Contents/MacOS/tctl",
+        "tsh": "1921b970-807f-4d36-a769-fbda149d8970-update-pkg-v2/tsh-18.1.0.pkg/Payload/tsh.app/Contents/MacOS/tsh"
+      }
+    }
+  ],
+  "max_tools": 3
+}
+```
+
+After each `tctl` or `tsh` command is re-executed using a specific version from the tools list,
+the list is reordered to move the most recently used version to the top. If the number of cached
+versions exceeds the allowed limit, the least recently used version (at the bottom of the list)
+will be removed during the next update.
+
+To reduce the need for repeated downloads, you can increase the number of stored versions by
+manually setting the max_tools value to the desired limit.
+
+### Managed updates version checks
+
+Client tools make a request to the Teleport Proxy Service discovery endpoint `/v1/webapi/find` during every login
+in order to retrieve the required version of Teleport client tools and check the update mode for the target cluster.
+
+To enable version checks for `tsh ssh` or `tsh proxy ssh` commands in case a login is not required,
+set the `TELEPORT_TOOLS_CHECK_UPDATE=t` environment variable to initiate this check. For example:
+
+```code
+$ TELEPORT_TOOLS_CHECK_UPDATE=t tsh ssh user@host
+Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
+user@host ~ #
+```
+
+Managed update local checks are triggered during the execution of any command. If there is an active
+session with a cluster and the cluster advertises a required client tools version,
+both `tsh` and `tctl` will be re-executed using that version. If the version is not already present
+in the tools directory, it will be downloaded, extracted, and executed automatically.
+
+If there is no active session, but a versioned binary exists in the tools directory
+(e.g., `~/.tsh/bin/tsh` or `~/.tsh/bin/tctl`), the corresponding tool will be re-executed with that version
+(for backward compatibility with older versions of managed updates).
+
+## Configuring client tool managed updates
+
+### Cluster-wide using `tctl`
+
+To enable or disable client tools managed updates in the cluster, use the following command:
+
+```code
+$ tctl autoupdate client-tools enable
+client tools auto update mode has been changed
+
+$ tctl autoupdate client-tools disable
+client tools auto update mode has been changed
+```
+
+To set or remove the target version for automatic updates for all client tools:
+
+```code
+$ tctl autoupdate client-tools target X.Y.Z
+client tools auto update target version has been set
+
+$ tctl autoupdate client-tools target --clear
+client tools auto update target version has been cleared
+```
+
+If the target version is cleared, the cluster version will be used automatically, eliminating the need for manual
+updates each time the cluster version is upgraded.
+
+The `status` command retrieves the target version and mode configured for the logged-in cluster.
+To use an unauthenticated endpoint for this configuration, include the `--proxy` flag.
+
+```code
+$ tctl autoupdate client-tools status --format json
+{
+    "mode": "enabled",
+    "target_version": "X.Y.Z"
+}
+
+$ tctl autoupdate client-tools status --proxy proxy.example.com --format json
+{
+    "mode": "enabled",
+    "target_version": "X.Y.Z"
+}
+```
+
+### On a per-client basis using environment variables
+Values:
+- `X.Y.Z`: Use a specific version.
+- `off`: Disable updates.
+
+The `TELEPORT_TOOLS_VERSION` environment variable can be used for pinning a specific version, for debugging, or for manual updates.
+
+During re-execution, child process will inherit all environment variables and flags. To prevent infinite loops
+only version environment variable will be overridden to `TELEPORT_TOOLS_VERSION=off`.
+
+Example of self-managed update by setting the version with environment variable:
+```bash
+$ TELEPORT_TOOLS_VERSION=18.1.0 tctl version
+Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
+Teleport v18.1.0 git:v18.1.0-0-g8cdb161 go1.24.5
+
+# If the environment variable is not set, the currently installed version is used.
+$ tctl version
+Teleport v17.6.0 git:v17.6.0-0-g4c3b13b go1.23.11
+````
+
+To use the version specified by the environment variable, it must always be set.
+If the variable is set during the login command, we prioritize this version over the one
+provided by the cluster configuration. Even if the cluster indicates that client tools
+managed updates are disabled, setting the environment variable will force them to be enabled.
+Any tsh or tctl command executed with an active profile for this cluster will be re-executed
+using the recorded version.
+
+```bash
+$ TELEPORT_TOOLS_VERSION=18.1.0 tsh login --proxy proxy.example.com
+Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
+...
+
+# The session is still active, and the profile at ~/.tsh/current-profile is set to proxy.example.com.
+$ tctl version
+Teleport v18.1.0 git:v18.1.0-0-g8cdb161 go1.24.5
+
+$ cat ~/.tsh/bin/.config.json
+{
+  "version": "v1",
+  "configs": {
+    "proxy.example.com": {"version": "18.1.0","disabled": false}
+  }
+}
+````
+
+### Using resource definitions
+
+To enable client tools managed updates in cluster, first create a file named `autoupdate_config.yaml` with the following content:
+
+```yaml
+kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+spec:
+  tools:
+    mode: enabled
+```
+
+And write resource data to the cluster `tctl create -f autoupdate_config.yaml`, after that any new `tsh` login must
+check the target version and initiate downloading desired version to install in Teleport home folder.
+
+The next resource is responsible for setting target version `autoupdate_version.yaml`.
+
+```yaml
+kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+spec:
+  tools:
+    target_version: X.Y.Z
+```
+
+Create the resource using `tctl create -f autoupdate_version.yaml`.
+If the `autoupdate_version` resource hasn't been created yet, the cluster version will be used as the default target version.
+
+<Admonition type="note">
+    - For self-hosted clusters, managed updates are disabled by default but can be enabled.
+    - Cloud clusters are automatically enrolled in updates, managed by the Teleport Cloud team.
+    - For clusters with multiple root versions, use self-managed updates to avoid frequent version switching.
+</Admonition>
+
+## Determining a client tool version
+
+To determine the version required to operate with the cluster, during the login process, `tsh` queries from the
+unauthenticated proxy discovery `/v1/webapi/find` endpoint. If `.auto_update.tools_auto_update` is enabled, the
+client tools must initiate the installation of the version specified in `.auto_update.tools_version`.
+
+For manual updates, when scheduling updates at specific times or using custom CDN mirrors or with self-build packages,
+you can disable managed updates via configuration. In this case, you can monitor the tool's version separately
+or pair it with the `TELEPORT_TOOLS_VERSION=off` environment variable.
+
+```bash
+$ curl https://proxy.example.com/v1/webapi/find | jq .auto_update
+{
+    "tools_auto_update": true,
+    "tools_version": "X.Y.Z",
+}
+```

@@ -83,6 +83,7 @@ import {
   removeAgentDirectory,
   type CreateAgentConfigFileArgs,
 } from './createAgentConfigFile';
+import { serializeError } from './ipcSerializer';
 import { ResolveError, resolveNetworkAddress } from './resolveNetworkAddress';
 import { terminateWithTimeout } from './terminateWithTimeout';
 import { WindowsManager } from './windowsManager';
@@ -161,7 +162,15 @@ export default class MainProcess {
     this.appUpdater = new AppUpdater(
       makeAppUpdaterStorage(this.appStateFileStorage),
       getClusterVersions,
-      getDownloadBaseUrl
+      getDownloadBaseUrl,
+      event => {
+        if (event.kind === 'error') {
+          event.error = serializeError(event.error);
+        }
+        this.windowsManager
+          .getWindow()
+          .webContents.send(RendererIpc.AppUpdateEvent, event);
+      }
     );
   }
 
@@ -180,8 +189,8 @@ export default class MainProcess {
 
   async dispose(): Promise<void> {
     this.windowsManager.dispose();
-    this.appUpdater.dispose();
     await Promise.all([
+      this.appUpdater.dispose(),
       // sending usage events on tshd shutdown has 10-seconds timeout
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
         this.gracefullyKillTshdProcess();
@@ -639,6 +648,46 @@ export default class MainProcess {
       }
     );
 
+    ipcMain.on(MainProcessIpc.SupportsAppUpdates, event => {
+      event.returnValue = this.appUpdater.supportsUpdates();
+    });
+
+    ipcMain.handle(MainProcessIpc.CheckForAppUpdates, () =>
+      this.appUpdater.checkForUpdates()
+    );
+
+    ipcMain.handle(
+      MainProcessIpc.ChangeAppUpdatesManagingCluster,
+      (
+        event,
+        args: {
+          clusterUri: RootClusterUri | undefined;
+        }
+      ) => this.appUpdater.changeManagingCluster(args.clusterUri)
+    );
+
+    ipcMain.handle(
+      MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
+      (
+        event,
+        args: {
+          clusterUri: RootClusterUri;
+        }
+      ) => this.appUpdater.maybeRemoveManagingCluster(args.clusterUri)
+    );
+
+    ipcMain.handle(MainProcessIpc.DownloadAppUpdate, () =>
+      this.appUpdater.download()
+    );
+
+    ipcMain.handle(MainProcessIpc.CancelAppUpdateDownload, () =>
+      this.appUpdater.cancelDownload()
+    );
+
+    ipcMain.handle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
+      this.appUpdater.quitAndInstall()
+    );
+
     subscribeToTerminalContextMenuEvent(this.configService);
     subscribeToTabContextMenuEvent(
       this.settings.availableShells,
@@ -673,7 +722,28 @@ export default class MainProcess {
         };
 
     const macTemplate: MenuItemConstructorOptions[] = [
-      { role: 'appMenu' },
+      {
+        role: 'appMenu',
+        submenu: [
+          { role: 'about' },
+          {
+            label: 'Check for Updates…',
+            click: () => {
+              this.windowsManager
+                .getWindow()
+                .webContents.send(RendererIpc.OpenAppUpdateDialog);
+            },
+          },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
       { role: 'editMenu' },
       viewMenuTemplate,
       {
@@ -738,13 +808,17 @@ export default class MainProcess {
       {
         windowsHide: true,
         timeout: 2_000,
+        env: {
+          ...process.env,
+          [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+        },
       }
     );
     daemonStop.on('error', error => {
       logger.error('daemon stop process failed to start', error);
     });
     daemonStop.stderr.setEncoding('utf-8');
-    daemonStop.stderr.on('data', logger.error);
+    daemonStop.stderr.on('data', data => logger.error(data));
   }
 
   private logProcessExitAndError(

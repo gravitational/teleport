@@ -164,6 +164,9 @@ jobs:
       - name: Check if go generated files are up to date
         run: make go-generate-up-to-date
 
+      - name: Check if test symbols are included in binaries
+        run: make lint-test-symbols
+
   lint-rust:
     name: Lint (Rust)
     runs-on: ubuntu-22.04
@@ -310,3 +313,7 @@ jobs:
 
       - name: Lint licenses
         run: make lint-license
+
+      - name: Check icons
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make icons-up-to-date

@@ -30,11 +30,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"io"
 	"log/slog"
-	"maps"
 	"math/big"
-	"slices"
 	"time"
 
 	kms "cloud.google.com/go/kms/apiv1"
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -204,6 +204,7 @@ type Options struct {
 	mrkClient    mrkClient
 	awsSTSClient stsClient
 	kmsClient    *kms.KeyManagementClient
+	awsRGTClient rgtClient
 
 	clockworkOverride clockwork.Clock
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
@@ -432,6 +433,35 @@ func sshSignerFromCryptoSigner(cryptoSigner crypto.Signer) (ssh.Signer, error) {
 	default:
 		return nil, trace.BadParameter("SSH CA: unsupported key type: %s", sshSigner.PublicKey().Type())
 	}
+}
+
+var ErrUnusableKey = errors.New("unable to sign with requested key")
+
+// TLSSigner returns a crypto.Signer for the given TLSKeyPair.
+// It returns ErrUnusableKey if unable to create a signer from the given keypair,
+// e.g. if it is stored in an HSM or KMS this auth service is not configured to use.
+func (m *Manager) TLSSigner(ctx context.Context, keypair *types.TLSKeyPair) (crypto.Signer, error) {
+	for _, backend := range m.usableBackends {
+		canUse, err := backend.canUseKey(ctx, keypair.Key, keypair.KeyType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !canUse {
+			continue
+		}
+		pub, err := publicKeyFromTLSCertPem(keypair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signer, err := backend.getSigner(ctx, keypair.Key, pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: backend.name()}, nil
+	}
+
+	return nil, ErrUnusableKey
 }
 
 // GetTLSCertAndSigner selects a usable TLS keypair from the given CA
@@ -824,15 +854,15 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 			allRawKeys = append(allRawKeys, jwtKeyPair.PrivateKey)
 		}
 	}
-	caKeyTypes := make(map[string]struct{})
+	caKeyTypes := set.New[string]()
 	for _, rawKey := range allRawKeys {
 		desc, err := keyDescription(rawKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		caKeyTypes[desc] = struct{}{}
+		caKeyTypes.Add(desc)
 	}
-	result.CAKeyTypes = slices.Collect(maps.Keys(caKeyTypes))
+	result.CAKeyTypes = caKeyTypes.Elements()
 	return result, nil
 }
 
