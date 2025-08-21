@@ -1,6 +1,6 @@
 locals {
   teleport_saml_entity_id = "https://${var.proxy_service_address}/v1/webapi/saml/acs/entra-id"
-  owners           = [data.azuread_client_config.current.object_id]
+  owners                  = [data.azuread_client_config.current.object_id]
 }
 
 # Configure an enterprise application.
@@ -14,7 +14,7 @@ resource "azuread_application" "app" {
     redirect_uris = [local.teleport_saml_entity_id]
   }
 
-  owners = var.use_system_credentials ? concat(local.owners, [var.managed_id]) : local.owners  
+  owners = var.use_system_credentials ? concat(local.owners, [var.managed_id]) : local.owners
 
   # These resources will be updated later and should not 
   # be overridden.
@@ -36,7 +36,7 @@ resource "azuread_service_principal" "app_sp" {
   client_id = azuread_application.app.client_id
 
   # Sign-on URL.
-  login_url = local.teleport_saml_entity_id
+  login_url                     = local.teleport_saml_entity_id
   preferred_single_sign_on_mode = "saml"
 
   feature_tags {
@@ -50,7 +50,7 @@ resource "azuread_service_principal_token_signing_certificate" "app_saml_cert" {
   service_principal_id = azuread_service_principal.app_sp.id
   display_name         = "CN=${var.app_name}-sso-cert"
   # Choose the expiry date carefully, expired certificate will break user authentication.
-  end_date             = var.certificate_expiry_date
+  end_date = var.certificate_expiry_date
 }
 
 resource "azuread_application_identifier_uri" "app_identifier_uri" {
