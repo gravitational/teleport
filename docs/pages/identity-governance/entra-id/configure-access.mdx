@@ -7,37 +7,33 @@ labels:
  - rbac
 ---
 
-This guide shows how to configure access for Entra ID imported users with Nested Access Lists. 
+This guide shows how to setup access for Entra ID imported users based on their Entra
+group memberships using Teleport's Nested Access Lists. 
 
 ## How it works
 
-In a Nested Access List setup, the child Access List inherits roles that are granted 
-by the parent Access List. 
+In a Nested Access List setup, the child Access List inherits roles and traits that
+are granted by the parent Access List. 
 
 By utilizing this feature, we can add an Entra ID imported Access List as a member of 
-another Access List that grants Teleport roles to its members. 
+another Access List to grant Teleport roles to its members. 
 
 For demonstration, this guide uses Grafana as a reference application to which we 
 want to configure access for Entra ID users. This application is enrolled 
 in Teleport with a resource label `env: monitor`. 
-```yaml
-app_service:
-  enabled: true
-  apps:
-  - name: Grafana
-    uri: "app.example.com:3000"
-    labels:
-      env: monitor
-```
+![Grafana app enrolled in Teleport](../../../img/igs/entraid/entra-teleport-grafana-app.png)
 
 We will have two user groups created in Entra ID: `ad-app-admin` and 
-`ad-app-support`. We want members of these groups to have long-term and 
-short-term access to Grafana respectively.
+`ad-app-support`. We want members of these groups to have a permanent 
+access and an ability to request access to Grafana respectively. You 
+may use an existing Entra ID groups.
 
-We will then create two roles in Teleport. One will allow access to Grafana application while 
-the other role will allow requesting access to the role that grants access to Grafana application.
+We will then create two roles in Teleport. One will allow access to Grafana 
+application while the other role will allow requesting access to the role that 
+grants access to Grafana application. 
 
-These roles will then be assigned to the Access List to grant roles to the Entra ID imported groups. 
+These roles will then be assigned to the Access List to grant roles and traits 
+to the Entra ID imported groups. 
 
 ![Entra ID to Teleport role mapping](../../../img/igs/entraid/entra-teleport-role-mapping.png)
 
@@ -51,6 +47,11 @@ read and write Auth Connector, plugins, roles and Access Lists.
 [resource](../../enroll-resources/enroll-resources.mdx) type to get started. 
 
 ## Step 1/4. Create groups in Entra ID
+
+<Admonition type="info" title="New Group">
+  You may skip this step if you are using an existing Entra ID 
+  groups to follow through this guide.
+</Admonition>
 
 In the Azure portal, select the "Groups" menu under "Azure services". 
 
@@ -67,8 +68,7 @@ group members as an Access List member.
 
 ## Step 2/4. Create roles in Teleport
 
-First, create a [templated role](../../zero-trust-access/access-controls/guides/role-templates.mdx)
-that grants access to Grafana. 
+First, create a role template that grants access to Grafana. 
 
 In the Teleport Web UI, from side navigation menu, select "Zero Trust Access > Roles".
 From the "Roles" UI, click "Create New Role" button. Switch to the YAML editor.
@@ -77,29 +77,28 @@ From the "Roles" UI, click "Create New Role" button. Switch to the YAML editor.
 Copy the role spec shown below and paste it in the role editor to create a new role.
 ```yaml
 kind: role
+version: v8
 metadata:
   name: app-monitor
 spec:
   allow:
     app_labels:
       env: '{{external.apps}}'
-  deny: {}
-  options:
-    cert_format: standard
-    enhanced_recording:
-    - command
-    - network
-    record_session:
-      default: best_effort
-version: v8
 ```
 
-Here's what defined in the role spec-  we name this role as "app-monitor". 
 The role is configured with allowed `app_labels` that matches 
 label key `env` and a label value `'{{external.apps}}'`, which will be derived from 
 user's `apps` trait. As long as the label value configured in the application resource 
 label, and the value configured in the user `apps` trait matches, this role will grant 
 access to that application. 
+
+Using trait template to define label makes this role scalable as user traits are dynamically
+configurable.
+
+When user authenticates with Entra ID, the SAML attributes (or claims if you are using OIDC) 
+that are available in the user SSO response are preserved as user traits. Additionally, you 
+can also grant traits to user using Access List. As you will see in the next step below, 
+this guide will use Access List to grant trait to the user.
 
 
 Repeat the role creation step in the UI to create another role that allows 
@@ -108,6 +107,7 @@ requesting access to the `app-monitor` role.
 We name this role as `support-team`.
 ```yaml
 kind: role
+version: v8
 metadata:
   name: support-team
 spec:
@@ -115,15 +115,6 @@ spec:
     request: 
       roles: 
         - app-monitor
-  deny: {}
-  options:
-    cert_format: standard
-    enhanced_recording:
-    - command
-    - network
-    record_session:
-      default: best_effort
-version: v8
 ```
 
 <Admonition type="tip" title="Role resource label">
@@ -133,7 +124,7 @@ version: v8
   rule if you are following through this guide with a different kind of resource.  
 </Admonition>
 
-## Step 3/4 Create Nested Access List to grant role and trait
+## Step 3/4. Create a Nested Access List
 
 Assuming Teleport has already imported new groups we created in Entra ID, 
 we will now create new Access Lists for short-term (Just-In-Time) 
@@ -172,6 +163,6 @@ Effectively, allowing its members to access resource application resource by the
 
 ## Next steps
 
-- Learn more about [Access List](../access-lists/access-lists.mdx) management.
+- Learn more about [Access List](../access-lists/access-lists.mdx) and [Nested Access List](../access-lists/nested-access-lists.mdx) management.
 - Learn more about [Role and Resource Access Request](../access-requests/access-requests.mdx).
 - Learn more about [role templates](../../zero-trust-access/access-controls/guides/role-templates.mdx).
