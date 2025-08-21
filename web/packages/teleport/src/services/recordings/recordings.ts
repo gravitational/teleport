@@ -20,7 +20,11 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeRecording } from './makeRecording';
-import { RecordingsQuery, RecordingsResponse } from './types';
+import type {
+  RecordingsQuery,
+  RecordingsResponse,
+  SessionRecordingThumbnail,
+} from './types';
 
 export default class RecordingsService {
   maxFetchLimit = 5000;
@@ -52,4 +56,23 @@ export default class RecordingsService {
   ): Promise<{ durationMs: number; recordingType: string }> {
     return api.get(cfg.getSessionDurationUrl(clusterId, sessionId));
   }
+}
+
+interface FetchRecordingThumbnailVariables {
+  clusterId: string;
+  sessionId: string;
+}
+
+export async function fetchRecordingThumbnail(
+  { clusterId, sessionId }: FetchRecordingThumbnailVariables,
+  signal?: AbortSignal
+): Promise<SessionRecordingThumbnail> {
+  const url = cfg.getSessionRecordingThumbnailUrl(clusterId, sessionId);
+  const response = await api.get(url, signal);
+
+  if (!response) {
+    throw new Error('Failed to fetch recording thumbnail');
+  }
+
+  return response as SessionRecordingThumbnail;
 }

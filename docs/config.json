@@ -17,8 +17,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.5.6",
-      "major_version": "17",
+      "version": "18.1.4",
+      "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -97,7 +97,7 @@
   "redirects": [
     {
       "source": "/admin-guides/access-controls/guides/moderated-sessions/",
-      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/authentication/joining-sessions/",
       "permanent": true
     },
     {
@@ -172,7 +172,7 @@
     },
     {
       "source": "/access-controls/guides/role-templates/",
-      "destination": "/zero-trust-access/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/rbac-get-started/role-templates/",
       "permanent": true
     },
     {
@@ -182,7 +182,7 @@
     },
     {
       "source": "/access-controls/guides/headless/",
-      "destination": "/zero-trust-access/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/authentication/headless/",
       "permanent": true
     },
     {
@@ -248,6 +248,11 @@
     {
       "source": "/upgrading/automatic-agent-updates/",
       "destination": "/upgrading/agent-managed-updates-v1/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/upgrading-reference/",
+      "destination": "/upgrading/upgrading-manual/",
       "permanent": true
     },
     {
@@ -1057,72 +1062,72 @@
     },
     {
       "source": "/admin-guides/access-controls/",
-      "destination": "/zero-trust-access/access-controls/",
+      "destination": "/zero-trust-access/authentication/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/getting-started/",
-      "destination": "/zero-trust-access/access-controls/getting-started/",
+      "destination": "/zero-trust-access/rbac-get-started/role-demo/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/dual-authz/",
-      "destination": "/zero-trust-access/access-controls/guides/dual-authz/",
+      "destination": "/identity-governance/access-requests/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/",
-      "destination": "/zero-trust-access/access-controls/guides/",
+      "destination": "/zero-trust-access/authentication/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/hardware-key-support/",
-      "destination": "/zero-trust-access/access-controls/guides/hardware-key-support/",
+      "destination": "/zero-trust-access/authentication/hardware-key-support/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/headless/",
-      "destination": "/zero-trust-access/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/authentication/headless/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/impersonation/",
-      "destination": "/zero-trust-access/access-controls/guides/impersonation/",
+      "destination": "/zero-trust-access/authentication/impersonation/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/ip-pinning/",
-      "destination": "/zero-trust-access/access-controls/guides/ip-pinning/",
+      "destination": "/zero-trust-access/authentication/ip-pinning/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/joining-sessions/",
-      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/authentication/joining-sessions/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/mfa-for-admin-actions/",
-      "destination": "/zero-trust-access/access-controls/guides/mfa-for-admin-actions/",
+      "destination": "/zero-trust-access/authentication/mfa-for-admin-actions/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/passwordless/",
-      "destination": "/zero-trust-access/access-controls/guides/passwordless/",
+      "destination": "/zero-trust-access/authentication/passwordless/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/per-session-mfa/",
-      "destination": "/zero-trust-access/access-controls/guides/per-session-mfa/",
+      "destination": "/zero-trust-access/authentication/per-session-mfa/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/role-templates/",
-      "destination": "/zero-trust-access/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/rbac-get-started/role-templates/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/webauthn/",
-      "destination": "/zero-trust-access/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/authentication/webauthn/",
       "permanent": true
     },
     {
@@ -1152,12 +1157,12 @@
     },
     {
       "source": "/admin-guides/access-controls/login-rules/guide/",
-      "destination": "/zero-trust-access/access-controls/login-rules/guide/",
+      "destination": "/zero-trust-access/authentication/login-rules/guide/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/login-rules/",
-      "destination": "/zero-trust-access/access-controls/login-rules/",
+      "destination": "/zero-trust-access/authentication/login-rules/",
       "permanent": true
     },
     {
@@ -1292,7 +1297,7 @@
     },
     {
       "source": "/admin-guides/management/admin/labels/",
-      "destination": "/zero-trust-access/management/admin/labels/",
+      "destination": "/zero-trust-access/rbac-get-started/labels/",
       "permanent": true
     },
     {
@@ -1543,6 +1548,91 @@
     {
       "source": "/admin-guides/migrate-plans/",
       "destination": "/migrate-plans/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/",
+      "destination": "/zero-trust-access/authentication/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/",
+      "destination": "/zero-trust-access/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/getting-started/",
+      "destination": "/zero-trust-access/authentication/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/dual-authz/",
+      "destination": "/zero-trust-access/authentication/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/hardware-key-support/",
+      "destination": "/zero-trust-access/authentication/hardware-key-support/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/authentication/headless/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/impersonation/",
+      "destination": "/zero-trust-access/authentication/impersonation/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/ip-pinning/",
+      "destination": "/zero-trust-access/authentication/ip-pinning/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/authentication/joining-sessions/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/mfa-for-admin-actions/",
+      "destination": "/zero-trust-access/authentication/mfa-for-admin-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/passwordless/",
+      "destination": "/zero-trust-access/authentication/passwordless/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/per-session-mfa/",
+      "destination": "/zero-trust-access/authentication/per-session-mfa/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/rbac-get-started/role-templates/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/authentication/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/login-rules/guide/",
+      "destination": "/zero-trust-access/authentication/login-rules/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/login-rules/",
+      "destination": "/zero-trust-access/authentication/login-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/labels/",
+      "destination": "/zero-trust-access/rbac-get-started/labels/",
       "permanent": true
     }
   ]

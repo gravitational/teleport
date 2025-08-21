@@ -39,9 +39,9 @@ type UploadHandler interface {
 	// DownloadSummary downloads a session summary and writes it to a writer.
 	DownloadSummary(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
 	// UploadMetadata uploads session metadata and returns a URL with the uploaded
-	// file in case of success. Session metadata is a [recordingmetadatav1.SessionRecordingMetadataWithFrames]
+	// file in case of success. Session metadata is a file with a [recordingmetadatav1.SessionRecordingMetadata]
 	// protobuf message containing info about the session (duration, events, etc), as well as
-	// captured frames (thumbnails).
+	// multiple [recordingmetadatav1.SessionRecordingThumbnail] messages (thumbnails).
 	UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	// DownloadMetadata downloads session metadata and writes it to a writer.
 	DownloadMetadata(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
