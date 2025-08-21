@@ -40,44 +40,23 @@ export function ViewSessionRecordingRoute({
     document.title = `Play ${sid} • ${clusterId}`;
   }, [sid, clusterId]);
 
-  if (recordingType === 'ssh') {
-    // If the recording type is SSH, try to load the session metadata (ViewTerminalRecording)
-    // and render the SSH player with the session metadata/summary.
-    // If that errors (such as during a proxy upgrade), we fall back to the
-    // RecordingPlayerWrapper which will fetch the session duration and render the player.
-    // This is to ensure that the player can still be rendered even if the session metadata
-    // cannot be fetched, allowing users to still view the recording.
-
-    return (
-      <Suspense fallback={<RecordingPlayerLoading />}>
-        <ErrorBoundary
-          fallback={
-            <ErrorBoundary fallback={<RecordingPlayerError />}>
-              <RecordingPlayerWithLoadDuration
-                clusterId={clusterId}
-                sessionId={sid}
-              />
-            </ErrorBoundary>
-          }
-        >
-          <RecordingWithMetadata
-            clusterId={clusterId}
-            sessionId={sid}
-            summarySlot={summarySlot}
-          />
-        </ErrorBoundary>
-      </Suspense>
-    );
-  }
-
   const validRecordingType = validRecordingTypes.includes(recordingType);
   const durationMs = Number(getUrlParameter('durationMs', search));
   const validDuration = Number.isInteger(durationMs) && durationMs > 0;
 
   const shouldFetchSessionDuration = !validRecordingType || !validDuration;
 
+  let player = (
+    <RecordingPlayer
+      clusterId={clusterId}
+      sessionId={sid}
+      durationMs={durationMs}
+      recordingType={recordingType}
+    />
+  );
+
   if (shouldFetchSessionDuration) {
-    return (
+    player = (
       <ErrorSuspenseWrapper
         errorComponent={RecordingPlayerError}
         loadingComponent={RecordingPlayerLoading}
@@ -90,14 +69,28 @@ export function ViewSessionRecordingRoute({
     );
   }
 
-  return (
-    <RecordingPlayer
-      clusterId={clusterId}
-      sessionId={sid}
-      durationMs={durationMs}
-      recordingType={recordingType}
-    />
-  );
+  if (recordingType === 'ssh') {
+    // If the recording type is SSH, try to load the session metadata (ViewTerminalRecording)
+    // and render the SSH player with the session metadata/summary.
+    // If that errors (such as during a proxy upgrade), we fall back to the
+    // RecordingPlayerWrapper which will fetch the session duration and render the player.
+    // This is to ensure that the player can still be rendered even if the session metadata
+    // cannot be fetched, allowing users to still view the recording.
+
+    return (
+      <Suspense fallback={<RecordingPlayerLoading />}>
+        <ErrorBoundary fallback={player}>
+          <RecordingWithMetadata
+            clusterId={clusterId}
+            sessionId={sid}
+            summarySlot={summarySlot}
+          />
+        </ErrorBoundary>
+      </Suspense>
+    );
+  }
+
+  return player;
 }
 
 function RecordingPlayerLoading() {

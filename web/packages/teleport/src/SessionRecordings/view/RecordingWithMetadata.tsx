@@ -139,7 +139,7 @@ export function RecordingWithMetadata({
   }, []);
 
   const summary = useMemo(
-    () => summarySlot(sessionId),
+    () => (summarySlot ? summarySlot(sessionId) : null),
     [summarySlot, sessionId]
   );
 
@@ -184,13 +184,11 @@ export function RecordingWithMetadata({
             <InfoGrid>
               <InfoGridLabel>User</InfoGridLabel>
 
-              <div>{formatSessionRecordingDuration(data.metadata.user)}</div>
+              <div>{data.metadata.user}</div>
 
               <InfoGridLabel>Resource</InfoGridLabel>
 
-              <div>
-                {formatSessionRecordingDuration(data.metadata.resource)}
-              </div>
+              <div>{data.metadata.resource}</div>
 
               <InfoGridLabel>Duration</InfoGridLabel>
 
