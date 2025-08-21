@@ -28,11 +28,13 @@ import (
 )
 
 func TestDestinationKubernetesSecret(t *testing.T) {
-	t.Setenv("POD_NAMESPACE", "test-namespace")
+	defaultNamespace := "test-namespace"
+	t.Setenv("POD_NAMESPACE", defaultNamespace)
 
 	tests := []struct {
-		name string
-		dest *SecretDestination
+		name          string
+		dest          *SecretDestination
+		wantNamespace string
 
 		wantErr string
 	}{
@@ -42,6 +44,16 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 				Name: "my-secret",
 				k8s:  fake.NewClientset(),
 			},
+			wantNamespace: defaultNamespace,
+		},
+		{
+			name: "no existing secret with explicit namespace",
+			dest: &SecretDestination{
+				Name:      "my-secret",
+				Namespace: "my-other-namespace",
+				k8s:       fake.NewClientset(),
+			},
+			wantNamespace: "my-other-namespace",
 		},
 		{
 			name: "labels",
@@ -53,6 +65,7 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 				},
 				k8s: fake.NewClientset(),
 			},
+			wantNamespace: defaultNamespace,
 		},
 		{
 			name: "existing secret",
@@ -65,6 +78,7 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 					},
 				}),
 			},
+			wantNamespace: defaultNamespace,
 		},
 	}
 	for _, tt := range tests {
@@ -96,7 +110,9 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 			require.Equal(t, []byte("data-d"), bData)
 
 			// Check labels have been set
-			secret, err := tt.dest.k8s.CoreV1().Secrets("test-namespace").Get(ctx, tt.dest.Name, metav1.GetOptions{})
+			secret, err := tt.dest.k8s.CoreV1().
+				Secrets(tt.wantNamespace).
+				Get(ctx, tt.dest.Name, metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, tt.dest.Labels, secret.Labels)
 		})
@@ -129,7 +145,11 @@ func TestDestinationKubernetesSecret_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: &SecretDestination{
-				Name: "my-secret",
+				Name:      "my-secret",
+				Namespace: "my-namespace",
+				Labels: map[string]string{
+					"key": "value",
+				},
 			},
 		},
 	}
@@ -137,5 +157,9 @@ func TestDestinationKubernetesSecret_YAML(t *testing.T) {
 }
 
 func TestDestinationKubernetesSecret_String(t *testing.T) {
-	require.Equal(t, "kubernetes_secret: my-secret", (&SecretDestination{Name: "my-secret"}).String())
+	require.Equal(
+		t,
+		"kubernetes_secret: foo/my-secret",
+		(&SecretDestination{Namespace: "foo", Name: "my-secret"}).String(),
+	)
 }

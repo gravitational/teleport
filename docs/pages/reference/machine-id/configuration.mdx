@@ -1341,8 +1341,19 @@ Configuration:
 # destination, this will always be `kubernetes_secret`.
 type: kubernetes_secret
 # name specifies the name of the Kubernetes Secret to write the artifacts to.
-# This must be in the same namespace that `tbot` is running in.
 name: my-secret
+# namespace specifies the Kubernetes namespace that the secret should be written
+# to. If unspecified, this defaults to the value of the `POD_NAMESPACE`
+# environment variable.
+#
+# When using the Helm chart, and specifying a namespace other than the one that
+# `tbot` is running in, you must manually grant the `tbot` service account
+# privileges to read and write to secrets in that namespace.
+namespace:
+# labels specifies the labels to apply to the Kubernetes Secret. This field is
+# optional.
+labels:
+  example: "foo"
 ```
 
 ## Bot resource

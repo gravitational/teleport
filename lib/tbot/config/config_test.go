@@ -168,11 +168,15 @@ func TestDestinationFromURI(t *testing.T) {
 			},
 		},
 		{
-			in: "kubernetes-secret://my-secret",
-			want: &k8s.SecretDestination{
-				Name: "my-secret",
-			},
+			in:      "kubernetes-secret://my-secret",
 			wantErr: true,
+		},
+		{
+			in: "kubernetes-secret://my-namespace/my-secret",
+			want: &k8s.SecretDestination{
+				Name:      "my-secret",
+				Namespace: "my-namespace",
+			},
 		},
 	}
 	for _, tt := range tests {
