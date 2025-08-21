@@ -30,6 +30,11 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 func TestMigrate(t *testing.T) {
@@ -133,48 +138,48 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/path/destination",
 						},
 						Roles: []string{"foo"},
 					},
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination:           &destination.Memory{},
 						AppName:               "my-app",
 						SpecificTLSExtensions: true,
 					},
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination: &destination.Memory{},
 						AppName:     "my-app",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination:       &destination.Memory{},
 						KubernetesCluster: "my-kubernetes-cluster",
 					},
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Database:    "the-db",
 						Username:    "alice",
-						Format:      UnspecifiedDatabaseFormat,
+						Format:      database.UnspecifiedDatabaseFormat,
 					},
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Memory{},
 						Service:     "my-db-service",
-						Format:      MongoDatabaseFormat,
+						Format:      database.MongoDatabaseFormat,
 					},
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Memory{},
 						Service:     "my-db-service",
-						Format:      TLSDatabaseFormat,
+						Format:      database.TLSDatabaseFormat,
 					},
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Memory{},
 						Service:     "my-db-service",
-						Format:      CockroachDatabaseFormat,
+						Format:      database.CockroachDatabaseFormat,
 					},
-					&SSHHostOutput{
+					&ssh.HostOutputConfig{
 						Destination: &destination.Memory{},
 						Roles:       []string{"foo"},
 						Principals:  []string{"example.com", "second.example.com"},
@@ -213,7 +218,7 @@ destinations:
 					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
@@ -254,7 +259,7 @@ destinations:
 					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
@@ -296,7 +301,7 @@ destinations:
 					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
@@ -338,7 +343,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -381,7 +386,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -431,11 +436,11 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
-						Format:   MongoDatabaseFormat,
+						Format:   database.MongoDatabaseFormat,
 						Service:  "example-server",
 						Username: "alice",
 						Database: "example",
@@ -481,11 +486,11 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
-						Format:   CockroachDatabaseFormat,
+						Format:   database.CockroachDatabaseFormat,
 						Service:  "example-server",
 						Username: "alice",
 						Database: "example",
@@ -531,11 +536,11 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
-						Format:   TLSDatabaseFormat,
+						Format:   database.TLSDatabaseFormat,
 						Service:  "example-server",
 						Username: "alice",
 						Database: "example",
@@ -591,7 +596,7 @@ oneshot: false
 					},
 				},
 				Services: ServiceConfigs{
-					&SSHHostOutput{
+					&ssh.HostOutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -631,7 +636,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -674,7 +679,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -715,7 +720,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -785,14 +790,14 @@ destinations:
 				},
 				Debug: true,
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path:     "/opt/machine-id",
 							Symlinks: botfs.SymlinksInsecure,
 							ACLs:     botfs.ACLOff,
 						},
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path:     "/opt/machine-id/tools",
 							Symlinks: botfs.SymlinksInsecure,
@@ -825,7 +830,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path:     "/var/tmp/machine-id",
 							Symlinks: botfs.SymlinksInsecure,
@@ -864,7 +869,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -907,7 +912,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -965,35 +970,35 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-global",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-global",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-au",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-au",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-eu2",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-eu2",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-ca",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-ca",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-us",
 							ACLs: botfs.ACLOff,
@@ -1045,21 +1050,21 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/path/to/role1_creds",
 							ACLs: botfs.ACLRequired,
 						},
 						Roles: []string{"role1"},
 					},
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/path/to/role2_creds",
 							ACLs: botfs.ACLRequired,
 						},
 						Roles: []string{"role2"},
 					},
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/path/to/roleN_creds",
 							ACLs: botfs.ACLRequired,

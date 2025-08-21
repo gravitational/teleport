@@ -18,6 +18,7 @@
 
 import compare from 'semver/functions/compare';
 import major from 'semver/functions/major';
+import parse from 'semver/functions/parse';
 
 // Re-export specific functions from `semver/functions/*` to avoid bundling
 // the full semver package.
@@ -27,4 +28,5 @@ export {
   /** @deprecated Import `compare` from `shared/utils/semver`. */
   compare as compareSemVers,
   major,
+  parse,
 };

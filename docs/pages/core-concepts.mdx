@@ -122,7 +122,7 @@ their access control strategy, ensuring only trusted devices are allowed to conn
 Provides internal diagnostics, exposing metrics, performance profiling tools, and debugging endpoints. 
 It is designed for measuring performance, troubleshooting scenarios, and enabling operators to change the logging level without restarting teleport. 
 This can be helpful for analyzing bottlenecks, or diagnosing unexpected behavior in a controlled environment. The debug service is exposed locally by default.
-[Read more about the Debug Service](./admin-guides/management/admin/troubleshooting.mdx#step-13-enable-verbose-logging).
+[Read more about the Debug Service](zero-trust-access/management/admin/troubleshooting.mdx#step-13-enable-verbose-logging).
 
 ## Agent
 
@@ -180,7 +180,7 @@ advanced security needs, such as support for Federal Information Processing
 Standards (FIPS) and a hardware security module (HSM). Teleport Enterprise
 includes a support agreement with Teleport.
 
-[Read the documentation](admin-guides/deploy-a-cluster/deploy-a-cluster.mdx) on
+[Read the documentation](zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) on
 self-hosting Teleport.
 
 ### Teleport Community Edition
@@ -203,7 +203,7 @@ privileges within a cluster. Teleport's role-based access control (RBAC) is
 restrictive by default, and a user needs explicit permissions before they can
 access a resource or perform management tasks on a cluster.
 
-Read our [guide to Teleport roles](admin-guides/access-controls/guides/role-templates.mdx).
+Read our [guide to Teleport roles](zero-trust-access/rbac-get-started/role-templates.mdx).
 
 ### Teleport users
 
@@ -243,7 +243,7 @@ users, roles, and resources, but the trust relationship allows users with certai
 in the root cluster to be mapped to roles and permissions defined in the leaf cluster.
 
 For more information about how to configure a trust relationship between clusters,
-see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx). For an overview of the architecture used in a trusted cluster relationship, see [Trusted Cluster Architecture](reference/architecture/trustedclusters.mdx).
+see [Configure Trusted Clusters](zero-trust-access/management/admin/trustedclusters.mdx). For an overview of the architecture used in a trusted cluster relationship, see [Trusted Cluster Architecture](reference/architecture/trustedclusters.mdx).
 
 ## Teleport clients
 
@@ -267,7 +267,7 @@ servers, databases, applications, and desktops. It's ideal for engineers who pre
 ### Teleport Kubernetes Operator
 
 The Teleport Kubernetes Operator is a controller that runs in your Kubernetes cluster to automate the configuration of Teleport resources, 
-such as users, roles, and access requests, using Kubernetes custom resources.
+such as users, roles, and Access Requests, using Kubernetes custom resources.
 
 ### Teleport Terraform Provider
 

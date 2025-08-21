@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"runtime"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -40,7 +41,15 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/example"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -110,6 +119,10 @@ func (b *Bot) getClient() *apiclient.Client {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+	b.log.InfoContext(
+		ctx, "Initializing tbot",
+		"version", versionLogValue(),
+	)
 
 	if err := metrics.RegisterPrometheusCollectors(
 		metrics.BuildCollector(),
@@ -201,42 +214,41 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	for _, svcCfg := range b.cfg.Services {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
-		case *config.SPIFFEWorkloadAPIService:
-			b.log.WarnContext(
-				ctx,
-				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-			)
-			services = append(services, SPIFFEWorkloadAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
-		case *config.DatabaseTunnelService:
-			services = append(services, DatabaseTunnelServiceBuilder(b.cfg, svcCfg))
-		case *config.ExampleService:
-			services = append(services, bot.LiteralService(&ExampleService{cfg: svcCfg}))
-		case *config.SSHMultiplexerService:
-			services = append(services, SSHMultiplexerServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
-		case *config.KubernetesOutput:
-			services = append(services, KubernetesOutputServiceBuilder(b.cfg, svcCfg))
-		case *config.KubernetesV2Output:
-			services = append(services, KubernetesV2OutputServiceBuilder(b.cfg, svcCfg))
-		case *config.SPIFFESVIDOutput:
-			services = append(services, SPIFFESVIDOutputServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
-		case *config.SSHHostOutput:
-			services = append(services, SSHHostOutputServiceBuilder(b.cfg, svcCfg))
-		case *config.ApplicationOutput:
-			services = append(services, ApplicationOutputServiceBuilder(b.cfg, svcCfg))
-		case *config.DatabaseOutput:
-			services = append(services, DatabaseOutputServiceBuider(b.cfg, svcCfg))
-		case *config.IdentityOutput:
-			services = append(services, IdentityOutputServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
-		case *config.UnstableClientCredentialOutput:
-			services = append(services, ClientCredentialOutputServiceBuilder(b.cfg, svcCfg))
-		case *config.ApplicationTunnelService:
-			services = append(services, ApplicationTunnelServiceBuilder(b.cfg, svcCfg))
-		case *config.WorkloadIdentityX509Service:
-			services = append(services, WorkloadIdentityX509ServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
-		case *config.WorkloadIdentityJWTService:
-			services = append(services, WorkloadIdentityJWTServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
-		case *config.WorkloadIdentityAPIService:
-			services = append(services, WorkloadIdentityAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
+		case *database.TunnelConfig:
+			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+		case *example.Config:
+			services = append(services, example.ServiceBuilder(svcCfg))
+		case *ssh.MultiplexerConfig:
+			services = append(services, ssh.MultiplexerServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, clientMetrics))
+		case *k8s.OutputV1Config:
+			services = append(services, k8s.OutputV1ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
+		case *k8s.OutputV2Config:
+			services = append(services, k8s.OutputV2ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
+		case *k8s.ArgoCDOutputConfig:
+			services = append(services, k8s.ArgoCDServiceBuilder(
+				svcCfg,
+				k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
+				k8s.WithInsecure(b.cfg.ConnectionConfig().Insecure),
+				k8s.WithALPNUpgradeCache(alpnUpgradeCache),
+			))
+		case *ssh.HostOutputConfig:
+			services = append(services, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+		case *application.OutputConfig:
+			services = append(services, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+		case *database.OutputConfig:
+			services = append(services, database.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+		case *identitysvc.OutputConfig:
+			services = append(services, identitysvc.OutputServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.CredentialLifetime, b.cfg.Insecure, b.cfg.FIPS))
+		case *clientcredentials.UnstableConfig:
+			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+		case *application.TunnelConfig:
+			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+		case *workloadidentitysvc.X509OutputConfig:
+			services = append(services, workloadidentitysvc.X509OutputServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
+		case *workloadidentitysvc.JWTOutputConfig:
+			services = append(services, workloadidentitysvc.JWTOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
+		case *workloadidentitysvc.WorkloadAPIConfig:
+			services = append(services, workloadidentitysvc.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *awsra.Config:
 			services = append(services, awsra.ServiceBuilder(svcCfg))
 		default:
@@ -363,4 +375,12 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	return nil
+}
+
+func versionLogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("teleport", teleport.Version),
+		slog.String("teleport_git", teleport.Gitref),
+		slog.String("go", runtime.Version()),
+	)
 }

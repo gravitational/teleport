@@ -70,10 +70,10 @@ func newAppCollection(upstream services.Applications, w types.WatchKind) (*colle
 
 // Apps returns application resources within the range [start, end).
 func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	ctx, span := c.Tracer.Start(ctx, "cache/Apps")
-	defer span.End()
-
 	return func(yield func(types.Application, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/Apps")
+		defer span.End()
+
 		rg, err := acquireReadGuard(c, c.collections.apps)
 		if err != nil {
 			yield(nil, err)

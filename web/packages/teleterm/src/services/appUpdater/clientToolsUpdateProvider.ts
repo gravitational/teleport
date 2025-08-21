@@ -68,7 +68,7 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
     }
 
     const { baseUrl, version } = clientTools;
-    const fileUrl = `https://${baseUrl}/${makeDownloadFilename(this.nativeUpdater, version)}`;
+    const fileUrl = `${baseUrl}/${makeDownloadFilename(this.nativeUpdater, version)}`;
     const sha512 = await fetchChecksum(fileUrl);
 
     return {
@@ -138,7 +138,8 @@ async function fetchChecksum(fileUrl: string): Promise<string> {
       `Could not retrieve checksum from "${response.url}" (${response.status} ${response.statusText}).`
     );
   }
-  const checksumText = await response.text();
+  // Trim the response which ends with a new line.
+  const checksumText = (await response.text()).trim();
   if (!CHECKSUM_FORMAT.test(checksumText)) {
     throw new Error(`Invalid checksum format ${checksumText}`);
   }

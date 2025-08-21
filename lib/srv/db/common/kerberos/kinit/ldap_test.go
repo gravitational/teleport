@@ -90,6 +90,8 @@ func (m *mockAuthClient) GetClusterName(ctx context.Context) (types.ClusterName,
 func TestTLSConfigForLDAP(t *testing.T) {
 	auth := &mockAuthClient{
 		generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+			require.NotEmpty(t, request.CRLDomain)
+
 			csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
 			if err != nil {
 				return nil, trace.Wrap(err)

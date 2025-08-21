@@ -795,6 +795,8 @@ func TestApplyConfig(t *testing.T) {
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
+	require.Equal(t, 7*time.Minute+35*time.Second, cfg.ShutdownDelay)
+
 	u2fCAFromFile, err := os.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
@@ -1418,6 +1420,8 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 	require.Equal(t, "xxxyyy", conf.AuthToken)
 	require.Equal(t, "10.10.10.1:3022", conf.AdvertiseIP)
 	require.Equal(t, "/var/run/teleport.pid", conf.PIDFile)
+
+	require.Zero(t, conf.ShutdownDelay)
 
 	require.Empty(t, cmp.Diff(conf.Limits, ConnectionLimits{
 		MaxConnections: 90,
@@ -2954,6 +2958,46 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "AlloyDB database",
+			inFlags: CommandLineFlags{
+				DatabaseName:     "alloydb",
+				DatabaseProtocol: defaults.ProtocolPostgres,
+				DatabaseURI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "AlloyDB database with public endpoint type",
+			inFlags: CommandLineFlags{
+				DatabaseName:                   "alloydb",
+				DatabaseProtocol:               defaults.ProtocolPostgres,
+				DatabaseURI:                    "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				DatabaseGCPAlloyDBEndpointType: "public",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				GCP: servicecfg.DatabaseGCP{
+					AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+						EndpointType: "public",
+					},
+				},
 			},
 		},
 		{

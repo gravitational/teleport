@@ -143,7 +143,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 
-	uploadPath := h.path(upload.SessionID)
+	uploadPath := h.recordingPath(upload.SessionID)
 
 	// Prevent other processes from accessing this file until the write is completed
 	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
@@ -414,6 +414,12 @@ const (
 	partExt = ".part"
 	// tarExt is a suffix for file uploads
 	tarExt = ".tar"
+	// summaryExt is a suffix for summary files
+	summaryExt = ".summary.json"
+	// metadataExt is a suffix for session metadata files
+	metadataExt = ".metadata"
+	// thumbnailExt is a suffix for session thumbnails
+	thumbnailExt = ".thumbnail"
 	// checkpointExt is a suffix for checkpoint extensions
 	checkpointExt = ".checkpoint"
 	// errorExt is a suffix for files storing session errors

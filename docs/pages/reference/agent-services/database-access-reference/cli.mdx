@@ -182,7 +182,7 @@ configuring the Database Service with self-hosted database instances.
 <Admonition type="note" title="Note">
   For database formats, `tctl` must be run on an Auth Service host or the remote
   user must be be able to impersonate the built-in `Db` role and user. See the
-  [impersonation guide](../../../admin-guides/access-controls/guides/impersonation.mdx)
+  [impersonation guide](../../../zero-trust-access/authentication/impersonation.mdx)
   for details on how to allow impersonation.
 </Admonition>
 
@@ -394,6 +394,8 @@ $ tsh db exec "select 1" --db-user mysql --labels env=dev --parallel=5 --output-
   database CLI clients (`psql`, `mysql`) should be available in PATH.
 </Admonition>
 
+{/* vale messaging.capitalization = NO */}
+
 | Flag | Description |
 | - | - |
 | `--db-user` | The database user to log in as. |
@@ -404,6 +406,8 @@ $ tsh db exec "select 1" --db-user mysql --labels env=dev --parallel=5 --output-
 | `--labels` | List of comma separated labels to filter by labels (e.g. `key1=value1,key2=value2`). |
 | `--output-dir` | Directory to store command output per target database service. A summary is saved as "summary.json". |
 | `--[no-]confirm` | Confirm selected database services before executing command. |
+
+{/* vale messaging.capitalization = YES */}
 
 ## tsh db env
 

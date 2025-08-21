@@ -1882,12 +1882,6 @@ func TestUpdater_Install(t *testing.T) {
 			require.Equal(t, tt.selinuxRemovals, selinuxRemovals)
 			require.Equal(t, tt.restarted, restarted)
 
-			if tt.cfg == nil && err != nil {
-				_, err := os.Stat(cfgPath)
-				require.Error(t, err)
-				return
-			}
-
 			data, err := os.ReadFile(cfgPath)
 			require.NoError(t, err)
 			data = blankTestAddr(data)

@@ -17,6 +17,20 @@ Community Edition will not allow connections to any of them.
 
 Teleport Enterprise users can have unlimited number of desktops.
 
+## How it works
+
+The Teleport Desktop Service proxies traffic between the Teleport Proxy Service
+and remote Windows desktops in your infrastructure. Teleport users connect to a
+Windows desktop using Teleport Connect or the Teleport Web UI. These graphical
+clients use the proprietary Teleport Desktop Protocol to send traffic to and
+receive traffic from the Teleport Desktop Service, which converts TDP messages
+to and from Remote Desktop Protocol messages.
+
+To access a remote desktop, a Teleport user must have a role with the
+appropriate permissions for that desktop. An administrator configures the
+desktop to trust the Teleport certificate authority, and the Windows Desktop
+Service uses certificate-based authentication to access the desktop.
+
 ## Prerequisites
 
 To complete the steps in this guide, verify your environment meets the following requirements:
@@ -304,6 +318,6 @@ Windows login to use for the connection.
 ## Next steps
 
 For more general information about how to create, assign, and update roles, see [Access Controls
-Getting Started](../../admin-guides/access-controls/getting-started.mdx).
+Getting Started](../../zero-trust-access/rbac-get-started/role-demo.mdx).
 For more specific information about configuring Windows-specific role permissions, see
 [Role-Based Access Control for Desktops](./rbac.mdx).

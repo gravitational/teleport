@@ -20,7 +20,7 @@ version. Teleport Connect supports macOS, Linux, and Windows.
 <TabItem label="macOS">
 Double-click the downloaded `.dmg` file and drag the Teleport Connect icon to the Applications folder.
 
-To upgrade Teleport Connect to a newer version, drag the new version to the Applications folder.
+To manually upgrade Teleport Connect to a newer version, drag the new version to the Applications folder.
 </TabItem>
 <TabItem label="Linux">
 Download the DEB (Debian-based distros) or RPM (RHEL-based distros) package and install it using
@@ -57,6 +57,87 @@ When upgrading to 17.3.0+ from an older version, the installer will
 automatically handle the migration to a per-machine installation.
 
 </TabItem>
+</Tabs>
+
+### Managed updates
+
+Teleport Connect supports [Teleport Client Tool Managed Updates](../upgrading/client-tools-managed-updates.mdx).
+When enabled in your cluster, the app checks for available updates at login,
+downloads them automatically, and prompts you to restart. On Windows and Linux,
+you may be asked to provide administrator credentials to complete the installation.
+
+You can also check for updates manually via "Check for Updates…" in the
+additional actions menu.
+
+<Admonition
+  type="warning"
+  title="Note"
+>
+  To use managed updates on Linux, make sure the app was installed with a package
+  manager. The `.tar.gz` distribution is not compatible with managed updates.
+</Admonition>
+
+#### Multiple clusters
+
+If you are connected to multiple clusters, Teleport Connect selects the highest client
+version that is compatible across all clusters according to [Teleport component compatibility rules](../upgrading/overview.mdx#component-compatibility).
+If clusters require incompatible versions, or if you want a different cluster
+to manage updates, you can manually choose the cluster in the
+"Check for Updates…" dialog, available in the additional actions menu.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  Multi-cluster support differs between Teleport Connect and the tsh/tctl CLI tools.
+  The CLI tools can switch versions on the fly to match the one required by each cluster.
+  Teleport Connect, as an installed desktop application, can only run a single version at a time.
+</Admonition>
+
+#### Managed updates configuration
+
+Like the CLI tools, Teleport Connect respects the `TELEPORT_CDN_BASE_URL` and
+`TELEPORT_TOOLS_VERSION` environment variables.
+
+`TELEPORT_CDN_BASE_URL` lets you use custom builds or mirror the CDN in a private
+network (for example `https://example.com`).
+
+`TELEPORT_TOOLS_VERSION` controls client tool updates:
+- Set to `off` to completely disable managed updates.
+- Set to a specific version (e.g. `18.0.1`) to override the cluster-provided version
+(for example, to work around a known issue).
+
+To use an environment variable with Teleport Connect, open your terminal and launch
+the app from there, providing the variable.
+It will apply only for that session, so you can test settings or override
+cluster-provided updates without affecting your system-wide configuration.
+For a permanent setup, follow the instructions below:
+
+<Tabs>
+  <TabItem label="macOS">
+    To set the variable for your current login session, open the Terminal and type:
+    ```code
+    $ launchctl set env TELEPORT_TOOLS_VERSION X.Y.Z
+    ```
+    Then run Teleport Connect as usual. This setting persists until you log out.
+  </TabItem>
+  <TabItem label="Windows">
+    To set the variable permanently for your user account, open the Command Prompt and type:
+    ```code
+    $ setx TELEPORT_TOOLS_VERSION X.Y.Z
+    ```
+    Then run Teleport Connect as usual. To clear it, use:
+    ```code
+    $ setx TELEPORT_TOOLS_VERSION ""
+    ```
+  </TabItem>
+  <TabItem label="Linux">
+    To set the variable permanently for the app, prepend the environment variable to
+    the `Exec=` line in  `usr/share/applications/teleport-connect.desktop` file:
+    ```text
+    Exec=env TELEPORT_TOOLS_VERSION=X.Y.Z "/opt/Teleport Connect/teleport-connect" %U
+    ```
+  </TabItem>
 </Tabs>
 
 ## User interface
@@ -103,7 +184,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [trusted clusters](../admin-guides/management/admin/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../zero-trust-access/management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -474,7 +555,7 @@ installation directory to the `Path` user environment variable.
 
 Teleport Connect supports authenticating with hardware-based keys.
 Keys are generated and stored directly on a hardware device, providing greater security than storing
-them on a file system. For more details, see [Hardware Key Support guide](../admin-guides/access-controls/guides/hardware-key-support.mdx).
+them on a file system. For more details, see [Hardware Key Support guide](../zero-trust-access/authentication/hardware-key-support.mdx).
 
 <Admonition type="note" title="PIV support">
   Hardware key support requires users to use a PIV-compatible hardware key.
@@ -667,7 +748,7 @@ see them only after you restart the app.
 
 You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
 talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
-certificates](../admin-guides/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
+certificates](../zero-trust-access/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
 using this mode in production.
 
 <Tabs>

@@ -36,6 +36,12 @@ type RequestOptions = {
    * propagated up the call stack.
    */
   allowRoleNotFound?: boolean;
+
+  /**
+   * If set to `true`, the API service will not attempt to retry after an MFA
+   * challenge.
+   */
+  skipAuthnRetry?: boolean;
 };
 
 const api = {
@@ -116,13 +122,18 @@ const api = {
     );
   },
 
-  // TODO (avatus) add abort signal to this
-  put(url, data, mfaResponse?: MfaChallengeResponse) {
+  put(
+    url: string,
+    data: any,
+    abortSignal?: AbortSignal,
+    mfaResponse?: MfaChallengeResponse
+  ) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         body: JSON.stringify(data),
         method: 'PUT',
+        signal: abortSignal,
       },
       mfaResponse
     );
@@ -195,7 +206,11 @@ const api = {
       return await api.getJsonFromFetchResponse(response, options);
     } catch (err) {
       // Retry with MFA if we get an admin action MFA error.
-      if (!mfaResponse && isAdminActionRequiresMfaError(err)) {
+      if (
+        !mfaResponse &&
+        !options.skipAuthnRetry &&
+        isAdminActionRequiresMfaError(err)
+      ) {
         mfaResponse = await api.getAdminActionMfaResponse();
         const response = await api.fetch(url, customOptions, mfaResponse);
         return await api.getJsonFromFetchResponse(response, options);
@@ -373,7 +388,7 @@ export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
 }
 
-function isAdminActionRequiresMfaError(err: Error) {
+export function isAdminActionRequiresMfaError(err: Error) {
   return err.message.includes(
     'admin-level API request requires MFA verification'
   );

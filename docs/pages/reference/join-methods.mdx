@@ -278,24 +278,23 @@ New Machine & Workload Identity bot deployments should consider upgrading to the
 ### Bound Keypair: `bound_keypair`
 
 Bound Keypair tokens are an alternative to
-[secret-based join methods](#secret-based-join-methods) that improve security
-and flexibility. They are best used on platforms with persistent storage, but
-can be configured for use in any environment.
+[secret-based join methods](#secret-based-join-methods) for Machine and Workload
+ID bots that improve security and flexibility. They are best used on platforms
+with persistent storage, but can be configured for use in nearly any
+environment.
 
 This join method is recommended for on-prem environments
 [without TPMs](#trusted-platform-module-tpm) or cloud platforms
 without a specialized [delegated join method](#delegated-join-methods).
 
+At this time, `bound_keypair` can only be used to join Machine and Workload ID
+bots, and cannot be used to join other Teleport agent types.
+
 (!docs/pages/includes/provision-token/bound-keypair-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID with Bound Keypair joining](../machine-workload-identity/machine-id/deployment/bound-keypair.mdx)
-
-{/*
-TODO: Uncomment after follow-up PR with admin guide has merged.
-- [Bound Keypair Reference and Admin Guide](./machine-id/bound-keypair.mdx)
-*/}
-
+- [Deploying Machine ID with Bound Keypair joining](./machine-id/bound-keypair/getting-started.mdx)
+- [Bound Keypair Reference](./machine-id/bound-keypair/bound-keypair.mdx)
 </Admonition>
 
 ### AWS IAM role: `iam`
@@ -419,9 +418,10 @@ to access Teleport-protected resources in Gitlab CI pipelines.
 
 ### Kubernetes: `kubernetes`
 
-The Kubernetes join methods exists in two variants:
+The Kubernetes join methods exists in three variants:
 - [in-cluster](#kubernetes-in-cluster)
 - [JWKS](#kubernetes-jwks)
+- [OIDC](#kubernetes-oidc)
 
 #### Kubernetes In-cluster
 
@@ -461,6 +461,28 @@ to contain the new Kubernetes signing keys (update the
 
 <Admonition type="note" title="See Also">
 - [Deploying Machine ID on Kubernetes](../machine-workload-identity/machine-id/deployment/kubernetes.mdx)
+</Admonition>
+
+#### Kubernetes OIDC
+
+Kubernetes OIDC joining is available for any Teleport process running in
+Kubernetes where the cluster issues service account tokens from a publicly
+accessible, OIDC-compliant issuer.
+
+This feature makes use of the Kubernetes
+[Service Account Issuer Discovery][discovery] feature, added in Kubernetes 1.21,
+to verify Kubernetes workloads. Note that some providers, like Amazon EKS, may
+require additional configuration to enable OIDC joining.
+
+Unlike the `static_jwks` variant described above, this method fetches JWKS keys
+from the upstream provider dynamically and does not need to be reconfigured if
+keys are rotated, which providers like EKS do frequently. However, not all
+Kubernetes implementations have accessible OIDC endpoints.
+
+(!docs/pages/includes/provision-token/kubernetes-oidc-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Kubernetes with OIDC](../machine-workload-identity/machine-id/deployment/kubernetes-oidc.mdx)
 </Admonition>
 
 ### Trusted Platform Module: `tpm`
@@ -526,3 +548,5 @@ Cloud Compute instance.
 <Admonition type="note" title="See Also">
 - How to [Join Services with Oracle Cloud](../enroll-resources/agents/oracle.mdx).
 </Admonition>
+
+[discovery]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-issuer-discovery

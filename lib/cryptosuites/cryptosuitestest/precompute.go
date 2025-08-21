@@ -25,7 +25,7 @@ import (
 	internalrsa "github.com/gravitational/teleport/lib/cryptosuites/internal/rsa"
 )
 
-// PrecomputeRSATestKeys may be called from TestMain to set this package into a
+// PrecomputeRSAKeys may be called from TestMain to set this package into a
 // mode where it will precompute a fixed number of RSA keys and reuse them to
 // save on CPU usage.
 func PrecomputeRSAKeys(ctx context.Context) {

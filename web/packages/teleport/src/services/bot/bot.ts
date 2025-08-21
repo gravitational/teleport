@@ -21,13 +21,14 @@ import api from 'teleport/services/api';
 import {
   canUseV1Edit,
   makeBot,
-  parseGetBotInstanceResponse,
-  parseListBotInstancesResponse,
   toApiGitHubTokenSpec,
+  validateGetBotInstanceResponse,
+  validateListBotInstancesResponse,
 } from 'teleport/services/bot/consts';
 import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
+import { validateListJoinTokensResponse } from '../joinToken/consts';
 import { MfaChallengeResponse } from '../mfa';
 import { withGenericUnsupportedError } from '../version/unsupported';
 import {
@@ -84,6 +85,31 @@ export function createBotToken(
     undefined /* abort signal */,
     mfaResponse
   );
+}
+
+export async function listBotTokens(
+  variables: { botName: string; skipAuthnRetry: boolean },
+  signal: AbortSignal
+) {
+  const path = cfg.getJoinTokenUrl({ action: 'listV2' });
+  const qs = new URLSearchParams();
+  qs.set('bot_name', variables.botName);
+  qs.set('role', 'bot');
+
+  try {
+    const data = await api.get(`${path}?${qs.toString()}`, signal, undefined, {
+      skipAuthnRetry: variables.skipAuthnRetry,
+    });
+
+    if (!validateListJoinTokensResponse(data)) {
+      throw new Error('failed to validate list join tokens response');
+    }
+
+    return data;
+  } catch (err) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '19.0.0');
+  }
 }
 
 export async function fetchBots(signal: AbortSignal, flags: FeatureFlags) {
@@ -178,8 +204,8 @@ export async function listBotInstances(
 
   const data = await api.get(`${path}?${qs.toString()}`, signal);
 
-  if (!parseListBotInstancesResponse(data)) {
-    throw new Error('failed to parse list bot instances response');
+  if (!validateListBotInstancesResponse(data)) {
+    throw new Error('failed to validate list bot instances response');
   }
 
   return data;
@@ -196,8 +222,8 @@ export async function getBotInstance(
 
   const data = await api.get(path, signal);
 
-  if (!parseGetBotInstanceResponse(data)) {
-    throw new Error('failed to parse get bot instance response');
+  if (!validateGetBotInstanceResponse(data)) {
+    throw new Error('failed to validate get bot instance response');
   }
 
   return data;

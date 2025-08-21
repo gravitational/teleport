@@ -197,8 +197,10 @@ export interface FeatureFlags {
   enrollIntegrations: boolean;
   deviceTrust: boolean;
   locks: boolean;
-  newLocks: boolean;
-  tokens: boolean;
+  addLocks: boolean;
+  removeLocks: boolean;
+  createTokens: boolean;
+  listTokens: boolean;
   accessMonitoring: boolean;
   accessGraph: boolean;
   accessGraphIntegrations: boolean;

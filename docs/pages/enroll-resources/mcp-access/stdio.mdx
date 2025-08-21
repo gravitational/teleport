@@ -27,7 +27,7 @@ providing visibility into user activity.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.1.0 or higher)"!)
 - A host, e.g., an EC2 instance, where you will run the Teleport Applications
   Service.
 - Tools on the same host that can launch stdio-based MCP servers like `npx`
@@ -35,17 +35,50 @@ providing visibility into user activity.
 
 ## Step 1/3. Configure the Teleport Application Service
 
-### Get a join token
+You can update an existing Application Service or create a new one to enable the
+the MCP server.
+
+<Tabs>
+
+<TabItem label="Update an existing service">
+
+If you already have an existing Application Service running, you can add a MCP
+server in your YAML configuration:
+```yaml
+app_service:
+  enabled: true
+  apps:
+  - name: "everything"
+    labels:
+      env: dev
+    description:
+    mcp:
+      # Command to launch stdio-based MCP servers.
+      command: "docker"
+      # Args to execute with the command.
+      args: ["run", "-i", "--rm", "mcp/everything"]
+      # Name of the host user account under which the command will be
+      # executed. Required for stdio-based MCP servers.
+      run_as_host_user: "docker"
+```
+
+Replace the MCP details with the MCP server you desire to run then restart the Application Service.
+
+</TabItem>
+<TabItem label="Create a new service">
+
+{/* lint ignore heading-increment remark-lint */}
+#### Get a join token
 (!docs/pages/includes/tctl-token.mdx serviceName="Application" tokenType="app" tokenFile="/tmp/token"!)
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
-### Install the Teleport Application Service
+#### Install the Teleport Application Service
 Install Teleport on the host where you will run the Teleport Application Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-### Configure the Teleport Application service
+#### Configure the Teleport Application service
 
 On the host where you will run the Teleport Application Service, create a file
 at `/etc/teleport.yaml` with the following content:
@@ -80,47 +113,23 @@ app_service:
 ```
 
 Replace <Var name="teleport.example.com:443" /> with the host and port of your Teleport Proxy
-Service or Teleport Cloud tenant.
+Service or Teleport Cloud tenant, and replace the MCP details with the MCP
+server you desire to run.
 
-### Start the Teleport Application Service
+#### Start the Teleport Application Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Application Service"!)
 
-## Step 2/3. Create a user and role
+</TabItem>
+</Tabs>
 
-Create a role that will allow a user to connect to MCP servers with label
-`env=dev` and allow the user to use the `echo` tool or any tool starts with
-`get`:
+## Step 2/3. Configure your Teleport user
 
-```code
-$ tctl create <<EOF
-kind: role
-version: v8
-metadata:
-  name: access-mcp
-spec:
-  allow:
-    app_labels:
-      'env': 'dev'
-    description: "Everything MCP server"
-    mcp:
-      tools:
-      - echo
-      - get*
-EOF
-```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
-
-Create the Teleport user assigned the `access-mcp` role we've just created:
-
-```code
-$ tctl users add --roles=access-mcp my_user
-```
+(!docs/pages/includes/mcp-access/configure-user-rbac.mdx!)
 
 ## Step 3/3. Connect
 
-Log in to Teleport with the user we've just created.
+Log in to Teleport with the user we've just created, <Var name="my_user" />:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=<Var name="my_user" />
@@ -138,7 +147,7 @@ everything everything MCP server stdio env=dev
 To show configurations for your MCP client to connect:
 
 ```code
-$ tsh mcp config
+$ tsh mcp config everything
 Found MCP servers:
 everything
 

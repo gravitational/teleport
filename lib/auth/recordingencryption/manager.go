@@ -21,9 +21,10 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
+	"encoding/hex"
 	"iter"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,12 +37,14 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // KeyStore provides methods for interacting with encryption keys.
 type KeyStore interface {
 	NewEncryptionKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.EncryptionKeyPair, error)
 	GetDecrypter(ctx context.Context, keyPair *types.EncryptionKeyPair) (crypto.Decrypter, error)
+	FindDecryptersByLabels(ctx context.Context, labels ...*types.KeyLabel) ([]crypto.Decrypter, error)
 }
 
 // A Cache fetches a cached [*recordingencryptionv1.RecordingEncryption].
@@ -51,16 +54,17 @@ type Cache interface {
 
 // ManagerConfig captures all of the dependencies required to instantiate a Manager.
 type ManagerConfig struct {
-	Backend       services.RecordingEncryption
-	ClusterConfig services.ClusterConfigurationInternal
-	KeyStore      KeyStore
-	Cache         Cache
-	Logger        *slog.Logger
-	LockConfig    backend.RunWhileLockedConfig
+	Backend                   services.RecordingEncryption
+	ClusterConfig             services.ClusterConfigurationInternal
+	KeyStore                  KeyStore
+	Cache                     Cache
+	Logger                    *slog.Logger
+	LockConfig                backend.RunWhileLockedConfig
+	ManualKeyManagementConfig *types.ManualKeyManagementConfig
 }
 
 // NewManager returns a new Manager using the given [ManagerConfig].
-func NewManager(cfg ManagerConfig) (*Manager, error) {
+func NewManager(ctx context.Context, cfg ManagerConfig) (*Manager, error) {
 	switch {
 	case cfg.Backend == nil:
 		return nil, trace.BadParameter("backend is required")
@@ -80,10 +84,12 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		RecordingEncryption:          cfg.Backend,
 		ClusterConfigurationInternal: cfg.ClusterConfig,
 
-		cache:      cfg.Cache,
-		keyStore:   cfg.KeyStore,
-		lockConfig: cfg.LockConfig,
-		logger:     cfg.Logger,
+		ctx:             ctx,
+		cache:           cfg.Cache,
+		keyStore:        cfg.KeyStore,
+		lockConfig:      cfg.LockConfig,
+		logger:          cfg.Logger,
+		manualKeyConfig: cfg.ManualKeyManagementConfig,
 	}, nil
 }
 
@@ -94,10 +100,13 @@ type Manager struct {
 	services.RecordingEncryption
 	services.ClusterConfigurationInternal
 
-	cache      Cache
-	logger     *slog.Logger
-	lockConfig backend.RunWhileLockedConfig
-	keyStore   KeyStore
+	ctx             context.Context
+	cache           Cache
+	keyStore        KeyStore
+	keyCache        utils.SyncMap[string, crypto.Decrypter]
+	lockConfig      backend.RunWhileLockedConfig
+	logger          *slog.Logger
+	manualKeyConfig *types.ManualKeyManagementConfig
 }
 
 // CreateSessionRecordingConfig creates a new session recording configuration. If encryption is enabled then an
@@ -105,13 +114,14 @@ type Manager struct {
 // accessible, or returning an error if none are accessible.
 func (m *Manager) CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (sessionRecordingConfig types.SessionRecordingConfig, err error) {
 	err = backend.RunWhileLocked(ctx, m.lockConfig, func(ctx context.Context) error {
-		if cfg.GetEncrypted() {
-			encryption, err := m.ensureRecordingEncryptionKey(ctx)
+		encryptionCfg := cfg.GetEncryptionConfig()
+		if encryptionCfg != nil && encryptionCfg.Enabled {
+			encryption, err := m.ensureRecordingEncryptionKey(ctx, *encryptionCfg)
 			if err != nil {
 				return err
 			}
 
-			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeys))
+			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeyPairs))
 		}
 
 		sessionRecordingConfig, err = m.ClusterConfigurationInternal.CreateSessionRecordingConfig(ctx, cfg)
@@ -130,13 +140,14 @@ func (m *Manager) CreateSessionRecordingConfig(ctx context.Context, cfg types.Se
 // if one is accessible, or returning an error if none are accessible.
 func (m *Manager) UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (sessionRecordingConfig types.SessionRecordingConfig, err error) {
 	err = backend.RunWhileLocked(ctx, m.lockConfig, func(ctx context.Context) error {
-		if cfg.GetEncrypted() {
-			encryption, err := m.ensureRecordingEncryptionKey(ctx)
+		encryptionCfg := cfg.GetEncryptionConfig()
+		if encryptionCfg != nil && encryptionCfg.Enabled {
+			encryption, err := m.ensureRecordingEncryptionKey(ctx, *encryptionCfg)
 			if err != nil {
 				return err
 			}
 
-			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeys))
+			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeyPairs))
 		}
 
 		sessionRecordingConfig, err = m.ClusterConfigurationInternal.UpdateSessionRecordingConfig(ctx, cfg)
@@ -155,13 +166,14 @@ func (m *Manager) UpdateSessionRecordingConfig(ctx context.Context, cfg types.Se
 // exists, doing nothing if one is accessible, or returning an error if none are accessible.
 func (m *Manager) UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (sessionRecordingConfig types.SessionRecordingConfig, err error) {
 	err = backend.RunWhileLocked(ctx, m.lockConfig, func(ctx context.Context) error {
-		if cfg.GetEncrypted() {
-			encryption, err := m.ensureRecordingEncryptionKey(ctx)
+		encryptionCfg := cfg.GetEncryptionConfig()
+		if encryptionCfg != nil && encryptionCfg.Enabled {
+			encryption, err := m.ensureRecordingEncryptionKey(ctx, *encryptionCfg)
 			if err != nil {
 				return err
 			}
 
-			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeys))
+			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeyPairs))
 		}
 
 		sessionRecordingConfig, err = m.ClusterConfigurationInternal.UpsertSessionRecordingConfig(ctx, cfg)
@@ -180,10 +192,76 @@ func (m *Manager) SetCache(cache Cache) {
 	m.cache = cache
 }
 
+type fingerprintedDecrypter struct {
+	fingerprint string
+	decrypter   crypto.Decrypter
+}
+
+func (m *Manager) ensureManualEncryptionKeys(manualKeyCfg types.ManualKeyManagementConfig) (*recordingencryptionv1.RecordingEncryption, error) {
+	m.manualKeyConfig = &manualKeyCfg
+	activeLabels := manualKeyCfg.ActiveKeys
+	rotatedLabels := manualKeyCfg.RotatedKeys
+
+	// using the Manager's context here because we cache the resulting keys and want their lifetimes
+	// to be at least as long as the Manager
+	activeDecrypters, err := m.keyStore.FindDecryptersByLabels(m.ctx, activeLabels...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rotatedDecrypters, err := m.keyStore.FindDecryptersByLabels(m.ctx, rotatedLabels...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var fingerprinted []fingerprintedDecrypter
+	for _, decrypter := range slices.Concat(rotatedDecrypters, activeDecrypters) {
+		fp, err := Fingerprint(decrypter.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fingerprinted = append(fingerprinted, fingerprintedDecrypter{
+			fingerprint: fp,
+			decrypter:   decrypter,
+		})
+	}
+
+	m.keyCache.Write(func(cache map[string]crypto.Decrypter) {
+		for _, dec := range fingerprinted {
+			cache[dec.fingerprint] = dec.decrypter
+		}
+	})
+
+	var encryptionKeys []*recordingencryptionv1.KeyPair
+	for _, decrypter := range activeDecrypters {
+		pubKey, err := keys.MarshalPublicKey(decrypter.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		encryptionKeys = append(encryptionKeys, &recordingencryptionv1.KeyPair{
+			KeyPair: &types.EncryptionKeyPair{
+				PublicKey: pubKey,
+			},
+		})
+	}
+	return &recordingencryptionv1.RecordingEncryption{
+		Spec: &recordingencryptionv1.RecordingEncryptionSpec{
+			ActiveKeyPairs: encryptionKeys,
+		},
+	}, nil
+}
+
 // ensureRecordingEncryptionKey returns the configured RecordingEncryption resource if it exists with an
 // accessible key. If no keys exist, a new key pair will be provisioned. An error is returned if keys exist
 // but none are accessible.
-func (m *Manager) ensureRecordingEncryptionKey(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error) {
+func (m *Manager) ensureRecordingEncryptionKey(ctx context.Context, encryptionCfg types.SessionRecordingEncryptionConfig) (*recordingencryptionv1.RecordingEncryption, error) {
+	if encryptionCfg.ManualKeyManagement != nil && encryptionCfg.ManualKeyManagement.Enabled {
+		return m.ensureManualEncryptionKeys(*encryptionCfg.ManualKeyManagement)
+	}
+
+	m.manualKeyConfig = nil
 	persistFn := m.RecordingEncryption.UpdateRecordingEncryption
 	encryption, err := m.RecordingEncryption.GetRecordingEncryption(ctx)
 	if err != nil {
@@ -196,12 +274,12 @@ func (m *Manager) ensureRecordingEncryptionKey(ctx context.Context) (*recordinge
 		persistFn = m.RecordingEncryption.CreateRecordingEncryption
 	}
 
-	activeKeys := encryption.GetSpec().ActiveKeys
-	if len(activeKeys) > 0 {
-		for _, key := range activeKeys {
+	activePairs := encryption.GetSpec().ActiveKeyPairs
+	if len(activePairs) > 0 {
+		for _, pair := range activePairs {
 			// fetch the decrypter to ensure we have access to it
-			if _, err := m.keyStore.GetDecrypter(ctx, key.RecordingEncryptionPair); err != nil {
-				fp, _ := fingerprintPEM(key.RecordingEncryptionPair.PublicKey)
+			if _, err := m.keyStore.GetDecrypter(ctx, pair.KeyPair); err != nil {
+				fp, _ := fingerprintPEM(pair.KeyPair.PublicKey)
 				m.logger.DebugContext(ctx, "key not accessible", "fingerprint", fp)
 				continue
 			}
@@ -217,10 +295,10 @@ func (m *Manager) ensureRecordingEncryptionKey(ctx context.Context) (*recordinge
 		return nil, trace.Wrap(err, "generating wrapping key")
 	}
 
-	wrappedKey := recordingencryptionv1.WrappedKey{
-		RecordingEncryptionPair: encryptionPair,
+	wrappedKey := recordingencryptionv1.KeyPair{
+		KeyPair: encryptionPair,
 	}
-	encryption.Spec.ActiveKeys = []*recordingencryptionv1.WrappedKey{&wrappedKey}
+	encryption.Spec.ActiveKeyPairs = []*recordingencryptionv1.KeyPair{&wrappedKey}
 	encryption, err = persistFn(ctx, encryption)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -230,22 +308,51 @@ func (m *Manager) ensureRecordingEncryptionKey(ctx context.Context) (*recordinge
 	return encryption, nil
 }
 
+func (m *Manager) unwrapKeyUsingCache(in UnwrapInput) ([]byte, error) {
+	if decrypter, ok := m.keyCache.Load(in.Fingerprint); ok {
+		fileKey, err := decrypter.Decrypt(in.Rand, in.WrappedKey, in.Opts)
+		return fileKey, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
 // UnwrapKey searches for the private key compatible with the provided public key fingerprint and uses it to unwrap
 // a wrapped file key.
 func (m *Manager) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byte, error) {
+	fileKey, err := m.unwrapKeyUsingCache(in)
+	if fileKey != nil && err == nil {
+		return fileKey, nil
+	}
+
+	// a cache miss or unwrap failure for manually managed keys needs to attempt a refresh and try again
+	if m.manualKeyConfig != nil && m.manualKeyConfig.Enabled {
+		if _, err := m.ensureManualEncryptionKeys(*m.manualKeyConfig); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fileKey, err = m.unwrapKeyUsingCache(in)
+		return fileKey, trace.Wrap(err)
+	}
+
+	// a cache miss in for teleport managed keys just needs to fall back to the keystore
+	if err != nil {
+		m.logger.WarnContext(ctx, "failed to unwrap file key using cached decrypter, refetching from keystore")
+	}
+
 	encryption, err := m.cache.GetRecordingEncryption(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// TODO (eriktate): search rotated keys as well once rotation is implemented
-	activeKeys := encryption.GetSpec().ActiveKeys
-	for _, key := range activeKeys {
-		if key.GetRecordingEncryptionPair() == nil {
+	activePairs := encryption.GetSpec().ActiveKeyPairs
+	for _, key := range activePairs {
+		if key.GetKeyPair() == nil {
 			continue
 		}
 
-		activeFP, err := fingerprintPEM(key.RecordingEncryptionPair.PublicKey)
+		activeFP, err := fingerprintPEM(key.KeyPair.PublicKey)
 		if err != nil {
 			m.logger.ErrorContext(ctx, "failed to fingerprint active public key", "error", err)
 			continue
@@ -255,7 +362,7 @@ func (m *Manager) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byte, error)
 			continue
 		}
 
-		decrypter, err := m.keyStore.GetDecrypter(ctx, key.RecordingEncryptionPair)
+		decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyPair)
 		if err != nil {
 			continue
 		}
@@ -284,10 +391,22 @@ func (m *Manager) Watch(ctx context.Context, events types.Events) (err error) {
 		}
 	}
 
+	// getNextManualSync returns a timed channel meant to trigger encryption key syncing when keys are
+	// manually managed
+	getNextManualSync := func() <-chan time.Time {
+		return time.After(retryutils.SeventhJitter(time.Minute * 5))
+	}
+
 	defer func() {
 		m.logger.InfoContext(ctx, "stopping encryption watcher", "error", err)
 	}()
 
+	// on initial startup we should try to immediately resolve recording encryption
+	if err := m.resolveRecordingEncryption(ctx, shouldRetryAfterJitterFn); err != nil {
+		m.logger.ErrorContext(ctx, "initial attempt to resolve recording encryption failed", "error", err)
+	}
+
+	nextSync := getNextManualSync()
 	for {
 		watch, err := events.NewWatcher(ctx, types.Watch{
 			Name: "recording_encryption_watcher",
@@ -310,8 +429,24 @@ func (m *Manager) Watch(ctx context.Context, events types.Events) (err error) {
 		for {
 			select {
 			case ev := <-watch.Events():
-				if err := m.handleEvent(ctx, ev, shouldRetryAfterJitterFn); err != nil {
+				if ev.Type != types.OpPut || ev.Resource.GetKind() != types.KindRecordingEncryption {
+					continue
+				}
+				if err := m.resolveRecordingEncryption(ctx, shouldRetryAfterJitterFn); err != nil {
 					m.logger.ErrorContext(ctx, "failure handling recording encryption event", "kind", ev.Resource.GetKind(), "error", err)
+					continue
+				}
+				// reset interval sync since we just resolved recording encryption state
+				nextSync = getNextManualSync()
+			case <-nextSync:
+				nextSync = getNextManualSync()
+				if m.manualKeyConfig == nil || !m.manualKeyConfig.Enabled {
+					// we only need to sync on an interval when keys are manually managed
+					continue
+				}
+
+				if err := m.resolveRecordingEncryption(ctx, shouldRetryAfterJitterFn); err != nil {
+					m.logger.ErrorContext(ctx, "failed interval sync of recording encryption keys", "error", err)
 				}
 			case <-watch.Done():
 				if err := watch.Error(); err == nil {
@@ -331,15 +466,7 @@ func (m *Manager) Watch(ctx context.Context, events types.Events) (err error) {
 	}
 }
 
-func (m *Manager) handleEvent(ctx context.Context, ev types.Event, shouldRetryFn func() bool) error {
-	if ev.Type != types.OpPut {
-		return nil
-	}
-
-	if ev.Resource.GetKind() != types.KindRecordingEncryption {
-		return nil
-	}
-
+func (m *Manager) resolveRecordingEncryption(ctx context.Context, shouldRetryFn func() bool) error {
 	const retries = 3
 	for retry := range retries {
 		err := backend.RunWhileLocked(ctx, m.lockConfig, func(ctx context.Context) error {
@@ -349,17 +476,18 @@ func (m *Manager) handleEvent(ctx context.Context, ev types.Event, shouldRetryFn
 				return trace.Wrap(err)
 			}
 
-			if !sessionRecordingConfig.GetEncrypted() {
+			encryptionCfg := sessionRecordingConfig.GetEncryptionConfig()
+			if encryptionCfg == nil || !encryptionCfg.Enabled {
 				return nil
 			}
 
-			encryption, err := m.ensureRecordingEncryptionKey(ctx)
+			encryption, err := m.ensureRecordingEncryptionKey(ctx, *encryptionCfg)
 			if err != nil {
 				m.logger.ErrorContext(ctx, "failed to resolve recording encryption keys, retrying", "retry", retry, "retries_left", retries-retry, "error", err)
 				return trace.Wrap(err)
 			}
 
-			if sessionRecordingConfig.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeys)) {
+			if sessionRecordingConfig.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeyPairs)) {
 				if _, err := m.ClusterConfigurationInternal.UpdateSessionRecordingConfig(ctx, sessionRecordingConfig); err != nil {
 					return trace.Wrap(err)
 				}
@@ -379,15 +507,15 @@ func (m *Manager) handleEvent(ctx context.Context, ev types.Event, shouldRetryFn
 
 // getAgeEncryptionKeys returns an iterator of AgeEncryptionKeys from a list of WrappedKeys. This is for use in
 // populating the EncryptionKeys field of SessionRecordingConfigStatus.
-func getAgeEncryptionKeys(keys []*recordingencryptionv1.WrappedKey) iter.Seq[*types.AgeEncryptionKey] {
+func getAgeEncryptionKeys(keys []*recordingencryptionv1.KeyPair) iter.Seq[*types.AgeEncryptionKey] {
 	return func(yield func(*types.AgeEncryptionKey) bool) {
 		for _, key := range keys {
-			if key.RecordingEncryptionPair == nil {
+			if key.KeyPair == nil {
 				continue
 			}
 
 			if !yield(&types.AgeEncryptionKey{
-				PublicKey: key.RecordingEncryptionPair.PublicKey,
+				PublicKey: key.KeyPair.PublicKey,
 			}) {
 				return
 			}
@@ -403,7 +531,7 @@ func Fingerprint(pubKey crypto.PublicKey) (string, error) {
 	}
 
 	fp := sha256.Sum256(derPub)
-	return base64.StdEncoding.EncodeToString(fp[:]), nil
+	return hex.EncodeToString(fp[:]), nil
 }
 
 // fingerprints a public RSA key encoded as PEM-wrapped PKIX.

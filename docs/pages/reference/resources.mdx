@@ -57,8 +57,8 @@ Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
 | connector | Authentication connectors for [Single Sign-On](../zero-trust-access/sso/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
 | node | A registered SSH node. The same record is displayed via `tctl nodes ls`. |
 | windows_desktop | A registered Windows desktop. |
-| cluster | A trusted cluster. See [here](../admin-guides/management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
-| [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../admin-guides/access-controls/login-rules/login-rules.mdx) for more info. |
+| cluster | A trusted cluster. See [here](../zero-trust-access/management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
+| [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../zero-trust-access/authentication/login-rules/login-rules.mdx) for more info. |
 | [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../identity-governance/device-trust/guide.mdx) for more info. |
 | [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service. |
 | [vnet_config](#vnet-config) | Configuration for the cluster's VNet options. |
@@ -155,7 +155,7 @@ are required.*/}
 
 #### `saml_idp_service_provider`
 SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
-See [SAML IdP reference](./access-controls/saml-idp.mdx#RBAC) to learn how the RBAC is applied to 
+See [SAML IdP reference](./access-controls/saml-idp.mdx#RBAC) to learn how the RBAC is applied to
 the `saml_idp_service_provider` resource starting role version 8.
 
 ## Windows desktops
@@ -368,7 +368,7 @@ which are currently supported but will be deprecated in a future version.
 
 (!docs/pages/includes/reference/resources/autoupdate_config.mdx!)
 
-See [Teleport Client Tool Managed Updates](../upgrading/client-tools-autoupdate.mdx) and
+See [Teleport Client Tool Managed Updates](../upgrading/client-tools-managed-updates.mdx) and
 [Teleport Agent Managed Updates](../upgrading/agent-managed-updates.mdx) for more details.
 
 ## Auto-update version
@@ -388,7 +388,7 @@ your clients receive security patches and remain compatible with your cluster.
 
 (!docs/pages/includes/reference/resources/autoupdate_version.mdx!)
 
-See [Teleport Client Tool Managed Updates](../upgrading/client-tools-autoupdate.mdx) and
+See [Teleport Client Tool Managed Updates](../upgrading/client-tools-managed-updates.mdx) and
 [Teleport Agent Managed Updates](../upgrading/agent-managed-updates.mdx) for more details.
 
 ## Auto-update agent rollout

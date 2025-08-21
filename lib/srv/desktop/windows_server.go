@@ -23,12 +23,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/asn1"
 	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -41,11 +41,13 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -57,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/winpki"
 )
 
@@ -84,6 +87,7 @@ const (
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
 var computerAttributes = []string{
 	attrName,
+	attrDescription,
 	attrCommonName,
 	attrDistinguishedName,
 	attrDNSHostName,
@@ -187,6 +191,9 @@ type WindowsServiceConfig struct {
 	Labels               map[string]string
 	// ResourceMatchers match dynamic Windows desktop resources.
 	ResourceMatchers []services.ResourceMatcher
+	// NLA indicates whether the client should perform Network Level Authentication
+	// (NLA) when initiating the RDP session.
+	NLA bool
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -253,7 +260,7 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.LDAPConfig.Addr != "" || cfg.LDAPConfig.LocateServer.Enabled {
+	if cfg.LDAPConfig.Enabled() {
 		if err := cfg.LDAPConfig.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -356,10 +363,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		closeCtx:    ctx,
 		close:       close,
 		auditCache:  newSharedDirectoryAuditCache(),
-
-		// For now, NLA is opt-in via an environment variable.
-		// We'll make it the default behavior in a future release.
-		enableNLA: os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
+		enableNLA:   cfg.NLA,
 	}
 
 	s.ca = winpki.NewCertificateStoreClient(winpki.CertificateStoreConfig{
@@ -369,6 +373,16 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		ClusterName: s.clusterName,
 		LC:          s.getLDAPConfig(),
 	})
+
+	if s.cfg.LDAPConfig.Enabled() {
+		tc, err := s.tlsConfigForLDAP()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := s.ca.Update(s.closeCtx, tc); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	ok := false
 	defer func() {
@@ -385,7 +399,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := s.startDynamicReconciler(ctx); err != nil {
+	if err := s.startDynamicReconciler(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -621,8 +635,19 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.With("desktop_name", desktopName)
 
-	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
-		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
+	desktops, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName},
+				Limit:                pageSize,
+				StartKey:             pageToken,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			return resp.Desktops, resp.NextKey, nil
+		}))
 	if err != nil {
 		log.WarnContext(ctx, "Failed to fetch desktop by name", "error", err)
 		sendTDPError("Teleport failed to find the requested desktop in its database.")
@@ -775,13 +800,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
-		LicenseStore: s.cfg.LicenseStore,
-		HostID:       s.cfg.Heartbeat.HostUUID,
-		Logger:       log,
-		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
-		},
-		CertTTL:               windowsUserCertTTL,
+		LicenseStore:          s.cfg.LicenseStore,
+		HostID:                s.cfg.Heartbeat.HostUUID,
+		Logger:                log,
 		Addr:                  addr.String(),
 		ComputerName:          computerName,
 		KDCAddr:               kdcAddr,
@@ -802,12 +823,19 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		windowsUser = rdpc.GetClientUsername()
 		audit.windowsUser = windowsUser
 	}
+
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	if err != nil {
 		startEvent := audit.makeSessionStart(err)
 		s.record(ctx, recorder, startEvent)
 		s.emit(ctx, startEvent)
 		return trace.Wrap(err)
+	}
+
+	// Generate client certificates to be used for the RDP connection.
+	certDER, keyDER, err := s.generateUserCert(ctx, windowsUser, windowsUserCertTTL, desktop, createUsers, groups)
+	if err != nil {
+		return trace.Wrap(err, "could not generate client certificates for RDP")
 	}
 
 	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
@@ -851,10 +879,18 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	startEvent := audit.makeSessionStart(nil)
 	startEvent.AllowUserCreation = createUsers
 
+	// Parse some information about the cert, which we'll use in order to enhance
+	// the session start event.
+	userCert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return trace.Wrap(err, "the user certificate for RDP is invalid")
+	}
+	populateCertMetadata(startEvent.CertMetadata, userCert)
+
 	s.record(ctx, recorder, startEvent)
 	s.emit(ctx, startEvent)
 
-	err = rdpc.Run(ctx)
+	err = rdpc.Run(ctx, certDER, keyDER)
 
 	// ctx may have been canceled, so emit with a separate context
 	endEvent := audit.makeSessionEnd(recordSession)
@@ -862,6 +898,36 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	s.emit(context.Background(), endEvent)
 
 	return trace.Wrap(err)
+}
+
+func populateCertMetadata(metadata *events.WindowsCertificateMetadata, cert *x509.Certificate) {
+	var enhancedKeyUsages []string
+	var upn string
+
+	for _, extension := range cert.Extensions {
+		if extension.Id.Equal(winpki.EnhancedKeyUsageExtensionOID) {
+			var oids []asn1.ObjectIdentifier
+			if _, err := asn1.Unmarshal(extension.Value, &oids); err == nil {
+				enhancedKeyUsages = make([]string, 0, len(oids))
+				for _, oid := range oids {
+					enhancedKeyUsages = append(enhancedKeyUsages, oid.String())
+				}
+			}
+		} else if extension.Id.Equal(winpki.SubjectAltNameExtensionOID) {
+			var san winpki.SubjectAltName[winpki.UPN]
+			if _, err := asn1.Unmarshal(extension.Value, &san); err == nil {
+				upn = san.OtherName.Value.Value
+			}
+		}
+	}
+
+	metadata.Subject = cert.Subject.String()
+	metadata.SerialNumber = cert.SerialNumber.String()
+	metadata.UPN = upn
+	metadata.CRLDistributionPoints = cert.CRLDistributionPoints
+	metadata.KeyUsage = int32(cert.KeyUsage)
+	metadata.ExtendedKeyUsage = slices.Map(cert.ExtKeyUsage, func(eku x509.ExtKeyUsage) int32 { return int32(eku) })
+	metadata.EnhancedKeyUsage = enhancedKeyUsages
 }
 
 func (s *WindowsService) makeTDPSendHandler(
@@ -1055,8 +1121,19 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 // a very large number of desktops in the cluster, this may use up a lot of CPU
 // time.
 func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
-	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx,
-		types.WindowsDesktopFilter{})
+	desktops, err := stream.Collect(clientutils.Resources(s.closeCtx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				Limit:          pageSize,
+				StartKey:       pageToken,
+				SearchKeywords: []string{addr},
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			return resp.Desktops, resp.NextKey, nil
+		}))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

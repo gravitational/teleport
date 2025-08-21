@@ -316,6 +316,9 @@ const (
 	// KindRecordingEncryption is the collection of active session recording encryption keys.
 	KindRecordingEncryption = "recording_encryption"
 
+	// KindRotatedKey is a previously rotated session recording encryption key kept for future replay.
+	KindRotatedKey = "rotated_key"
+
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
@@ -652,6 +655,15 @@ const (
 	// KindStableUNIXUser is the RBAC-only kind to refer to interactions with
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
+
+	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
+	KindInferenceModel = "inference_model"
+
+	// KindInferenceSecret is the kind of teleport.summarizer.v1.InferenceSecret.
+	KindInferenceSecret = "inference_secret"
+
+	// KindInferencePolicy is the kind of teleport.summarizer.v1.InferencePolicy.
+	KindInferencePolicy = "inference_policy"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.

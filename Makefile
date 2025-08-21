@@ -67,6 +67,8 @@ ARCH ?= $(GO_ENV_ARCH)
 
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
+RELEASE_TOOLS = teleport-tools-$(GITTAG)-$(OS)-$(ARCH)-bin
+RELEASE_UPDATE = teleport-update-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # If we're building inside the cross-compiling buildbox, include the
 # cross compilation definitions so we select the correct compilers and
@@ -251,6 +253,7 @@ BINS_darwin = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh tctl
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
+UPDATE_BINARIES = $(addprefix $(BUILDDIR)/,teleport-update)
 
 # Joins elements of the list in arg 2 with the given separator.
 #   1. Element separator.
@@ -621,18 +624,37 @@ build-archive: | $(RELEASE_DIR)
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 
+.PHONY: build-update-archive
+build-update-archive: | $(RELEASE_DIR)
+	@echo "---> Creating OSS update release archive."
+	mkdir -p teleport
+	cp -rf $(UPDATE_BINARIES) \
+		CHANGELOG.md \
+		build.assets/LICENSE-community \
+		teleport/
+	echo $(GITTAG) > teleport/VERSION
+	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE_UPDATE).tar.gz
+	cp $(RELEASE_UPDATE).tar.gz $(RELEASE_DIR)
+	# linux-amd64 generates a centos7-compatible archive. Make a copy with the -centos7 label,
+	# for the releases page. We should probably drop that at some point.
+	$(if $(filter linux-amd64,$(OS)-$(ARCH)), \
+		cp $(RELEASE_UPDATE).tar.gz $(RELEASE_DIR)/$(subst amd64,amd64-centos7,$(RELEASE_UPDATE)).tar.gz \
+	)
+	rm -rf teleport
+	@echo "---> Created $(RELEASE_UPDATE).tar.gz."
+
 #
 # make release-unix - Produces binary release tarballs for both OSS and
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY: release-unix
-release-unix: clean full build-archive
+release-unix: clean full build-archive build-update-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 # release-unix-preserving-webassets cleans just the build and not the UI
 # allowing webassets to be built in a prior step before building the release.
 .PHONY: release-unix-preserving-webassets
-release-unix-preserving-webassets: clean-build full build-archive
+release-unix-preserving-webassets: clean-build full build-archive build-update-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 include darwin-signing.mk
@@ -833,6 +855,17 @@ ensure-gotestsum:
  ifeq (, $(shell command -v gotestsum))
 	go install gotest.tools/gotestsum@latest
 endif
+
+#
+# Install goda to lint testing symbols
+#
+.PHONY: ensure-goda
+ensure-goda:
+# Install goda if it's not already installed
+ ifeq (, $(shell command -v goda))
+	go install github.com/loov/goda@latest
+endif
+
 
 DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
@@ -1191,6 +1224,27 @@ lint-no-actions: lint-sh lint-license
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
 
+
+#
+# Checks that testing symbols and the testify library is not included in binaries.
+# 
+# 
+.PHONY: lint-test-symbols
+lint-test-symbols: ensure-goda
+	@testing_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	if [ "$$testing_count" -gt 0 ]; then \
+		echo ""; \
+		echo "FAIL: \"testing\" is included in binaries"; \
+	fi; \
+	testify_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, github.com/stretchr/testify/...)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	if [ "$$testify_count" -gt 0 ]; then \
+		echo ""; \
+		echo "FAIL: \"github.com/stretchr/testify\" is included in binaries"; \
+	fi; \
+	if [ "$$testing_count" -gt 0 ] || [ "$$testify_count" -gt 0 ]; then \
+		exit 1; \
+	fi
+
 #
 # Runs the clippy linter and rustfmt on our rust modules
 # (a no-op if cargo and rustc are not installed)
@@ -1517,27 +1571,38 @@ enter/arm:
 
 BUF := buf
 
+#
+# Install buf to lint, format and generate code from protobuf files.
+#
+.PHONY: ensure-buf
+ensure-buf: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-buf-version)
+ensure-buf:
+# Install buf if it's not already installed.
+ifeq (, $(shell command -v $(BUF)))
+	go install github.com/bufbuild/buf/cmd/buf@$(NEED_VERSION)
+endif
+
 # protos/all runs build, lint and format on all protos.
 # Use `make grpc` to regenerate protos inside buildbox.
 .PHONY: protos/all
 protos/all: protos/build protos/lint protos/format
 
 .PHONY: protos/build
-protos/build: buf/installed
+protos/build: ensure-buf
 	$(BUF) build
 
 .PHONY: protos/format
-protos/format: buf/installed
+protos/format: ensure-buf
 	$(BUF) format -w
 
 .PHONY: protos/lint
-protos/lint: buf/installed
+protos/lint: ensure-buf
 	$(BUF) lint
 	$(BUF) lint --config=buf-legacy.yaml api/proto
 
 .PHONY: protos/breaking
 protos/breaking: BASE=origin/master
-protos/breaking: buf/installed
+protos/breaking: ensure-buf
 	@echo Checking compatibility against BASE=$(BASE)
 	buf breaking . --against '.git#branch=$(BASE)'
 
@@ -1546,13 +1611,6 @@ lint-protos: protos/lint
 
 .PHONY: lint-breaking
 lint-breaking: protos/breaking
-
-.PHONY: buf/installed
-buf/installed:
-	@if ! type -p $(BUF) >/dev/null; then \
-		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
-		exit 1; \
-	fi
 
 GODERIVE := $(TOOLINGDIR)/bin/goderive
 # derive will generate derived functions for our API.
@@ -1637,6 +1695,15 @@ terraform-resources-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
+# icons-up-to-date checks if icons were pre-processed before being added to the repo.
+.PHONY: icons-up-to-date
+icons-up-to-date: must-start-clean/host
+	pnpm process-icons
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "icons (see web/packages/design/src/Icon/README.md)" "pnpm process-icons"; \
+		exit 1; \
+	fi
+
 # go-generate will execute `go generate` and generate go code.
 .PHONY: go-generate
 go-generate:
@@ -1699,6 +1766,8 @@ endif
 .PHONY: pkg
 pkg: TELEPORT_PKG_UNSIGNED = $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
 pkg: TELEPORT_PKG_SIGNED = $(RELEASE_DIR)/teleport-$(VERSION).pkg
+pkg: TELEPORT_TOOLS_PKG_UNSIGNED = $(BUILDDIR)/teleport-tools-$(VERSION).unsigned.pkg
+pkg: TELEPORT_TOOLS_PKG_SIGNED = $(RELEASE_DIR)/teleport-tools-$(VERSION).pkg
 pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
 
@@ -1720,6 +1789,10 @@ pkg: | $(RELEASE_DIR)
 	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
 	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/tctl*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
 	$(NOTARIZE_TELEPORT_PKG)
+
+	@echo Combining tsh-$(VERSION).pkg and tctl-$(VERSION).pkg into teleport-tools-$(VERSION).pkg
+	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/tctl*.pkg $(TELEPORT_TOOLS_PKG_UNSIGNED)
+	$(NOTARIZE_TELEPORT_TOOLS_PKG)
 
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 

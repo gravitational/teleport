@@ -23,10 +23,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509/pkix"
+	"encoding/binary"
 	"io"
 	"net"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -56,6 +58,18 @@ var (
 	sampleProxyV2LineTLV      = bytes.Join([][]byte{ProxyV2Prefix, {0x21, 0x11, 0x00, 0x12}, sampleIPv4Addresses, sampleTLV}, nil)
 	sampleProxyV2LineEmptyTLV = bytes.Join([][]byte{ProxyV2Prefix, {0x21, 0x11, 0x00, 0x0F}, sampleIPv4Addresses, sampleEmptyTLV}, nil)
 )
+
+func TestPPv2SizeConsts(t *testing.T) {
+	//nolint:staticcheck // the fact that the two types are the same is precisely the point here
+	var (
+		_ [proxyV2Address4Size]struct{} = [unsafe.Sizeof(proxyV2Address4{})]struct{}{}
+		_ [proxyV2Address6Size]struct{} = [unsafe.Sizeof(proxyV2Address6{})]struct{}{}
+	)
+
+	// double-check the runtime size as measured by binary.Size
+	require.Equal(t, proxyV2Address4Size, binary.Size(proxyV2Address4{}))
+	require.Equal(t, proxyV2Address6Size, binary.Size(proxyV2Address6{}))
+}
 
 func TestReadProxyLine(t *testing.T) {
 	t.Parallel()

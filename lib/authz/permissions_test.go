@@ -391,6 +391,9 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 		AssetTag:     "assettag1",
 		CredentialID: "credentialid1",
 	}
+	botUser := userWithoutExtensions
+	botUser.Identity.BotName = "wall-e"
+	botUser.Identity.BotInstanceID = uuid.NewString()
 
 	// Enterprise is necessary for mode=optional and mode=required to work.
 	modulestest.SetTestModules(t, modulestest.Modules{
@@ -415,6 +418,17 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			deviceMode: constants.DeviceTrustModeRequired,
 			user:       userWithoutExtensions,
 			wantErr:    "access denied",
+		},
+		{
+			name:       "nok: bot user and mode=required",
+			deviceMode: constants.DeviceTrustModeRequired,
+			user:       botUser,
+			wantErr:    "access denied",
+		},
+		{
+			name:       "ok: bot user and mode=required-for-humans",
+			deviceMode: constants.DeviceTrustModeRequiredForHumans,
+			user:       botUser,
 		},
 		{
 			name:       "global mode disabled only",
@@ -561,7 +575,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a new bot user.
-	bot, err := types.NewUser("robot")
+	bot, _, err := authtest.CreateUserAndRole(client, "robot", []string{"robot-role"}, nil)
 	require.NoError(t, err)
 	botMetadata := bot.GetMetadata()
 	botMetadata.Labels = map[string]string{
@@ -569,7 +583,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 		types.BotGenerationLabel: "0",
 	}
 	bot.SetMetadata(botMetadata)
-	_, err = client.CreateUser(ctx, bot)
+	_, err = client.UpsertUser(ctx, bot)
 	require.NoError(t, err)
 
 	validTOTPCode := "valid"
@@ -631,6 +645,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username: localUser.GetName(),
+					Groups:   localUser.GetRoles(),
 				},
 			},
 			wantAdminActionAuthorized: false,
@@ -640,6 +655,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username:    localUser.GetName(),
+					Groups:      localUser.GetRoles(),
 					MFAVerified: "mfa-verified-test",
 				},
 			},
@@ -650,6 +666,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username:         localUser.GetName(),
+					Groups:           localUser.GetRoles(),
 					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				},
 			},
@@ -661,6 +678,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: userWithHostName.GetName(),
 				Identity: tlsca.Identity{
 					Username: userWithHostName.GetName(),
+					Groups:   userWithHostName.GetRoles(),
 				},
 			},
 			wantAdminActionAuthorized: false,
@@ -670,6 +688,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username: localUser.GetName(),
+					Groups:   localUser.GetRoles(),
 				},
 			},
 			withMFA:                   invalidMFA,
@@ -681,6 +700,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username: localUser.GetName(),
+					Groups:   localUser.GetRoles(),
 				},
 			},
 			withMFA:                   validMFAWithReuse,
@@ -691,6 +711,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username: localUser.GetName(),
+					Groups:   localUser.GetRoles(),
 				},
 			},
 			withMFA:                   validMFA,
@@ -701,6 +722,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username: localUser.GetName(),
+					Groups:   localUser.GetRoles(),
 				},
 			},
 			withMFA:                   validMFAWithReuse,
@@ -719,6 +741,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: bot.GetName(),
 				Identity: tlsca.Identity{
 					Username: bot.GetName(),
+					Groups:   bot.GetRoles(),
 				},
 			},
 			wantAdminActionAuthorized: true,
@@ -728,6 +751,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username:     localUser.GetName(),
+					Groups:       localUser.GetRoles(),
 					Impersonator: hostFQDN(uuid.NewString(), clusterName),
 				},
 			},
@@ -738,6 +762,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username:     localUser.GetName(),
+					Groups:       localUser.GetRoles(),
 					Impersonator: bot.GetName(),
 				},
 			},
@@ -869,6 +894,20 @@ func TestContext_GetAccessState(t *testing.T) {
 			want: services.AccessState{
 				EnableDeviceVerification: false, // copied from Context
 				DeviceVerified:           true,  // Identity extensions
+			},
+		},
+		{
+			name: "bot user",
+			createAuthCtx: func() *authz.Context {
+				ctx := localCtx
+				localUser := ctx.Identity.(authz.LocalUser)
+				localUser.Identity.BotName = "wall-e"
+				ctx.Identity = localUser
+				return &ctx
+			},
+			want: services.AccessState{
+				EnableDeviceVerification: true,
+				IsBot:                    true,
 			},
 		},
 	}

@@ -23,6 +23,7 @@ import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/client/proto/inventory.proto";
+import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
@@ -430,6 +431,24 @@ message CreateResetPasswordTokenRequest {
     (gogoproto.jsontag) = "ttl",
     (gogoproto.casttype) = "Duration"
   ];
+}
+
+// ListResetPasswordTokenRequest is a request for a page of user tokens.
+message ListResetPasswordTokenRequest {
+  // PageSize is the maximum amount of resources to retrieve.
+  int32 page_size = 1;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string page_token = 2;
+}
+
+// ListResetPasswordTokenResponse contains a page of user tokens.
+message ListResetPasswordTokenResponse {
+  // UserTokens is a list of user tokens.
+  repeated types.UserTokenV3 user_tokens = 1;
+  // NextKey is the key for the next page of user tokens.
+  string next_page_token = 2;
 }
 
 // RenewableCertsRequest is a request to generate a first set of renewable
@@ -1612,6 +1631,22 @@ message ListAppsResponse {
   repeated types.AppV3 applications = 1;
   // NextKey is the key for the next page of applications.
   string next_key = 2;
+}
+
+message ListDatabasesRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListDatabasesResponse {
+  // a list of databases.
+  repeated types.DatabaseV3 databases = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
@@ -2860,6 +2895,9 @@ service AuthService {
   // Only local users may be reset.
   rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
+  // ListResetPasswordTokens returns a page of user tokens.
+  rpc ListResetPasswordTokens(ListResetPasswordTokenRequest) returns (ListResetPasswordTokenResponse);
+
   // GetUser gets a user resource by name.
   //
   // Deprecated: Use [teleport.users.v1.UsersService] instead.
@@ -3042,6 +3080,8 @@ service AuthService {
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // ListRoles is a paginated role getter.
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+  // ListRequestableRoles is a paginated requestable role getter.
+  rpc ListRequestableRoles(ListRequestableRolesRequest) returns (ListRequestableRolesResponse);
   // CreateRole creates a new role.
   rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
   // UpdateRole updates an existing role.
@@ -3212,7 +3252,13 @@ service AuthService {
   // GetToken retrieves a token described by the given request.
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
-  rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+  // TODO(hugoShaka): DELETE IN 21.0.0
+  rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List) {
+    option deprecated = true;
+  }
+  // GetStaticTokens retrieves all static tokens.
+  rpc GetStaticTokens(google.protobuf.Empty) returns (types.StaticTokensV2);
   // ListToken retrieves a paginated list of filtered provision tokens.
   rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
   // CreateTokenV2 creates a token in a backend.
@@ -3322,7 +3368,11 @@ service AuthService {
   rpc DeleteAllApps(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetDatabases returns all registered databases.
-  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
+  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List) {
+    option deprecated = true;
+  }
+  // ListDatabases returns a page of registered databases.
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
   // GetDatabase returns a database by name.
   rpc GetDatabase(types.ResourceRequest) returns (types.DatabaseV3);
   // CreateDatabase creates a new database resource.

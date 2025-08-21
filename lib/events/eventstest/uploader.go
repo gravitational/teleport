@@ -39,9 +39,12 @@ import (
 // upload
 func NewMemoryUploader(eventsC ...chan events.UploadEvent) *MemoryUploader {
 	up := &MemoryUploader{
-		mtx:     &sync.RWMutex{},
-		uploads: make(map[string]*MemoryUpload),
-		objects: make(map[session.ID][]byte),
+		mtx:        &sync.RWMutex{},
+		uploads:    make(map[string]*MemoryUpload),
+		sessions:   make(map[session.ID][]byte),
+		summaries:  make(map[session.ID][]byte),
+		metadata:   make(map[session.ID][]byte),
+		thumbnails: make(map[session.ID][]byte),
 	}
 	if len(eventsC) != 0 {
 		up.eventsC = eventsC[0]
@@ -51,10 +54,13 @@ func NewMemoryUploader(eventsC ...chan events.UploadEvent) *MemoryUploader {
 
 // MemoryUploader uploads all bytes to memory, used in tests
 type MemoryUploader struct {
-	mtx     *sync.RWMutex
-	uploads map[string]*MemoryUpload
-	objects map[session.ID][]byte
-	eventsC chan events.UploadEvent
+	mtx        *sync.RWMutex
+	uploads    map[string]*MemoryUpload
+	sessions   map[session.ID][]byte
+	summaries  map[session.ID][]byte
+	metadata   map[session.ID][]byte
+	thumbnails map[session.ID][]byte
+	eventsC    chan events.UploadEvent
 
 	// Clock is an optional [clockwork.Clock] to determine the time to associate
 	// with uploads and parts.
@@ -96,7 +102,10 @@ func (m *MemoryUploader) Reset() {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	m.uploads = make(map[string]*MemoryUpload)
-	m.objects = make(map[session.ID][]byte)
+	m.sessions = make(map[session.ID][]byte)
+	m.summaries = make(map[session.ID][]byte)
+	m.metadata = make(map[session.ID][]byte)
+	m.thumbnails = make(map[session.ID][]byte)
 }
 
 // CreateUpload creates a multipart upload
@@ -148,7 +157,7 @@ func (m *MemoryUploader) CompleteUpload(ctx context.Context, upload events.Strea
 			delete(up.parts, number)
 		}
 	}
-	m.objects[upload.SessionID] = result
+	m.sessions[upload.SessionID] = result
 	up.completed = true
 	m.trySendEvent(events.UploadEvent{SessionID: string(upload.SessionID), UploadID: upload.ID})
 	return nil
@@ -253,7 +262,7 @@ func (m *MemoryUploader) ListParts(ctx context.Context, upload events.StreamUplo
 func (m *MemoryUploader) Upload(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	_, ok := m.objects[sessionID]
+	_, ok := m.sessions[sessionID]
 	if ok {
 		return "", trace.AlreadyExists("session %q already exists", sessionID)
 	}
@@ -261,20 +270,118 @@ func (m *MemoryUploader) Upload(ctx context.Context, sessionID session.ID, readC
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
-	m.objects[sessionID] = data
+	m.sessions[sessionID] = data
+	return string(sessionID), nil
+}
+
+// UploadSummary uploads session summary and returns URL with uploaded file in
+// case of success.
+func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	_, ok := m.summaries[sessionID]
+	if ok {
+		return "", trace.AlreadyExists("summary %q already exists", sessionID)
+	}
+	data, err := io.ReadAll(readCloser)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	m.summaries[sessionID] = data
+	return string(sessionID), nil
+}
+
+// UploadMetadata uploads session metadata and returns URL with uploaded file in
+// case of success.
+func (m *MemoryUploader) UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	_, ok := m.metadata[sessionID]
+	if ok {
+		return "", trace.AlreadyExists("metadata %q already exists", sessionID)
+	}
+	data, err := io.ReadAll(readCloser)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	m.metadata[sessionID] = data
+	return string(sessionID), nil
+}
+
+// UploadThumbnail uploads session thumbnail and returns URL with uploaded file in
+// case of success.
+func (m *MemoryUploader) UploadThumbnail(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	_, ok := m.thumbnails[sessionID]
+	if ok {
+		return "", trace.AlreadyExists("thumbnail %q already exists", sessionID)
+	}
+	data, err := io.ReadAll(readCloser)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	m.thumbnails[sessionID] = data
 	return string(sessionID), nil
 }
 
 // Download downloads session tarball and writes it to writer
-func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	data, ok := m.objects[sessionID]
+	data, ok := m.sessions[sessionID]
 	if !ok {
 		return trace.NotFound("session %q is not found", sessionID)
 	}
-	_, err := io.Copy(writer.(io.Writer), bytes.NewReader(data))
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	data, ok := m.summaries[sessionID]
+	if !ok {
+		return trace.NotFound("summary %q is not found", sessionID)
+	}
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+// DownloadMetadata downloads session metadata and writes it to writer
+func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	data, ok := m.metadata[sessionID]
+	if !ok {
+		return trace.NotFound("metadata %q is not found", sessionID)
+	}
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+// DownloadThumbnail downloads session thumbnail and writes it to writer
+func (m *MemoryUploader) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	data, ok := m.thumbnails[sessionID]
+	if !ok {
+		return trace.NotFound("thumbnail %q is not found", sessionID)
+	}
+	_, err := io.Copy(writer, bytes.NewReader(data))
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
