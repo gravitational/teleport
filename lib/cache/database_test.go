@@ -274,7 +274,7 @@ func TestDatabaseObjects(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*dbobjectv1.DatabaseObject]{
+	testResources153(t, p, testFuncs[*dbobjectv1.DatabaseObject]{
 		newResource: func(name string) (*dbobjectv1.DatabaseObject, error) {
 			return newDatabaseObject(t, name), nil
 		},
@@ -286,7 +286,7 @@ func TestDatabaseObjects(t *testing.T) {
 			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*dbobjectv1.DatabaseObject, error) {
 			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
@@ -316,5 +316,5 @@ func TestDatabaseObjects(t *testing.T) {
 			}
 			return nil
 		},
-	})
+	}, withSkipPaginationTest())
 }
