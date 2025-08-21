@@ -712,6 +712,18 @@ const (
 	// The role is used to grant device enrollment powers to users.
 	PresetDeviceEnrollRoleName = "device-enroll"
 
+	// PresetKubeAccessRoleName is the name of the "kube-access" role.
+	// The role provides standard Kubernetes read/write access (maps to edit ClusterRole).
+	PresetKubeAccessRoleName = "kube-access"
+
+	// PresetKubeEditorRoleName is the name of the "kube-editor" role.
+	// The role provides full Kubernetes admin access (maps to cluster-admin ClusterRole).
+	PresetKubeEditorRoleName = "kube-editor"
+
+	// PresetKubeAuditorRoleName is the name of the "kube-auditor" role.
+	// The role provides read-only Kubernetes access (maps to view ClusterRole).
+	PresetKubeAuditorRoleName = "kube-auditor"
+
 	// PresetRequireTrustedDeviceRoleName is the name of the
 	// "require-trusted-device" role.
 	// The role is used as a basis for requiring trusted device access to
@@ -761,7 +773,14 @@ const (
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
 )
 
-var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+var PresetRoles = []string{
+	PresetEditorRoleName, 
+	PresetAccessRoleName, 
+	PresetAuditorRoleName,
+	PresetKubeAccessRoleName,
+	PresetKubeEditorRoleName,
+	PresetKubeAuditorRoleName,
+}
 
 const (
 	// PresetDefaultHealthCheckConfigName is the name of a preset

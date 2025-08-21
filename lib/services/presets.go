@@ -1264,3 +1264,93 @@ func defaultMCPTools() map[string][]string {
 		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
 	}
 }
+
+// NewPresetKubeAccessRole returns a new pre-defined role for Kubernetes access.
+// This role provides standard read/write access to Kubernetes resources.
+func NewPresetKubeAccessRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetKubeAccessRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Kubernetes read/write access (edit)",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:            []string{apidefaults.Namespace},
+				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesResources:   []types.KubernetesResource{},
+				KubeGroups:            []string{"teleport:kube-access"},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetKubeEditorRole returns a new pre-defined role for Kubernetes admin.
+// This role provides full administrative access to Kubernetes clusters.
+func NewPresetKubeEditorRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetKubeEditorRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Kubernetes admin access (cluster-admin)",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:            []string{apidefaults.Namespace},
+				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesResources:   []types.KubernetesResource{},
+				KubeGroups:            []string{"teleport:kube-editor"},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetKubeAuditorRole returns a new pre-defined role for Kubernetes auditing.
+// This role provides read-only access to Kubernetes resources.
+func NewPresetKubeAuditorRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetKubeAuditorRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Kubernetes read-only access (view)",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:            []string{apidefaults.Namespace},
+				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesResources:   []types.KubernetesResource{},
+				KubeGroups:            []string{"teleport:kube-auditor"},
+			},
+		},
+	}
+	return role
+}
