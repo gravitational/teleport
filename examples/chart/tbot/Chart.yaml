@@ -1,4 +1,4 @@
-.version: &version "18.1.6"
+.version: &version "18.1.7-dev.sshah-entraid-groups.1"
 
 name: tbot
 apiVersion: v2
