@@ -624,12 +624,8 @@ func getEventTime(evt apievents.AuditEvent) int64 {
 
 // validateRequest validates the fetch request parameters.
 func validateRequest(req *fetchRequest) error {
-	if req.startOffset < 0 || req.endOffset < 0 {
+	if req.startOffset < 0 || req.endOffset < 0 || req.endOffset < req.startOffset {
 		return fmt.Errorf("invalid time range (%d, %d)", req.startOffset, req.endOffset)
-	}
-
-	if req.endOffset < req.startOffset {
-		return fmt.Errorf("end time before start time")
 	}
 
 	rangeMillis := req.endOffset - req.startOffset
