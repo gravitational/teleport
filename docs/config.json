@@ -1634,6 +1634,11 @@
       "source": "/zero-trust-access/management/admin/labels/",
       "destination": "/zero-trust-access/rbac-get-started/labels/",
       "permanent": true
+    },
+    {
+      "source": "/upgrading/agent-managed-updates/",
+      "destination": "/upgrading/agent-managed-updates/",
+      "permanent": true
     }
   ]
 }
