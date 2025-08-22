@@ -38,12 +38,10 @@ func assertUserPresence(t *testing.T, utmp *UtmpBackend, file, username string, 
 	assert.Equal(t, present, inFile)
 }
 
-func touchFile(name string) error {
+func touchFile(t *testing.T, name string) {
 	file, err := os.OpenFile(name, os.O_RDONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return err
-	}
-	return file.Close()
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
 }
 
 func makeUtmpBackend(t *testing.T) *UtmpBackend {
