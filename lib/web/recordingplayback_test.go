@@ -292,12 +292,7 @@ func TestCreateTaskContext(t *testing.T) {
 	require.NotNil(t, taskCtx1)
 	require.NotNil(t, s.activeTask)
 
-	select {
-	case <-taskCtx1.Done():
-		t.Fatal("Task context should not be cancelled yet")
-	default:
-		// Expected
-	}
+	require.NoError(t, taskCtx1.Err(), "task context should not be canceled yet")
 
 	// Create second task - should cancel the first task
 	taskCtx2 := s.createTaskContext()
