@@ -405,8 +405,7 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 
 	s.stream.Lock()
 
-	buffered := make([]apievents.AuditEvent, len(s.stream.bufferedEvents))
-	copy(buffered, s.stream.bufferedEvents)
+	buffered := slices.Clone(s.stream.bufferedEvents)
 	s.stream.bufferedEvents = nil
 
 	s.stream.Unlock()
