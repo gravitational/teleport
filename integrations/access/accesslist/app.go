@@ -154,7 +154,7 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 	remindersLookup := make(map[common.Recipient][]*accesslist.AccessList)
 	for {
 		var accessLists []*accesslist.AccessList
-		accessLists, nextToken, err = a.apiClient.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		accessLists, nextToken, err = a.apiClient.ListAccessLists(ctx, 0 /* default page size */, nextToken, "", nil)
 		if err != nil {
 			if trace.IsNotImplemented(err) {
 				log.ErrorContext(ctx, "access list endpoint is not implemented on this auth server, so the access list app is ceasing to run")

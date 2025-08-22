@@ -56,11 +56,14 @@ func TestAccessList(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAccessLists))
+			results, _, err := p.accessLists.ListAccessLists(ctx, 0, "", "", nil)
+			return results, err
 		},
 		cacheGet: p.cache.GetAccessList,
 		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.AccessList, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListAccessLists, pageSize))
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, func(ctx context.Context, i int, s string) ([]*accesslist.AccessList, string, error) {
+				return p.cache.ListAccessLists(ctx, i, s, "", nil)
+			}, pageSize))
 		},
 		update: func(ctx context.Context, item *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)

@@ -127,7 +127,11 @@ type ListAccessListsRequest struct {
 	// page_size is the size of the page to request.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// next_token is the page token.
-	NextToken     string `protobuf:"bytes,2,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
+	NextToken string `protobuf:"bytes,2,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
+	// search
+	Search string `protobuf:"bytes,3,opt,name=search,proto3" json:"search,omitempty"`
+	// sort_by
+	SortBy        *types.SortBy `protobuf:"bytes,4,opt,name=sort_by,json=sortBy,proto3" json:"sort_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -174,6 +178,20 @@ func (x *ListAccessListsRequest) GetNextToken() string {
 		return x.NextToken
 	}
 	return ""
+}
+
+func (x *ListAccessListsRequest) GetSearch() string {
+	if x != nil {
+		return x.Search
+	}
+	return ""
+}
+
+func (x *ListAccessListsRequest) GetSortBy() *types.SortBy {
+	if x != nil {
+		return x.SortBy
+	}
+	return nil
 }
 
 // ListAccessListsResponse is the response for getting paginated access lists.
@@ -2357,11 +2375,13 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"/teleport/accesslist/v1/accesslist_service.proto\x12\x16teleport.accesslist.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a!teleport/legacy/types/types.proto\"\x17\n" +
 	"\x15GetAccessListsRequest\"_\n" +
 	"\x16GetAccessListsResponse\x12E\n" +
-	"\faccess_lists\x18\x01 \x03(\v2\".teleport.accesslist.v1.AccessListR\vaccessLists\"T\n" +
+	"\faccess_lists\x18\x01 \x03(\v2\".teleport.accesslist.v1.AccessListR\vaccessLists\"\x94\x01\n" +
 	"\x16ListAccessListsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"next_token\x18\x02 \x01(\tR\tnextToken\"\x7f\n" +
+	"next_token\x18\x02 \x01(\tR\tnextToken\x12\x16\n" +
+	"\x06search\x18\x03 \x01(\tR\x06search\x12&\n" +
+	"\asort_by\x18\x04 \x01(\v2\r.types.SortByR\x06sortBy\"\x7f\n" +
 	"\x17ListAccessListsResponse\x12E\n" +
 	"\faccess_lists\x18\x01 \x03(\v2\".teleport.accesslist.v1.AccessListR\vaccessLists\x12\x1d\n" +
 	"\n" +
@@ -2585,102 +2605,104 @@ var file_teleport_accesslist_v1_accesslist_service_proto_goTypes = []any{
 	(*GetSuggestedAccessListsRequest)(nil),                 // 44: teleport.accesslist.v1.GetSuggestedAccessListsRequest
 	(*GetSuggestedAccessListsResponse)(nil),                // 45: teleport.accesslist.v1.GetSuggestedAccessListsResponse
 	(*AccessList)(nil),                                     // 46: teleport.accesslist.v1.AccessList
-	(*AccessListGrants)(nil),                               // 47: teleport.accesslist.v1.AccessListGrants
-	(*Member)(nil),                                         // 48: teleport.accesslist.v1.Member
-	(*AccessListOwner)(nil),                                // 49: teleport.accesslist.v1.AccessListOwner
-	(*Review)(nil),                                         // 50: teleport.accesslist.v1.Review
-	(*timestamppb.Timestamp)(nil),                          // 51: google.protobuf.Timestamp
-	(*types.AccessRequestV3)(nil),                          // 52: types.AccessRequestV3
-	(*emptypb.Empty)(nil),                                  // 53: google.protobuf.Empty
+	(*types.SortBy)(nil),                                   // 47: types.SortBy
+	(*AccessListGrants)(nil),                               // 48: teleport.accesslist.v1.AccessListGrants
+	(*Member)(nil),                                         // 49: teleport.accesslist.v1.Member
+	(*AccessListOwner)(nil),                                // 50: teleport.accesslist.v1.AccessListOwner
+	(*Review)(nil),                                         // 51: teleport.accesslist.v1.Review
+	(*timestamppb.Timestamp)(nil),                          // 52: google.protobuf.Timestamp
+	(*types.AccessRequestV3)(nil),                          // 53: types.AccessRequestV3
+	(*emptypb.Empty)(nil),                                  // 54: google.protobuf.Empty
 }
 var file_teleport_accesslist_v1_accesslist_service_proto_depIdxs = []int32{
 	46, // 0: teleport.accesslist.v1.GetAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	46, // 1: teleport.accesslist.v1.ListAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	47, // 2: teleport.accesslist.v1.GetInheritedGrantsResponse.grants:type_name -> teleport.accesslist.v1.AccessListGrants
-	46, // 3: teleport.accesslist.v1.UpsertAccessListRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
-	46, // 4: teleport.accesslist.v1.UpdateAccessListRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
-	46, // 5: teleport.accesslist.v1.GetAccessListsToReviewResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	48, // 6: teleport.accesslist.v1.ListAccessListMembersResponse.members:type_name -> teleport.accesslist.v1.Member
-	48, // 7: teleport.accesslist.v1.ListAllAccessListMembersResponse.members:type_name -> teleport.accesslist.v1.Member
-	46, // 8: teleport.accesslist.v1.UpsertAccessListWithMembersRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
-	48, // 9: teleport.accesslist.v1.UpsertAccessListWithMembersRequest.members:type_name -> teleport.accesslist.v1.Member
-	46, // 10: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.access_list:type_name -> teleport.accesslist.v1.AccessList
-	48, // 11: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.members:type_name -> teleport.accesslist.v1.Member
-	48, // 12: teleport.accesslist.v1.GetStaticAccessListMemberResponse.member:type_name -> teleport.accesslist.v1.Member
-	49, // 13: teleport.accesslist.v1.GetAccessListOwnersResponse.owners:type_name -> teleport.accesslist.v1.AccessListOwner
-	48, // 14: teleport.accesslist.v1.UpsertAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
-	48, // 15: teleport.accesslist.v1.UpsertStaticAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
-	48, // 16: teleport.accesslist.v1.UpsertStaticAccessListMemberResponse.member:type_name -> teleport.accesslist.v1.Member
-	48, // 17: teleport.accesslist.v1.UpdateAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
-	50, // 18: teleport.accesslist.v1.ListAccessListReviewsResponse.reviews:type_name -> teleport.accesslist.v1.Review
-	50, // 19: teleport.accesslist.v1.ListAllAccessListReviewsResponse.reviews:type_name -> teleport.accesslist.v1.Review
-	50, // 20: teleport.accesslist.v1.CreateAccessListReviewRequest.review:type_name -> teleport.accesslist.v1.Review
-	51, // 21: teleport.accesslist.v1.CreateAccessListReviewResponse.next_audit_date:type_name -> google.protobuf.Timestamp
-	52, // 22: teleport.accesslist.v1.AccessRequestPromoteResponse.access_request:type_name -> types.AccessRequestV3
-	46, // 23: teleport.accesslist.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	0,  // 24: teleport.accesslist.v1.AccessListService.GetAccessLists:input_type -> teleport.accesslist.v1.GetAccessListsRequest
-	2,  // 25: teleport.accesslist.v1.AccessListService.ListAccessLists:input_type -> teleport.accesslist.v1.ListAccessListsRequest
-	6,  // 26: teleport.accesslist.v1.AccessListService.GetAccessList:input_type -> teleport.accesslist.v1.GetAccessListRequest
-	7,  // 27: teleport.accesslist.v1.AccessListService.UpsertAccessList:input_type -> teleport.accesslist.v1.UpsertAccessListRequest
-	8,  // 28: teleport.accesslist.v1.AccessListService.UpdateAccessList:input_type -> teleport.accesslist.v1.UpdateAccessListRequest
-	9,  // 29: teleport.accesslist.v1.AccessListService.DeleteAccessList:input_type -> teleport.accesslist.v1.DeleteAccessListRequest
-	10, // 30: teleport.accesslist.v1.AccessListService.DeleteAllAccessLists:input_type -> teleport.accesslist.v1.DeleteAllAccessListsRequest
-	11, // 31: teleport.accesslist.v1.AccessListService.GetAccessListsToReview:input_type -> teleport.accesslist.v1.GetAccessListsToReviewRequest
-	13, // 32: teleport.accesslist.v1.AccessListService.CountAccessListMembers:input_type -> teleport.accesslist.v1.CountAccessListMembersRequest
-	15, // 33: teleport.accesslist.v1.AccessListService.ListAccessListMembers:input_type -> teleport.accesslist.v1.ListAccessListMembersRequest
-	17, // 34: teleport.accesslist.v1.AccessListService.ListAllAccessListMembers:input_type -> teleport.accesslist.v1.ListAllAccessListMembersRequest
-	21, // 35: teleport.accesslist.v1.AccessListService.GetAccessListMember:input_type -> teleport.accesslist.v1.GetAccessListMemberRequest
-	22, // 36: teleport.accesslist.v1.AccessListService.GetStaticAccessListMember:input_type -> teleport.accesslist.v1.GetStaticAccessListMemberRequest
-	24, // 37: teleport.accesslist.v1.AccessListService.GetAccessListOwners:input_type -> teleport.accesslist.v1.GetAccessListOwnersRequest
-	26, // 38: teleport.accesslist.v1.AccessListService.UpsertAccessListMember:input_type -> teleport.accesslist.v1.UpsertAccessListMemberRequest
-	27, // 39: teleport.accesslist.v1.AccessListService.UpsertStaticAccessListMember:input_type -> teleport.accesslist.v1.UpsertStaticAccessListMemberRequest
-	29, // 40: teleport.accesslist.v1.AccessListService.UpdateAccessListMember:input_type -> teleport.accesslist.v1.UpdateAccessListMemberRequest
-	30, // 41: teleport.accesslist.v1.AccessListService.DeleteAccessListMember:input_type -> teleport.accesslist.v1.DeleteAccessListMemberRequest
-	31, // 42: teleport.accesslist.v1.AccessListService.DeleteStaticAccessListMember:input_type -> teleport.accesslist.v1.DeleteStaticAccessListMemberRequest
-	33, // 43: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest
-	34, // 44: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersRequest
-	19, // 45: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:input_type -> teleport.accesslist.v1.UpsertAccessListWithMembersRequest
-	35, // 46: teleport.accesslist.v1.AccessListService.ListAccessListReviews:input_type -> teleport.accesslist.v1.ListAccessListReviewsRequest
-	37, // 47: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:input_type -> teleport.accesslist.v1.ListAllAccessListReviewsRequest
-	39, // 48: teleport.accesslist.v1.AccessListService.CreateAccessListReview:input_type -> teleport.accesslist.v1.CreateAccessListReviewRequest
-	41, // 49: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:input_type -> teleport.accesslist.v1.DeleteAccessListReviewRequest
-	42, // 50: teleport.accesslist.v1.AccessListService.AccessRequestPromote:input_type -> teleport.accesslist.v1.AccessRequestPromoteRequest
-	44, // 51: teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists:input_type -> teleport.accesslist.v1.GetSuggestedAccessListsRequest
-	4,  // 52: teleport.accesslist.v1.AccessListService.GetInheritedGrants:input_type -> teleport.accesslist.v1.GetInheritedGrantsRequest
-	1,  // 53: teleport.accesslist.v1.AccessListService.GetAccessLists:output_type -> teleport.accesslist.v1.GetAccessListsResponse
-	3,  // 54: teleport.accesslist.v1.AccessListService.ListAccessLists:output_type -> teleport.accesslist.v1.ListAccessListsResponse
-	46, // 55: teleport.accesslist.v1.AccessListService.GetAccessList:output_type -> teleport.accesslist.v1.AccessList
-	46, // 56: teleport.accesslist.v1.AccessListService.UpsertAccessList:output_type -> teleport.accesslist.v1.AccessList
-	46, // 57: teleport.accesslist.v1.AccessListService.UpdateAccessList:output_type -> teleport.accesslist.v1.AccessList
-	53, // 58: teleport.accesslist.v1.AccessListService.DeleteAccessList:output_type -> google.protobuf.Empty
-	53, // 59: teleport.accesslist.v1.AccessListService.DeleteAllAccessLists:output_type -> google.protobuf.Empty
-	12, // 60: teleport.accesslist.v1.AccessListService.GetAccessListsToReview:output_type -> teleport.accesslist.v1.GetAccessListsToReviewResponse
-	14, // 61: teleport.accesslist.v1.AccessListService.CountAccessListMembers:output_type -> teleport.accesslist.v1.CountAccessListMembersResponse
-	16, // 62: teleport.accesslist.v1.AccessListService.ListAccessListMembers:output_type -> teleport.accesslist.v1.ListAccessListMembersResponse
-	18, // 63: teleport.accesslist.v1.AccessListService.ListAllAccessListMembers:output_type -> teleport.accesslist.v1.ListAllAccessListMembersResponse
-	48, // 64: teleport.accesslist.v1.AccessListService.GetAccessListMember:output_type -> teleport.accesslist.v1.Member
-	23, // 65: teleport.accesslist.v1.AccessListService.GetStaticAccessListMember:output_type -> teleport.accesslist.v1.GetStaticAccessListMemberResponse
-	25, // 66: teleport.accesslist.v1.AccessListService.GetAccessListOwners:output_type -> teleport.accesslist.v1.GetAccessListOwnersResponse
-	48, // 67: teleport.accesslist.v1.AccessListService.UpsertAccessListMember:output_type -> teleport.accesslist.v1.Member
-	28, // 68: teleport.accesslist.v1.AccessListService.UpsertStaticAccessListMember:output_type -> teleport.accesslist.v1.UpsertStaticAccessListMemberResponse
-	48, // 69: teleport.accesslist.v1.AccessListService.UpdateAccessListMember:output_type -> teleport.accesslist.v1.Member
-	53, // 70: teleport.accesslist.v1.AccessListService.DeleteAccessListMember:output_type -> google.protobuf.Empty
-	32, // 71: teleport.accesslist.v1.AccessListService.DeleteStaticAccessListMember:output_type -> teleport.accesslist.v1.DeleteStaticAccessListMemberResponse
-	53, // 72: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:output_type -> google.protobuf.Empty
-	53, // 73: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:output_type -> google.protobuf.Empty
-	20, // 74: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:output_type -> teleport.accesslist.v1.UpsertAccessListWithMembersResponse
-	36, // 75: teleport.accesslist.v1.AccessListService.ListAccessListReviews:output_type -> teleport.accesslist.v1.ListAccessListReviewsResponse
-	38, // 76: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:output_type -> teleport.accesslist.v1.ListAllAccessListReviewsResponse
-	40, // 77: teleport.accesslist.v1.AccessListService.CreateAccessListReview:output_type -> teleport.accesslist.v1.CreateAccessListReviewResponse
-	53, // 78: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:output_type -> google.protobuf.Empty
-	43, // 79: teleport.accesslist.v1.AccessListService.AccessRequestPromote:output_type -> teleport.accesslist.v1.AccessRequestPromoteResponse
-	45, // 80: teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists:output_type -> teleport.accesslist.v1.GetSuggestedAccessListsResponse
-	5,  // 81: teleport.accesslist.v1.AccessListService.GetInheritedGrants:output_type -> teleport.accesslist.v1.GetInheritedGrantsResponse
-	53, // [53:82] is the sub-list for method output_type
-	24, // [24:53] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	47, // 1: teleport.accesslist.v1.ListAccessListsRequest.sort_by:type_name -> types.SortBy
+	46, // 2: teleport.accesslist.v1.ListAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	48, // 3: teleport.accesslist.v1.GetInheritedGrantsResponse.grants:type_name -> teleport.accesslist.v1.AccessListGrants
+	46, // 4: teleport.accesslist.v1.UpsertAccessListRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
+	46, // 5: teleport.accesslist.v1.UpdateAccessListRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
+	46, // 6: teleport.accesslist.v1.GetAccessListsToReviewResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	49, // 7: teleport.accesslist.v1.ListAccessListMembersResponse.members:type_name -> teleport.accesslist.v1.Member
+	49, // 8: teleport.accesslist.v1.ListAllAccessListMembersResponse.members:type_name -> teleport.accesslist.v1.Member
+	46, // 9: teleport.accesslist.v1.UpsertAccessListWithMembersRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
+	49, // 10: teleport.accesslist.v1.UpsertAccessListWithMembersRequest.members:type_name -> teleport.accesslist.v1.Member
+	46, // 11: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.access_list:type_name -> teleport.accesslist.v1.AccessList
+	49, // 12: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.members:type_name -> teleport.accesslist.v1.Member
+	49, // 13: teleport.accesslist.v1.GetStaticAccessListMemberResponse.member:type_name -> teleport.accesslist.v1.Member
+	50, // 14: teleport.accesslist.v1.GetAccessListOwnersResponse.owners:type_name -> teleport.accesslist.v1.AccessListOwner
+	49, // 15: teleport.accesslist.v1.UpsertAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
+	49, // 16: teleport.accesslist.v1.UpsertStaticAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
+	49, // 17: teleport.accesslist.v1.UpsertStaticAccessListMemberResponse.member:type_name -> teleport.accesslist.v1.Member
+	49, // 18: teleport.accesslist.v1.UpdateAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
+	51, // 19: teleport.accesslist.v1.ListAccessListReviewsResponse.reviews:type_name -> teleport.accesslist.v1.Review
+	51, // 20: teleport.accesslist.v1.ListAllAccessListReviewsResponse.reviews:type_name -> teleport.accesslist.v1.Review
+	51, // 21: teleport.accesslist.v1.CreateAccessListReviewRequest.review:type_name -> teleport.accesslist.v1.Review
+	52, // 22: teleport.accesslist.v1.CreateAccessListReviewResponse.next_audit_date:type_name -> google.protobuf.Timestamp
+	53, // 23: teleport.accesslist.v1.AccessRequestPromoteResponse.access_request:type_name -> types.AccessRequestV3
+	46, // 24: teleport.accesslist.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	0,  // 25: teleport.accesslist.v1.AccessListService.GetAccessLists:input_type -> teleport.accesslist.v1.GetAccessListsRequest
+	2,  // 26: teleport.accesslist.v1.AccessListService.ListAccessLists:input_type -> teleport.accesslist.v1.ListAccessListsRequest
+	6,  // 27: teleport.accesslist.v1.AccessListService.GetAccessList:input_type -> teleport.accesslist.v1.GetAccessListRequest
+	7,  // 28: teleport.accesslist.v1.AccessListService.UpsertAccessList:input_type -> teleport.accesslist.v1.UpsertAccessListRequest
+	8,  // 29: teleport.accesslist.v1.AccessListService.UpdateAccessList:input_type -> teleport.accesslist.v1.UpdateAccessListRequest
+	9,  // 30: teleport.accesslist.v1.AccessListService.DeleteAccessList:input_type -> teleport.accesslist.v1.DeleteAccessListRequest
+	10, // 31: teleport.accesslist.v1.AccessListService.DeleteAllAccessLists:input_type -> teleport.accesslist.v1.DeleteAllAccessListsRequest
+	11, // 32: teleport.accesslist.v1.AccessListService.GetAccessListsToReview:input_type -> teleport.accesslist.v1.GetAccessListsToReviewRequest
+	13, // 33: teleport.accesslist.v1.AccessListService.CountAccessListMembers:input_type -> teleport.accesslist.v1.CountAccessListMembersRequest
+	15, // 34: teleport.accesslist.v1.AccessListService.ListAccessListMembers:input_type -> teleport.accesslist.v1.ListAccessListMembersRequest
+	17, // 35: teleport.accesslist.v1.AccessListService.ListAllAccessListMembers:input_type -> teleport.accesslist.v1.ListAllAccessListMembersRequest
+	21, // 36: teleport.accesslist.v1.AccessListService.GetAccessListMember:input_type -> teleport.accesslist.v1.GetAccessListMemberRequest
+	22, // 37: teleport.accesslist.v1.AccessListService.GetStaticAccessListMember:input_type -> teleport.accesslist.v1.GetStaticAccessListMemberRequest
+	24, // 38: teleport.accesslist.v1.AccessListService.GetAccessListOwners:input_type -> teleport.accesslist.v1.GetAccessListOwnersRequest
+	26, // 39: teleport.accesslist.v1.AccessListService.UpsertAccessListMember:input_type -> teleport.accesslist.v1.UpsertAccessListMemberRequest
+	27, // 40: teleport.accesslist.v1.AccessListService.UpsertStaticAccessListMember:input_type -> teleport.accesslist.v1.UpsertStaticAccessListMemberRequest
+	29, // 41: teleport.accesslist.v1.AccessListService.UpdateAccessListMember:input_type -> teleport.accesslist.v1.UpdateAccessListMemberRequest
+	30, // 42: teleport.accesslist.v1.AccessListService.DeleteAccessListMember:input_type -> teleport.accesslist.v1.DeleteAccessListMemberRequest
+	31, // 43: teleport.accesslist.v1.AccessListService.DeleteStaticAccessListMember:input_type -> teleport.accesslist.v1.DeleteStaticAccessListMemberRequest
+	33, // 44: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest
+	34, // 45: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersRequest
+	19, // 46: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:input_type -> teleport.accesslist.v1.UpsertAccessListWithMembersRequest
+	35, // 47: teleport.accesslist.v1.AccessListService.ListAccessListReviews:input_type -> teleport.accesslist.v1.ListAccessListReviewsRequest
+	37, // 48: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:input_type -> teleport.accesslist.v1.ListAllAccessListReviewsRequest
+	39, // 49: teleport.accesslist.v1.AccessListService.CreateAccessListReview:input_type -> teleport.accesslist.v1.CreateAccessListReviewRequest
+	41, // 50: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:input_type -> teleport.accesslist.v1.DeleteAccessListReviewRequest
+	42, // 51: teleport.accesslist.v1.AccessListService.AccessRequestPromote:input_type -> teleport.accesslist.v1.AccessRequestPromoteRequest
+	44, // 52: teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists:input_type -> teleport.accesslist.v1.GetSuggestedAccessListsRequest
+	4,  // 53: teleport.accesslist.v1.AccessListService.GetInheritedGrants:input_type -> teleport.accesslist.v1.GetInheritedGrantsRequest
+	1,  // 54: teleport.accesslist.v1.AccessListService.GetAccessLists:output_type -> teleport.accesslist.v1.GetAccessListsResponse
+	3,  // 55: teleport.accesslist.v1.AccessListService.ListAccessLists:output_type -> teleport.accesslist.v1.ListAccessListsResponse
+	46, // 56: teleport.accesslist.v1.AccessListService.GetAccessList:output_type -> teleport.accesslist.v1.AccessList
+	46, // 57: teleport.accesslist.v1.AccessListService.UpsertAccessList:output_type -> teleport.accesslist.v1.AccessList
+	46, // 58: teleport.accesslist.v1.AccessListService.UpdateAccessList:output_type -> teleport.accesslist.v1.AccessList
+	54, // 59: teleport.accesslist.v1.AccessListService.DeleteAccessList:output_type -> google.protobuf.Empty
+	54, // 60: teleport.accesslist.v1.AccessListService.DeleteAllAccessLists:output_type -> google.protobuf.Empty
+	12, // 61: teleport.accesslist.v1.AccessListService.GetAccessListsToReview:output_type -> teleport.accesslist.v1.GetAccessListsToReviewResponse
+	14, // 62: teleport.accesslist.v1.AccessListService.CountAccessListMembers:output_type -> teleport.accesslist.v1.CountAccessListMembersResponse
+	16, // 63: teleport.accesslist.v1.AccessListService.ListAccessListMembers:output_type -> teleport.accesslist.v1.ListAccessListMembersResponse
+	18, // 64: teleport.accesslist.v1.AccessListService.ListAllAccessListMembers:output_type -> teleport.accesslist.v1.ListAllAccessListMembersResponse
+	49, // 65: teleport.accesslist.v1.AccessListService.GetAccessListMember:output_type -> teleport.accesslist.v1.Member
+	23, // 66: teleport.accesslist.v1.AccessListService.GetStaticAccessListMember:output_type -> teleport.accesslist.v1.GetStaticAccessListMemberResponse
+	25, // 67: teleport.accesslist.v1.AccessListService.GetAccessListOwners:output_type -> teleport.accesslist.v1.GetAccessListOwnersResponse
+	49, // 68: teleport.accesslist.v1.AccessListService.UpsertAccessListMember:output_type -> teleport.accesslist.v1.Member
+	28, // 69: teleport.accesslist.v1.AccessListService.UpsertStaticAccessListMember:output_type -> teleport.accesslist.v1.UpsertStaticAccessListMemberResponse
+	49, // 70: teleport.accesslist.v1.AccessListService.UpdateAccessListMember:output_type -> teleport.accesslist.v1.Member
+	54, // 71: teleport.accesslist.v1.AccessListService.DeleteAccessListMember:output_type -> google.protobuf.Empty
+	32, // 72: teleport.accesslist.v1.AccessListService.DeleteStaticAccessListMember:output_type -> teleport.accesslist.v1.DeleteStaticAccessListMemberResponse
+	54, // 73: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:output_type -> google.protobuf.Empty
+	54, // 74: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:output_type -> google.protobuf.Empty
+	20, // 75: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:output_type -> teleport.accesslist.v1.UpsertAccessListWithMembersResponse
+	36, // 76: teleport.accesslist.v1.AccessListService.ListAccessListReviews:output_type -> teleport.accesslist.v1.ListAccessListReviewsResponse
+	38, // 77: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:output_type -> teleport.accesslist.v1.ListAllAccessListReviewsResponse
+	40, // 78: teleport.accesslist.v1.AccessListService.CreateAccessListReview:output_type -> teleport.accesslist.v1.CreateAccessListReviewResponse
+	54, // 79: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:output_type -> google.protobuf.Empty
+	43, // 80: teleport.accesslist.v1.AccessListService.AccessRequestPromote:output_type -> teleport.accesslist.v1.AccessRequestPromoteResponse
+	45, // 81: teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists:output_type -> teleport.accesslist.v1.GetSuggestedAccessListsResponse
+	5,  // 82: teleport.accesslist.v1.AccessListService.GetInheritedGrants:output_type -> teleport.accesslist.v1.GetInheritedGrantsResponse
+	54, // [54:83] is the sub-list for method output_type
+	25, // [25:54] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_teleport_accesslist_v1_accesslist_service_proto_init() }

@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -87,6 +88,7 @@ type accessListAndMembersGetter struct {
 func (s *accessListAndMembersGetter) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	return s.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, pageToken)
 }
+
 func (s *accessListAndMembersGetter) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
 	return s.service.GetResource(ctx, name)
 }
@@ -161,8 +163,64 @@ func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID
 }
 
 // ListAccessLists returns a paginated list of access lists.
-func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
-	return a.service.ListResources(ctx, pageSize, nextToken)
+func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string, search string, sortBy *types.SortBy) ([]*accesslist.AccessList, string, error) {
+	if search == "" {
+		r, nextToken, err := a.service.ListResources(ctx, pageSize, nextToken)
+		return r, nextToken, trace.Wrap(err)
+	}
+
+	return a.service.ListResourcesWithFilter(ctx, pageSize, nextToken, func(item *accesslist.AccessList) bool {
+		return matchAccessList(item, search)
+	})
+}
+
+func matchAccessList(al *accesslist.AccessList, search string) bool {
+	search = strings.ToLower(strings.TrimSpace(search))
+	if search == "" {
+		return true
+	}
+
+	searchTerms := strings.Split(search, " ")
+
+	// Title match
+	if matchesAllTerms(searchTerms, strings.ToLower(al.Spec.Title)) {
+		return true
+	}
+
+	// Owner names match
+	for _, owner := range al.Spec.Owners {
+		if matchesAllTerms(searchTerms, strings.ToLower(owner.Name)) {
+			return true
+		}
+	}
+
+	// Description match
+	if matchesAllTerms(searchTerms, strings.ToLower(al.Spec.Description)) {
+		return true
+	}
+
+	// Roles match
+	for _, role := range al.Spec.Grants.Roles {
+		if matchesAllTerms(searchTerms, strings.ToLower(role)) {
+			return true
+		}
+	}
+
+	// Type-specific matches
+	if strings.Contains(search, al.Origin()) {
+		return true
+	}
+
+	return false
+}
+
+func matchesAllTerms(terms []string, target string) bool {
+	for _, term := range terms {
+		if !strings.Contains(target, term) {
+			return false
+		}
+	}
+	return true
 }
 
 // GetAccessList returns the specified access list resource.

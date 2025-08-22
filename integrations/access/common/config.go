@@ -60,8 +60,8 @@ type wrappedClient struct {
 	*client.Client
 }
 
-func (w *wrappedClient) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
-	return w.Client.AccessListClient().ListAccessLists(ctx, pageSize, pageToken)
+func (w *wrappedClient) ListAccessLists(ctx context.Context, pageSize int, pageToken string, search string, sortBy *types.SortBy) ([]*accesslist.AccessList, string, error) {
+	return w.Client.AccessListClient().ListAccessLists(ctx, pageSize, pageToken, search, sortBy)
 }
 
 func (w *wrappedClient) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {

@@ -5749,7 +5749,8 @@ type cacheWithFetchedAccessLists struct {
 func (c *cacheWithFetchedAccessLists) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
 	return c.fetchedACLs, nil
 }
-func (c *cacheWithFetchedAccessLists) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
+
+func (c *cacheWithFetchedAccessLists) ListAccessLists(context.Context, int, string, string, *types.SortBy) ([]*accesslist.AccessList, string, error) {
 	return c.fetchedACLs, "", nil
 }
 
@@ -6630,7 +6631,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
-		response, nextKey, err := a.Cache.ListAccessLists(ctx, 20, accessListsPageKey)
+		response, nextKey, err := a.Cache.ListAccessLists(ctx, 20, accessListsPageKey, "", nil)
 		if err != nil {
 			a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check", "error", err)
 		}

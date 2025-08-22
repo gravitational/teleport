@@ -88,7 +88,7 @@ func TestAccessListCRUD(t *testing.T) {
 	paginatedOut := make([]*accesslist.AccessList, 0, 2)
 	var nextToken string
 	for {
-		out, nextToken, err = service.ListAccessLists(ctx, 1, nextToken)
+		out, nextToken, err = service.ListAccessLists(ctx, 1, nextToken, "", nil)
 		require.NoError(t, err)
 
 		paginatedOut = append(paginatedOut, out...)

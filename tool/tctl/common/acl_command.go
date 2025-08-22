@@ -128,7 +128,7 @@ func (c *ACLCommand) List(ctx context.Context, client *authclient.Client) error 
 	for {
 		var page []*accesslist.AccessList
 		var err error
-		page, nextKey, err = client.AccessListClient().ListAccessLists(ctx, 0, nextKey)
+		page, nextKey, err = client.AccessListClient().ListAccessLists(ctx, 0, nextKey, "", nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -19,6 +19,9 @@ package cache
 import (
 	"cmp"
 	"context"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -34,7 +37,18 @@ import (
 
 type accessListIndex string
 
-const accessListNameIndex accessListIndex = "name"
+const (
+	accessListNameIndex        accessListIndex = "name"
+	accessListNeedsReviewIndex accessListIndex = "needs_review"
+)
+
+func accessListNameIndexFn(al *accesslist.AccessList) string {
+	return al.GetMetadata().Name
+}
+
+func accessListNeedsReviewIndexFn(al *accesslist.AccessList) string {
+	return fmt.Sprintf("%s/%s", al.Spec.Audit.NextAuditDate.Format(time.RFC3339), al.GetMetadata().Name)
+}
 
 func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex], error) {
 	if upstream == nil {
@@ -46,12 +60,15 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 			types.KindAccessList,
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
-				accessListNameIndex: func(al *accesslist.AccessList) string {
-					return al.GetMetadata().Name
-				},
+				accessListNameIndex:        accessListNameIndexFn,
+				accessListNeedsReviewIndex: accessListNeedsReviewIndexFn,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {
-			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAccessLists))
+			out, err := stream.Collect(clientutils.Resources(ctx,
+				func(ctx context.Context, limit int, start string) ([]*accesslist.AccessList, string, error) {
+					return upstream.ListAccessLists(ctx, limit, start, "", nil)
+				},
+			))
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accesslist.AccessList {
@@ -93,22 +110,115 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 }
 
 // ListAccessLists returns a paginated list of access lists.
-func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+// func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, pageToken string, search string, sortBy *types.SortBy) ([]*accesslist.AccessList, string, error) {
+// 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
+// 	defer span.End()
+//
+// 	lister := genericLister[*accesslist.AccessList, accessListIndex]{
+// 		cache:           c,
+// 		collection:      c.collections.accessLists,
+// 		index:           accessListNameIndex,
+// 		defaultPageSize: 100,
+// 		upstreamList:    c.Config.AccessLists.ListAccessLists,
+// 		nextToken: func(t *accesslist.AccessList) string {
+// 			return t.GetMetadata().Name
+// 		},
+// 	}
+// 	out, next, err := lister.list(ctx, pageSize, pageToken)
+// 	return out, next, trace.Wrap(err)
+// }
+
+// ListAccessLists returns a paginated list of access lists.
+func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, pageToken string, search string, sort *types.SortBy) ([]*accesslist.AccessList, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
 	defer span.End()
 
+	// default to name index
+	index := accessListNameIndex
+	keyFn := accessListNameIndexFn
+
+	var isDesc bool
+	if sort != nil {
+		isDesc = sort.IsDesc
+
+		switch sort.Field {
+		case "needs_review":
+			index = accessListNeedsReviewIndex
+			keyFn = accessListNeedsReviewIndexFn
+		default: // default to name
+			index = accessListNameIndex
+			keyFn = accessListNameIndexFn
+		}
+	}
+
 	lister := genericLister[*accesslist.AccessList, accessListIndex]{
-		cache:           c,
-		collection:      c.collections.accessLists,
-		index:           accessListNameIndex,
+		cache:      c,
+		collection: c.collections.accessLists,
+		isDesc:     isDesc,
+		index:      index,
+		upstreamList: func(ctx context.Context, limit int, start string) ([]*accesslist.AccessList, string, error) {
+			return c.Config.AccessLists.ListAccessLists(ctx, limit, start, search, sort)
+		},
 		defaultPageSize: 100,
-		upstreamList:    c.Config.AccessLists.ListAccessLists,
-		nextToken: func(t *accesslist.AccessList) string {
-			return t.GetMetadata().Name
+		filter: func(al *accesslist.AccessList) bool {
+			return matchAccessList(al, search)
+		},
+		nextToken: func(al *accesslist.AccessList) string {
+			return keyFn(al)
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+func matchAccessList(al *accesslist.AccessList, search string) bool {
+	search = strings.ToLower(strings.TrimSpace(search))
+	if search == "" {
+		return true
+	}
+
+	searchTerms := strings.Split(search, " ")
+
+	// Title match
+	if matchesAllTerms(searchTerms, strings.ToLower(al.Spec.Title)) {
+		return true
+	}
+
+	// Owner names match
+	for _, owner := range al.Spec.Owners {
+		if matchesAllTerms(searchTerms, strings.ToLower(owner.Name)) {
+			return true
+		}
+	}
+
+	// Description match
+	if matchesAllTerms(searchTerms, strings.ToLower(al.Spec.Description)) {
+		return true
+	}
+
+	// Roles match
+	for _, role := range al.Spec.Grants.Roles {
+		if matchesAllTerms(searchTerms, strings.ToLower(role)) {
+			return true
+		}
+	}
+
+	// Type-specific matches
+	if strings.Contains(search, al.Origin()) {
+		return true
+	}
+
+	return false
+}
+
+// matchesAllTerms checks if all search terms are contained in the target string ignoring order
+func matchesAllTerms(terms []string, target string) bool {
+	for _, term := range terms {
+		if !strings.Contains(target, term) {
+			return false
+		}
+	}
+	return true
 }
 
 // GetAccessList returns the specified access list resource.

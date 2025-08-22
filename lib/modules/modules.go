@@ -235,7 +235,7 @@ const (
 // AccessResourcesGetter is a minimal interface that is used to get access lists
 // and related resources from the backend.
 type AccessResourcesGetter interface {
-	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	ListAccessLists(context.Context, int, string, string, *types.SortBy) ([]*accesslist.AccessList, string, error)
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)

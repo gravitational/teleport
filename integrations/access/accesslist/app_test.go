@@ -376,7 +376,7 @@ type mockClient struct {
 	teleport.Client
 }
 
-func (m *mockClient) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+func (m *mockClient) ListAccessLists(ctx context.Context, pageSize int, pageToken string, search string, sortBy *types.SortBy) ([]*accesslist.AccessList, string, error) {
 	args := m.Called(ctx, pageSize, pageToken)
 	return args.Get(0).([]*accesslist.AccessList), args.String(1), args.Error(2)
 }

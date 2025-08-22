@@ -122,9 +122,12 @@ message GetAccessListsResponse {
 message ListAccessListsRequest {
   // page_size is the size of the page to request.
   int32 page_size = 1;
-
   // next_token is the page token.
   string next_token = 2;
+  // search
+  string search = 3;
+  // sort_by
+  types.SortBy sort_by = 4;
 }
 
 // ListAccessListsResponse is the response for getting paginated access lists.

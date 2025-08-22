@@ -35,6 +35,7 @@ import { Review } from "./accesslist_pb";
 import { AccessListOwner } from "./accesslist_pb";
 import { Member } from "./accesslist_pb";
 import { AccessListGrants } from "./accesslist_pb";
+import { SortBy } from "../../legacy/types/types_pb";
 import { AccessList } from "./accesslist_pb";
 /**
  * GetAccessListsRequest is the request for getting all access lists.
@@ -74,6 +75,18 @@ export interface ListAccessListsRequest {
      * @generated from protobuf field: string next_token = 2;
      */
     nextToken: string;
+    /**
+     * search
+     *
+     * @generated from protobuf field: string search = 3;
+     */
+    search: string;
+    /**
+     * sort_by
+     *
+     * @generated from protobuf field: types.SortBy sort_by = 4;
+     */
+    sortBy?: SortBy;
 }
 /**
  * ListAccessListsResponse is the response for getting paginated access lists.
@@ -852,13 +865,16 @@ class ListAccessListsRequest$Type extends MessageType<ListAccessListsRequest> {
     constructor() {
         super("teleport.accesslist.v1.ListAccessListsRequest", [
             { no: 1, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 2, name: "next_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "next_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "sort_by", kind: "message", T: () => SortBy }
         ]);
     }
     create(value?: PartialMessage<ListAccessListsRequest>): ListAccessListsRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.pageSize = 0;
         message.nextToken = "";
+        message.search = "";
         if (value !== undefined)
             reflectionMergePartial<ListAccessListsRequest>(this, message, value);
         return message;
@@ -873,6 +889,12 @@ class ListAccessListsRequest$Type extends MessageType<ListAccessListsRequest> {
                     break;
                 case /* string next_token */ 2:
                     message.nextToken = reader.string();
+                    break;
+                case /* string search */ 3:
+                    message.search = reader.string();
+                    break;
+                case /* types.SortBy sort_by */ 4:
+                    message.sortBy = SortBy.internalBinaryRead(reader, reader.uint32(), options, message.sortBy);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -892,6 +914,12 @@ class ListAccessListsRequest$Type extends MessageType<ListAccessListsRequest> {
         /* string next_token = 2; */
         if (message.nextToken !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.nextToken);
+        /* string search = 3; */
+        if (message.search !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.search);
+        /* types.SortBy sort_by = 4; */
+        if (message.sortBy)
+            SortBy.internalBinaryWrite(message.sortBy, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
