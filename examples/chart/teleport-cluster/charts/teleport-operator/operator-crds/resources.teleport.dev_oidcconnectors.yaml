@@ -151,6 +151,15 @@ spec:
                       omits prompt. If not specified, it defaults to select_account
                       for backwards compatibility.
                     type: string
+                  request_object_mode:
+                    description: RequestObjectMode determines how JWT-Secured Authorization
+                      Requests will be used for authorization requests. JARs, or request
+                      objects, can provide integrity protection, source authentication,
+                      and confidentiality for authorization request parameters. If
+                      omitted, MFA flows will default to the `RequestObjectMode` behavior
+                      specified in the base OIDC connector. Set this property to 'none'
+                      to explicitly disable request objects for the MFA client.
+                    type: string
                 type: object
               pkce_mode:
                 description: PKCEMode represents the configuration state for PKCE
