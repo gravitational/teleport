@@ -1,15 +1,15 @@
 ## Teleport Entra ID integration
-This directory contains the Terraform module to configure Entra ID with attributes necessary for Teleport Entra ID integration. 
+This directory contains the Terraform module to configure Entra ID with attributes necessary for the Teleport Entra ID integration. 
 
-Configuration involves:
+Entra ID configuration involves:
 - Creating an enterprise application.
 - Configuring enterprise application as an SAML SSO provider for Teleport.
-- Configuring an authentication method for Teleport so it can import users and groups from Entra ID.
+- Configuring an authentication method for Teleport, so it can import users and groups from Entra ID.
   Teleport supports two kinds of authentication methods:
   - Teleport as an OIDC IdP - Set up Teleport as an OIDC Identity Provider for the enterprise application. 
     Teleport Proxy Service must be available under public IP for this method to work. 
     Use this option if you are using Teleport cloud.
-  - System credentials - Grant API permissions to the managed identity assigned to the Teleport Auth Service. 
+  - System credentials - Grant API permissions to the managed identity that is assigned to the Teleport Auth Service. 
     Use this option if you have a self-hosted Teleport cluster.
 
   In both the cases, you will need to configure three API permissions: `Application.ReadWrite.OwnedBy, Group.Read.All, User.Read.All`
@@ -26,9 +26,9 @@ EOF
 #### Example configuration to setup SAML SSO and managed identity.
 
 You will need the principal ID of the managed identity that is assigned to the Teleport Auth Service.
-You will also need the permission ID of the `Application.ReadWrite.OwnedBy, Group.Read.All, User.Read.All` permissions.
-Permission objects aren't directly exposed in the Azure portal, you will need a powershell script to permission obtain IDs. 
-
+You will also need the permission ID of these Graph API permissions - `Application.ReadWrite.OwnedBy, Group.Read.All, User.Read.All`.
+These permission objects aren't directly exposed in the Azure portal. 
+You will need to run PowerShell script to obtain permission ID available in your Entra ID tenant.
 ```
 Connect-AzureAD
 
@@ -42,7 +42,7 @@ $permissions = @(
   "User.Read.All"        # Permission to read users in the directory
 )
 
-# Filter and find the app roles in the Microsoft Graph service principal that match the defined permissions.
+# Filter and find the app roles in the Microsoft Graph service principal that matches with permissions.
 # Only include roles where "AllowedMemberTypes" includes "Application" (suitable for managed identities).
 $appRoles = $GraphServicePrincipal.AppRoles |
     Where-Object Value -in $permissions |
@@ -54,8 +54,7 @@ foreach ($appRole in $appRoles) {
 }
 ```
 
-Configure `graph_permission_ids` variable with the permission ID's you retrieved using powershell.  
-
+Generate tfvars with `use_system_credentials=true`, `graph_permission_ids` with permission IDs you retrieved using PowerShell and `managed_id` with the principal ID of the managed identity.
 ```
 cat > variables.auto.tfvars << EOF
 app_name                = "teleport-entraid-integration"
