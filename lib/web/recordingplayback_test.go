@@ -253,9 +253,8 @@ func TestResizeTerminalEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
 			s := &recordingPlayback{
-				ctx:    ctx,
+				ctx:    t.Context(),
 				logger: slog.Default(),
 			}
 			s.terminal.vt = vt10x.New()
@@ -283,9 +282,8 @@ func TestResizeTerminalEvent(t *testing.T) {
 }
 
 func TestCreateTaskContext(t *testing.T) {
-	ctx := context.Background()
 	s := &recordingPlayback{
-		ctx:    ctx,
+		ctx:    t.Context(),
 		logger: slog.Default(),
 	}
 
