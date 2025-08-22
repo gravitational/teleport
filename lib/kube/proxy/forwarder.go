@@ -478,7 +478,7 @@ func (c *authContext) key() string {
 func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesClusterMetadata {
 	var kubeUsers, kubeGroups []string
 
-	if impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(c.kubeUsers, c.kubeGroups, req.Header); err == nil {
+	if impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(c.kubeUsers, c.kubeGroups, c.User.GetName(), req.Header); err == nil {
 		kubeUsers = []string{impersonateUser}
 		kubeGroups = impersonateGroups
 	} else {
@@ -1968,7 +1968,7 @@ func setupImpersonationHeaders(sess *clusterSession, headers http.Header) error 
 		return nil
 	}
 
-	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, headers)
+	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, sess.User.GetName(), headers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2007,7 +2007,30 @@ func copyImpersonationHeaders(dst, src http.Header) {
 // received in the `Impersonate-User` and `Impersonate-Groups` headers and the
 // allowed values. If the user didn't specify any user and groups to impersonate,
 // Teleport will use every group the user is allowed to impersonate.
-func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
+func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, username string, headers http.Header) (string, []string, error) {
+	// Having a wildcard ("*") in a role's `kubernetes_users` allows you to
+	// impersonate any user, but it also has a couple of subtle implications:
+	//
+	// 	1. If no `Impersonate-User` header is given, rather than returning an
+	// 	   error we will send the user's Teleport username. This is to support
+	// 	   users of Argo CD's impersonation feature which only sends the header
+	// 	   in application/project-specific requests (and omits it completely in
+	// 	   cluster-scoped requests). Returning an error is clearer and still the
+	// 	   better choice in the general case.
+	//
+	// 	2. If no `Impersonate-Group` headers are given, we will *not* set them
+	// 	   to the values of `kubernetes_groups`. This is because allowing a user
+	// 	   to impersonate all other users probably means impersonation is being
+	// 	   used to *restrict* permissions, and group impersonation is additive.
+	//
+	// 	   For example: if `kubernetes_groups` contains `"system:masters"` and
+	// 	   we were to automatically add it to all requests, there would be no
+	// 	   point in impersonating a low-privilege user — you'd always have admin
+	// 	   level permissions.
+	//
+	// See: https://github.com/gravitational/teleport/issues/58274.
+	_, hasUserWildcard := kubeUsers[types.Wildcard]
+
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
@@ -2032,7 +2055,7 @@ func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, he
 			}
 			impersonateUser = values[0]
 
-			if _, ok := kubeUsers[impersonateUser]; !ok {
+			if _, ok := kubeUsers[impersonateUser]; !ok && !hasUserWildcard {
 				return "", nil, trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
 			}
 		case ImpersonateGroupHeader:
@@ -2066,24 +2089,28 @@ func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, he
 	// link the user identity with the IAM role, for example `IAM#{{external.email}}`
 	//
 	if impersonateUser == "" {
-		switch len(kubeUsers) {
-		// this is currently not possible as kube users have at least one
-		// user (user name), but in case if someone breaks it, catch here
-		case 0:
-			return "", nil, trace.AccessDenied("assumed at least one user to be present")
-		// if there is deterministic choice, make it to improve user experience
-		case 1:
-			for user := range kubeUsers {
-				impersonateUser = user
-				break
+		if hasUserWildcard {
+			impersonateUser = username
+		} else {
+			switch len(kubeUsers) {
+			// this is currently not possible as kube users have at least one
+			// user (user name), but in case if someone breaks it, catch here
+			case 0:
+				return "", nil, trace.AccessDenied("assumed at least one user to be present")
+			// if there is deterministic choice, make it to improve user experience
+			case 1:
+				for user := range kubeUsers {
+					impersonateUser = user
+					break
+				}
+			default:
+				return "", nil, trace.AccessDenied(
+					"please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
 			}
-		default:
-			return "", nil, trace.AccessDenied(
-				"please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
 		}
 	}
 
-	if len(impersonateGroups) == 0 {
+	if len(impersonateGroups) == 0 && !hasUserWildcard {
 		for group := range kubeGroups {
 			impersonateGroups = append(impersonateGroups, group)
 		}
