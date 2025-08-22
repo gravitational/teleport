@@ -442,6 +442,54 @@ func TestRequestScreen(t *testing.T) {
 	require.Equal(t, eventTypeStop, responses[3][0], "Fourth message should be stop event")
 }
 
+func TestResizeEvent(t *testing.T) {
+	ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
+		<-mockClient.eventRequested
+
+		mockClient.sendEvent(&apievents.SessionStart{
+			TerminalSize: "80:24",
+		})
+		mockClient.sendEvent(&apievents.SessionPrint{
+			DelayMilliseconds: 500,
+			Data:              []byte("\x1b[H\x1b[2JHello, World!"),
+		})
+		mockClient.sendEvent(&apievents.SessionPrint{
+			DelayMilliseconds: 700,
+			Data:              []byte("\033[2J\033[H"), // send a clear screen escape sequence
+		})
+		mockClient.sendEvent(&apievents.Resize{
+			TerminalSize: "100:30",
+		})
+		mockClient.sendEvent(&apievents.SessionPrint{
+			DelayMilliseconds: 1100,
+			Data:              []byte("\x1b[H\x1b[2JThis is the second screen update"),
+		})
+		mockClient.sendEvent(&apievents.SessionPrint{
+			DelayMilliseconds: 1500,
+			Data:              []byte("\x1b[H\x1b[2JThis is the third screen update"),
+		})
+		mockClient.sendEvent(&apievents.SessionEnd{
+			StartTime: time.Now(),
+			EndTime:   time.Now().Add(2 * time.Second),
+		})
+	})
+
+	responses := fetchAndCollectResponses(t, ws, 0, 1000, true)
+
+	require.Equal(t, 4, len(responses), "Should receive 4 messages: start, screen, batch, stop")
+
+	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
+	require.Equal(t, eventTypeScreen, responses[1][0], "Second message should be screen event")
+
+	require.Equal(t, eventTypeScreen, responses[1][responseHeaderSize], byte(24), "Initial screen event should have 24 rows")
+	require.Equal(t, eventTypeScreen, responses[1][responseHeaderSize], byte(80), "Initial screen event should have 80 columns")
+
+	responses = fetchAndCollectResponses(t, ws, 1000, 2000, true)
+
+	require.Equal(t, eventTypeScreen, responses[1][responseHeaderSize], byte(30), "Screen event after resize should have 30 rows")
+	require.Equal(t, eventTypeScreen, responses[1][responseHeaderSize], byte(100), "Screen event after resize should have 100 columns")
+}
+
 func TestBufferedEvents(t *testing.T) {
 	ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
 		<-mockClient.eventRequested
