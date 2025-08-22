@@ -35,7 +35,6 @@ type thumbnailBucketSampler struct {
 	interval      time.Duration
 	nextTimestamp time.Time
 	startTime     time.Time
-	initialized   bool
 }
 
 type thumbnailEntry struct {
@@ -50,15 +49,10 @@ func newThumbnailBucketSampler(maxCapacity int, interval time.Duration) *thumbna
 		maxCapacity: maxCapacity,
 		entries:     make([]*thumbnailEntry, 0, maxCapacity),
 		interval:    interval,
-		initialized: false,
 	}
 }
 
 func (s *thumbnailBucketSampler) shouldCapture(timestamp time.Time) bool {
-	if !s.initialized {
-		return true
-	}
-
 	if timestamp.Before(s.nextTimestamp) {
 		return false
 	}
@@ -67,10 +61,8 @@ func (s *thumbnailBucketSampler) shouldCapture(timestamp time.Time) bool {
 }
 
 func (s *thumbnailBucketSampler) add(state *vt10x.TerminalState, timestamp time.Time) {
-	if !s.initialized {
+	if s.startTime.IsZero() {
 		s.startTime = timestamp
-		s.nextTimestamp = timestamp.Add(s.interval)
-		s.initialized = true
 	}
 
 	if len(s.entries) >= s.maxCapacity {
