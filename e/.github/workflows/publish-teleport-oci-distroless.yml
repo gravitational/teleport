@@ -75,6 +75,7 @@ jobs:
       id-token: write  # required for aws-actions/configure-aws-credentials
       contents: read
     strategy:
+      fail-fast: false
       matrix:
         mode: ['debug', 'production']
         release: ['oss', 'enterprise', 'fips']

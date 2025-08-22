@@ -52,6 +52,7 @@ jobs:
       contents: read
       id-token: write  # required for aws-actions/configure-aws-credentials
     strategy:
+      fail-fast: false
       matrix:
         release: ['oss', 'fips']
         include:
