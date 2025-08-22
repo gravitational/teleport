@@ -227,6 +227,7 @@ export function UnifiedResourcesE() {
               toggleResource={({ kind, id, name }) =>
                 addOrRemoveResources(requestItems(kind, id, name))
               }
+              toggleResources={addOrRemoveResources}
               reset={cancelCheckout}
               onClose={clearAttempt}
               isResourceRequest={true} // only resource requests happen from this page

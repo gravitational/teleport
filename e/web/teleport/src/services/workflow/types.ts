@@ -1,4 +1,8 @@
-import type { RequestState, ResourceId } from 'shared/services/accessRequests';
+import {
+  RequestKind,
+  RequestState,
+  ResourceId,
+} from 'shared/services/accessRequests';
 
 import type { AccessRequestScope } from 'teleport/services/agents';
 
@@ -11,6 +15,7 @@ export interface CreateAccessRequest {
   requestTTL?: Date;
   dryRun?: boolean;
   assumeStartTime?: Date;
+  requestKind?: RequestKind;
 }
 
 export interface UpdateAccessRequest {

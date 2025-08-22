@@ -75,7 +75,7 @@ beforeEach(() => {
 
   jest.spyOn(Main, 'useNoMinWidth').mockReturnValue();
   // Overwrites the IntersectionObserver with a mock so that the `useInfiniteScroll` hook always calls the fetching function.
-  // eslint-disable-next-line jest/prefer-spy-on
+
   global.IntersectionObserver = jest.fn(callback => {
     callback(
       [
@@ -111,7 +111,6 @@ beforeEach(() => {
     disconnect() {}
   }
 
-  // eslint-disable-next-line jest/prefer-spy-on
   global.ResizeObserver = ResizeObserver;
 
   Component = (
@@ -422,23 +421,27 @@ test('created requests specifiable fields are respected on checkout (not overwri
     screen.getByRole('button', { name: /submit request/i })
   );
 
-  expect(ctx.workflowService.createAccessRequest).toHaveBeenCalledWith({
-    assumeStartTime: null,
-    dryRun: undefined,
-    maxDuration: new Date('2024-02-17T02:51:00.000Z'),
-    reason: 'some reason',
-    requestTTL: new Date('2024-02-17T02:51:00.000Z'),
-    resourceIds: [
-      {
-        clusterName: 'localhost',
-        kind: 'node',
-        name: '1',
-        subResourceName: '',
-      },
-    ],
-    roles: ['access'],
-    suggestedReviewers: ['cat', 'george washington', 'alpaca-reviewer'],
-  });
+  expect(ctx.workflowService.createAccessRequest).toHaveBeenCalledWith(
+    {
+      assumeStartTime: null,
+      dryRun: undefined,
+      maxDuration: new Date('2024-02-17T02:51:00.000Z'),
+      reason: 'some reason',
+      requestTTL: new Date('2024-02-17T02:51:00.000Z'),
+      requestKind: 1,
+      resourceIds: [
+        {
+          clusterName: 'localhost',
+          kind: 'node',
+          name: '1',
+          subResourceName: '',
+        },
+      ],
+      roles: ['access'],
+      suggestedReviewers: ['cat', 'george washington', 'alpaca-reviewer'],
+    },
+    undefined
+  );
 
   await screen.findByText(/make another request/i);
 
@@ -468,24 +471,28 @@ test('created requests specifiable fields are respected on checkout (not overwri
 
   await screen.findByText(/resources requested successfully/i);
 
-  expect(ctx.workflowService.createAccessRequest).toHaveBeenCalledWith({
-    assumeStartTime: null,
-    dryRun: undefined,
-    maxDuration: new Date('2024-02-17T02:51:00.000Z'),
-    reason: '',
-    requestTTL: new Date('2024-02-17T02:51:00.000Z'),
-    resourceIds: [
-      {
-        clusterName: 'localhost',
-        kind: 'node',
-        name: '1',
-        subResourceName: '',
-      },
-    ],
-    // These fields gotten reset after the first create.
-    roles: ['access', 'editor', 'auditor'],
-    suggestedReviewers: ['bob', 'cat', 'george washington'],
-  });
+  expect(ctx.workflowService.createAccessRequest).toHaveBeenCalledWith(
+    {
+      assumeStartTime: null,
+      dryRun: undefined,
+      maxDuration: new Date('2024-02-17T02:51:00.000Z'),
+      reason: '',
+      requestKind: 1,
+      requestTTL: new Date('2024-02-17T02:51:00.000Z'),
+      resourceIds: [
+        {
+          clusterName: 'localhost',
+          kind: 'node',
+          name: '1',
+          subResourceName: '',
+        },
+      ],
+      // These fields gotten reset after the first create.
+      roles: ['access', 'editor', 'auditor'],
+      suggestedReviewers: ['bob', 'cat', 'george washington'],
+    },
+    undefined
+  );
 }, 20000);
 
 test('serverside pagination works for roles', async () => {

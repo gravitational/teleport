@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   getDryRunMaxDuration,
@@ -10,7 +10,11 @@ import { useSpecifiableFields } from 'shared/components/AccessRequests/NewReques
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import type { AccessRequest, ResourceId } from 'e-teleport/services/workflow';
+import {
+  AccessRequest,
+  CreateAccessRequest,
+  ResourceId,
+} from 'e-teleport/services/workflow';
 import Ctx from 'e-teleport/teleportContextE';
 import KubeService from 'teleport/services/kube';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -30,6 +34,7 @@ export function useRequestCheckout({
   const createAttempt = useAttempt('');
   const fetchResourceRequestRolesAttempt = useAttempt('');
   const [fetchStatus, setFetchStatus] = useState<LoadingStatus>('loading');
+  const dryRunAbortRef = useRef<AbortController | null>(null);
 
   const {
     selectedReviewers,
@@ -51,6 +56,8 @@ export function useRequestCheckout({
     reset: resetSpecifiableFields,
     reasonMode,
     reasonPrompts,
+    requestKind,
+    setRequestKind,
   } = useSpecifiableFields();
 
   // Format data suitable for table listing.
@@ -102,31 +109,60 @@ export function useRequestCheckout({
   // options and calculate suggested reviewers.
   // Options and reviewers can change depending on the selected
   // roles or resources.
+  // Rerun the dry run when the user adds or removes resources,
+  // or 'requestKind' changes.
   useEffect(() => {
     if (createAttempt.attempt.status === 'success') {
       return;
     }
-    setFetchStatus('loading');
+
+    // abort any in-flight dry run and use a fresh controller
+    const controller = new AbortController();
+    dryRunAbortRef.current?.abort();
+    dryRunAbortRef.current = controller;
+
+    // use timer so we don't show loading state for short requests
+    const timer = setTimeout(() => {
+      if (fetchStatus !== 'loading') {
+        setFetchStatus('loading');
+      }
+    }, 400);
+
     clearAttempt();
 
-    createAccessRequest({
-      maxDuration: getDryRunMaxDuration(),
-      reason: 'placeholder-reason',
-      dryRun: true,
-    })
+    createAccessRequest(
+      {
+        maxDuration: getDryRunMaxDuration(),
+        reason: 'placeholder-reason',
+        dryRun: true,
+        requestKind,
+      },
+      controller.signal
+    )
       .then((resp: AccessRequest) => {
         onDryRunChange(resp);
+        clearTimeout(timer);
         setFetchStatus('loaded');
       })
-      .catch(() => {
+      .catch(e => {
+        if (e?.name === 'AbortError') {
+          return;
+        }
         // If the fetch failed, we can still render the page, but we won't
-        // be able to show the max duration options.
+        // be able to show the max duration or long-term options.
+        clearTimeout(timer);
         setFetchStatus('loaded');
       });
-  }, [addedResources]);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [addedResources, requestKind]);
 
   async function createAccessRequest(
-    req: CreateRequest
+    req: CreateRequest,
+    signal?: AbortSignal
   ): Promise<AccessRequest> {
     // field 'roles' is expected as just a list of strings
     // in the back.
@@ -139,16 +175,19 @@ export function useRequestCheckout({
       roles = selectedResourceRequestRoles;
     }
 
-    return ctx.workflowService.createAccessRequest({
+    const params: CreateAccessRequest = {
       reason: req.reason,
       resourceIds,
-      roles,
       suggestedReviewers: req.suggestedReviewers || [],
+      dryRun: req.dryRun,
+      requestKind: req.requestKind,
+      roles,
       maxDuration: req.maxDuration,
       requestTTL: req.requestTTL,
-      dryRun: req.dryRun,
       assumeStartTime: req.start,
-    });
+    };
+
+    return ctx.workflowService.createAccessRequest(params, signal);
   }
 
   function createRequest(req: CreateRequest) {
@@ -251,6 +290,8 @@ export function useRequestCheckout({
     startTime,
     onStartTimeChange,
     cancelCheckout,
+    requestKind,
+    setRequestKind,
   };
 }
 

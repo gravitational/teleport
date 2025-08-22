@@ -379,6 +379,7 @@ function NewRequest(props: State) {
             toggleResource={({ kind, id, name }) =>
               addOrRemoveResources(requestItems(kind, id, name))
             }
+            toggleResources={addOrRemoveResources}
             transitionState={transitionState}
             reset={clearAddedResources}
             isResourceRequest={isResourceRequest}

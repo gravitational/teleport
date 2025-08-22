@@ -38,6 +38,7 @@ test('correct formatting of access request json response', async () => {
     assumeStartTime: null,
     assumeStartTimeDuration: 'now',
     id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
+    longTermResourceGrouping: undefined,
     state: 'APPROVED',
     user: 'Sam',
     expires: new Date('2024-02-15T11:56:43.482795Z'),
@@ -46,6 +47,7 @@ test('correct formatting of access request json response', async () => {
     createdDuration: 'in 4 hours',
     maxDuration: new Date('2024-02-15T11:56:43.482795Z'),
     maxDurationText: '12 hours',
+    promotedAccessListTitle: undefined,
     requestTTL: new Date('2024-02-15T11:56:43.480999Z'),
     requestTTLDuration: '12 hours',
     sessionTTL: new Date('2024-02-15T11:56:43.482795Z'),
@@ -61,6 +63,7 @@ test('correct formatting of access request json response', async () => {
         roles: ['admin'],
         createdDuration: '',
         assumeStartTime: null,
+        promotedAccessListTitle: undefined,
       },
       {
         author: 'alice',
@@ -69,6 +72,7 @@ test('correct formatting of access request json response', async () => {
         roles: ['admin'],
         createdDuration: '',
         assumeStartTime: null,
+        promotedAccessListTitle: undefined,
       },
     ],
     // Reviewers should contain both review authors and suggested reviewers.
@@ -88,6 +92,7 @@ test('correct formatting of access request json response', async () => {
     ],
     reasonMode: 'optional',
     reasonPrompts: [],
+    requestKind: 0,
   });
 });
 

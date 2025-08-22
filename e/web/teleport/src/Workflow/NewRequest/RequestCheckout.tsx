@@ -20,6 +20,7 @@ export const RequestCheckout = forwardRef<
     SharedRequestCheckoutProps,
     | 'onClose'
     | 'toggleResource'
+    | 'toggleResources'
     | 'appsGrantedByUserGroup'
     | 'userGroupFetchAttempt'
     | 'reset'
