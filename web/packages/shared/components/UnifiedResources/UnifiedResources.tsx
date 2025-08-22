@@ -144,7 +144,7 @@ const filterKindNameMap: Record<ResourceFilterKind, string> = {
   app: 'Applications',
   db: 'Databases',
   windows_desktop: 'Desktops',
-  kube_cluster: 'Kubernetes',
+  kube_cluster: 'Kubernetes Clusters',
   node: 'SSH Resources',
   user_group: 'User Groups',
   git_server: 'Git Servers',
