@@ -411,6 +411,66 @@ func TestJoin(t *testing.T) {
 	}
 }
 
+// TestDescendingScopes tests the DescendingScopes function for various combinations of scopes, and verifies that
+func TestDescendingScopes(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		scope  string
+		expect []string
+	}{
+		{
+			name:   "root",
+			scope:  "/",
+			expect: []string{"/"},
+		},
+		{
+			name:   "empty",
+			scope:  "",
+			expect: nil,
+		},
+		{
+			name:   "single-segment",
+			scope:  "/aa",
+			expect: []string{"/", "/aa"},
+		},
+		{
+			name:   "multi-segment",
+			scope:  "/aa/bb/cc",
+			expect: []string{"/", "/aa", "/aa/bb", "/aa/bb/cc"},
+		},
+		{
+			name:   "dangling separator single",
+			scope:  "/aa/",
+			expect: []string{"/", "/aa"},
+		},
+		{
+			name:   "dangling separator multi",
+			scope:  "/aa/bb/cc/",
+			expect: []string{"/", "/aa", "/aa/bb", "/aa/bb/cc"},
+		},
+		{
+			name:   "missing prefix single",
+			scope:  "aa",
+			expect: []string{"/", "/aa"},
+		},
+		{
+			name:   "missing prefix multi",
+			scope:  "aa/bb/cc",
+			expect: []string{"/", "/aa", "/aa/bb", "/aa/bb/cc"},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			// verify that the iterator produces the expected scopes
+			scopes := slices.Collect(DescendingScopes(tt.scope))
+			require.Equal(t, tt.expect, scopes)
+		})
+	}
+}
+
 // TestCompare tests the Compare function for various combinations of scopes.
 func TestCompare(t *testing.T) {
 	t.Parallel()

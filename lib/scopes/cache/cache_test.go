@@ -251,8 +251,136 @@ func TestCacheFiltering(t *testing.T) {
 
 			// verify that clone was only called on items that matched the filter
 			require.Equal(t, len(tt.resourcesSubjectTo), cloned)
+
+			cloned = 0
+			var nonOrthogonalResources []item[int]
+			for scope := range cache.AllNonOrthogonalResources(tt.scope, cache.WithFilter(tt.filter)) {
+				var seen int
+				for item := range scope.Items() {
+					seen++
+					nonOrthogonalResources = append(nonOrthogonalResources, item)
+				}
+
+				// verify that filtering doesn't cause empty scopes to be yielded
+				require.NotZero(t, seen, "scope=%s", scope.Scope())
+			}
+
+			// verify that non-orthogonal is the union of policies-applicable-to and resources-subject-to in that order
+			expectedNonOrthogonal := joinAndDeduplicateItems(policiesApplicableTo, resourcesSubjectTo)
+			require.Equal(t, expectedNonOrthogonal, nonOrthogonalResources)
+
+			// verify that clone was only called on items that matched the filter
+			require.Equal(t, len(expectedNonOrthogonal), cloned)
 		})
 	}
+}
+
+// TestCacheAllNonOrthogonalResources verifies the expected behavior of the AllNonOrthogonalResources method separately
+// because most coverage is provided by asserting that it produces the union of the output of the other two
+// methods. This test primarily servers as a sanity-check to ensure that the other checks aren't wildly off-base.
+func TestCacheAllNonOrthogonalResources(t *testing.T) {
+	t.Parallel()
+
+	items := []item[int]{
+		{1, "/"},
+		{2, "/aa"},
+		{3, "/aa/bb"},
+		{4, "/aa/bb/cc"},
+		{5, "/aa/cc"},
+		{6, "/aa/cc/dd"},
+		{7, "/xx"},
+		{8, "/xx/yy"},
+	}
+
+	tts := []struct {
+		name   string
+		scope  string
+		expect []item[int]
+	}{
+		{
+			name:   "root",
+			scope:  "/",
+			expect: items,
+		},
+		{
+			name:  "leaf",
+			scope: "/aa/bb/cc",
+			expect: []item[int]{
+				{1, "/"},
+				{2, "/aa"},
+				{3, "/aa/bb"},
+				{4, "/aa/bb/cc"},
+			},
+		},
+		{
+			name:  "middle",
+			scope: "/aa",
+			expect: []item[int]{
+				{1, "/"},
+				{2, "/aa"},
+				{3, "/aa/bb"},
+				{4, "/aa/bb/cc"},
+				{5, "/aa/cc"},
+				{6, "/aa/cc/dd"},
+			},
+		},
+		{
+			name:  "other",
+			scope: "/xx",
+			expect: []item[int]{
+				{1, "/"},
+				{7, "/xx"},
+				{8, "/xx/yy"},
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			cache, err := New(Config[item[int], int]{
+				Scope: (item[int]).Scope,
+				Key:   (item[int]).Key,
+			})
+			require.NoError(t, err)
+
+			for _, item := range items {
+				_, ok := cache.Get(item.Key())
+				require.False(t, ok, "item %+v should not be in cache before Put", item)
+
+				cache.Put(item)
+
+				got, ok := cache.Get(item.Key())
+				require.True(t, ok, "item %+v should be in cache after Put", item)
+				require.Equal(t, item, got, "item %+v should match after Put", item)
+			}
+
+			var nonOrthogonalResources []item[int]
+			for scope := range cache.AllNonOrthogonalResources(tt.scope) {
+				for item := range scope.Items() {
+					nonOrthogonalResources = append(nonOrthogonalResources, item)
+				}
+			}
+			require.Equal(t, tt.expect, nonOrthogonalResources, "scope=%s", tt.scope)
+		})
+	}
+}
+
+// joinAndDeduplicateItems joins multiple sets of items and deduplicates them based on their keys. Used in testing
+// the AllNonOrthogonalResources method since its output should always be the union of the output of
+// PoliciesApplicableToResourceScope and ResourcesSubjectToPolicyScope.
+func joinAndDeduplicateItems(sets ...[]item[int]) []item[int] {
+	// join all sets together and deduplicate
+	seen := make(map[int]struct{})
+	var result []item[int]
+	for _, set := range sets {
+		for _, item := range set {
+			if _, ok := seen[item.Key()]; !ok {
+				seen[item.Key()] = struct{}{}
+				result = append(result, item)
+			}
+		}
+	}
+	return result
 }
 
 // TestCacheConcurrency verifies the basic expected concurrency behavior of the cache.
@@ -673,6 +801,16 @@ func TestCursorScenarios(t *testing.T) {
 			}
 
 			require.Equal(t, tt.resourcesSubjectTo, resourcesSubjectTo)
+
+			// verify non-orhthogonal iteration
+			var nonOrthogonal []item[int]
+			for scope := range cache.AllNonOrthogonalResources(tt.scope, cache.WithCursor(tt.cursor)) {
+				for item := range scope.Items() {
+					nonOrthogonal = append(nonOrthogonal, item)
+				}
+			}
+			expectedNonOrthogonal := joinAndDeduplicateItems(policiesApplicableTo, resourcesSubjectTo)
+			require.Equal(t, expectedNonOrthogonal, nonOrthogonal, "scope=%s cursor=%+v", tt.scope, tt.cursor)
 		})
 	}
 }
