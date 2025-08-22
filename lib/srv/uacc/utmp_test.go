@@ -19,6 +19,7 @@
 package uacc
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -35,6 +36,14 @@ func assertUserPresence(t *testing.T, utmp *UtmpBackend, file, username string, 
 	inFile, err := utmp.IsUserInFile(file, username)
 	assert.NoError(t, err)
 	assert.Equal(t, present, inFile)
+}
+
+func touchFile(name string) error {
+	file, err := os.OpenFile(name, os.O_RDONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	return file.Close()
 }
 
 func makeUtmpBackend(t *testing.T) *UtmpBackend {
