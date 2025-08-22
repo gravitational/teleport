@@ -3185,7 +3185,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	whereParser, err := NewWhereParser(
 		ctx,
 		// register has_access function if the resource is a session.
-		WithHasAccessFunction(resource == types.KindSession),
+		ConditionalOption(resource == types.KindSession, WithHasAccessFunction()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3291,7 +3291,6 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		p.ctx.SetRole(role)
 		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
 			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(p.denyWhere, actionsParser, p.resource, p.verb)
@@ -3313,7 +3312,6 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 
 	// check allow: if rule matches, grant access to resource
 	for _, role := range set {
-		p.ctx.SetRole(role)
 		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
 			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(p.allowWhere, actionsParser, p.resource, p.verb)

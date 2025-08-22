@@ -10808,6 +10808,7 @@ func TestAuditSessionRBAC(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			tc.context.Roles = tc.roles
 			result := tc.roles.CheckAccessToRule(&tc.context, apidefaults.Namespace, types.KindSession, types.VerbRead)
 			tc.errCheck(t, result)
 		})

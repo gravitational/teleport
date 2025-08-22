@@ -223,6 +223,17 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 		}
 		servicesCtx.Session = sessionEnd
 		servicesCtx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
+		// Also add the roles of the user to the context so that they can be used
+		// in the `where` by `has_access` function.
+		servicesCtx.Roles = a.context.Checker.Roles()
+		return nil
+	}
+
+	// First try a simple check without the extended context.
+	if err := a.actionWithContext(&services.Context{User: a.context.User}, types.KindSession, types.VerbRead); err == nil {
+		return nil
+	} else if !trace.IsAccessDenied(err) {
+		// If the error is something other than AccessDenied, return it.
 		return trace.Wrap(err)
 	}
 

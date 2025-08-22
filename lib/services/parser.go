@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/session"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -48,11 +49,9 @@ type RuleContext interface {
 	// GetResource returns resource if specified in the context,
 	// if unspecified, returns error.
 	GetResource() (types.Resource, error)
-	// GetRole returns role if specified in the context,
-	// if unspecified, returns error.
-	GetRole() (types.Role, error)
-	// SetRole sets role in the context, used by the matcher
-	SetRole(role types.Role)
+	// GetRoles returns the set of roles that can be used to check access
+	// to other resources.
+	GetRoles() []types.Role
 }
 
 var (
@@ -211,24 +210,31 @@ func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
 	return def
 }
 
-// WhereParserOpts is a function that modifies the default
+// WhereParserOpt is a function that modifies the default
 // predicate.Def used to create a parser for the `where` section in access rules.
-type WhereParserOpts func(RuleContext, *predicate.Def)
+type WhereParserOpt func(RuleContext, *predicate.Def)
 
 // WithHasAccessFunction adds a has_access function to the parser definition.
 // This function will be used to check if the user has access to the resource
-// specified in the context. If value is false, the function will not be added.
-func WithHasAccessFunction(value bool) WhereParserOpts {
+// specified in the context.
+func WithHasAccessFunction() WhereParserOpt {
 	return func(ctx RuleContext, def *predicate.Def) {
-		if !value {
-			return
-		}
 		def.Functions["has_access"] = hasAccessFunc(ctx)
 	}
 }
 
+// ConditionalOption applies the specified option if the condition is true.
+// Otherwise, the returned option is a no-op.
+func ConditionalOption(condition bool, option WhereParserOpt) WhereParserOpt {
+	return func(ctx RuleContext, def *predicate.Def) {
+		if condition {
+			option(ctx, def)
+		}
+	}
+}
+
 // NewWhereParser returns standard parser for `where` section in access rules.
-func NewWhereParser(ctx RuleContext, opts ...WhereParserOpts) (predicate.Parser, error) {
+func NewWhereParser(ctx RuleContext, opts ...WhereParserOpt) (predicate.Parser, error) {
 	def := newDefaultWhereParserDef(ctx)
 	for _, opt := range opts {
 		opt(ctx, &def)
@@ -248,18 +254,25 @@ func hasAccessFunc(ctx RuleContext) func() predicate.BoolPredicate {
 				return false
 			}
 
-			role, err := ctx.GetRole()
-			if err != nil {
+			roles := ctx.GetRoles()
+			if len(roles) == 0 {
 				return false
 			}
 
+			roleNames := make([]string, len(roles))
+			for i, role := range roles {
+				roleNames[i] = role.GetName()
+			}
+
+			// Create an access checker with a static role set containing
+			// the roles from the context.
 			checker := NewAccessCheckerWithRoleSet(&AccessInfo{
-				Roles:    []string{role.GetName()},
+				Roles:    roleNames,
 				Traits:   nil,
 				Username: "",
 			},
 				"",
-				RoleSet{role},
+				RoleSet(roles),
 			)
 			// We do not enforce MFA or Device Trust for this check because
 			// we don't have a way of checking it from the context.
@@ -379,10 +392,9 @@ type Context struct {
 	HostCert *HostCertContext
 	// SessionTracker is an optional session tracker, in case if the rule checks access to the tracker.
 	SessionTracker types.SessionTracker
-
-	// role is the role that is being checked. It's populated at rule evaluation time
-	// never set it!
-	role types.Role
+	// Roles is the set of roles that can be used to check access
+	// to other resources.
+	Roles []types.Role
 }
 
 // String returns user friendly representation of this context
@@ -434,15 +446,8 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 	}
 }
 
-func (ctx *Context) GetRole() (types.Role, error) {
-	if ctx.role == nil {
-		return nil, trace.NotFound("role is not set in the context")
-	}
-	return ctx.role, nil
-}
-
-func (ctx *Context) SetRole(role types.Role) {
-	ctx.role = role
+func (ctx *Context) GetRoles() []types.Role {
+	return ctx.Roles
 }
 
 // GetIdentifier returns identifier defined in a context
@@ -834,8 +839,14 @@ func predicateContainsAll(a, b any) predicate.BoolPredicate {
 		if !ok {
 			return false
 		}
+
+		if len(aval) == 0 || len(bval) == 0 {
+			return false
+		}
+
+		aSet := set.New(aval...)
 		for _, v := range bval {
-			if !slices.Contains(aval, v) {
+			if !aSet.Contains(v) {
 				return false
 			}
 		}
@@ -854,8 +865,12 @@ func predicateContainsAny(a, b any) predicate.BoolPredicate {
 		if !ok {
 			return false
 		}
+		if len(aval) == 0 || len(bval) == 0 {
+			return false
+		}
+		aSet := set.New(aval...)
 		for _, v := range bval {
-			if slices.Contains(aval, v) {
+			if aSet.Contains(v) {
 				return true
 			}
 		}
