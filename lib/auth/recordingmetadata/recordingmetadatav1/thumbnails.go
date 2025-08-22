@@ -53,11 +53,7 @@ func newThumbnailBucketSampler(maxCapacity int, interval time.Duration) *thumbna
 }
 
 func (s *thumbnailBucketSampler) shouldCapture(timestamp time.Time) bool {
-	if timestamp.Before(s.nextTimestamp) {
-		return false
-	}
-
-	return true
+	return !timestamp.Before(s.nextTimestamp)
 }
 
 func (s *thumbnailBucketSampler) add(state *vt10x.TerminalState, timestamp time.Time) {
