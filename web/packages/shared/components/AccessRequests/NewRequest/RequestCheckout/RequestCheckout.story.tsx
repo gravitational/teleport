@@ -20,11 +20,14 @@ import { useState } from 'react';
 import { Link, MemoryRouter } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
+import { UNSUPPORTED_KINDS } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
 import { Option } from 'shared/components/Select';
+import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
 
 import { dryRunResponse } from '../../fixtures';
 import { useSpecifiableFields } from '../useSpecifiableFields';
 import {
+  PendingListItem,
   RequestCheckoutWithSlider,
   RequestCheckoutWithSliderProps,
 } from './RequestCheckout';
@@ -127,6 +130,143 @@ export const LoadedResourceRequest = () => {
   );
 };
 
+export const LoadedLongTermRequest = () => {
+  const dryRunResponseWithLongTerm = {
+    ...dryRunResponse,
+    requestKind: RequestKind.LongTerm,
+    longTermResourceGrouping: {
+      accessListToResources: {
+        'some-list-uuid': baseProps.pendingAccessRequests
+          .filter(r => !UNSUPPORTED_KINDS.includes(r.kind))
+          .map(r => ({
+            kind: r.kind,
+            name: r.id,
+            clusterName: 'cluster-name',
+          })),
+      },
+      canProceed: true,
+      recommendedAccessList: 'some-list-uuid',
+      validationMessage: '',
+    },
+  } satisfies AccessRequest;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        pendingAccessRequests={baseProps.pendingAccessRequests.filter(
+          r => r.kind !== 'windows_desktop'
+        )}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        requestKind={RequestKind.LongTerm}
+        dryRunResponse={dryRunResponseWithLongTerm}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const LoadedLongTermRequestWithGroupingErrors = () => {
+  const dryRunResponseWithLongTermGroupingErrors = {
+    ...dryRunResponse,
+    requestKind: RequestKind.LongTerm,
+    longTermResourceGrouping: {
+      accessListToResources: {
+        'some-list-uuid': baseProps.pendingAccessRequests
+          .slice(0, 3)
+          .map(r => ({
+            kind: r.kind,
+            name: r.id,
+            clusterName: 'cluster-name',
+          })),
+        'another-list-uuid': baseProps.pendingAccessRequests
+          .slice(3)
+          .map(r => ({
+            kind: r.kind,
+            name: r.id,
+            clusterName: 'cluster-name',
+          })),
+      },
+      canProceed: false,
+      recommendedAccessList: 'some-list-uuid',
+      validationMessage:
+        'Selected resources cannot be grouped for long-term access',
+    },
+  } satisfies AccessRequest;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        requestKind={RequestKind.LongTerm}
+        dryRunResponse={dryRunResponseWithLongTermGroupingErrors}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const LoadedLongTermRequestWithUnsupportedResources = () => {
+  const unsupportedResources = [
+    {
+      kind: 'windows_desktop',
+      name: 'desktop-name',
+      id: 'desktop-id',
+    },
+    {
+      kind: 'namespace',
+      name: 'kube-name',
+      id: 'kube-id',
+      subResourceName: 'kube-namespace-name',
+    },
+  ] satisfies PendingListItem[];
+
+  const dryRunResponseWithLongTermAndUnsupportedResources = {
+    ...dryRunResponse,
+    requestKind: RequestKind.LongTerm,
+    resources: [
+      ...baseProps.pendingAccessRequests.map(r => ({
+        id: { ...r, clusterName: 'cluster-name' },
+      })),
+      ...unsupportedResources.map(r => ({
+        id: { ...r, clusterName: 'cluster-name' },
+      })),
+    ],
+    longTermResourceGrouping: {
+      accessListToResources: {
+        'list-uuid': baseProps.pendingAccessRequests
+          .filter(r => !UNSUPPORTED_KINDS.includes(r.kind))
+          .map(r => ({
+            kind: r.kind,
+            name: r.id,
+            clusterName: 'cluster-name',
+          })),
+      },
+      canProceed: false,
+      recommendedAccessList: 'list-uuid',
+      validationMessage:
+        'Long-term access is not available for some selected resources',
+    },
+  } satisfies AccessRequest;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        pendingAccessRequests={[
+          ...baseProps.pendingAccessRequests,
+          ...unsupportedResources,
+        ]}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        requestKind={RequestKind.LongTerm}
+        dryRunResponse={dryRunResponseWithLongTermAndUnsupportedResources}
+      />
+    </MemoryRouter>
+  );
+};
+
 export const ProcessingResourceRequest = () => (
   <MemoryRouter>
     <RequestCheckoutWithSlider
@@ -213,42 +353,43 @@ const baseProps: RequestCheckoutWithSliderProps = {
     {
       kind: 'app',
       name: 'app-name',
-      id: 'app-name',
+      id: 'app-id',
     },
     {
       kind: 'db',
-      name: 'app-name',
-      id: 'app-name',
+      name: 'db-name',
+      id: 'db-id',
     },
     {
       kind: 'kube_cluster',
       name: 'kube-name',
-      id: 'app-name',
+      id: 'kube-id',
     },
     {
       kind: 'user_group',
       name: 'user-group-name',
-      id: 'app-name',
+      id: 'user-group-id',
     },
     {
       kind: 'windows_desktop',
       name: 'desktop-name',
-      id: 'app-name',
+      id: 'desktop-id',
     },
     {
       kind: 'saml_idp_service_provider',
       name: 'app-saml',
-      id: 'app-name',
+      id: 'saml-id',
     },
     {
       kind: 'aws_ic_account_assignment',
       name: 'account1',
-      id: 'admin-on-account1',
+      id: 'aws-id',
     },
   ],
   clearAttempt: () => null,
   onClose: () => null,
   toggleResource: () => null,
+  toggleResources: () => null,
   reset: () => null,
   transitionState: 'entered',
   numRequestedResources: 4,
@@ -264,5 +405,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
   pendingRequestTtlOptions: [],
   dryRunResponse,
   startTime: null,
+  requestKind: RequestKind.ShortTerm,
+  setRequestKind: () => null,
   onStartTimeChange: () => null,
 };
