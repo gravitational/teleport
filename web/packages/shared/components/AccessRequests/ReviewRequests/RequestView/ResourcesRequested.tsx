@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,17 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { Option } from 'shared/components/Select';
-import type { RequestKind } from 'shared/services/accessRequests';
+import { Box, Label } from 'design';
+import { formattedName } from 'shared/components/AccessRequests/ReviewRequests';
+import type { Resource } from 'shared/services/accessRequests';
 
-export type TimeOption = Option<Date>;
+export default function ResourcesRequested({
+  resources,
+}: {
+  resources: Resource[];
+}) {
+  const $resources = resources.map(resource => (
+    <Label mr={1} key={resource.id.name} kind="secondary">
+      {resource.details.friendlyName || formattedName(resource)}
+    </Label>
+  ));
 
-export type CreateRequest = {
-  reason?: string;
-  start?: Date;
-  suggestedReviewers?: string[];
-  maxDuration?: Date;
-  requestTTL?: Date;
-  dryRun?: boolean;
-  requestKind?: RequestKind;
-};
+  return <Box>{$resources}</Box>;
+}
