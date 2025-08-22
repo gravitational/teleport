@@ -29,6 +29,7 @@ import Dialog, {
 import Flex from 'design/Flex/Flex';
 import Text from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput/FieldInput';
+import { FieldTextArea } from 'shared/components/FieldTextArea/FieldTextArea';
 import { Validation } from 'shared/components/Validation/Validation';
 
 import { LockResourceKind } from 'teleport/LocksV2/NewLock/common';
@@ -114,7 +115,7 @@ export function ResourceLockDialog(props: {
                 Locking a resource will terminate all of its connections and
                 reject any new API requests.
               </Text>
-              <FieldInput
+              <FieldTextArea
                 label="Reason"
                 placeholder="Going down for maintenance"
                 value={message}
