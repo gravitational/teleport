@@ -82,8 +82,8 @@ message SessionRecordingMetadata {
   string cluster_name = 7;
   // User is the user whose session is being recorded.
   string user = 8;
-  // Resource is the name of the resource that was connected to.
-  string resource = 9;
+  // ResourceName is the name of the resource that was connected to.
+  string resource_name = 9;
   // Type is the type of session recording.
   SessionRecordingType type = 10;
 }
