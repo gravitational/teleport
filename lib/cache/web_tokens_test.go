@@ -17,7 +17,6 @@
 package cache
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -37,11 +36,9 @@ func TestWebTokens(t *testing.T) {
 				User:  "llama",
 			})
 		},
-		create: p.webTokenS.Upsert,
-		list:   p.webTokenS.List,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.WebToken, error) {
-			return p.cache.GetWebTokens(ctx)
-		},
+		create:    p.webTokenS.Upsert,
+		list:      legacyListAdapter(p.webTokenS.List),
+		cacheList: legacyListAdapter(p.cache.GetWebTokens),
 		deleteAll: p.webTokenS.DeleteAll,
-	})
+	}, withSkipPaginationTest())
 }
