@@ -78,7 +78,7 @@ func TestValidateRequest(t *testing.T) {
 				endOffset:   500,
 			},
 			wantErr: true,
-			errMsg:  "end time before start time",
+			errMsg:  "invalid time range (1000, 500)",
 		},
 		{
 			name: "range too large",
