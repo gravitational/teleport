@@ -645,7 +645,7 @@ export class FeatureClusters implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return cfg.isDashboard || flags.trustedClusters;
+    return (cfg.isDashboard || flags.trustedClusters) && !cfg.isCloud;
   }
 
   showInDashboard = true;
