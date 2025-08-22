@@ -114,6 +114,11 @@ jobs:
           # Public ECR _always_ uses this region
           AWS_REGION: us-east-1
 
+      - name: Jitter to spread out image pushes
+        # Sleep for a random amount of seconds between 0 and 59 seconds
+        # This is to spread out the images pushed to avoid hitting the ECR rate limit
+        run: sleep $((RANDOM % 60))
+
       - name: Copy multiarch image to production repository
         env:
           PRODUCTION_TAGS: ${{ inputs.production-tags }}
