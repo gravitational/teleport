@@ -13,8 +13,7 @@ The set up is based on the [OIDC IdP authentication method](entra-id.mdx#choosin
 
 ## Prerequisites
 
-- Teleport Identity Governance enabled for your Teleport cluster. Optionally, Identity Security should
-also be enabled if you choose to enable Identity Security integration.
+- Teleport Identity Governance enabled for your Teleport cluster.
 - Your user must have privileged administrator permissions in the Microsoft Entra ID tenant.
 
 ## Step 1/5. Create enterprise application
@@ -90,7 +89,8 @@ $ tctl plugins install entraid \
     --name entra-id-default \
     --auth-connector-name entra-id \
     --default-owner=<Var name="Access List Owner"/> \
-    –-manual-setup
+    --no-access-graph \
+    --manual-setup
 ```
 
 The `--name` flag specifies the resource name of the Entra ID plugin. 
