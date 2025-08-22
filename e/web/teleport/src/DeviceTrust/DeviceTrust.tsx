@@ -86,13 +86,22 @@ export const DeviceTrust = () => {
                     >
                       registered with tctl
                     </Link>{' '}
-                    or{' '}
+                    or synced from either{' '}
                     <Link
                       color="text.main"
                       href="https://goteleport.com/docs/identity-governance/device-trust/jamf-integration/"
                       target="_blank"
                     >
-                      synced from Jamf
+                      Jamf&nbsp;Pro
+                    </Link>{' '}
+                    or{' '}
+                    <Link
+                      color="text.main"
+                      // TODO(ravicious): Update the URL to the actual Intune docs.
+                      href="https://goteleport.com/docs/identity-governance/device-trust/"
+                      target="_blank"
+                    >
+                      Microsoft&nbsp;Intune
                     </Link>
                     .
                   </P>

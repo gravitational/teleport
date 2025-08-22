@@ -106,6 +106,14 @@ func valuesToProtoListDevicesRequest(query url.Values) (*devicepb.ListDevicesReq
 func toUIDevices(devices []*devicepb.Device) []ui.Device {
 	uiDevices := make([]ui.Device, 0, len(devices))
 	for _, v := range devices {
+		var source *ui.DeviceSource
+		if v.Source != nil {
+			source = &ui.DeviceSource{
+				Name:   v.Source.Name,
+				Origin: v.Source.Origin,
+			}
+		}
+
 		uiDevices = append(uiDevices,
 			ui.Device{
 				ID:           v.Id,
@@ -114,6 +122,7 @@ func toUIDevices(devices []*devicepb.Device) []ui.Device {
 				EnrollStatus: devicetrust.FriendlyDeviceEnrollStatus(v.EnrollStatus),
 				Owner:        v.Owner,
 				CreateTime:   v.CreateTime.AsTime(),
+				Source:       source,
 			},
 		)
 	}

@@ -1,12 +1,13 @@
 import styled from 'styled-components';
 
 import Box from 'design/Box';
-import Table, { Cell } from 'design/DataTable';
+import Table, { Cell, TextCell } from 'design/DataTable';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import { P2 } from 'design/Text';
 
 import {
   DeviceListProps,
+  deviceSource,
   TrustedDeviceOSType,
 } from 'teleport/DeviceTrust/types';
 
@@ -29,6 +30,11 @@ export const DeviceList = ({
         {
           key: 'assetTag',
           headerText: 'Asset Tag',
+        },
+        {
+          key: 'source',
+          headerText: 'Source',
+          render: ({ source }) => <TextCell data={deviceSource(source)} />,
         },
         {
           key: 'enrollStatus',

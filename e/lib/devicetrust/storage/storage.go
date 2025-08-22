@@ -2059,6 +2059,14 @@ func deviceIDFromKey(key backend.Key) string {
 }
 
 func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceView) *devicepb.Device {
+	var source *devicepb.DeviceSource
+	if sd.Source != nil {
+		source = &devicepb.DeviceSource{
+			Name:   sd.Source.Name,
+			Origin: devicepb.DeviceOrigin(sd.Source.Origin),
+		}
+	}
+
 	// If "list" provide only basic device information.
 	// Suitable for viewing multiple devices at once, as in "tctl devices ls".
 	if view == devicepb.DeviceView_DEVICE_VIEW_LIST {
@@ -2071,6 +2079,7 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 			CreateTime:   timestamppb.New(sd.CreateTime),
 			UpdateTime:   timestamppb.New(sd.UpdateTime),
 			EnrollStatus: devicepb.DeviceEnrollStatus(sd.EnrollStatus),
+			Source:       source,
 		}
 	}
 
@@ -2083,14 +2092,6 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 			DeviceAttestationType: devicepb.DeviceAttestationType(c.DeviceAttestationType),
 			TpmEkcertSerial:       c.TPMEKCertSerial,
 			TpmAkPublic:           c.TPMAKPublic,
-		}
-	}
-
-	var source *devicepb.DeviceSource
-	if sd.Source != nil {
-		source = &devicepb.DeviceSource{
-			Name:   sd.Source.Name,
-			Origin: devicepb.DeviceOrigin(sd.Source.Origin),
 		}
 	}
 
