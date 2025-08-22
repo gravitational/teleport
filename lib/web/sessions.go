@@ -506,7 +506,7 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 
 	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
 
-	accessChecker, err := services.NewAccessChecker(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
+	accessChecker, err := services.NewAccessCheckerForUserSession(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
 	return accessChecker, trace.Wrap(err)
 }
 

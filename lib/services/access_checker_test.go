@@ -19,9 +19,11 @@
 package services
 
 import (
+	"context"
 	"sort"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -873,4 +875,69 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 			tt.requireError(t, err)
 		})
 	}
+}
+
+// TestUserSessionRoleNotFoundError ensures that role not found errors during user session access checks include UserSessionRoleNotFoundErrorMsg when appropriate,
+func TestUserSessionRoleNotFoundError(t *testing.T) {
+	// Create a mock RoleGetter that returns "role not found" error for a specific role
+	mockRoleGetter := &mockRoleGetter{
+		roles: map[string]types.Role{
+			"existing-role": newRole(func(rv *types.RoleV6) { rv.SetName("existing-role") }),
+		},
+	}
+
+	t.Run("NewAccessChecker with missing role does not add UserSessionRoleNotFoundErrorMsg", func(t *testing.T) {
+		accessInfo := &AccessInfo{
+			Roles: []string{"missing-role"},
+		}
+
+		_, err := NewAccessChecker(accessInfo, "cluster", mockRoleGetter)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+		require.Contains(t, err.Error(), "role missing-role is not found")
+		require.NotContains(t, err.Error(), UserSessionRoleNotFoundErrorMsg)
+	})
+
+	t.Run("NewAccessCheckerForUserSession with missing role adds UserSessionRoleNotFoundErrorMsg", func(t *testing.T) {
+		accessInfo := &AccessInfo{
+			Roles: []string{"missing-role"},
+		}
+
+		_, err := NewAccessCheckerForUserSession(accessInfo, "cluster", mockRoleGetter)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+		require.Contains(t, err.Error(), "role missing-role is not found")
+		require.Contains(t, err.Error(), UserSessionRoleNotFoundErrorMsg)
+	})
+
+	t.Run("NewAccessCheckerForUserSession with existing role succeeds", func(t *testing.T) {
+		accessInfo := &AccessInfo{
+			Roles: []string{"existing-role"},
+		}
+
+		checker, err := NewAccessCheckerForUserSession(accessInfo, "cluster", mockRoleGetter)
+		require.NoError(t, err)
+		require.NotNil(t, checker)
+	})
+}
+
+// mockRoleGetter implements RoleGetter for testing
+type mockRoleGetter struct {
+	roles map[string]types.Role
+}
+
+func (m *mockRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if role, exists := m.roles[name]; exists {
+		return role, nil
+	}
+	// Return the same error format as the real implementation
+	return nil, trace.NotFound("role %v is not found", name)
+}
+
+func (m *mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	for _, role := range m.roles {
+		roles = append(roles, role)
+	}
+	return roles, nil
 }

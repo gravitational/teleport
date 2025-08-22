@@ -29,15 +29,6 @@ export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 type RequestOptions = {
   /**
-   * Usually, an HTTP/404 with a "role not found" message means that the user
-   * can't be authorized and needs to sign in again. In such case the API
-   * service immediately signs the user out. Setting this flag to `true`
-   * overrides this behavior and allows a "role not found" error to be
-   * propagated up the call stack.
-   */
-  allowRoleNotFound?: boolean;
-
-  /**
    * If set to `true`, the API service will not attempt to retry after an MFA
    * challenge.
    */
@@ -219,7 +210,7 @@ const api = {
   ): Promise<any> {
     try {
       const response = await api.fetch(url, customOptions, mfaResponse);
-      return await api.getJsonFromFetchResponse(response, options);
+      return await api.getJsonFromFetchResponse(response);
     } catch (err) {
       // Retry with MFA if we get an admin action MFA error.
       if (
@@ -229,15 +220,14 @@ const api = {
       ) {
         mfaResponse = await api.getAdminActionMfaResponse();
         const response = await api.fetch(url, customOptions, mfaResponse);
-        return await api.getJsonFromFetchResponse(response, options);
+        return await api.getJsonFromFetchResponse(response);
       } else {
         throw err;
       }
     }
   },
 
-  async getJsonFromFetchResponse(response: Response, options: RequestOptions) {
-    const { allowRoleNotFound = false } = options;
+  async getJsonFromFetchResponse(response: Response) {
     let json;
     try {
       json = await response.json();
@@ -254,9 +244,8 @@ const api = {
     }
 
     /** This error can occur in the edge case where a role in the user's certificate was deleted during their session. */
-    const isRoleNotFoundErr =
-      !allowRoleNotFound && isRoleNotFoundError(parseError(json));
-    if (isRoleNotFoundErr) {
+    const isUserSessionRoleNotFoundErr = isUserSessionRoleNotFoundError(json);
+    if (isUserSessionRoleNotFoundErr) {
       websession.logoutWithoutSlo({
         /* Don't remember location after login, since they may no longer have access to the page they were on. */
         rememberLocation: false,
@@ -410,10 +399,12 @@ export function isAdminActionRequiresMfaError(err: Error) {
   );
 }
 
-/** isRoleNotFoundError returns true if the error message is due to a role not being found. */
-export function isRoleNotFoundError(errMessage: string): boolean {
-  // This error message format should be kept in sync with the NotFound error message returned in lib/services/local/access.GetRole
-  return /role \S+ is not found/.test(errMessage);
+/** isUserSessionRoleNotFoundError returns true if the error is a role not found error encountered durings user session role validation */
+export function isUserSessionRoleNotFoundError(json: any): boolean {
+  // Keep in sync with lib/services/role.go(UserSessionRoleNotFoundError)
+  return (
+    !!json.error && !!json?.messages?.includes('user session role not found')
+  );
 }
 
 export default api;
