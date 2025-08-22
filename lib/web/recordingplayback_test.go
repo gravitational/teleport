@@ -290,7 +290,7 @@ func TestCreateTaskContext(t *testing.T) {
 	// Create first task
 	taskCtx1 := s.createTaskContext()
 	require.NotNil(t, taskCtx1)
-	require.NotNil(t, s.activeTask)
+	require.NotNil(t, s.cancelActiveTask)
 
 	require.NoError(t, taskCtx1.Err(), "task context should not be canceled yet")
 
