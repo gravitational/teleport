@@ -31,7 +31,6 @@ import {
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
-import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import {
   createLockSuccess,
   listV2LocksSuccess,
