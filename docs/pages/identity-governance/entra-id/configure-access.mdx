@@ -26,7 +26,7 @@ in Teleport with a resource label `env: monitor`.
 We will have two user groups created in Entra ID: `ad-app-admin` and 
 `ad-app-support`. We want members of these groups to have a permanent 
 access and an ability to request access to Grafana respectively. You 
-may use an existing Entra ID groups.
+may also use existing Entra ID groups instead.
 
 We will then create two roles in Teleport. One will allow access to Grafana 
 application while the other role will allow requesting access to the role that 
@@ -93,7 +93,7 @@ label, and the value configured in the user `apps` trait matches, this role will
 access to that application. 
 
 Using trait template to define label makes this role scalable as user traits are dynamically
-configurable.
+configurable. You can learn more about traits and role templates [in this guide](../../zero-trust-access/rbac-get-started/role-templates.mdx).
 
 When user authenticates with Entra ID, the SAML attributes (or claims if you are using OIDC) 
 that are available in the user SSO response are preserved as user traits. Additionally, you 
@@ -159,7 +159,7 @@ based on a direct-assigned `app-monitor` role.
 ![Teleport long term access list](../../../img/igs/entraid/entra-teleport-acl-long-term.png)
 
 This Access List grants `app-monitor` role and a trait `apps: monitor` to its members.
-Effectively, allowing its members to access resource application resource by the `app-monitor` role.
+Effectively, allowing its members to access application resource via the `app-monitor` role.
 
 ## Next steps
 
