@@ -4487,11 +4487,11 @@ func (m *JWTKeyPair) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_JWTKeyPair proto.InternalMessageInfo
 
-// EncryptionKeyPair is a PEM encoded keypair used for encrypting and decrypting data.
+// EncryptionKeyPair is a PKIX ASN.1 DER encoded keypair used for encrypting and decrypting data.
 type EncryptionKeyPair struct {
-	// PublicKey is a PEM encoded public key.
+	// PublicKey is a PKIX ASN.1 DER encoded public key.
 	PublicKey []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	// PrivateKey is a PEM encoded private key.
+	// PrivateKey is a PKCS#8 ASN.1 DER encoded private key.
 	PrivateKey []byte `protobuf:"bytes,2,opt,name=private_key,json=privateKey,proto3" json:"private_key,omitempty"`
 	// PrivateKeyType is the type of the PrivateKey.
 	PrivateKeyType PrivateKeyType `protobuf:"varint,3,opt,name=private_key_type,json=privateKeyType,proto3,enum=types.PrivateKeyType" json:"private_key_type,omitempty"`
@@ -4538,7 +4538,7 @@ var xxx_messageInfo_EncryptionKeyPair proto.InternalMessageInfo
 
 // A public key to be used as a recipient during age encryption of session recordings.
 type AgeEncryptionKey struct {
-	// A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
+	// A PKIX ASN.1 DER encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
 	PublicKey            []byte   `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
