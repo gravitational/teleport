@@ -215,9 +215,8 @@ type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer clie
 type Config struct {
 	// PluginRegistry handles plugin registration
 	PluginRegistry plugin.Registry
-	// Proxy is a reverse tunnel proxy that handles connections
-	// to local cluster or remote clusters using unified interface
-	Proxy reversetunnelclient.Tunnel
+	// Proxy provides a means to look up clusters.
+	Proxy reversetunnelclient.ClusterGetter
 	// AuthServers is a list of auth servers this proxy talks to
 	AuthServers utils.NetAddr
 	// ProxyClient is a client that authenticated as proxy
@@ -725,7 +724,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			Clock:                 h.clock,
 			AuthClient:            cfg.ProxyClient,
 			AccessPoint:           cfg.AccessPoint,
-			ProxyClient:           cfg.Proxy,
+			ClusterGetter:         cfg.Proxy,
 			CipherSuites:          cfg.CipherSuites,
 			ProxyPublicAddrs:      cfg.ProxyPublicAddrs,
 			WebPublicAddr:         resp.SSH.PublicAddr,
@@ -3651,10 +3650,10 @@ func (h *Handler) getClusterLocksV2(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 ) (any, error) {
 	ctx := r.Context()
-	clt, err := sessionCtx.GetUserClient(ctx, site)
+	clt, err := sessionCtx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4789,13 +4788,13 @@ func (h *Handler) getSiteByClusterName(ctx context.Context, sctx *SessionContext
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxy.GetSite(clusterName)
+	cluster, err := proxy.Cluster(ctx, clusterName)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to query site", "error", err, "cluster", clusterName)
 		return nil, trace.Wrap(err)
 	}
 
-	return site, nil
+	return cluster, nil
 }
 
 // ClusterClientProvider is an interface for a type which can provide
@@ -4867,13 +4866,13 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 			return nil, trace.AccessDenied("need auth")
 		}
 
-		site, err := h.cfg.Proxy.GetSite(h.auth.clusterName)
+		cluster, err := h.cfg.Proxy.Cluster(ctx, h.auth.clusterName)
 		if err != nil {
 			h.logger.WarnContext(ctx, "Failed to query cluster", "error", err, "cluster", h.auth.clusterName)
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, p, site, token)
+		return fn(w, r, p, cluster, token)
 	})
 }
 
@@ -5207,7 +5206,7 @@ func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) 
 
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
 // of the given user.
-func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (reversetunnelclient.Tunnel, error) {
+func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (reversetunnelclient.ClusterGetter, error) {
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get client roles", "error", err)
@@ -5218,7 +5217,7 @@ func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (rev
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker.CheckAccessToRemoteCluster, h.cfg.AccessPoint), nil
+	return reversetunnelclient.NewClusterGetterWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker.CheckAccessToRemoteCluster, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy
