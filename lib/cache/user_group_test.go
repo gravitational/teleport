@@ -17,7 +17,6 @@
 package cache
 
 import (
-	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -28,8 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestUserGroups tests that CRUD operations on user group resources are
@@ -48,14 +45,10 @@ func TestUserGroups(t *testing.T) {
 				}, types.UserGroupSpecV1{},
 			)
 		},
-		create: p.userGroups.CreateUserGroup,
-		list: func(ctx context.Context) ([]types.UserGroup, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.userGroups.ListUserGroups))
-		},
-		cacheGet: p.cache.GetUserGroup,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.UserGroup, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListUserGroups, pageSize))
-		},
+		create:    p.userGroups.CreateUserGroup,
+		list:      p.userGroups.ListUserGroups,
+		cacheGet:  p.cache.GetUserGroup,
+		cacheList: p.cache.ListUserGroups,
 		update:    p.userGroups.UpdateUserGroup,
 		deleteAll: p.userGroups.DeleteAllUserGroups,
 	})

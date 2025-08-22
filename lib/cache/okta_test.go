@@ -23,8 +23,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestOktaImportRules tests that CRUD operations on Okta import rule resources are
@@ -71,13 +69,9 @@ func TestOktaImportRules(t *testing.T) {
 			_, err := p.okta.CreateOktaImportRule(ctx, resource)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]types.OktaImportRule, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.okta.ListOktaImportRules))
-		},
-		cacheGet: p.cache.GetOktaImportRule,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.OktaImportRule, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListOktaImportRules, pageSize))
-		},
+		list:      p.okta.ListOktaImportRules,
+		cacheGet:  p.cache.GetOktaImportRule,
+		cacheList: p.cache.ListOktaImportRules,
 		update: func(ctx context.Context, resource types.OktaImportRule) error {
 			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
 			return trace.Wrap(err)
@@ -119,13 +113,9 @@ func TestOktaAssignments(t *testing.T) {
 			_, err := p.okta.CreateOktaAssignment(ctx, resource)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]types.OktaAssignment, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.okta.ListOktaAssignments))
-		},
-		cacheGet: p.cache.GetOktaAssignment,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.OktaAssignment, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListOktaAssignments, pageSize))
-		},
+		list:      p.okta.ListOktaAssignments,
+		cacheGet:  p.cache.GetOktaAssignment,
+		cacheList: p.cache.ListOktaAssignments,
 		update: func(ctx context.Context, resource types.OktaAssignment) error {
 			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
 			return trace.Wrap(err)
