@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 )
 
 // WorkloadIdentityAWSRACommand implements `tbot start workload-identity-aws-ra`
@@ -138,7 +139,7 @@ func (c *WorkloadIdentityAWSRACommand) ApplyConfig(cfg *config.BotConfig, l *slo
 		return trace.Wrap(err)
 	}
 
-	svc := &config.WorkloadIdentityAWSRAService{
+	svc := &awsra.Config{
 		Destination:            dest,
 		RoleARN:                c.RoleARN,
 		ProfileARN:             c.ProfileARN,

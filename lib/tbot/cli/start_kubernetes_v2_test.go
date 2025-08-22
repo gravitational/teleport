@@ -23,7 +23,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
 // TestKubernetesV2Command tests that the KubernetesCommand properly parses its
@@ -49,12 +51,12 @@ func TestKubernetesV2Command(t *testing.T) {
 
 				// It must configure a kubernetes output with a directory destination.
 				svc := cfg.Services[0]
-				k8s, ok := svc.(*config.KubernetesV2Output)
+				k8s, ok := svc.(*k8s.OutputV2Config)
 				require.True(t, ok)
 
 				require.True(t, k8s.DisableExecPlugin)
 
-				dir, ok := k8s.Destination.(*config.DestinationDirectory)
+				dir, ok := k8s.Destination.(*destination.Directory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
 
