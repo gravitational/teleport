@@ -39,7 +39,6 @@ import {
   FilterKind,
   getFilterKindName,
   ResourceAvailabilityFilter,
-  ResourceFilterKind,
 } from './UnifiedResources';
 
 const sortFieldOptions = [
@@ -143,23 +142,14 @@ export function FilterPanel({
         </HoverTooltip>
         <MultiselectMenu
           options={availableKinds
-            .slice()
-            .sort((a, b) =>
+            .toSorted((a, b) =>
               getFilterKindName(a.kind).localeCompare(getFilterKindName(b.kind))
             )
-            .map(
-              ({
-                kind,
-                disabled,
-              }: {
-                kind: ResourceFilterKind;
-                disabled: boolean;
-              }) => ({
-                value: kind as string,
-                label: getFilterKindName(kind),
-                disabled: disabled,
-              })
-            )}
+            .map(({ kind, disabled }) => ({
+              value: kind as string,
+              label: getFilterKindName(kind),
+              disabled,
+            }))}
           selected={kinds || []}
           onChange={onKindsChanged}
           label="Types"

@@ -543,7 +543,7 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	resourceKind := resource.GetKind()
 	switch resourceKind {
 	case KindApp:
-		if slices.Contains(kinds, resourceKind) {
+		if slices.Contains(kinds, KindApp) {
 			return true
 		}
 

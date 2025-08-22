@@ -167,7 +167,7 @@ function getResourcesSubsections({
     pinnedOnly: false,
   });
 
-  const tops = [
+  return [
     {
       title: 'All Resources',
       icon: Icons.Server,
@@ -200,9 +200,6 @@ function getResourcesSubsections({
         currentKinds.length !== 1,
       onClick: () => setPinnedUserPreference(true),
     },
-  ];
-
-  const byKinds = [
     {
       title: getFilterKindName('app'),
       icon: Icons.Application,
@@ -280,8 +277,7 @@ function getResourcesSubsections({
       onClick: () => setPinnedUserPreference(false),
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
-  ].sort((a, b) => a.title.localeCompare(b.title));
-  return [...tops, ...byKinds];
+  ];
 }
 
 export function ResourcesSection({
