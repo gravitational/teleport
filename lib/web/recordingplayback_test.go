@@ -649,14 +649,14 @@ func createWebSocket(t *testing.T, setupEvents func(mockClient *mockStreamClient
 
 	t.Cleanup(func() {
 		server.Close()
-		closeWebSocket(t, ws)
+		sendCloseMessage(t, ws)
 	})
 
 	return ws, mockClient
 }
 
-// closeWebSocket gracefully closes the WebSocket connection by sending a close message.
-func closeWebSocket(t *testing.T, ws *websocket.Conn) {
+// sendCloseMessage sends a close message to the websocket.
+func sendCloseMessage(t *testing.T, ws *websocket.Conn) {
 	closeRequest := make([]byte, requestHeaderSize)
 	closeRequest[0] = requestTypeClose
 
