@@ -56,6 +56,14 @@ message SessionRecordingResizeEvent {
   int32 rows = 2;
 }
 
+// SessionRecordingType is the type of session recording.
+enum SessionRecordingType {
+  // SessionRecordingTypeUnspecified is the default value for session recording type.
+  SESSION_RECORDING_TYPE_UNSPECIFIED = 0;
+  // SessionRecordingTypeSsh is an interactive SSH session recording.
+  SESSION_RECORDING_TYPE_SSH = 1;
+}
+
 // SessionRecordingMetadata contains metadata for a session recording.
 message SessionRecordingMetadata {
   // Duration is the duration of the session recording.
@@ -72,6 +80,12 @@ message SessionRecordingMetadata {
   google.protobuf.Timestamp end_time = 6;
   // ClusterName is the name of the cluster where the session recording took place.
   string cluster_name = 7;
+  // User is the user whose session is being recorded.
+  string user = 8;
+  // ResourceName is the name of the resource that was connected to.
+  string resource_name = 9;
+  // Type is the type of session recording.
+  SessionRecordingType type = 10;
 }
 
 // SessionRecordingThumbnail is a thumbnail of a session recording.
