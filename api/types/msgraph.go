@@ -55,3 +55,20 @@ func ValidateMSGraphEndpoints(loginEndpoint, graphEndpoint string) error {
 
 	return nil
 }
+
+const (
+	// EntraIDSecurityGroups represents security enabled Entra ID groups.
+	EntraIDSecurityGroups = "security-groups"
+	// EntraIDDirectoryRoles represents Entra ID directory roles.
+	EntraIDDirectoryRoles = "directory-roles"
+	// EntraIDAllGroups represents all types of Entra ID groups, including directory roles.
+	EntraIDAllGroups = "all-groups"
+)
+
+// EntraIDGroupsTypes defines supported Entra ID
+// group types for Entra ID groups proivder.
+var EntraIDGroupsTypes = []string{
+	EntraIDSecurityGroups,
+	EntraIDDirectoryRoles,
+	EntraIDAllGroups,
+}
