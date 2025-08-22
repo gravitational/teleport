@@ -149,7 +149,7 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	var req *ui.UpdateIntegrationRequest
@@ -239,7 +239,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name_or_subkind")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
@@ -262,7 +262,7 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
@@ -287,7 +287,7 @@ func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p http
 func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
@@ -490,7 +490,7 @@ func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType strin
 func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	values := r.URL.Query()
@@ -673,7 +673,7 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 func (h *Handler) integrationsExportCA(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
