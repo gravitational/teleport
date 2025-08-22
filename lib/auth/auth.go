@@ -97,6 +97,7 @@ import (
 	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bitbucket"
+	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -703,6 +704,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
 	}
 
+	if as.createBoundKeypairValidator == nil {
+		as.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+			return boundkeypair.NewChallengeValidator(subject, clusterName, publicKey)
+		}
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
@@ -1137,6 +1144,10 @@ type Server struct {
 	terraformIDTokenValidator terraformCloudIDTokenValidator
 
 	bitbucketIDTokenValidator bitbucketIDTokenValidator
+
+	// createBoundKeypairValidator is a helper to create new bound keypair
+	// challenge validators. Used to override the implementation used in tests.
+	createBoundKeypairValidator createBoundKeypairValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -3751,7 +3762,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 
-			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			err := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
@@ -3795,7 +3806,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 		return trace.Wrap(fnErr)
 	}
 
-	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+	retErr := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
@@ -5108,12 +5119,12 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 	tok, err := a.GetToken(ctx, token)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+			return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 		}
 		return nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+		return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 	}
 
 	return tok, nil
@@ -7881,7 +7892,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if usage >= int(monthlyLimit) {
-		return trace.AccessDenied(limitReachedMessage)
+		return trace.AccessDenied("%s", limitReachedMessage)
 	}
 
 	return nil

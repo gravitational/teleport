@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/windows"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -409,7 +411,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := s.startDynamicReconciler(ctx); err != nil {
+	if err := s.startDynamicReconciler(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -801,8 +803,19 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.With("desktop_name", desktopName)
 
-	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
-		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
+	desktops, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName},
+				Limit:                pageSize,
+				StartKey:             pageToken,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			return resp.Desktops, resp.NextKey, nil
+		}))
 	if err != nil {
 		log.WarnContext(ctx, "Failed to fetch desktop by name", "error", err)
 		sendTDPError("Teleport failed to find the requested desktop in its database.")
@@ -1278,8 +1291,19 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 // a very large number of desktops in the cluster, this may use up a lot of CPU
 // time.
 func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
-	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx,
-		types.WindowsDesktopFilter{})
+	desktops, err := stream.Collect(clientutils.Resources(s.closeCtx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				Limit:          pageSize,
+				StartKey:       pageToken,
+				SearchKeywords: []string{addr},
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			return resp.Desktops, resp.NextKey, nil
+		}))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

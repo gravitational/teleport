@@ -2539,6 +2539,12 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
+	// bound_keypair tokens have special creation/update logic and are handled
+	// separately
+	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
+		return trace.Wrap(a.authServer.UpsertBoundKeypairToken(ctx, token))
+	}
+
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2562,6 +2568,12 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 
 	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// bound_keypair tokens have special creation/update logic and are handled
+	// separately
+	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
+		return trace.Wrap(a.authServer.CreateBoundKeypairToken(ctx, token))
 	}
 
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
@@ -7911,22 +7923,22 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 	target := lock.Target()
 	switch {
 	case !target.Equals(types.LockTarget{User: target.User}):
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 
 	case target.User == "":
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 	}
 
 	targetUser, err := users.GetUser(ctx, target.User, false /* withSecrets */)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.AccessDenied(errorMsg)
+			return trace.AccessDenied("%s", errorMsg)
 		}
 		return trace.Wrap(err)
 	}
 
 	if targetUser.Origin() != types.OriginOkta {
-		return trace.AccessDenied(errorMsg)
+		return trace.AccessDenied("%s", errorMsg)
 	}
 
 	return nil
