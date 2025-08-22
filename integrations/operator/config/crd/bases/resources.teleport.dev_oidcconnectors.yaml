@@ -170,6 +170,12 @@ spec:
                 items:
                   type: string
                 type: array
+              request_object_mode:
+                description: RequestObjectMode determines how JWT-Secured Authorization
+                  Requests will be used for authorization requests. JARs, or request
+                  objects, can provide integrity protection, source authentication,
+                  and confidentiality for authorization request parameters.
+                type: string
               scope:
                 description: Scope specifies additional scopes set by provider.
                 items:

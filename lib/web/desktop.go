@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
@@ -375,7 +376,7 @@ func (h *Handler) performSessionMFACeremony(
 				}
 
 				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					return nil, trace.AccessDenied("Only WebAuthn and SSO MFA methods are supported on the web, please register a supported MFA method to connect to this desktop")
+					return nil, trace.Wrap(authclient.ErrNoMFADevices)
 				}
 
 				// Send the challenge over the socket.

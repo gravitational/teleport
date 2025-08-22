@@ -186,6 +186,20 @@ var SystemConnectors = []string{
 	HeadlessConnector,
 }
 
+// OIDCRequestObjectMode represents the Request Object Mode of an OIDC Connector.
+type OIDCRequestObjectMode string
+
+const (
+	// OIDCRequestObjectModeUnknown indicates an unknown or uninitialized state of the request object mode.
+	OIDCRequestObjectModeUnknown OIDCRequestObjectMode = ""
+	// OIDCRequestObjectModeNone indicates that request objects should not be used. Parameters should be encoded
+	// into the URI of the authorization request.
+	OIDCRequestObjectModeNone OIDCRequestObjectMode = "none"
+	// OIDCRequestObjectModeSigned indicates that a signed (unencrypted) request object should be encoded into
+	// the URI of the authorization request.
+	OIDCRequestObjectModeSigned OIDCRequestObjectMode = "signed"
+)
+
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
 

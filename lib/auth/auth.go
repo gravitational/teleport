@@ -682,6 +682,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if as.k8sJWKSValidator == nil {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
+	if as.k8sOIDCValidator == nil {
+		as.k8sOIDCValidator = kubetoken.ValidateTokenWithOIDC
+	}
 
 	if as.gcpIDTokenValidator == nil {
 		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
@@ -1127,6 +1130,9 @@ type Server struct {
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
 	k8sJWKSValidator k8sJWKSValidator
+	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
+	// auth server using a known OIDC endpoint. It can be overridden in tests.
+	k8sOIDCValidator k8sOIDCValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
@@ -3756,7 +3762,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 
-			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			err := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
@@ -3800,7 +3806,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 		return trace.Wrap(fnErr)
 	}
 
-	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+	retErr := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
@@ -5113,12 +5119,12 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 	tok, err := a.GetToken(ctx, token)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+			return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 		}
 		return nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+		return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 	}
 
 	return tok, nil
@@ -7888,7 +7894,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if usage >= int(monthlyLimit) {
-		return trace.AccessDenied(limitReachedMessage)
+		return trace.AccessDenied("%s", limitReachedMessage)
 	}
 
 	return nil

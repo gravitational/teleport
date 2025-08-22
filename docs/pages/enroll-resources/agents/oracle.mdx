@@ -52,7 +52,7 @@ Oracle Cloud API so the presigned request can succeed.
 
 In the OCI console, navigate to
 [Identity/Domains](https://cloud.oracle.com/identity/domains).
-Select your domain, then select **Dynamic groups**. Click **Create dynamic
+Select the currently active domain, then select **Dynamic groups**. Click **Create dynamic
 group**. Create a group with the following matching rule, assigning 
 <Var name="compartment-id" /> to the OCID of the compartment your instance is
 in:
@@ -121,3 +121,11 @@ proxy_service:
 
 Once you have started Teleport, confirm that your service is able to connect to
 and join your cluster.
+
+## Troubleshooting
+
+### Join fails with error `oci api error: Not Found`
+
+This error likely means that the instance does not have the required permissions.
+Check if the identity domain you created the dynamic group in has the Compute
+service active; if it doesn't, try creating the group in a domain that does.

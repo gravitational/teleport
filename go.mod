@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.23.12
+go 1.24.6
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.12.1
@@ -253,6 +253,7 @@ require (
 
 require (
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4
+	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/sigstore/protobuf-specs v0.4.0
 	github.com/zitadel/oidc/v3 v3.38.1
 )
@@ -401,7 +402,6 @@ require (
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.8 // indirect
-	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.24.0 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
