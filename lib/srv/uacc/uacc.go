@@ -48,10 +48,12 @@ type UaccConfig struct {
 // NewUserAccountHandler creates a new UserAccountHandler.
 func NewUserAccountHandler(cfg UaccConfig) (*UserAccountHandler, error) {
 	uacc := &UserAccountHandler{}
-	if utmp, err := NewUtmpBackend(cfg.UtmpFile, cfg.WtmpFile, cfg.BtmpFile); err == nil {
+	utmp, err := NewUtmpBackend(cfg.UtmpFile, cfg.WtmpFile, cfg.BtmpFile)
+	if err == nil {
 		uacc.utmp = utmp
 	}
-	if wtmpdb, err := NewWtmpdbBackend(cfg.WtmpdbFile); err == nil {
+	wtmpdb, err := NewWtmpdbBackend(cfg.WtmpdbFile)
+	if err == nil {
 		uacc.wtmpdb = wtmpdb
 	}
 	if uacc.utmp == nil && uacc.wtmpdb == nil {

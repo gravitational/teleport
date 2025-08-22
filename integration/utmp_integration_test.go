@@ -20,6 +20,7 @@ package integration
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -292,6 +293,12 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	s.wtmpPath = wtmpPath
 	s.btmpPath = btmpPath
 	s.wtmpdbPath = wtmpdbPath
+
+	// Initialize wtmpdb database.
+	db, err := sql.Open("sqlite3", wtmpdbPath)
+	require.NoError(t, err)
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
+	require.NoError(t, err)
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
