@@ -110,7 +110,7 @@ export function ResourceLockDialog(props: {
               }
             }}
           >
-            <DialogContent>
+            <DialogContent maxWidth="650px">
               <Text mb={3}>
                 Locking a resource will terminate all of its connections and
                 reject any new API requests.
@@ -125,6 +125,7 @@ export function ResourceLockDialog(props: {
               <FieldInput
                 label="Expiry"
                 value={ttl}
+                readonly={isLoading || lockPending}
                 onChange={e => setTtl(e.target.value)}
                 helperText={
                   'A duration string such as 12h, 2h 45m, 43200s. Valid time units are h, m and s.'

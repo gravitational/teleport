@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
 import { ComponentPropsWithoutRef, PropsWithChildren } from 'react';
+import { Router } from 'react-router';
 
 import {
   Providers,
@@ -26,6 +28,7 @@ import {
   testQueryClient,
   userEvent,
   waitFor,
+  within,
 } from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -59,11 +62,11 @@ describe('ResourceUnlockDialog', () => {
         {
           name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
           message: 'This is a test message',
-          expires: '2023-12-31T23:59:59Z',
+          expires: '2023-01-01T00:00:00Z',
           targets: {
             user: 'test-user',
           },
-          createdAt: '2023-01-01T00:00:00Z',
+          createdAt: '2023-12-31T23:59:59Z',
           createdBy: 'admin',
         },
       ],
@@ -78,6 +81,21 @@ describe('ResourceUnlockDialog', () => {
     });
 
     expect(screen.getByText('Unlock test-user?')).toBeInTheDocument();
+    expect(
+      screen.getByText('This is a test message', { exact: false })
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByText('Expires').closest('div')!).getByText(
+        'Jan 1, 2023, 12:00 AM GMT+0',
+        { exact: false }
+      )
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByText('Locked on').closest('div')!).getByText(
+        'Dec 31, 2023, 11:59 PM GMT+0',
+        { exact: false }
+      )
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -114,15 +132,68 @@ describe('ResourceUnlockDialog', () => {
       expect(onComplete).toHaveBeenCalledTimes(1);
     });
   });
+
+  it('should handle multiple locks', async () => {
+    withListLocksSuccess({
+      locks: [
+        {
+          name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+          message: 'message 1',
+          expires: '1790-01-01T00:00:01Z',
+          targets: {
+            user: 'test-user',
+          },
+          createdAt: '1790-01-01T00:00:02Z',
+          createdBy: 'admin',
+        },
+        {
+          name: 'de64fc0c-7169-4bee-95a0-5458bc42447f',
+          message: 'message 2',
+          expires: '1790-01-01T00:00:03Z',
+          targets: {
+            user: 'test-user',
+          },
+          createdAt: '1790-01-01T00:00:04Z',
+          createdBy: 'admin',
+        },
+      ],
+    });
+
+    const onCancel = jest.fn();
+    const history = createMemoryHistory();
+    history.push = jest.fn();
+
+    const { user } = renderComponent({ onCancel, history });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    });
+
+    expect(screen.getByText('Unlock test-user?')).toBeInTheDocument();
+    expect(
+      screen.getByText('Multiple locks exist', { exact: false })
+    ).toBeInTheDocument();
+    expect(screen.getByText('message 1', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('message 2', { exact: false })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    await user.click(
+      screen.getByRole('button', { name: 'Go to Session and Identity Locks' })
+    );
+    expect(history.push).toHaveBeenCalledTimes(1);
+    expect(history.push).toHaveBeenLastCalledWith('/web/locks');
+  });
 });
 
 function renderComponent(
-  params?: Pick<
+  options?: { history?: ReturnType<typeof createMemoryHistory> } & Pick<
     Partial<ComponentPropsWithoutRef<typeof ResourceUnlockDialog>>,
     'onCancel' | 'onComplete'
   >
 ) {
-  const { onCancel = jest.fn(), onComplete = jest.fn() } = params ?? {};
+  const { onCancel = jest.fn(), onComplete = jest.fn() } = options ?? {};
   const user = userEvent.setup();
   return {
     ...render(
@@ -132,18 +203,21 @@ function renderComponent(
         onCancel={onCancel}
         onComplete={onComplete}
       />,
-      { wrapper: makeWrapper() }
+      { wrapper: makeWrapper(options) }
     ),
     user,
   };
 }
 
-function makeWrapper() {
+function makeWrapper(options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
+}) {
+  const { history = createMemoryHistory() } = options ?? {};
   const ctx = createTeleportContext();
   return (props: PropsWithChildren) => (
     <Providers>
       <TeleportProviderBasic teleportCtx={ctx}>
-        {props.children}
+        <Router history={history}>{props.children}</Router>
       </TeleportProviderBasic>
     </Providers>
   );
