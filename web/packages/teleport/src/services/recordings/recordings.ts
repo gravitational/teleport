@@ -30,7 +30,7 @@ const maxFetchLimit = 5000;
 
 export default class RecordingsService {
   /**
-   * @deprecated Use `fetchRecordings` instead.
+   * @deprecated Use standalone `fetchRecordings` function defined below this class instead.
    */
   fetchRecordings(
     clusterId: string,
