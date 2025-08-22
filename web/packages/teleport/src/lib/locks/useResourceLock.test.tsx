@@ -234,7 +234,10 @@ describe('useResourceLock', () => {
     });
 
     expect(result.current.canUnlock).toBe(false);
-    await result.current.unlock();
+
+    await expect(result.current.unlock).rejects.toEqual(
+      new Error('missing permission to remove locks')
+    );
 
     expect(result.current.locks).toHaveLength(1);
   });
@@ -268,7 +271,9 @@ describe('useResourceLock', () => {
     });
 
     expect(result.current.canLock).toBe(false);
-    await result.current.lock('', '');
+    await expect(() => result.current.lock('', '')).rejects.toEqual(
+      new Error('missing permission to create locks')
+    );
 
     expect(result.current.locks).toHaveLength(0);
   });

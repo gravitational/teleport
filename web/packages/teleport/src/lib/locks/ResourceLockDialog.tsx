@@ -26,6 +26,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
+import Flex from 'design/Flex/Flex';
 import Text from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput/FieldInput';
 import { Validation } from 'shared/components/Validation/Validation';
@@ -64,15 +65,13 @@ export function ResourceLockDialog(props: {
   targetName: string;
   /**
    * Called when the user cancels the lock operation.
-   * @returns nothing
    */
   onCancel: () => void;
   /**
    * Called when the user completes the lock operation.
-   * @param newLock the newly created lock or undefined if the operation didn't happen
-   * @returns nothing
+   * @param newLock the newly created lock
    */
-  onComplete: (newLock: Lock | undefined) => void;
+  onComplete: (newLock: Lock) => void;
 }) {
   const { targetKind, targetName, onCancel, onComplete } = props;
 
@@ -85,16 +84,18 @@ export function ResourceLockDialog(props: {
   });
 
   const handleLock = async () => {
+    let newLock: Lock | undefined = undefined;
     try {
-      const newLock = await lock(message, ttl);
-      onComplete(newLock);
+      newLock = await lock(message, ttl);
     } catch {
       // Swallow this error - it's handled as `lockError` above
+      return;
     }
+    onComplete(newLock);
   };
 
   return (
-    <Dialog open={true}>
+    <Dialog onClose={onCancel} open={true}>
       <DialogHeader>
         <DialogTitle>Lock {targetName}?</DialogTitle>
       </DialogHeader>
@@ -138,16 +139,20 @@ export function ResourceLockDialog(props: {
         )}
       </Validation>
       <DialogFooter>
-        <ButtonWarning
-          onClick={handleLock}
-          mr="3"
-          disabled={isLoading || !canLock || lockPending}
-        >
-          Create Lock
-        </ButtonWarning>
-        <ButtonSecondary disabled={isLoading || lockPending} onClick={onCancel}>
-          Cancel
-        </ButtonSecondary>
+        <Flex gap={3}>
+          <ButtonWarning
+            onClick={handleLock}
+            disabled={isLoading || !canLock || lockPending}
+          >
+            Create Lock
+          </ButtonWarning>
+          <ButtonSecondary
+            disabled={isLoading || lockPending}
+            onClick={onCancel}
+          >
+            Cancel
+          </ButtonSecondary>
+        </Flex>
       </DialogFooter>
     </Dialog>
   );

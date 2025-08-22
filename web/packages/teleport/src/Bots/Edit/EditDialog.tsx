@@ -19,7 +19,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Alert, Box, ButtonPrimary, ButtonSecondary, Indicator } from 'design';
+import {
+  Alert,
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Indicator,
+} from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -37,7 +44,7 @@ import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { editBot, fetchRoles } from 'teleport/services/bot/bot';
-import { EditBotRequest, FlatBot } from 'teleport/services/bot/types';
+import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { formatDuration } from '../formatDuration';
@@ -75,9 +82,7 @@ export function EditDialog(props: {
     error: saveError,
     isPending: isSubmitting,
   } = useMutation({
-    mutationFn: (params: EditBotRequest) => {
-      return editBot(ctx.getFeatureFlags(), botName, params);
-    },
+    mutationFn: editBot,
     onSuccess: newData => {
       const key = createGetBotQueryKey({ botName: newData.name });
       queryClient.setQueryData(key, newData);
@@ -100,13 +105,13 @@ export function EditDialog(props: {
     const max_session_ttl =
       selectedMaxSessionDuration?.trim().replaceAll(' ', '') ?? null;
 
-    const request = {
+    const req = {
       roles,
       traits,
       max_session_ttl,
     };
 
-    mutate(request);
+    mutate({ botName, req });
   };
 
   const isDirty =
@@ -263,21 +268,22 @@ export function EditDialog(props: {
               ) : undefined}
             </DialogContent>
             <DialogFooter>
-              <ButtonPrimary
-                type="submit"
-                mr="3"
-                disabled={
-                  isLoading || isSubmitting || !hasEditPermission || !isDirty
-                }
-              >
-                Save
-              </ButtonPrimary>
-              <ButtonSecondary
-                disabled={isLoading || isSubmitting}
-                onClick={onCancel}
-              >
-                Cancel
-              </ButtonSecondary>
+              <Flex gap={3}>
+                <ButtonPrimary
+                  type="submit"
+                  disabled={
+                    isLoading || isSubmitting || !hasEditPermission || !isDirty
+                  }
+                >
+                  Save
+                </ButtonPrimary>
+                <ButtonSecondary
+                  disabled={isLoading || isSubmitting}
+                  onClick={onCancel}
+                >
+                  Cancel
+                </ButtonSecondary>
+              </Flex>
             </DialogFooter>
           </form>
         )}

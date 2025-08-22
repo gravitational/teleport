@@ -31,7 +31,6 @@ export type BotOptionsCellProps = {
 };
 
 export type BotListProps = {
-  attempt: Attempt;
   bots: FlatBot[];
   disabledEdit: boolean;
   disabledDelete: boolean;
