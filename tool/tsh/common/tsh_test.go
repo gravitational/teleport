@@ -5354,7 +5354,7 @@ func TestForwardingTraces(t *testing.T) {
 			proxyAddr, err := proxyProcess.ProxyWebAddr()
 			require.NoError(t, err)
 
-			// --trace should have no impact on login, since login is ignored
+			// --trace should cause the login to be traced.
 			err = Run(context.Background(), []string{
 				"login",
 				"--insecure",
@@ -5363,12 +5363,13 @@ func TestForwardingTraces(t *testing.T) {
 			}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 			require.NoError(t, err)
 
-			if traceCfg.Enabled && traceCfg.SamplingRate > 0 {
+			if traceCfg.Enabled {
 				collector.WaitForExport()
 			}
 
-			// ensure login doesn't generate any spans from tsh if spans are being sampled
-			loginAssertion := spanAssertion(false, !traceCfg.Enabled || traceCfg.SamplingRate <= 0)
+			// Ensure login spans from tsh are forwarded to the exporter if
+			// tracing is enabled on the auth service.
+			loginAssertion := spanAssertion(true, !traceCfg.Enabled)
 			loginAssertion(t, collector.Spans())
 
 			err = Run(context.Background(), []string{
