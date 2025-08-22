@@ -31,17 +31,59 @@ your Azure joining token.
 - An Azure Virtual Machine running Linux with the Teleport binary installed. The
   Virtual Machine must have a [Managed
   Identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
-  assigned to it with permission to read virtual machine info.
+  assigned to it.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up a Managed Identity
 
 Every virtual machine hosting a Teleport process using the Azure method to join
-your Teleport cluster needs a Managed Identity assigned to it. The identity
-requires the `Microsoft.Compute/virtualMachines/read` permission so Teleport can
-look up the virtual machine. No other permissions are required.
+your Teleport cluster needs a Managed Identity assigned to it.
 
-(!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
+<Tabs>
+<TabItem label="Azure Portal">
+
+To set up a Managed Identity:
+1. Navigate to [Virtual machines view](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines)
+if you're hosting Teleport on an Azure VM,
+or navigate to [Virtual machine scale sets view](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachineScaleSets)
+if you're hosting Teleport on an Azure VMSS.
+2. Select the VM or VMSS hosting your Teleport Service.
+3. In the right-side panel, click the **Security/Identity** tab.
+4. Under the **Identity** section, select the **System assigned** tab.
+5. Toggle the **Status** switch to **On**.
+6. Click **Save**.
+
+If you're using VMSS and it is configured with manual upgrade mode, you must
+update the VM instances for the identity changes to take effect:
+- Click the **Instances** tab in the right panel.
+- Select the VM instances to update.
+- Click **Restart**.
+
+</TabItem>
+<TabItem label="Azure CLI">
+
+To attach a system-assigned identity to a regular VM, run:
+
+```code
+$ az vm identity assign --resource-group <resource-group> --name <vm-name>
+```
+
+To attach a system-assigned identity to an Azure VMSS, run:
+
+```code
+$ az vmss identity assign --resource-group <resource-group> --name <vmss-name>
+```
+
+If you're using VMSS and it is configured with manual upgrade mode, you must
+update the VM instances for the identity changes to take effect. Run the following
+command to propagate the identity change:
+
+```code
+$ az vmss update-instances --resource-group <resource-group> --name <vmss-name> --instance-ids *
+```
+
+</TabItem>
+</Tabs>
 
 ## Step 2/5. Create the Azure joining token
 
@@ -82,7 +124,8 @@ teleport:
     token_name: azure-token
     method: azure
     azure:
-      # client_id is the client ID of the managed identity created in Step 1.
+      # client_id is the client ID of a user-assigned managed identity.
+      # Omit this value when using a system-assigned managed identity.
       client_id: 11111111-1111-1111-1111-111111111111
   proxy_server: teleport.example.com:443
 ssh_service:

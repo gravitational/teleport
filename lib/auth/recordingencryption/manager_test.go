@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"errors"
 	"io"
 	"sync"
@@ -34,7 +35,6 @@ import (
 
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -94,7 +94,7 @@ func (f *fakeKeyStore) genKeys() (crypto.Decrypter, []byte, error) {
 		f.cacheIdx = 0
 	}
 
-	publicKey, err := keys.MarshalPublicKey(decrypter.Public())
+	publicKey, err := x509.MarshalPKIXPublicKey(decrypter.Public())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -123,7 +123,7 @@ func (f *fakeKeyStore) createKey() (crypto.Decrypter, []byte, error) {
 }
 
 func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.EncryptionKeyPair, error) {
-	decrypter, pubPEM, err := f.createKey()
+	decrypter, pubDER, err := f.createKey()
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptos
 		return nil, errors.New("expected RSA private key")
 	}
 
-	privatePEM, err := keys.MarshalDecrypter(private)
+	privateDER, err := x509.MarshalPKCS8PrivateKey(private)
 	if err != nil {
 		return nil, err
 	}
@@ -142,8 +142,8 @@ func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptos
 	f.keys[label] = append(f.keys[label], private)
 
 	return &types.EncryptionKeyPair{
-		PrivateKey:     privatePEM,
-		PublicKey:      pubPEM,
+		PrivateKey:     privateDER,
+		PublicKey:      pubDER,
 		PrivateKeyType: f.keyType,
 		Hash:           uint32(crypto.SHA256),
 	}, nil
@@ -154,12 +154,12 @@ func (f *fakeKeyStore) GetDecrypter(ctx context.Context, keyPair *types.Encrypti
 		return nil, errors.New("could not access decrypter")
 	}
 
-	private, err := keys.ParsePrivateKey(keyPair.PrivateKey)
+	private, err := x509.ParsePKCS8PrivateKey(keyPair.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	decrypter, ok := private.Signer.(crypto.Decrypter)
+	decrypter, ok := private.(crypto.Decrypter)
 	if !ok {
 		return nil, errors.New("private key should have been a decrypter")
 	}
@@ -282,11 +282,11 @@ func TestCreateUpdateSessionRecordingConfig(t *testing.T) {
 
 	encryption, err := config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	activeKeys := encryption.GetSpec().GetActiveKeys()
-	require.Len(t, activeKeys, 1)
-	require.NotNil(t, activeKeys[0].RecordingEncryptionPair)
-	require.NotEmpty(t, activeKeys[0].RecordingEncryptionPair.PrivateKey)
-	require.NotEmpty(t, activeKeys[0].RecordingEncryptionPair.PublicKey)
+	activePairs := encryption.GetSpec().GetActiveKeyPairs()
+	require.Len(t, activePairs, 1)
+	require.NotNil(t, activePairs[0].KeyPair)
+	require.NotEmpty(t, activePairs[0].KeyPair.PrivateKey)
+	require.NotEmpty(t, activePairs[0].KeyPair.PublicKey)
 
 	// update should change nothing
 	src, err = manager.UpdateSessionRecordingConfig(ctx, src)
@@ -296,8 +296,8 @@ func TestCreateUpdateSessionRecordingConfig(t *testing.T) {
 
 	encryption, err = config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	newActiveKeys := encryption.GetSpec().GetActiveKeys()
-	require.ElementsMatch(t, newActiveKeys, activeKeys)
+	newActiveKeyPairs := encryption.GetSpec().GetActiveKeyPairs()
+	require.ElementsMatch(t, newActiveKeyPairs, activePairs)
 }
 
 func TestResolveRecordingEncryption(t *testing.T) {
@@ -327,22 +327,22 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	// CASE: service A first evaluation initializes recording encryption resource
 	encryption, src, err := resolve(ctx, service, managerA)
 	require.NoError(t, err)
-	initialKeys := encryption.GetSpec().GetActiveKeys()
+	initialKeys := encryption.GetSpec().GetActiveKeyPairs()
 
 	require.Len(t, initialKeys, 1)
 	require.Len(t, src.GetEncryptionKeys(), 1)
 	key := initialKeys[0]
-	require.Equal(t, key.RecordingEncryptionPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
-	require.NotNil(t, key.RecordingEncryptionPair)
+	require.Equal(t, key.KeyPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
+	require.NotNil(t, key.KeyPair)
 
 	// CASE: service B should have access to the same key
 	encryption, src, err = resolve(ctx, service, managerB)
 	require.NoError(t, err)
 
-	activeKeys := encryption.GetSpec().ActiveKeys
+	activePairs := encryption.GetSpec().ActiveKeyPairs
 	require.Len(t, src.GetEncryptionKeys(), 1)
-	require.Equal(t, key.RecordingEncryptionPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
-	require.ElementsMatch(t, initialKeys, activeKeys)
+	require.Equal(t, key.KeyPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
+	require.ElementsMatch(t, initialKeys, activePairs)
 
 	// service C should error without access to the current key
 	_, _, err = resolve(ctx, service, managerC)
@@ -383,13 +383,13 @@ func TestResolveRecordingEncryptionConcurrent(t *testing.T) {
 	encryption, err := service.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
 
-	activeKeys := encryption.GetSpec().ActiveKeys
+	activePairs := encryption.GetSpec().ActiveKeyPairs
 	// each service should share a single active key
-	require.Len(t, activeKeys, 1)
-	require.NotNil(t, activeKeys[0].RecordingEncryptionPair)
-	require.NotEmpty(t, activeKeys[0].RecordingEncryptionPair.PrivateKey)
-	require.NotEmpty(t, activeKeys[0].RecordingEncryptionPair.PublicKey)
-	require.Equal(t, types.PrivateKeyType_RAW, activeKeys[0].RecordingEncryptionPair.PrivateKeyType)
+	require.Len(t, activePairs, 1)
+	require.NotNil(t, activePairs[0].KeyPair)
+	require.NotEmpty(t, activePairs[0].KeyPair.PrivateKey)
+	require.NotEmpty(t, activePairs[0].KeyPair.PublicKey)
+	require.Equal(t, types.PrivateKeyType_RAW, activePairs[0].KeyPair.PrivateKeyType)
 }
 
 func TestUnwrapKey(t *testing.T) {
@@ -410,9 +410,9 @@ func TestUnwrapKey(t *testing.T) {
 
 	encryptionKeys := src.GetEncryptionKeys()
 	require.Len(t, encryptionKeys, 1)
-	pubKeyPEM := encryptionKeys[0].PublicKey
+	pubKeyDER := encryptionKeys[0].PublicKey
 
-	pubKey, err := keys.ParsePublicKey(pubKeyPEM)
+	pubKey, err := x509.ParsePKIXPublicKey(pubKeyDER)
 	require.NoError(t, err)
 
 	rsaPubKey, ok := pubKey.(*rsa.PublicKey)

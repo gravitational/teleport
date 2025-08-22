@@ -130,6 +130,8 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.GitHub} text="GitHub" />
     <IconBox IconCmpt={Icon.Google} text="Google" />
     <IconBox IconCmpt={Icon.Graph} text="Graph" />
+    <IconBox IconCmpt={Icon.GridFour} text="GridFour" />
+    <IconBox IconCmpt={Icon.GridNine} text="GridNine" />
     <IconBox IconCmpt={Icon.Hashtag} text="Hashtag" />
     <IconBox IconCmpt={Icon.Headset} text="Headset" />
     <IconBox IconCmpt={Icon.Home} text="Home" />
@@ -190,6 +192,8 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Restore} text="Restore" />
     <IconBox IconCmpt={Icon.RocketLaunch} text="RocketLaunch" />
     <IconBox IconCmpt={Icon.Rows} text="Rows" />
+    <IconBox IconCmpt={Icon.RowsComfortable} text="RowsComfortable" />
+    <IconBox IconCmpt={Icon.RowsDense} text="RowsDense" />
     <IconBox IconCmpt={Icon.Ruler} text="Ruler" />
     <IconBox IconCmpt={Icon.Run} text="Run" />
     <IconBox IconCmpt={Icon.Scan} text="Scan" />

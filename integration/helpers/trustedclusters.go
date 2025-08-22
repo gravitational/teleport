@@ -130,11 +130,11 @@ func TryUpsertTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 }
 
 func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
-	// GetSites will always return the local site
+	// Clusters will always return the local site
 	expected++
 
 	return func() (ok bool) {
-		clusters, err := tun.GetSites()
+		clusters, err := tun.Clusters(context.Background())
 		if err != nil {
 			return false
 		}
@@ -161,8 +161,9 @@ func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
 
 // WaitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
 func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, expectedCount int) {
+	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		cluster, err := tunnel.GetSite(clusterName)
+		cluster, err := tunnel.Cluster(ctx, clusterName)
 		if !assert.NoError(t, err, "site not found") {
 			return
 		}

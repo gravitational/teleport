@@ -1823,7 +1823,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -1848,6 +1848,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
+		SetUUID(uuid.NewString()),
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -1968,7 +1969,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -1993,6 +1994,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
+		SetUUID(uuid.NewString()),
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -2208,6 +2210,7 @@ func TestLimiter(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		nodeClient,
+		SetUUID(uuid.NewString()),
 		SetLimiter(limiter),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -2664,7 +2667,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
 			ClusterName:      f.testSrv.ClusterName(),
 			LocalAccessPoint: proxyClient,
-			SiteGetter:       reverseTunnelServer,
+			ClusterGetter:    reverseTunnelServer,
 			TracerProvider:   tracing.NoopProvider(),
 		})
 		require.NoError(t, err)
@@ -2689,6 +2692,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			"",
 			utils.NetAddr{},
 			proxyClient,
+			SetUUID(uuid.NewString()),
 			SetProxyMode("", reverseTunnelServer, proxyClient, router),
 			SetEmitter(nodeClient),
 			SetNamespace(apidefaults.Namespace),
@@ -2929,7 +2933,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -2954,6 +2958,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
+		SetUUID(uuid.NewString()),
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
@@ -3370,7 +3375,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -3395,6 +3400,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
+		SetUUID(uuid.NewString()),
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),

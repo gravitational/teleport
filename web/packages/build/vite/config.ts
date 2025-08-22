@@ -21,6 +21,7 @@ import { resolve } from 'path';
 
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, type UserConfig } from 'vite';
+import compression from 'vite-plugin-compression';
 import wasm from 'vite-plugin-wasm';
 
 import { generateAppHashFile } from './apphash';
@@ -98,6 +99,18 @@ export function createViteConfig(
 
     if (mode === 'production') {
       config.base = '/web';
+
+      if (!process.env.VITE_DISABLE_COMPRESSION) {
+        config.plugins.push(
+          compression({
+            algorithm: 'brotliCompress',
+            deleteOriginFile: true,
+            filter: /\.(js|svg|wasm)$/,
+            threshold: 1024 * 10, // 10KB
+            verbose: false,
+          })
+        );
+      }
     } else {
       config.plugins.push(htmlPlugin(target));
       // siteName matches everything between the slashes.
@@ -128,12 +141,13 @@ export function createViteConfig(
           ws: true,
         },
         // /webapi/sites/:site/desktopplayback/:sid
-        '^\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
-          target: `wss://${target}`,
-          changeOrigin: false,
-          secure: false,
-          ws: true,
-        },
+        '^(\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/(desktopplayback|session-recording)\\/(.*?))(\\/ws)?':
+          {
+            target: `wss://${target}`,
+            changeOrigin: true,
+            secure: false,
+            ws: true,
+          },
         '^\\/v[0-9]+\\/webapi\\/assistant\\/(.*?)': {
           target: `https://${target}`,
           changeOrigin: false,

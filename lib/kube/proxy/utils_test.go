@@ -319,9 +319,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
 			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
-				Sites: []reversetunnelclient.RemoteSite{
-					&fakeRemoteSite{
-						FakeRemoteSite: reversetunnelclient.NewFakeRemoteSite(testCtx.ClusterName, client),
+				FakeClusters: []reversetunnelclient.Cluster{
+					&fakeCluster{
+						FakeCluster: reversetunnelclient.NewFakeCluster(testCtx.ClusterName, client),
 						idToAddr: map[string]string{
 							testCtx.HostID: testCtx.kubeServerListener.Addr().String(),
 						},
@@ -408,7 +408,7 @@ func (c *TestContext) startKubeServices(t *testing.T) {
 	go func() {
 		err := c.KubeServer.Serve(c.kubeServerListener)
 		// ignore server closed error returned when .Close is called.
-		if errors.Is(err, http.ErrServerClosed) {
+		if errors.Is(err, http.ErrServerClosed) || errors.Is(err, net.ErrClosed) {
 			return
 		}
 		assert.NoError(t, err)
@@ -417,7 +417,7 @@ func (c *TestContext) startKubeServices(t *testing.T) {
 	go func() {
 		err := c.KubeProxy.Serve(c.kubeProxyListener)
 		// ignore server closed error returned when .Close is called.
-		if errors.Is(err, http.ErrServerClosed) {
+		if errors.Is(err, http.ErrServerClosed) || errors.Is(err, net.ErrClosed) {
 			return
 		}
 		assert.NoError(t, err)
@@ -688,14 +688,14 @@ func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionT
 	}
 }
 
-// fakeRemoteSite is a fake remote site that uses a map to map server IDs to
+// fakeCluster is a fake cluster that uses a map to map server IDs to
 // addresses to simulate reverse tunneling.
-type fakeRemoteSite struct {
-	*reversetunnelclient.FakeRemoteSite
+type fakeCluster struct {
+	*reversetunnelclient.FakeCluster
 	idToAddr map[string]string
 }
 
-func (f *fakeRemoteSite) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
+func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	// The server ID is the first part of the address.
 	addr, ok := f.idToAddr[strings.Split(p.ServerID, ".")[0]]
 	if !ok {

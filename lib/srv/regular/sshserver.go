@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -102,10 +101,10 @@ type Server struct {
 	// cloudLabels are the labels imported from a cloud provider.
 	cloudLabels labels.Importer
 
-	proxyMode        bool
-	proxyTun         reversetunnelclient.Tunnel
-	proxyAccessPoint authclient.ReadProxyAccessPoint
-	peerAddr         string
+	proxyMode          bool
+	proxyClusterGetter reversetunnelclient.ClusterGetter
+	proxyAccessPoint   authclient.ReadProxyAccessPoint
+	peerAddr           string
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
@@ -468,13 +467,13 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap authclient.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
+func SetProxyMode(peerAddr string, clusterGetter reversetunnelclient.ClusterGetter, ap authclient.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
 		// but proxy is still used without it.
 		s.proxyMode = true
-		s.proxyTun = tsrv
+		s.proxyClusterGetter = clusterGetter
 		s.proxyAccessPoint = ap
 		s.peerAddr = peerAddr
 		s.router = router
@@ -751,25 +750,19 @@ func New(
 	auth authclient.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
-	// read the host UUID:
-	uuid, err := hostid.ReadOrCreateFile(dataDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
 		addr:               addr,
 		authService:        authService,
 		hostname:           hostname,
 		proxyPublicAddr:    proxyPublicAddr,
-		uuid:               uuid,
 		cancel:             cancel,
 		ctx:                ctx,
 		clock:              clockwork.NewRealClock(),
 		dataDir:            dataDir,
 		allowTCPForwarding: true,
 	}
+	var err error
 	s.limiter, err = limiter.NewLimiter(limiter.Config{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -785,6 +778,10 @@ func New(
 		if err := o(s); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if s.uuid == "" {
+		return nil, trace.BadParameter("server UUID must be set using SetUUID")
 	}
 
 	// TODO(klizhentas): replace function arguments with struct
@@ -931,13 +928,13 @@ func (s *Server) getNamespace() string {
 	return types.ProcessNamespace(s.namespace)
 }
 
-func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelclient.Tunnel, error) {
+func (s *Server) clusterGetterWithAccessChecker(ctx *srv.ServerContext) (reversetunnelclient.ClusterGetter, error) {
 	clusterName, err := s.GetAccessPoint().GetClusterName(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.UnstableClusterAccessChecker, s.proxyAccessPoint), nil
+	return reversetunnelclient.NewClusterGetterWithRoles(s.proxyClusterGetter, clusterName.GetClusterName(), ctx.Identity.UnstableClusterAccessChecker, s.proxyAccessPoint), nil
 }
 
 // startAuthorizedKeysManager starts the authorized keys manager.

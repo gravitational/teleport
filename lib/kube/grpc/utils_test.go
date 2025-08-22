@@ -319,9 +319,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.KubeProxy, err = proxy.NewTLSServer(proxy.TLSServerConfig{
 		ForwarderConfig: proxy.ForwarderConfig{
 			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
-				Sites: []reversetunnelclient.RemoteSite{
-					&fakeRemoteSite{
-						FakeRemoteSite: reversetunnelclient.NewFakeRemoteSite(testCtx.ClusterName, client),
+				FakeClusters: []reversetunnelclient.Cluster{
+					&fakeCluster{
+						FakeCluster: reversetunnelclient.NewFakeCluster(testCtx.ClusterName, client),
 						idToAddr: map[string]string{
 							testCtx.HostID: testCtx.kubeServerListener.Addr().String(),
 						},
@@ -668,14 +668,14 @@ func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionT
 	}
 }
 
-// fakeRemoteSite is a fake remote site that uses a map to map server IDs to
+// fakeCluster is a fake cluster that uses a map to map server IDs to
 // addresses to simulate reverse tunneling.
-type fakeRemoteSite struct {
-	*reversetunnelclient.FakeRemoteSite
+type fakeCluster struct {
+	*reversetunnelclient.FakeCluster
 	idToAddr map[string]string
 }
 
-func (f *fakeRemoteSite) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
+func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	// The server ID is the first part of the address.
 	addr, ok := f.idToAddr[strings.Split(p.ServerID, ".")[0]]
 	if !ok {

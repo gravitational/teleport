@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -735,18 +736,20 @@ func (result *checkDatabaseRolesResult) allowedRoles() []string {
 		return nil
 	}
 
-	rolesMap := make(map[string]struct{})
+	rolesMap := set.New[string]()
 	for _, role := range result.allowedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Allow) {
-			rolesMap[dbRole] = struct{}{}
+			rolesMap.Add(dbRole)
 		}
 	}
 	for _, role := range result.deniedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Deny) {
-			delete(rolesMap, dbRole)
+			rolesMap.Remove(dbRole)
 		}
 	}
-	return utils.StringsSliceFromSet(rolesMap)
+	// The database user provisioning code is picky - it requires a non-nil
+	// slice of roles, because this value is passed directly to a SQL query.
+	return rolesMap.ElementsNotNil()
 }
 
 func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatabaseRolesResult, error) {
@@ -786,7 +789,6 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 			continue
 		}
 		deniedRoleSet = append(deniedRoleSet, role)
-
 	}
 
 	// The collected role list can be empty and that should be ok, we want to
@@ -1125,7 +1127,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 
 // DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
 func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
-	groups := make(map[string]struct{})
+	groups := set.New[string]()
 	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
@@ -1142,7 +1144,7 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			return nil, trace.AccessDenied("user is not allowed to create host users")
 		}
 		for _, group := range role.GetDesktopGroups(types.Allow) {
-			groups[group] = struct{}{}
+			groups.Add(group)
 		}
 	}
 	for _, role := range a.RoleSet {
@@ -1154,11 +1156,14 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			continue
 		}
 		for _, group := range role.GetDesktopGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 	}
 
-	return utils.StringsSliceFromSet(groups), nil
+	// These groups get encoded into a certificate that's parsed by
+	// Rust code on Windows. That code expects an empty JSON array,
+	// not a null value.
+	return groups.ElementsNotNil(), nil
 }
 
 func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode {
@@ -1175,7 +1180,7 @@ func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, error) {
-	groups := make(map[string]struct{})
+	groups := set.New[string]()
 	shellToRoles := make(map[string][]string)
 	var shell string
 	var mode types.CreateHostUserMode
@@ -1222,7 +1227,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 		}
 
 		for _, group := range role.GetHostGroups(types.Allow) {
-			groups[group] = struct{}{}
+			groups.Add(group)
 		}
 	}
 
@@ -1247,7 +1252,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 			continue
 		}
 		for _, group := range role.GetHostGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 	}
 
@@ -1264,7 +1269,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 	}
 
 	return &decisionpb.HostUsersInfo{
-		Groups: utils.StringsSliceFromSet(groups),
+		Groups: groups.Elements(),
 		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,
@@ -1381,35 +1386,15 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 // AccessInfoFromLocalTLSIdentity returns a new AccessInfo populated from the given
 // tlsca.Identity. Should only be used for cluster local users as roles will not
 // be mapped.
-func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity, access UserGetter) (*AccessInfo, error) {
-	roles := identity.Groups
-	traits := identity.Traits
-
-	// Legacy certs are not encoded with roles or traits,
-	// so we fallback to the traits and roles in the backend.
-	// empty traits are a valid use case in standard certs,
-	// so we only check for whether roles are empty.
+func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error) {
 	if len(identity.Groups) == 0 {
-		if access == nil {
-			return nil, trace.BadParameter("UserGetter not provided")
-		}
-		u, err := access.GetUser(context.TODO(), identity.Username, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		const msg = "Failed to find roles in x509 identity. Fetching " +
-			"from backend. If the identity provider allows username changes, this can " +
-			"potentially allow an attacker to change the role of the existing user."
-		slog.WarnContext(context.Background(), msg, "username", identity.Username)
-		roles = u.GetRoles()
-		traits = u.GetTraits()
+		return nil, trace.BadParameter("tls identity %q does not encode any roles, this may indicate a malformed certificate or one that was issued by an incompatible teleport version", identity.Username)
 	}
 
 	return &AccessInfo{
 		Username:           identity.Username,
-		Roles:              roles,
-		Traits:             traits,
+		Roles:              identity.Groups,
+		Traits:             identity.Traits,
 		AllowedResourceIDs: identity.AllowedResourceIDs,
 	}, nil
 }

@@ -1475,19 +1475,19 @@ func TestRedisNil(t *testing.T) {
 }
 
 type testContext struct {
-	hostID         string
-	clusterName    string
-	tlsServer      *authtest.TLSServer
-	authServer     *auth.Server
-	authClient     *authclient.Client
-	proxyServer    *ProxyServer
-	mux            *multiplexer.Mux
-	mysqlListener  net.Listener
-	webListener    *multiplexer.WebListener
-	fakeRemoteSite *reversetunnelclient.FakeRemoteSite
-	server         *Server
-	emitter        *eventstest.ChannelEmitter
-	databaseCA     types.CertAuthority
+	hostID        string
+	clusterName   string
+	tlsServer     *authtest.TLSServer
+	authServer    *auth.Server
+	authClient    *authclient.Client
+	proxyServer   *ProxyServer
+	mux           *multiplexer.Mux
+	mysqlListener net.Listener
+	webListener   *multiplexer.WebListener
+	fakeCluster   *reversetunnelclient.FakeCluster
+	server        *Server
+	emitter       *eventstest.ChannelEmitter
+	databaseCA    types.CertAuthority
 	// postgres is a collection of Postgres databases the test uses.
 	postgres map[string]testPostgres
 	// mysql is a collection of MySQL databases the test uses.
@@ -1630,7 +1630,7 @@ func (c *testContext) startHandlingConnections() {
 	// Start all proxy services.
 	c.startProxy()
 	// Start handling database client connections on the database server.
-	for conn := range c.fakeRemoteSite.ProxyConn() {
+	for conn := range c.fakeCluster.ProxyConn() {
 		go c.server.HandleConnection(conn)
 	}
 }
@@ -2381,11 +2381,11 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.fakeRemoteSite = reversetunnelclient.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
-	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
+	testCtx.fakeCluster = reversetunnelclient.NewFakeCluster(testCtx.clusterName, proxyAuthClient)
+	t.Cleanup(func() { require.NoError(t, testCtx.fakeCluster.Close()) })
 	tunnel := &reversetunnelclient.FakeServer{
-		Sites: []reversetunnelclient.RemoteSite{
-			testCtx.fakeRemoteSite,
+		FakeClusters: []reversetunnelclient.Cluster{
+			testCtx.fakeCluster,
 		},
 	}
 	// Empty config means no limit.

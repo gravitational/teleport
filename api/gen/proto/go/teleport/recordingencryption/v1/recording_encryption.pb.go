@@ -37,36 +37,89 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// WrappedKey wraps the private key of a recording encryption key pair using a
-// separate asymmetric keypair.
-type WrappedKey struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// RecordingEncryptionPair is the asymmetric keypair used with age to encrypt
-	// and decrypt filekeys. The private key is encrypted using the KeyEncryptionPair's
-	// public key and has to be decrypted before recording decryption operations can
-	// be fulfilled.
-	RecordingEncryptionPair *types.EncryptionKeyPair `protobuf:"bytes,1,opt,name=recording_encryption_pair,json=recordingEncryptionPair,proto3" json:"recording_encryption_pair,omitempty"`
-	// KeyEncryptionPair is the asymmetric keypair used to wrap (encrypt) the
-	// RecordingEncryptionPair's private key.
-	KeyEncryptionPair *types.EncryptionKeyPair `protobuf:"bytes,2,opt,name=key_encryption_pair,json=keyEncryptionPair,proto3" json:"key_encryption_pair,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+// The possible states a KeyPair can be in.
+type KeyPairState int32
+
+const (
+	// Unspecified value
+	KeyPairState_KEY_PAIR_STATE_UNSPECIFIED KeyPairState = 0
+	// Represents an active key.
+	KeyPairState_KEY_PAIR_STATE_ACTIVE KeyPairState = 1
+	// Represents a key in the process of being rotated.
+	KeyPairState_KEY_PAIR_STATE_ROTATING KeyPairState = 2
+	// Represents a key being rotated in that is inaccessible to at least one
+	// auth server.
+	KeyPairState_KEY_PAIR_STATE_INACCESSIBLE KeyPairState = 3
+)
+
+// Enum value maps for KeyPairState.
+var (
+	KeyPairState_name = map[int32]string{
+		0: "KEY_PAIR_STATE_UNSPECIFIED",
+		1: "KEY_PAIR_STATE_ACTIVE",
+		2: "KEY_PAIR_STATE_ROTATING",
+		3: "KEY_PAIR_STATE_INACCESSIBLE",
+	}
+	KeyPairState_value = map[string]int32{
+		"KEY_PAIR_STATE_UNSPECIFIED":  0,
+		"KEY_PAIR_STATE_ACTIVE":       1,
+		"KEY_PAIR_STATE_ROTATING":     2,
+		"KEY_PAIR_STATE_INACCESSIBLE": 3,
+	}
+)
+
+func (x KeyPairState) Enum() *KeyPairState {
+	p := new(KeyPairState)
+	*p = x
+	return p
 }
 
-func (x *WrappedKey) Reset() {
-	*x = WrappedKey{}
+func (x KeyPairState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (KeyPairState) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_recordingencryption_v1_recording_encryption_proto_enumTypes[0].Descriptor()
+}
+
+func (KeyPairState) Type() protoreflect.EnumType {
+	return &file_teleport_recordingencryption_v1_recording_encryption_proto_enumTypes[0]
+}
+
+func (x KeyPairState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use KeyPairState.Descriptor instead.
+func (KeyPairState) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{0}
+}
+
+// A key pair used with age to wrap and unwrap file keys for session recording encryption.
+type KeyPair struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A key pair used with age to wrap and unwrap file keys for session recording encryption.
+	KeyPair *types.EncryptionKeyPair `protobuf:"bytes,1,opt,name=key_pair,json=keyPair,proto3" json:"key_pair,omitempty"`
+	// The current state of the key pair.
+	State         KeyPairState `protobuf:"varint,2,opt,name=state,proto3,enum=teleport.recordingencryption.v1.KeyPairState" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KeyPair) Reset() {
+	*x = KeyPair{}
 	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WrappedKey) String() string {
+func (x *KeyPair) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WrappedKey) ProtoMessage() {}
+func (*KeyPair) ProtoMessage() {}
 
-func (x *WrappedKey) ProtoReflect() protoreflect.Message {
+func (x *KeyPair) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -78,35 +131,35 @@ func (x *WrappedKey) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WrappedKey.ProtoReflect.Descriptor instead.
-func (*WrappedKey) Descriptor() ([]byte, []int) {
+// Deprecated: Use KeyPair.ProtoReflect.Descriptor instead.
+func (*KeyPair) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *WrappedKey) GetRecordingEncryptionPair() *types.EncryptionKeyPair {
+func (x *KeyPair) GetKeyPair() *types.EncryptionKeyPair {
 	if x != nil {
-		return x.RecordingEncryptionPair
+		return x.KeyPair
 	}
 	return nil
 }
 
-func (x *WrappedKey) GetKeyEncryptionPair() *types.EncryptionKeyPair {
+func (x *KeyPair) GetState() KeyPairState {
 	if x != nil {
-		return x.KeyEncryptionPair
+		return x.State
 	}
-	return nil
+	return KeyPairState_KEY_PAIR_STATE_UNSPECIFIED
 }
 
 // RecordingEncryptionSpec contains the active key set for encrypted session recording.
 type RecordingEncryptionSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// AciveKeys is a list of active, wrapped X25519 keypairs. The unique set of RecordingEncryptionPair
-	// public keys are used as recipients during age encryption of session recordings. This
-	// allows any active private key to be used during decryption which guards against recordings
-	// being inaccessible to auth servers waiting for their key to rotate.
-	ActiveKeys    []*WrappedKey `protobuf:"bytes,1,rep,name=active_keys,json=activeKeys,proto3" json:"active_keys,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// A list of active key pairs used for session recording encryption. The unique set of
+	// active public keys are used as recipients during age encryption. This allows any
+	// active private key to be used during decryption which guards against recordings being
+	// inaccessible to auth servers waiting for key rotation.
+	ActiveKeyPairs []*KeyPair `protobuf:"bytes,2,rep,name=active_key_pairs,json=activeKeyPairs,proto3" json:"active_key_pairs,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RecordingEncryptionSpec) Reset() {
@@ -139,9 +192,9 @@ func (*RecordingEncryptionSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *RecordingEncryptionSpec) GetActiveKeys() []*WrappedKey {
+func (x *RecordingEncryptionSpec) GetActiveKeyPairs() []*KeyPair {
 	if x != nil {
-		return x.ActiveKeys
+		return x.ActiveKeyPairs
 	}
 	return nil
 }
@@ -268,18 +321,188 @@ func (x *RecordingEncryption) GetStatus() *RecordingEncryptionStatus {
 	return nil
 }
 
+// A rotated key pair previously used with age to wrap and unwrap file keys for session recording
+// encryption.
+type RotatedKeySpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The rotated key pair previously used with age to wrap and unwrap file keys for session recording
+	// encryption.
+	EncryptionKeyPair *types.EncryptionKeyPair `protobuf:"bytes,2,opt,name=encryption_key_pair,json=encryptionKeyPair,proto3" json:"encryption_key_pair,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *RotatedKeySpec) Reset() {
+	*x = RotatedKeySpec{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RotatedKeySpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotatedKeySpec) ProtoMessage() {}
+
+func (x *RotatedKeySpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotatedKeySpec.ProtoReflect.Descriptor instead.
+func (*RotatedKeySpec) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RotatedKeySpec) GetEncryptionKeyPair() *types.EncryptionKeyPair {
+	if x != nil {
+		return x.EncryptionKeyPair
+	}
+	return nil
+}
+
+// The empty status of a RotatedKey.
+type RotatedKeyStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RotatedKeyStatus) Reset() {
+	*x = RotatedKeyStatus{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RotatedKeyStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotatedKeyStatus) ProtoMessage() {}
+
+func (x *RotatedKeyStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotatedKeyStatus.ProtoReflect.Descriptor instead.
+func (*RotatedKeyStatus) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{5}
+}
+
+// A previously rotated encryption key for session recordings kept for future replay. The metadata.name
+// is expected to be the fingerprint of the public key contained in the spec, which is a hex encoded
+// SHA256 hash of its PKIX form.
+type RotatedKey struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Spec          *RotatedKeySpec        `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	Status        *RotatedKeyStatus      `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RotatedKey) Reset() {
+	*x = RotatedKey{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RotatedKey) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotatedKey) ProtoMessage() {}
+
+func (x *RotatedKey) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotatedKey.ProtoReflect.Descriptor instead.
+func (*RotatedKey) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RotatedKey) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *RotatedKey) GetSubKind() string {
+	if x != nil {
+		return x.SubKind
+	}
+	return ""
+}
+
+func (x *RotatedKey) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *RotatedKey) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *RotatedKey) GetSpec() *RotatedKeySpec {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
+}
+
+func (x *RotatedKey) GetStatus() *RotatedKeyStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
 var File_teleport_recordingencryption_v1_recording_encryption_proto protoreflect.FileDescriptor
 
 const file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc = "" +
 	"\n" +
-	":teleport/recordingencryption/v1/recording_encryption.proto\x12\x1fteleport.recordingencryption.v1\x1a!teleport/header/v1/metadata.proto\x1a!teleport/legacy/types/types.proto\"\xac\x01\n" +
-	"\n" +
-	"WrappedKey\x12T\n" +
-	"\x19recording_encryption_pair\x18\x01 \x01(\v2\x18.types.EncryptionKeyPairR\x17recordingEncryptionPair\x12H\n" +
-	"\x13key_encryption_pair\x18\x02 \x01(\v2\x18.types.EncryptionKeyPairR\x11keyEncryptionPair\"g\n" +
-	"\x17RecordingEncryptionSpec\x12L\n" +
-	"\vactive_keys\x18\x01 \x03(\v2+.teleport.recordingencryption.v1.WrappedKeyR\n" +
-	"activeKeys\"\x1b\n" +
+	":teleport/recordingencryption/v1/recording_encryption.proto\x12\x1fteleport.recordingencryption.v1\x1a!teleport/header/v1/metadata.proto\x1a!teleport/legacy/types/types.proto\"\x83\x01\n" +
+	"\aKeyPair\x123\n" +
+	"\bkey_pair\x18\x01 \x01(\v2\x18.types.EncryptionKeyPairR\akeyPair\x12C\n" +
+	"\x05state\x18\x02 \x01(\x0e2-.teleport.recordingencryption.v1.KeyPairStateR\x05state\"\x80\x01\n" +
+	"\x17RecordingEncryptionSpec\x12R\n" +
+	"\x10active_key_pairs\x18\x02 \x03(\v2(.teleport.recordingencryption.v1.KeyPairR\x0eactiveKeyPairsJ\x04\b\x01\x10\x02R\vactive_keys\"\x1b\n" +
 	"\x19RecordingEncryptionStatus\"\xba\x02\n" +
 	"\x13RecordingEncryption\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
@@ -287,7 +510,23 @@ const file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc = 
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12L\n" +
 	"\x04spec\x18\x05 \x01(\v28.teleport.recordingencryption.v1.RecordingEncryptionSpecR\x04spec\x12R\n" +
-	"\x06status\x18\x06 \x01(\v2:.teleport.recordingencryption.v1.RecordingEncryptionStatusR\x06statusBjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1b\x06proto3"
+	"\x06status\x18\x06 \x01(\v2:.teleport.recordingencryption.v1.RecordingEncryptionStatusR\x06status\"Z\n" +
+	"\x0eRotatedKeySpec\x12H\n" +
+	"\x13encryption_key_pair\x18\x02 \x01(\v2\x18.types.EncryptionKeyPairR\x11encryptionKeyPair\"\x12\n" +
+	"\x10RotatedKeyStatus\"\x9f\x02\n" +
+	"\n" +
+	"RotatedKey\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
+	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12C\n" +
+	"\x04spec\x18\x05 \x01(\v2/.teleport.recordingencryption.v1.RotatedKeySpecR\x04spec\x12I\n" +
+	"\x06status\x18\x06 \x01(\v21.teleport.recordingencryption.v1.RotatedKeyStatusR\x06status*\x87\x01\n" +
+	"\fKeyPairState\x12\x1e\n" +
+	"\x1aKEY_PAIR_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15KEY_PAIR_STATE_ACTIVE\x10\x01\x12\x1b\n" +
+	"\x17KEY_PAIR_STATE_ROTATING\x10\x02\x12\x1f\n" +
+	"\x1bKEY_PAIR_STATE_INACCESSIBLE\x10\x03BjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1b\x06proto3"
 
 var (
 	file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescOnce sync.Once
@@ -301,27 +540,36 @@ func file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP
 	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescData
 }
 
-var file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_recordingencryption_v1_recording_encryption_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_recordingencryption_v1_recording_encryption_proto_goTypes = []any{
-	(*WrappedKey)(nil),                // 0: teleport.recordingencryption.v1.WrappedKey
-	(*RecordingEncryptionSpec)(nil),   // 1: teleport.recordingencryption.v1.RecordingEncryptionSpec
-	(*RecordingEncryptionStatus)(nil), // 2: teleport.recordingencryption.v1.RecordingEncryptionStatus
-	(*RecordingEncryption)(nil),       // 3: teleport.recordingencryption.v1.RecordingEncryption
-	(*types.EncryptionKeyPair)(nil),   // 4: types.EncryptionKeyPair
-	(*v1.Metadata)(nil),               // 5: teleport.header.v1.Metadata
+	(KeyPairState)(0),                 // 0: teleport.recordingencryption.v1.KeyPairState
+	(*KeyPair)(nil),                   // 1: teleport.recordingencryption.v1.KeyPair
+	(*RecordingEncryptionSpec)(nil),   // 2: teleport.recordingencryption.v1.RecordingEncryptionSpec
+	(*RecordingEncryptionStatus)(nil), // 3: teleport.recordingencryption.v1.RecordingEncryptionStatus
+	(*RecordingEncryption)(nil),       // 4: teleport.recordingencryption.v1.RecordingEncryption
+	(*RotatedKeySpec)(nil),            // 5: teleport.recordingencryption.v1.RotatedKeySpec
+	(*RotatedKeyStatus)(nil),          // 6: teleport.recordingencryption.v1.RotatedKeyStatus
+	(*RotatedKey)(nil),                // 7: teleport.recordingencryption.v1.RotatedKey
+	(*types.EncryptionKeyPair)(nil),   // 8: types.EncryptionKeyPair
+	(*v1.Metadata)(nil),               // 9: teleport.header.v1.Metadata
 }
 var file_teleport_recordingencryption_v1_recording_encryption_proto_depIdxs = []int32{
-	4, // 0: teleport.recordingencryption.v1.WrappedKey.recording_encryption_pair:type_name -> types.EncryptionKeyPair
-	4, // 1: teleport.recordingencryption.v1.WrappedKey.key_encryption_pair:type_name -> types.EncryptionKeyPair
-	0, // 2: teleport.recordingencryption.v1.RecordingEncryptionSpec.active_keys:type_name -> teleport.recordingencryption.v1.WrappedKey
-	5, // 3: teleport.recordingencryption.v1.RecordingEncryption.metadata:type_name -> teleport.header.v1.Metadata
-	1, // 4: teleport.recordingencryption.v1.RecordingEncryption.spec:type_name -> teleport.recordingencryption.v1.RecordingEncryptionSpec
-	2, // 5: teleport.recordingencryption.v1.RecordingEncryption.status:type_name -> teleport.recordingencryption.v1.RecordingEncryptionStatus
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	8,  // 0: teleport.recordingencryption.v1.KeyPair.key_pair:type_name -> types.EncryptionKeyPair
+	0,  // 1: teleport.recordingencryption.v1.KeyPair.state:type_name -> teleport.recordingencryption.v1.KeyPairState
+	1,  // 2: teleport.recordingencryption.v1.RecordingEncryptionSpec.active_key_pairs:type_name -> teleport.recordingencryption.v1.KeyPair
+	9,  // 3: teleport.recordingencryption.v1.RecordingEncryption.metadata:type_name -> teleport.header.v1.Metadata
+	2,  // 4: teleport.recordingencryption.v1.RecordingEncryption.spec:type_name -> teleport.recordingencryption.v1.RecordingEncryptionSpec
+	3,  // 5: teleport.recordingencryption.v1.RecordingEncryption.status:type_name -> teleport.recordingencryption.v1.RecordingEncryptionStatus
+	8,  // 6: teleport.recordingencryption.v1.RotatedKeySpec.encryption_key_pair:type_name -> types.EncryptionKeyPair
+	9,  // 7: teleport.recordingencryption.v1.RotatedKey.metadata:type_name -> teleport.header.v1.Metadata
+	5,  // 8: teleport.recordingencryption.v1.RotatedKey.spec:type_name -> teleport.recordingencryption.v1.RotatedKeySpec
+	6,  // 9: teleport.recordingencryption.v1.RotatedKey.status:type_name -> teleport.recordingencryption.v1.RotatedKeyStatus
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_teleport_recordingencryption_v1_recording_encryption_proto_init() }
@@ -334,13 +582,14 @@ func file_teleport_recordingencryption_v1_recording_encryption_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc), len(file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   4,
+			NumEnums:      1,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_teleport_recordingencryption_v1_recording_encryption_proto_goTypes,
 		DependencyIndexes: file_teleport_recordingencryption_v1_recording_encryption_proto_depIdxs,
+		EnumInfos:         file_teleport_recordingencryption_v1_recording_encryption_proto_enumTypes,
 		MessageInfos:      file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes,
 	}.Build()
 	File_teleport_recordingencryption_v1_recording_encryption_proto = out.File
