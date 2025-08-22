@@ -17,24 +17,16 @@
 package cache
 
 import (
-	"cmp"
 	"context"
-	"slices"
-	"strconv"
 	"testing"
-	"time"
 
-	gocmp "github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestApps tests that CRUD operations on application resources are
@@ -54,103 +46,15 @@ func TestApps(t *testing.T) {
 				URI: "localhost",
 			})
 		},
-		create: p.apps.CreateApp,
-		list: func(ctx context.Context) ([]types.Application, error) {
-			return stream.Collect(p.apps.Apps(ctx, "", ""))
-		},
-		cacheGet: p.cache.GetApp,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.Application, error) {
-			return stream.Collect(p.cache.Apps(ctx, "", ""))
-		},
-		update:    p.apps.UpdateApp,
-		deleteAll: p.apps.DeleteAllApps,
+		create:     p.apps.CreateApp,
+		list:       p.apps.ListApps,
+		Range:      p.apps.Apps,
+		cacheGet:   p.cache.GetApp,
+		cacheList:  p.cache.ListApps,
+		cacheRange: p.cache.Apps,
+		update:     p.apps.UpdateApp,
+		deleteAll:  p.apps.DeleteAllApps,
 	})
-}
-
-func TestApplicationPagination(t *testing.T) {
-	t.Parallel()
-
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
-	t.Cleanup(p.Close)
-
-	var expected []types.Application
-	for i := range 1324 {
-		app, err := types.NewAppV3(types.Metadata{
-			Name: "app" + strconv.Itoa(i+1),
-		}, types.AppSpecV3{
-			URI: "localhost",
-		})
-		require.NoError(t, err)
-
-		require.NoError(t, p.apps.CreateApp(t.Context(), app))
-		expected = append(expected, app)
-	}
-	slices.SortFunc(expected, func(a, b types.Application) int {
-		return cmp.Compare(a.GetName(), b.GetName())
-	})
-
-	// Drain events to prevent deadlocking. Required because the number
-	// of applications exceeds the default buffer size for the channel.
-	drainEvents(p.eventsC)
-
-	// Wait for all the applications to be replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.Equal(t, len(expected), p.cache.collections.apps.store.len())
-	}, 15*time.Second, 100*time.Millisecond)
-
-	out, err := p.cache.GetApps(t.Context())
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	page1, page2Start, err := p.cache.ListApps(t.Context(), 0, "")
-	require.NoError(t, err)
-	assert.Len(t, page1, 1000)
-	assert.NotEmpty(t, page2Start)
-
-	page2, next, err := p.cache.ListApps(t.Context(), 1000, page2Start)
-	require.NoError(t, err)
-	assert.Len(t, page2, len(expected)-1000)
-	assert.Empty(t, next)
-
-	listed := append(page1, page2...)
-	assert.Empty(t, gocmp.Diff(expected, listed,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	var iterOut []types.Application
-	for app, err := range p.cache.Apps(t.Context(), "", page2Start) {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	assert.Len(t, iterOut, len(page1))
-	assert.Empty(t, gocmp.Diff(page1, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	iterOut = nil
-	for app, err := range p.cache.Apps(t.Context(), "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	assert.Len(t, iterOut, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	iterOut = nil
-	for app, err := range p.cache.Apps(t.Context(), page2Start, "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-
-	assert.Len(t, iterOut, len(expected)-1000)
-	assert.Empty(t, gocmp.Diff(expected, append(page1, iterOut...),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 }
 
 // TestApplicationServers tests that CRUD operations on app servers are
@@ -169,17 +73,17 @@ func TestApplicationServers(t *testing.T) {
 				return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 			},
 			create: withKeepalive(p.presenceS.UpsertApplicationServer),
-			list: func(ctx context.Context) ([]types.AppServer, error) {
+			list: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
 				return p.presenceS.GetApplicationServers(ctx, apidefaults.Namespace)
-			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.AppServer, error) {
+			}),
+			cacheList: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
 				return p.cache.GetApplicationServers(ctx, apidefaults.Namespace)
-			},
+			}),
 			update: withKeepalive(p.presenceS.UpsertApplicationServer),
 			deleteAll: func(ctx context.Context) error {
 				return p.presenceS.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 			},
-		})
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListResources", func(t *testing.T) {
@@ -190,56 +94,43 @@ func TestApplicationServers(t *testing.T) {
 				return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 			},
 			create: withKeepalive(p.presenceS.UpsertApplicationServer),
-			list: func(ctx context.Context) ([]types.AppServer, error) {
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.AppServer, string, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindAppServer,
-				}
-
-				var out []types.AppServer
-				for {
-					resp, err := p.presenceS.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.AppServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
-				}
-
-				return out, nil
-			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.AppServer, error) {
-				req := proto.ListResourcesRequest{
-					ResourceType: types.KindAppServer,
+					StartKey:     pageToken,
 					Limit:        int32(pageSize),
 				}
 
 				var out []types.AppServer
-				for {
-					resp, err := p.cache.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.AppServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
+				resp, err := p.presenceS.ListResources(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
 
-				return out, nil
+				for _, s := range resp.Resources {
+					out = append(out, s.(types.AppServer))
+				}
+
+				return out, resp.NextKey, nil
+			},
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.AppServer, string, error) {
+				req := proto.ListResourcesRequest{
+					ResourceType: types.KindAppServer,
+					Limit:        int32(pageSize),
+					StartKey:     pageToken,
+				}
+
+				var out []types.AppServer
+				resp, err := p.cache.ListResources(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+
+				for _, s := range resp.Resources {
+					out = append(out, s.(types.AppServer))
+				}
+
+				return out, resp.NextKey, nil
 
 			},
 			update: withKeepalive(p.presenceS.UpsertApplicationServer),

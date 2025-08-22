@@ -55,17 +55,15 @@ func TestBotInstanceCache(t *testing.T) {
 		cacheGet: func(ctx context.Context, key string) (*machineidv1.BotInstance, error) {
 			return p.cache.GetBotInstance(ctx, "bot-1", key)
 		},
-		cacheList: func(ctx context.Context, _ int) ([]*machineidv1.BotInstance, error) {
-			results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
-			return results, err
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
+			return p.cache.ListBotInstances(ctx, "", pageSize, pageToken, "", nil)
 		},
 		create: func(ctx context.Context, resource *machineidv1.BotInstance) error {
 			_, err := p.botInstanceService.CreateBotInstance(ctx, resource)
 			return err
 		},
-		list: func(ctx context.Context) ([]*machineidv1.BotInstance, error) {
-			results, _, err := p.botInstanceService.ListBotInstances(ctx, "", 0, "", "", nil)
-			return results, err
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
+			return p.botInstanceService.ListBotInstances(ctx, "", pageSize, pageToken, "", nil)
 		},
 		update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
 			_, err := p.botInstanceService.PatchBotInstance(ctx, "bot-1", bi.Metadata.GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
