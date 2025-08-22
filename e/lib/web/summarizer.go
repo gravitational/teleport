@@ -18,14 +18,14 @@ func (p *Plugin) registerSummarizerHandlers() {
 
 // getSessionRecordingSummary retrieves a summary of a session recording.
 func (h *Plugin) getSessionRecordingSummary(
-	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite,
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
 ) (any, error) {
 	sessionId := p.ByName("session_id")
 	if sessionId == "" {
 		return nil, trace.BadParameter("session_id is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
