@@ -45,12 +45,16 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// Identifies requests coming from the client (web UI)
 const (
 	// requestTypeFetch requests event data
 	requestTypeFetch byte = 1
 	// requestTypeClose closes the connection
 	requestTypeClose byte = 2
+)
 
+// Response types send back to the client
+const (
 	// eventTypeStart indicates stream start
 	eventTypeStart byte = 1
 	// eventTypeStop indicates stream stop
