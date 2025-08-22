@@ -632,7 +632,7 @@ func validateRequest(req *fetchRequest) error {
 	maxRangeMillis := int64(maxRequestRange / time.Millisecond)
 
 	if rangeMillis > maxRangeMillis {
-		return fmt.Errorf("time range too large")
+		return trace.LimitExceeded("time range too large, max is %s", maxRequestRange)
 	}
 
 	return nil
