@@ -341,6 +341,8 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 		s.sendEvent(eventTypeStop, 0, encodeTime(req.startOffset, req.endOffset), req.requestID)
 	}
 
+	// process an event, returning a boolean indicating if the events should continue being
+	// processed (i.e. returns false once we have reached the end of the requested time window)
 	processEvent := func(evt apievents.AuditEvent) bool {
 		if _, ok := evt.(*apievents.SessionStart); ok && streamStartTime.IsZero() {
 			streamStartTime = evt.GetTime()
