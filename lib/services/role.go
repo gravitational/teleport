@@ -3667,6 +3667,13 @@ const (
 	MFARequiredPerRole MFARequired = "per-role"
 )
 
+// UserSessionRoleNotFoundErrorMsg is added to "role not found" errors when they occur
+// during user session roles validation. This allows the Web UI to distinguish between
+// a user session role lookup error (which should prompt the user to re-login) vs. other role lookup
+// failures.
+// Keep in sync with teleport/src/services/api/api.ts(isUserSessionRoleNotFoundError)
+const UserSessionRoleNotFoundErrorMsg = "user session role not found"
+
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	return UnmarshalRoleV6(bytes, opts...)
