@@ -262,6 +262,7 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 	if s.stream.eventsChan == nil {
 		needNewStream = true
 	} else if req.startOffset < s.stream.lastEndTime {
+		// start the stream over if we need to go back in time
 		needNewStream = true
 	}
 
