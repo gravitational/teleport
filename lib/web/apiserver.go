@@ -67,6 +67,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -214,9 +215,8 @@ type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer clie
 type Config struct {
 	// PluginRegistry handles plugin registration
 	PluginRegistry plugin.Registry
-	// Proxy is a reverse tunnel proxy that handles connections
-	// to local cluster or remote clusters using unified interface
-	Proxy reversetunnelclient.Tunnel
+	// Proxy provides a means to look up clusters.
+	Proxy reversetunnelclient.ClusterGetter
 	// AuthServers is a list of auth servers this proxy talks to
 	AuthServers utils.NetAddr
 	// ProxyClient is a client that authenticated as proxy
@@ -724,7 +724,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			Clock:                 h.clock,
 			AuthClient:            cfg.ProxyClient,
 			AccessPoint:           cfg.AccessPoint,
-			ProxyClient:           cfg.Proxy,
+			ClusterGetter:         cfg.Proxy,
 			CipherSuites:          cfg.CipherSuites,
 			ProxyPublicAddrs:      cfg.ProxyPublicAddrs,
 			WebPublicAddr:         resp.SSH.PublicAddr,
@@ -1073,6 +1073,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS IAM Roles Anywhere Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsra-trust-anchor.sh", h.WithLimiter(h.awsRolesAnywhereConfigureTrustAnchor))
+	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/validate", h.WithClusterAuth(h.validateAWSRolesAnywhereIntegration))
 	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/ping", h.WithClusterAuth(h.awsRolesAnywherePing))
 	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/listprofiles", h.WithClusterAuth(h.awsRolesAnywhereListProfiles))
 
@@ -1175,6 +1176,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/gitservers", h.WithClusterAuth(h.gitServerCreateOrUpsert))
 	h.GET("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerGet))
 	h.DELETE("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerDelete))
+
+	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
+	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1917,6 +1921,19 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	disableRoleVisualizer, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER"))
 
+	sessionSummarizerEnabled := false
+	isEnabledRes, err := h.cfg.ProxyClient.SummarizerServiceClient().IsEnabled(
+		r.Context(), &summarizerv1.IsEnabledRequest{},
+	)
+	if err != nil {
+		h.logger.ErrorContext(r.Context(),
+			"Cannot tell if the session summarizer is enabled, session summarizations won't show up in the UI",
+			"error", err,
+		)
+	} else {
+		sessionSummarizerEnabled = isEnabledRes.Enabled
+	}
+
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
@@ -1936,6 +1953,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
 		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
+		SessionSummarizerEnabled:       sessionSummarizerEnabled,
 		// Entitlements are reset/overridden in setEntitlementsWithLegacyLogic until setEntitlementsWithLegacyLogic is removed in v18
 		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
 	}
@@ -3633,10 +3651,10 @@ func (h *Handler) getClusterLocksV2(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 ) (any, error) {
 	ctx := r.Context()
-	clt, err := sessionCtx.GetUserClient(ctx, site)
+	clt, err := sessionCtx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4771,13 +4789,13 @@ func (h *Handler) getSiteByClusterName(ctx context.Context, sctx *SessionContext
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxy.GetSite(clusterName)
+	cluster, err := proxy.Cluster(ctx, clusterName)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to query site", "error", err, "cluster", clusterName)
 		return nil, trace.Wrap(err)
 	}
 
-	return site, nil
+	return cluster, nil
 }
 
 // ClusterClientProvider is an interface for a type which can provide
@@ -4849,13 +4867,13 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 			return nil, trace.AccessDenied("need auth")
 		}
 
-		site, err := h.cfg.Proxy.GetSite(h.auth.clusterName)
+		cluster, err := h.cfg.Proxy.Cluster(ctx, h.auth.clusterName)
 		if err != nil {
 			h.logger.WarnContext(ctx, "Failed to query cluster", "error", err, "cluster", h.auth.clusterName)
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, p, site, token)
+		return fn(w, r, p, cluster, token)
 	})
 }
 
@@ -5189,7 +5207,7 @@ func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) 
 
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
 // of the given user.
-func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (reversetunnelclient.Tunnel, error) {
+func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (reversetunnelclient.ClusterGetter, error) {
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get client roles", "error", err)
@@ -5200,7 +5218,7 @@ func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (rev
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker.CheckAccessToRemoteCluster, h.cfg.AccessPoint), nil
+	return reversetunnelclient.NewClusterGetterWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker.CheckAccessToRemoteCluster, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy
