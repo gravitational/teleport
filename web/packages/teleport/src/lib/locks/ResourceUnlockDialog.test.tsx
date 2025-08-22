@@ -17,14 +17,14 @@
  */
 
 import { setupServer } from 'msw/node';
-import { PropsWithChildren } from 'react';
+import { ComponentPropsWithoutRef, PropsWithChildren } from 'react';
 
 import {
-  fireEvent,
   Providers,
   render,
   screen,
   testQueryClient,
+  userEvent,
   waitFor,
 } from 'design/utils/testing';
 
@@ -71,15 +71,7 @@ describe('ResourceUnlockDialog', () => {
 
     const onCancel = jest.fn();
 
-    render(
-      <ResourceUnlockDialog
-        targetKind="user"
-        targetName="test-user"
-        onCancel={onCancel}
-        onComplete={jest.fn()}
-      />,
-      { wrapper: makeWrapper() }
-    );
+    const { user } = renderComponent({ onCancel });
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
@@ -87,7 +79,7 @@ describe('ResourceUnlockDialog', () => {
 
     expect(screen.getByText('Unlock test-user?')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
@@ -109,28 +101,42 @@ describe('ResourceUnlockDialog', () => {
 
     const onComplete = jest.fn();
 
-    render(
-      <ResourceUnlockDialog
-        targetKind="user"
-        targetName="test-user"
-        onCancel={jest.fn()}
-        onComplete={onComplete}
-      />,
-      { wrapper: makeWrapper() }
-    );
+    const { user } = renderComponent({ onComplete });
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
     });
 
     withUnlockSuccess();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Lock' }));
+    await user.click(screen.getByRole('button', { name: 'Remove Lock' }));
 
     await waitFor(() => {
       expect(onComplete).toHaveBeenCalledTimes(1);
     });
   });
 });
+
+function renderComponent(
+  params?: Pick<
+    Partial<ComponentPropsWithoutRef<typeof ResourceUnlockDialog>>,
+    'onCancel' | 'onComplete'
+  >
+) {
+  const { onCancel = jest.fn(), onComplete = jest.fn() } = params ?? {};
+  const user = userEvent.setup();
+  return {
+    ...render(
+      <ResourceUnlockDialog
+        targetKind="user"
+        targetName="test-user"
+        onCancel={onCancel}
+        onComplete={onComplete}
+      />,
+      { wrapper: makeWrapper() }
+    ),
+    user,
+  };
+}
 
 function makeWrapper() {
   const ctx = createTeleportContext();
