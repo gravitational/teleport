@@ -760,9 +760,9 @@ const (
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
 
-	// PresetMCPAccessRoleName is a name of a preset role that allows
+	// PresetMCPUserRoleName is a name of a preset role that allows
 	// accessing MCP servers.
-	PresetMCPAccessRoleName = "mcp-access"
+	PresetMCPUserRoleName = "mcp-user"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

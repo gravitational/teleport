@@ -825,14 +825,14 @@ func NewPresetTerraformProviderRole() types.Role {
 	return role
 }
 
-// NewPresetMCPAccessRole returns a new pre-defined role for accessing MCP
+// NewPresetMCPUserRole returns a new pre-defined role for accessing MCP
 // servers.
-func NewPresetMCPAccessRole() types.Role {
+func NewPresetMCPUserRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V8,
 		Metadata: types.Metadata{
-			Name:        teleport.PresetMCPAccessRoleName,
+			Name:        teleport.PresetMCPUserRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Access to MCP servers",
 			Labels: map[string]string{
@@ -903,7 +903,7 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 		},
 		// These roles are intentionally not added here as there may be existing
 		// customer defined roles that have these labels:
-		// group-access, reviewer, requester, mcp-access
+		// group-access, reviewer, requester, mcp-user
 	}
 }
 
@@ -1065,7 +1065,7 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 	// Check if the role has a TeleportInternalResourceType attached. We do this after setting the role metadata
 	// labels because we set the role metadata labels for roles that have been well established (access,
 	// editor, auditor) that may not already have this label set, but we don't set it for newer roles
-	// (group-access, reviewer, requester, mcp-access) that may have customer definitions.
+	// (group-access, reviewer, requester, mcp-user) that may have customer definitions.
 	resourceType := labels[types.TeleportInternalResourceType]
 	if resourceType != types.PresetResource && resourceType != types.SystemResource {
 		return nil, trace.AlreadyExists("not modifying user created role")

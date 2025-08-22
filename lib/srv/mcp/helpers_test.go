@@ -73,7 +73,7 @@ func withRole(role types.Role) setupTestContextOptionFunc {
 // tools.
 func withAdminRole(t *testing.T) setupTestContextOptionFunc {
 	t.Helper()
-	role := services.NewPresetMCPAccessRole()
+	role := services.NewPresetMCPUserRole()
 	require.NoError(t, services.CheckAndSetDefaults(role))
 	return withRole(role)
 }
