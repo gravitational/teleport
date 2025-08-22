@@ -87,13 +87,13 @@ const (
 
 // recordingPlayback manages session event streaming
 type recordingPlayback struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	clt        events.SessionStreamer
-	sessionID  string
-	logger     *slog.Logger
-	mu         sync.Mutex
-	activeTask context.CancelFunc
+	ctx              context.Context
+	cancel           context.CancelFunc
+	clt              events.SessionStreamer
+	sessionID        string
+	logger           *slog.Logger
+	mu               sync.Mutex
+	cancelActiveTask context.CancelFunc
 
 	stream struct {
 		sync.Mutex
@@ -241,12 +241,12 @@ func (s *recordingPlayback) createTaskContext() context.Context {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.activeTask != nil {
-		s.activeTask()
+	if s.cancelActiveTask != nil {
+		s.cancelActiveTask()
 	}
 
 	ctx, taskCancel := context.WithCancel(s.ctx)
-	s.activeTask = taskCancel
+	s.cancelActiveTask = taskCancel
 
 	return ctx
 }
@@ -308,7 +308,7 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest, eventsChan <-chan apievents.AuditEvent, errorsChan <-chan error) {
 	defer func() {
 		s.mu.Lock()
-		s.activeTask = nil
+		s.cancelActiveTask = nil
 		s.mu.Unlock()
 	}()
 
