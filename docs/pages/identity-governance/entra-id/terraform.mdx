@@ -1,6 +1,6 @@
 ---
-title:  Configure Entra ID integration using Terraform
-description: Describes how to set up Teleport Entra ID integration using Terraform
+title:  Configure the Entra ID Integration using Terraform
+description: Describes how to set up the Teleport Entra ID integration using Terraform
 sidebar_position: 3
 labels:
  - how-to
@@ -8,328 +8,144 @@ labels:
  - terraform
 ---
 
-This guide shows Entra ID integration configuration using Terraform and `tctl`.
+This guide shows end-to-end Entra ID integration configuration using Terraform and `tctl`.
+You will configure Entra ID side of configuration using Terraform and install the Entra ID 
+plugin in Teleport using `tctl`.
 
-See [getting started with Entra ID integration](getting-started.mdx) for a guided Entra ID configuration. 
+See [getting started with Entra ID integration](getting-started.mdx) for a guided end-to-end Entra ID configuration. 
 
 ## Prerequisites
 
 - Teleport Identity Governance enabled for your Teleport cluster.
 - Your user must have privileged administrator permissions in Microsoft Azure and Entra ID tenant.
-- Terraform configured with the `azuread` [provider](https://registry.terraform.io/providers/hashicorp/azuread/latest/docs).
 
-## Step 1/4. Create enterprise application
+## Step 1/3. Prepare Terraform
 
-This application will be used to configure Entra ID based SSO in Teleport.
-```hcl
-resource "azuread_application" "example" {
-  display_name = "example"
+First, set up `azuread` [provider](https://registry.terraform.io/providers/hashicorp/azuread/latest/docs) in your 
+working environment from where you want to run the Terraform plan.
 
-  # These resources will be updated later and should not 
-  # be overridden.
-  lifecycle {
-    ignore_changes = [
-      identifier_uris,
-      required_resource_access,
-    ]
-  }
+Next, clone the Teleport Entra ID integration example module, which is available in the Teleport Github repository [TODO: update link placeholder](https://github.com/gravitational/teleport/pull/58252).
 
-  feature_tags {
-    enterprise            = true
-    custom_single_sign_on = true
-  }
-}
-```
+The example provides a configurable Terraform module to setup Entra ID with attributes that are 
+required for the Teleport Entra ID integration.  
 
+## Step 2/3. Configure and apply
 
-## Step 2/4. Configure SAML SSO
+The example Terraform module provides Entra ID configuration option based on the authentication
+method you wish to configure for the Teleport Entra ID integration. 
 
-Configure Entra ID enterprise application as an SAML SSO provider for Teleport.
-```hcl
-locals {
-  # Enter your Teleport cluster address. 
-  # E.g. format of the expected value: https://example.teleport.sh/v1/webapi/saml/acs/entra-id
-  teleport_saml_entity_id = "https://<Var name="example.teleport.sh"/>/v1/webapi/saml/acs/entra-id"
-}
+Setting up Teleport as an ODIC IdP 
+option is the only supported method if you are using Teleport Cloud. If you have a self-hosted 
+Teleport Cluster, you must ensure that the Teleport Proxy Service is publicly accessible.
 
-resource "azuread_service_principal" "example_sp" {
-  client_id = azuread_application.example.client_id
+Alternatively, using system credentials setup is best suited if you have a self-hosted Teleport cluster 
+or when the Teleport Proxy Service is not publicly accessible.  
 
-  preferred_single_sign_on_mode = "saml"
-
-  login_url = local.teleport_saml_entity_id
-
-  feature_tags {
-    enterprise            = true
-    custom_single_sign_on = true
-  }
-}
-```
-
-Configure a certificate to be used for SAML assertion signing.
-```hcl
-resource "azuread_service_principal_token_signing_certificate" "example_saml_cert" {
-  service_principal_id = azuread_service_principal.example_sp.id
-  display_name         = "CN=teleport-tf-example-sso"
-  end_date             = "2026-05-01T01:02:03Z"
-}
-```
-
-Configure `identifier_uri`, which will be used as the "Entity ID" value for the SAML service provider. 
-```hcl
-resource "azuread_application_identifier_uri" "example_identifier_uri" {
-  application_id = azuread_application.example.id
-
-  # Configures SAML Entity ID.
-  identifier_uri = local.teleport_saml_entity_id
-}
-```
-
-Now, you will need to update the enterprise application created in Step 1 
-with `group_membership_claims` and `redirect_uris` values. 
-
-```hcl
-resource "azuread_application" "example" {
-  display_name = "example"
-
-  # Adds group attribute to SAML response.
-  group_membership_claims = ["SecurityGroup"]
-
-  # Redirect URI configures SAML Assertion Consumer Service URL. 
-  web {
-    redirect_uris = [local.teleport_saml_entity_id]
-  }
-
-  lifecycle {
-    ignore_changes = [
-      identifier_uris,
-      required_resource_access,
-    ]
-  }
-
-  feature_tags {
-    enterprise            = true
-    custom_single_sign_on = true
-  }
-}
-```
-
-By default, the `azuread` provider configures `NameID` format of `emailAddress` type. 
-Teleport expects the format to be of `unspecified` type. To change this value, you 
-will need to create a new claim policy and attach it to the service principal 
-created in Step 2.
-```hcl
-resource "azuread_claims_mapping_policy" "example_nameid" {
-  definition = [
-    jsonencode(
-      {
-        ClaimsMappingPolicy = {
-          ClaimsSchema = [
-            {
-              ID            = "userprincipalname"
-              SamlClaimType = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
-              Source        = "user"
-            },
-          ]
-          IncludeBasicClaimSet = "true"
-          Version              = 1
-        }
-      }
-    ),
-  ]
-  display_name = "example_nameid"
-}
-
-
-resource "azuread_service_principal_claims_mapping_policy_assignment" "example_nameid_policy_assignment" {
-  claims_mapping_policy_id = azuread_claims_mapping_policy.example_nameid.id
-  service_principal_id     = azuread_service_principal.example_sp.id
-}
-```
-
-## Step 3/4. Set up authentication for Microsoft Graph client
-
-In this step, you configure authentication method for the Microsoft Graph client used 
-by Teleport. 
-
-Recall that Teleport supports [OIDC IdP and system credential](http://localhost:4000/ver/19.x/identity-governance/entra-id/#choosing-the-microsoft-graph_api-authentication-method)
-based authentication method.
-
-For OIDC IdP method, a federated credential is set up for Teleport by configuring 
-Teleport as an OIDC IdP. For system credential method, a managed identity that is assigned to the 
-Teleport Auth service is updated with permissions that grants access to the Graph API.  
+At minimum, the Terraform example expects the following input variables.
+- `app_name`: Name of the enterprise application that will be created in Entra ID.
+- `proxy_service_address`: Teleport Proxy Service host. E.g., `example.teleport.sh`.
+- `certificate_expiry_date`: SAML assertion signing certificate expiry date. 
+   E.g., `2026-05-01T01:02:03Z`. Note that an expired certificate will prevent users from 
+   signing in to Teleport. If it expires, you will need to update this value in Terraform, 
+   as well as in the SAML-based Teleport Auth Connector created for the Entra ID. 
 
 <Tabs>
 <TabItem default label="Teleport as an OIDC provider" name="entra-oidc">
 
-To set up Teleport as OIDC IdP, you must set up a federated credential for the enterprise 
-application created in Step 1. 
+Create `tfvars` with your inputs.
 
-```hcl
-resource "azuread_application_federated_identity_credential" "example_oidc_idp" {
-  application_id = azuread_application.example.id
-  display_name   = "example_oidc_idp"
-  description    = "Teleport as an OIDC IdP"
-  audiences      = ["api://AzureADTokenExchange"]
-  issuer         = "https://<Var name="example.teleport.sh"/>"
-  subject        = "teleport-azure"
-}
+```bash
+cat > variables.auto.tfvars << EOF
+app_name                = "<Var name="Enterprise app name"/>"
+proxy_service_address   = "<Var name="Teleport Proxy host"/>"
+certificate_expiry_date = "<Var name="SAML certificate expiry"/>"
+EOF
 ```
 
-Next, grant Microsoft Graph API permissions to the enterprise application.
-These permissions allows Teleport Graph client to import users and groups 
-from Entra ID to Teleport.
+Applying this plan will perform the following actions:
+- Create an enterprise application.
+- Set up SAML SSO for Teleport.
+- Grant Microsoft Graph API permissions necessary for the Teleport Entra ID integration.
+- Setup Teleport as an OIDC-based federated credential provider. 
 
-```hcl
-data "azuread_application_published_app_ids" "well_known" {}
+After you configure `tfvars`, apply the plan.
+```bash
+$ terraform plan 
 
-data "azuread_service_principal" "graph_api" {
-  client_id = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
-}
-
-# Assign API permissions. 
-resource "azuread_application_api_access" "example_graph_permission" {
-  application_id = azuread_application.example.id
-  api_client_id  = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
-
-  role_ids = [
-    data.azuread_service_principal.graph_api.app_role_ids["Application.ReadWrite.OwnedBy"],
-    data.azuread_service_principal.graph_api.app_role_ids["Group.Read.All"],
-    data.azuread_service_principal.graph_api.app_role_ids["User.Read.All"],
-  ]
-}
+$ terraform apply 
 ```
 
-You also need to grant admin consent for these permissions. 
-
-```hcl
-resource "azuread_app_role_assignment" "example_graph_permission_app_grant" {
-  app_role_id         = data.azuread_service_principal.graph_api.app_role_ids["Application.ReadWrite.OwnedBy"]
-  principal_object_id = azuread_service_principal.example_sp.object_id
-  resource_object_id  = data.azuread_service_principal.graph_api.object_id
-}
-
-resource "azuread_app_role_assignment" "example_graph_permission_group_grant" {
-  app_role_id         = data.azuread_service_principal.graph_api.app_role_ids["Group.Read.All"]
-  principal_object_id = azuread_service_principal.example_sp.object_id
-  resource_object_id  = data.azuread_service_principal.graph_api.object_id
-}
-
-resource "azuread_app_role_assignment" "example_graph_permission_user_grant" {
-  app_role_id         = data.azuread_service_principal.graph_api.app_role_ids["User.Read.All"]
-  principal_object_id = azuread_service_principal.example_sp.object_id
-  resource_object_id  = data.azuread_service_principal.graph_api.object_id
-}
-```
 </TabItem>
 <TabItem label="System Credential" name="entra-system-cred">
 
-To set up a system credential, you need to grant Graph API permissions to the Managed Identity 
-that is assigned to the Teleport Auth service. 
+You need additional input variables to set up managed identity.
+- `use_system_credentials`: Configures Terraform module to plan for resources required 
+   for the system credential setup. Value must be `true`.
+- `graph_permission_ids`: Permission IDs of the Microsoft Graph API permissions required for the integration:
+  - `Application.ReadWrite.OwnedBy`
+  - `Group.Read.All`
+  - `User.Read.All`
+- `managed_id`:  Principal ID of the managed identity which is assigned to the Teleport Auth Service.
 
-Azure supports two kinds of Managed Identities - system assigned and user assigned. 
-For simplicity, a method to update a system assigned Managed Identity, which is assigned to a 
-VM that hosts Teleport Auth Service is demonstrated below. 
+The simplest way to retrieve the permission IDs is to run the PowerShell script in your Azure Cloud Shell.
 
-First, ensure that a system assigned Managed Identity is enabled for your VM.
-This can be configured by setting up the [`identity`](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_machine#identity-1)
-block in your VM configuration. 
-
-```hcl 
-resource "azurerm_virtual_machine" "my_vm" {
-  identity {
-    type = "SystemAssigned"
-  }
-}
-```
-
-To assign permissions, first, you will need the ID of the Graph API permission
-of the three permissions we need to assign to the Managed Identity:
-- `Application.Read.All`
-- `Group.Read.All`
-- `User.Read.All`
-
-The ID of these permissions are not directly exposed in the Azure Portal, thus needs to be 
-manually retrieved using powershell. 
-
-Below, a reference powershell script is provided that prints the ID of `Application.Read.All`,
-`Group.Read.All` and `User.Read.All` permissions.
 ```powershell
 Connect-AzureAD
-
 # This is a service principal object representing Microsoft Graph in Azure AD with a specific app ID.
 $GraphServicePrincipal = Get-AzureADServicePrincipal -Filter "AppId eq '00000003-0000-0000-c000-000000000000'"
-
 # These are Microsoft Graph API permissions required by the managed identity.
 $permissions = @(
-  "Application.Read.All"   # Permission to read applications in the directory
+  "Application.ReadWrite.OwnedBy"   # Permission to read application
   "Group.Read.All"     # Permission to read groups in the directory
   "User.Read.All"        # Permission to read users in the directory
 )
-
-# Filter and find the app roles in the Microsoft Graph service principal that match the defined permissions.
+# Filter and find the app roles in the Microsoft Graph service principal that matches with permissions.
 # Only include roles where "AllowedMemberTypes" includes "Application" (suitable for managed identities).
 $appRoles = $GraphServicePrincipal.AppRoles |
     Where-Object Value -in $permissions |
     Where-Object AllowedMemberTypes -contains "Application"
-
 # Print ID of each of the three permissions.
 foreach ($appRole in $appRoles) {
   "{0} : {1}" -f $appRole.Value, $appRole.Id 
 }
 ```
 
-Copy the permission ID printed by the powershell script and paste it in 
-the respective input fields below.
-- Application permission ID: <Var name="application-uuid"/>
-- Group permission ID: <Var name="group-uuid"/>
-- User permission ID: <Var name="user-uuid"/>
+Once you have the permission IDs and the principal ID of the managed identity ready,
+create `tfvars` with your inputs.
 
-Next, update the system assigned Managed Identity with the Graph API permissions. 
+```bash
+cat > variables.auto.tfvars << EOF
+app_name                = "<Var name="Enterprise app name"/>"
+proxy_service_address   = "<Var name="Teleport Proxy host"/>"
+certificate_expiry_date = "<Var name="SAML certificate expiry"/>"
+use_system_credentials   = true
+graph_permission_ids    = [<Var name="Permission IDs"/>]
+managed_id              = "<Var name="Principal ID of the managed identity"/>"
+EOF
+```
 
-```hcl
-data "azuread_application_published_app_ids" "well_known" {}
+Applying this plan will perform the following actions:
+- Create an enterprise application.
+- Set up SAML SSO for Teleport.
+- Grant Microsoft Graph API permissions to the managed identity. Permissions 
+  are based on the permission IDs which we configured above.
 
-data "azuread_service_principal" "graph_api" {
-  client_id = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
-}
+After you configure `tfvars`, apply the plan.
+```bash
+$ terraform plan 
 
-resource "azuread_app_role_assignment" "example_permission_application" {
-  # ID of the API permission retrieved using PowerShell. 
-  app_role_id         = "<Var name="application-uuid"/>"
-  # Object ID of the system assigned Managed identity
-  principal_object_id = azurerm_virtual_machine.my_vm.identity[0].principal_id
-  # Object ID of the MS graph API application. 
-  resource_object_id  = data.azuread_service_principal.graph_api.object_id
-}
-
-resource "azuread_app_role_assignment" "example_permission_group" {
-  # ID of the API permission retrieved using PowerShell. 
-  app_role_id         = "<Var name="group-uuid"/>"
-  # Object ID of the system assigned Managed identity
-  principal_object_id = azurerm_virtual_machine.my_vm.identity[0].principal_id
-  # Object ID of the MS graph API application. 
-  resource_object_id  = data.azuread_service_principal.graph_api.object_id
-}
-
-resource "azuread_app_role_assignment" "example_permission_user" {
-  # ID of the API permission retrieved using PowerShell. 
-  app_role_id         = "<Var name="user-uuid"/>"
-  # Object ID of the system assigned Managed identity
-  principal_object_id = azurerm_virtual_machine.my_vm.identity[0].principal_id
-  # Object ID of the MS graph API application. 
-  resource_object_id  = data.azuread_service_principal.graph_api.object_id
-}
+$ terraform apply 
 ```
 
 </TabItem>
 </Tabs>
 
-Entra ID is now configured with the required attributes needed for Teleport Entra ID integration.
+Entra ID is now configured with the required attributes needed for the Teleport Entra ID integration.
 
-## Step 4/4. Install the Entra ID plugin
+## Step 3/3. Install the Entra ID plugin
 
-Integration can be installed with the `tctl plugins install entraid` command.
+To complete the integration setup, install the Entra ID plugin in Teleport.
+The plugin can be installed with the `tctl plugins install entraid` command.
 
 <Tabs>
 <TabItem default label="Teleport as an OIDC provider" name="entra-oidc">
@@ -365,10 +181,11 @@ in Teleport based on the groups imported from the Entra ID.
 if you with to set up system credential based authentication.
 - `--manual-setup` flag specifies a manual Entra ID configuration is selected by the user.
 
-`tctl` will then prompt for Entra ID tenant ID and application ID of the enterprise 
-application created in step 1.
+`tctl` will then prompt for an Entra ID tenant ID and an application ID of the enterprise 
+application created by using Terraform in step 2.
 
-After you enter these values, Entra ID plugin will be installed with the OIDC IdP based authentication method.
+After you enter these values, the installation command will create a SAML Auth Connector in Teleport, along with the 
+plugin service that imports users and groups from Entra ID to Teleport.
 
 ## Next steps
 
