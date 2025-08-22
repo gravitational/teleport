@@ -104,7 +104,7 @@ func TestValidateRequest(t *testing.T) {
 			err := validateRequest(tt.req)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.errMsg)
+				require.ErrorContains(t, err, tt.errMsg)
 			} else {
 				require.NoError(t, err)
 			}
