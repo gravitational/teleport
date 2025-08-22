@@ -291,6 +291,9 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+
+	// IdentityCenter holds general config for the IdentityCenter integration
+	IdentityCenter IdentityCenterConfig
 }
 
 type ConfigTesting struct {
