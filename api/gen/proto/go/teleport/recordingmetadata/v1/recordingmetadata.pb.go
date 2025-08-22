@@ -364,8 +364,8 @@ type SessionRecordingMetadata struct {
 	ClusterName string `protobuf:"bytes,7,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
 	// User is the user whose session is being recorded.
 	User string `protobuf:"bytes,8,opt,name=user,proto3" json:"user,omitempty"`
-	// Resource is the name of the resource that was connected to.
-	Resource string `protobuf:"bytes,9,opt,name=resource,proto3" json:"resource,omitempty"`
+	// ResourceName is the name of the resource that was connected to.
+	ResourceName string `protobuf:"bytes,9,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"`
 	// Type is the type of session recording.
 	Type          SessionRecordingType `protobuf:"varint,10,opt,name=type,proto3,enum=teleport.recordingmetadata.v1.SessionRecordingType" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -458,9 +458,9 @@ func (x *SessionRecordingMetadata) GetUser() string {
 	return ""
 }
 
-func (x *SessionRecordingMetadata) GetResource() string {
+func (x *SessionRecordingMetadata) GetResourceName() string {
 	if x != nil {
-		return x.Resource
+		return x.ResourceName
 	}
 	return ""
 }
@@ -592,7 +592,7 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\x04user\x18\x01 \x01(\tR\x04user\"E\n" +
 	"\x1bSessionRecordingResizeEvent\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\x05R\x04cols\x12\x12\n" +
-	"\x04rows\x18\x02 \x01(\x05R\x04rows\"\xeb\x03\n" +
+	"\x04rows\x18\x02 \x01(\x05R\x04rows\"\xf4\x03\n" +
 	"\x18SessionRecordingMetadata\x125\n" +
 	"\bduration\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\bduration\x12L\n" +
 	"\x06events\x18\x02 \x03(\v24.teleport.recordingmetadata.v1.SessionRecordingEventR\x06events\x12\x1d\n" +
@@ -604,8 +604,8 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"start_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
 	"\bend_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
 	"\fcluster_name\x18\a \x01(\tR\vclusterName\x12\x12\n" +
-	"\x04user\x18\b \x01(\tR\x04user\x12\x1a\n" +
-	"\bresource\x18\t \x01(\tR\bresource\x12G\n" +
+	"\x04user\x18\b \x01(\tR\x04user\x12#\n" +
+	"\rresource_name\x18\t \x01(\tR\fresourceName\x12G\n" +
 	"\x04type\x18\n" +
 	" \x01(\x0e23.teleport.recordingmetadata.v1.SessionRecordingTypeR\x04type\"\x83\x02\n" +
 	"\x19SessionRecordingThumbnail\x12\x10\n" +
