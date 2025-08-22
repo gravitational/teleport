@@ -133,6 +133,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -2754,6 +2755,19 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(recordingEncryptionManager.Watch(process.GracefulExitContext(), authServer.Services))
 	})
 
+	process.RegisterFunc("auth.aws-roles-anywhere.profile-sync.service", func() error {
+		return trace.Wrap(awsra.RunAWSRolesAnywhereProfileSyncerWhileLocked(process.GracefulExitContext(), awsra.AWSRolesAnywhereProfileSyncerParams{
+			Clock:             process.Clock,
+			Logger:            logger,
+			KeyStoreManager:   authServer.GetKeyStore(),
+			Cache:             authServer.Cache,
+			StatusReporter:    authServer.Services,
+			Backend:           process.backend,
+			AppServerUpserter: authServer.Services,
+			HostUUID:          process.Config.HostUUID,
+		}))
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -4955,7 +4969,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:      clusterName,
 			LocalAccessPoint: accessPoint,
-			SiteGetter:       tsrv,
+			ClusterGetter:    tsrv,
 			TracerProvider:   process.TracingProvider,
 			Logger:           process.logger.With(teleport.ComponentKey, "router"),
 		})
@@ -5933,10 +5947,10 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 			return nil, trace.ConvertSystemError(err)
 		}
 		hostChecker, err := newHostPolicyChecker(hostPolicyCheckerConfig{
-			publicAddrs: process.Config.Proxy.PublicAddrs,
-			clt:         conn.Client,
-			tun:         tsrv,
-			clusterName: conn.ClusterName(),
+			publicAddrs:   process.Config.Proxy.PublicAddrs,
+			clt:           conn.Client,
+			clusterGetter: tsrv,
+			clusterName:   conn.ClusterName(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

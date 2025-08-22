@@ -138,6 +138,7 @@ const (
 	AuthService_GenerateSnowflakeJWT_FullMethodName                = "/proto.AuthService/GenerateSnowflakeJWT"
 	AuthService_GetRole_FullMethodName                             = "/proto.AuthService/GetRole"
 	AuthService_ListRoles_FullMethodName                           = "/proto.AuthService/ListRoles"
+	AuthService_ListRequestableRoles_FullMethodName                = "/proto.AuthService/ListRequestableRoles"
 	AuthService_CreateRole_FullMethodName                          = "/proto.AuthService/CreateRole"
 	AuthService_UpdateRole_FullMethodName                          = "/proto.AuthService/UpdateRole"
 	AuthService_UpsertRoleV2_FullMethodName                        = "/proto.AuthService/UpsertRoleV2"
@@ -226,6 +227,7 @@ const (
 	AuthService_DeleteApp_FullMethodName                           = "/proto.AuthService/DeleteApp"
 	AuthService_DeleteAllApps_FullMethodName                       = "/proto.AuthService/DeleteAllApps"
 	AuthService_GetDatabases_FullMethodName                        = "/proto.AuthService/GetDatabases"
+	AuthService_ListDatabases_FullMethodName                       = "/proto.AuthService/ListDatabases"
 	AuthService_GetDatabase_FullMethodName                         = "/proto.AuthService/GetDatabase"
 	AuthService_CreateDatabase_FullMethodName                      = "/proto.AuthService/CreateDatabase"
 	AuthService_UpdateDatabase_FullMethodName                      = "/proto.AuthService/UpdateDatabase"
@@ -554,6 +556,8 @@ type AuthServiceClient interface {
 	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error)
 	// ListRoles is a paginated role getter.
 	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error)
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error)
 	// CreateRole creates a new role.
 	CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error)
 	// UpdateRole updates an existing role.
@@ -803,8 +807,11 @@ type AuthServiceClient interface {
 	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
+	// ListDatabases returns a page of registered databases.
+	ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
@@ -2142,6 +2149,16 @@ func (c *authServiceClient) ListRoles(ctx context.Context, in *ListRolesRequest,
 	return out, nil
 }
 
+func (c *authServiceClient) ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRequestableRolesResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListRequestableRoles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.RoleV6)
@@ -3053,10 +3070,21 @@ func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.DatabaseV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetDatabases_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDatabasesResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListDatabases_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4046,6 +4074,8 @@ type AuthServiceServer interface {
 	GetRole(context.Context, *GetRoleRequest) (*types.RoleV6, error)
 	// ListRoles is a paginated role getter.
 	ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error)
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error)
 	// CreateRole creates a new role.
 	CreateRole(context.Context, *CreateRoleRequest) (*types.RoleV6, error)
 	// UpdateRole updates an existing role.
@@ -4295,8 +4325,11 @@ type AuthServiceServer interface {
 	DeleteApp(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error)
+	// ListDatabases returns a page of registered databases.
+	ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(context.Context, *types.ResourceRequest) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
@@ -4818,6 +4851,9 @@ func (UnimplementedAuthServiceServer) GetRole(context.Context, *GetRoleRequest) 
 func (UnimplementedAuthServiceServer) ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRoles not implemented")
 }
+func (UnimplementedAuthServiceServer) ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRequestableRoles not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateRole(context.Context, *CreateRoleRequest) (*types.RoleV6, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateRole not implemented")
 }
@@ -5081,6 +5117,9 @@ func (UnimplementedAuthServiceServer) DeleteAllApps(context.Context, *emptypb.Em
 }
 func (UnimplementedAuthServiceServer) GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
+}
+func (UnimplementedAuthServiceServer) ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDatabases not implemented")
 }
 func (UnimplementedAuthServiceServer) GetDatabase(context.Context, *types.ResourceRequest) (*types.DatabaseV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabase not implemented")
@@ -7043,6 +7082,24 @@ func _AuthService_ListRoles_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListRequestableRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRequestableRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListRequestableRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListRequestableRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListRequestableRoles(ctx, req.(*ListRequestableRolesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateRoleRequest)
 	if err := dec(in); err != nil {
@@ -8587,6 +8644,24 @@ func _AuthService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetDatabases(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDatabasesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListDatabases(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListDatabases_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListDatabases(ctx, req.(*ListDatabasesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10244,6 +10319,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_ListRoles_Handler,
 		},
 		{
+			MethodName: "ListRequestableRoles",
+			Handler:    _AuthService_ListRequestableRoles_Handler,
+		},
+		{
 			MethodName: "CreateRole",
 			Handler:    _AuthService_CreateRole_Handler,
 		},
@@ -10578,6 +10657,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDatabases",
 			Handler:    _AuthService_GetDatabases_Handler,
+		},
+		{
+			MethodName: "ListDatabases",
+			Handler:    _AuthService_ListDatabases_Handler,
 		},
 		{
 			MethodName: "GetDatabase",

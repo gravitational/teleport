@@ -54,9 +54,10 @@ import (
 )
 
 const (
-	awskmsPrefix  = "awskms:"
-	clusterTagKey = "TeleportCluster"
-	awsOAEPHash   = crypto.SHA256
+	awskmsPrefix           = "awskms:"
+	clusterTagKey          = "TeleportCluster"
+	encryptedClusterTagKey = "TeleportClusterEncryption"
+	awsOAEPHash            = crypto.SHA256
 
 	pendingKeyBaseRetryInterval = time.Second / 2
 	pendingKeyMaxRetryInterval  = 4 * time.Second
@@ -131,7 +132,7 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 
 	tags := cfg.Tags
 	if tags == nil {
-		tags = make(map[string]string, 1)
+		tags = make(map[string]string, 2)
 	}
 	if _, ok := tags[clusterTagKey]; !ok {
 		tags[clusterTagKey] = opts.ClusterName.GetClusterName()
@@ -196,6 +197,9 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 
 	tags := make([]kmstypes.Tag, 0, len(a.tags))
 	for k, v := range a.tags {
+		if k == clusterTagKey && usage == keyUsageDecrypt {
+			k = encryptedClusterTagKey
+		}
 		tags = append(tags, kmstypes.Tag{
 			TagKey:   aws.String(k),
 			TagValue: aws.String(v),
@@ -545,7 +549,14 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	if scopedKeyDeletion {
 		keyListFn = a.forEachOwnedKey
 	}
-	err := keyListFn(ctx, func(ctx context.Context, arn string) error {
+	err := keyListFn(ctx, func(ctx context.Context, arn string, tags []rgttypes.Tag) error {
+		if slices.ContainsFunc(tags, func(tag rgttypes.Tag) bool {
+			return aws.ToString(tag.Key) == encryptedClusterTagKey
+		}) {
+			// do nothing for keys marked with delete prevention
+			return nil
+		}
+
 		key, err := keyIDFromArn(arn)
 		if err != nil {
 			return trace.Wrap(err)
@@ -645,7 +656,7 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 
 // forEachKey calls fn with the AWS key ID of all keys in the AWS account and
 // region that would be returned by ListKeys. It may call fn concurrently.
-func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Context, keyARN string) error) error {
+func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Context, keyARN string, tags []rgttypes.Tag) error) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 	marker := ""
 	more := true
@@ -666,7 +677,7 @@ func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Con
 		for _, keyEntry := range output.Keys {
 			keyID := aws.ToString(keyEntry.KeyArn)
 			errGroup.Go(func() error {
-				return trace.Wrap(fn(ctx, keyID))
+				return trace.Wrap(fn(ctx, keyID, nil))
 			})
 		}
 	}
@@ -675,7 +686,7 @@ func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Con
 
 // forEachOwnedKey calls fn with the AWS key ID of all owned keys in the AWS account and
 // region that would be returned by GetResources. It may call fn concurrently.
-func (a *awsKMSKeystore) forEachOwnedKey(ctx context.Context, fn func(ctx context.Context, keyARN string) error) error {
+func (a *awsKMSKeystore) forEachOwnedKey(ctx context.Context, fn func(ctx context.Context, keyARN string, tags []rgttypes.Tag) error) error {
 	const maxGoRoutines = 5
 	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.SetLimit(maxGoRoutines)
@@ -705,7 +716,7 @@ func (a *awsKMSKeystore) forEachOwnedKey(ctx context.Context, fn func(ctx contex
 		for _, keyEntry := range output.ResourceTagMappingList {
 			keyID := aws.ToString(keyEntry.ResourceARN)
 			errGroup.Go(func() error {
-				return trace.Wrap(fn(ctx, keyID))
+				return trace.Wrap(fn(ctx, keyID, keyEntry.Tags))
 			})
 		}
 	}

@@ -319,7 +319,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.KubeProxy, err = proxy.NewTLSServer(proxy.TLSServerConfig{
 		ForwarderConfig: proxy.ForwarderConfig{
 			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
-				Clusters: []reversetunnelclient.Cluster{
+				FakeClusters: []reversetunnelclient.Cluster{
 					&fakeCluster{
 						FakeCluster: reversetunnelclient.NewFakeCluster(testCtx.ClusterName, client),
 						idToAddr: map[string]string{
