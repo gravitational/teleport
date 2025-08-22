@@ -316,7 +316,7 @@ func TestCreateTaskContext(t *testing.T) {
 }
 
 func TestFetchOverWebSocket(t *testing.T) {
-	server, ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
+	ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
 		<-mockClient.eventRequested
 
 		mockClient.sendEvent(&apievents.SessionStart{
@@ -331,8 +331,6 @@ func TestFetchOverWebSocket(t *testing.T) {
 			EndTime:   time.Now().Add(600 * time.Millisecond),
 		})
 	})
-	defer server.Close()
-	defer closeWebSocket(t, ws)
 
 	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
 
@@ -346,13 +344,11 @@ func TestFetchOverWebSocket(t *testing.T) {
 }
 
 func TestErrorOverWebSocket(t *testing.T) {
-	server, ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
+	ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
 		<-mockClient.eventRequested
 
 		mockClient.sendError(errors.New("test error"))
 	})
-	defer server.Close()
-	defer closeWebSocket(t, ws)
 
 	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
 
@@ -366,13 +362,10 @@ func TestErrorOverWebSocket(t *testing.T) {
 }
 
 func TestSeekingBackwards(t *testing.T) {
-	server, ws, mockClient := createWebSocket(t, func(mockClient *mockStreamClient) {
+	ws, mockClient := createWebSocket(t, func(mockClient *mockStreamClient) {
 		// no need to send events, just testing that seeking forwards reuses the same stream and
 		// seeking backwards starts a new stream
 	})
-
-	defer server.Close()
-	defer closeWebSocket(t, ws)
 
 	req := createFetchRequest(0, 1000, 1, false)
 
@@ -407,7 +400,7 @@ func TestSeekingBackwards(t *testing.T) {
 }
 
 func TestRequestScreen(t *testing.T) {
-	server, ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
+	ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
 		<-mockClient.eventRequested
 
 		mockClient.sendEvent(&apievents.SessionStart{
@@ -434,8 +427,6 @@ func TestRequestScreen(t *testing.T) {
 			EndTime:   time.Now().Add(2 * time.Second),
 		})
 	})
-	defer server.Close()
-	defer closeWebSocket(t, ws)
 
 	responses := fetchAndCollectResponses(t, ws, 1200, 2200, true)
 
@@ -452,7 +443,7 @@ func TestRequestScreen(t *testing.T) {
 }
 
 func TestBufferedEvents(t *testing.T) {
-	server, ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
+	ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
 		<-mockClient.eventRequested
 
 		mockClient.sendEvent(&apievents.SessionStart{
@@ -475,8 +466,6 @@ func TestBufferedEvents(t *testing.T) {
 			EndTime:   time.Now().Add(2 * time.Second),
 		})
 	})
-	defer server.Close()
-	defer closeWebSocket(t, ws)
 
 	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
 
@@ -503,7 +492,7 @@ func TestBufferedEvents(t *testing.T) {
 }
 
 func TestBufferedEvents_LargeGap(t *testing.T) {
-	server, ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
+	ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
 		<-mockClient.eventRequested
 
 		mockClient.sendEvent(&apievents.SessionStart{
@@ -548,8 +537,6 @@ func TestBufferedEvents_LargeGap(t *testing.T) {
 			EndTime:   time.Now().Add(10 * time.Second),
 		})
 	})
-	defer server.Close()
-	defer closeWebSocket(t, ws)
 
 	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
 
@@ -638,13 +625,12 @@ func fetchAndCollectResponses(t *testing.T, ws *websocket.Conn, start, end int64
 
 // createWebSocket sets up a WebSocket server for testing, returning the server, websocket connection and mock
 // client, taking a callback to allow populating the mock client with events before running the playback.
-func createWebSocket(t *testing.T, setupEvents func(mockClient *mockStreamClient)) (*httptest.Server, *websocket.Conn, *mockStreamClient) {
+func createWebSocket(t *testing.T, setupEvents func(mockClient *mockStreamClient)) (*websocket.Conn, *mockStreamClient) {
 	mockClient := newMockStreamClient()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{}
-		ws, err := upgrader.Upgrade(w, r, nil)
-		require.NoError(t, err)
+		ws, _ := upgrader.Upgrade(w, r, nil)
 		defer ws.Close()
 
 		ctx := context.Background()
@@ -661,7 +647,12 @@ func createWebSocket(t *testing.T, setupEvents func(mockClient *mockStreamClient
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 
-	return server, ws, mockClient
+	t.Cleanup(func() {
+		server.Close()
+		closeWebSocket(t, ws)
+	})
+
+	return ws, mockClient
 }
 
 // closeWebSocket gracefully closes the WebSocket connection by sending a close message.
