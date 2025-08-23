@@ -38,15 +38,15 @@ import (
 type accessListIndex string
 
 const (
-	accessListNameIndex        accessListIndex = "name"
-	accessListNeedsReviewIndex accessListIndex = "needs_review"
+	accessListTitleIndex         accessListIndex = "title"
+	accessListAuditNextDateIndex accessListIndex = "auditNextDate"
 )
 
-func accessListNameIndexFn(al *accesslist.AccessList) string {
+func accessListTitleIndexFn(al *accesslist.AccessList) string {
 	return al.GetMetadata().Name
 }
 
-func accessListNeedsReviewIndexFn(al *accesslist.AccessList) string {
+func accessListAuditNextDateIndexFn(al *accesslist.AccessList) string {
 	return fmt.Sprintf("%s/%s", al.Spec.Audit.NextAuditDate.Format(time.RFC3339), al.GetMetadata().Name)
 }
 
@@ -60,8 +60,8 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 			types.KindAccessList,
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
-				accessListNameIndex:        accessListNameIndexFn,
-				accessListNeedsReviewIndex: accessListNeedsReviewIndexFn,
+				accessListTitleIndex:         accessListTitleIndexFn,
+				accessListAuditNextDateIndex: accessListAuditNextDateIndexFn,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
@@ -103,7 +103,7 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 	}
 
 	out := make([]*accesslist.AccessList, 0, rg.store.len())
-	for n := range rg.store.resources(accessListNameIndex, "", "") {
+	for n := range rg.store.resources(accessListTitleIndex, "", "") {
 		out = append(out, n.Clone())
 	}
 	return out, nil
@@ -134,8 +134,8 @@ func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, pageToken str
 	defer span.End()
 
 	// default to name index
-	index := accessListNameIndex
-	keyFn := accessListNameIndexFn
+	index := accessListTitleIndex
+	keyFn := accessListTitleIndexFn
 
 	var isDesc bool
 	if sort != nil {
@@ -143,11 +143,11 @@ func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, pageToken str
 
 		switch sort.Field {
 		case "needs_review":
-			index = accessListNeedsReviewIndex
-			keyFn = accessListNeedsReviewIndexFn
+			index = accessListAuditNextDateIndex
+			keyFn = accessListAuditNextDateIndexFn
 		default: // default to name
-			index = accessListNameIndex
-			keyFn = accessListNameIndexFn
+			index = accessListTitleIndex
+			keyFn = accessListTitleIndexFn
 		}
 	}
 
@@ -230,7 +230,7 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 	getter := genericGetter[*accesslist.AccessList, accessListIndex]{
 		cache:      c,
 		collection: c.collections.accessLists,
-		index:      accessListNameIndex,
+		index:      accessListTitleIndex,
 		upstreamGet: func(ctx context.Context, s string) (*accesslist.AccessList, error) {
 			upstreamRead = true
 			return c.Config.AccessLists.GetAccessList(ctx, s)
