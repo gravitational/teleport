@@ -38,6 +38,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// SessionRecordingType is the type of session recording.
+type SessionRecordingType int32
+
+const (
+	// SessionRecordingTypeUnspecified is the default value for session recording type.
+	SessionRecordingType_SESSION_RECORDING_TYPE_UNSPECIFIED SessionRecordingType = 0
+	// SessionRecordingTypeSsh is an interactive SSH session recording.
+	SessionRecordingType_SESSION_RECORDING_TYPE_SSH SessionRecordingType = 1
+)
+
+// Enum value maps for SessionRecordingType.
+var (
+	SessionRecordingType_name = map[int32]string{
+		0: "SESSION_RECORDING_TYPE_UNSPECIFIED",
+		1: "SESSION_RECORDING_TYPE_SSH",
+	}
+	SessionRecordingType_value = map[string]int32{
+		"SESSION_RECORDING_TYPE_UNSPECIFIED": 0,
+		"SESSION_RECORDING_TYPE_SSH":         1,
+	}
+)
+
+func (x SessionRecordingType) Enum() *SessionRecordingType {
+	p := new(SessionRecordingType)
+	*p = x
+	return p
+}
+
+func (x SessionRecordingType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SessionRecordingType) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_enumTypes[0].Descriptor()
+}
+
+func (SessionRecordingType) Type() protoreflect.EnumType {
+	return &file_teleport_recordingmetadata_v1_recordingmetadata_proto_enumTypes[0]
+}
+
+func (x SessionRecordingType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SessionRecordingType.Descriptor instead.
+func (SessionRecordingType) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{0}
+}
+
 // SessionRecordingEvent represents an event that occurred during a session recording.
 type SessionRecordingEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -312,7 +361,13 @@ type SessionRecordingMetadata struct {
 	// EndTime is the end time of the session recording.
 	EndTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	// ClusterName is the name of the cluster where the session recording took place.
-	ClusterName   string `protobuf:"bytes,7,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	ClusterName string `protobuf:"bytes,7,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	// User is the user whose session is being recorded.
+	User string `protobuf:"bytes,8,opt,name=user,proto3" json:"user,omitempty"`
+	// ResourceName is the name of the resource that was connected to.
+	ResourceName string `protobuf:"bytes,9,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"`
+	// Type is the type of session recording.
+	Type          SessionRecordingType `protobuf:"varint,10,opt,name=type,proto3,enum=teleport.recordingmetadata.v1.SessionRecordingType" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -394,6 +449,27 @@ func (x *SessionRecordingMetadata) GetClusterName() string {
 		return x.ClusterName
 	}
 	return ""
+}
+
+func (x *SessionRecordingMetadata) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *SessionRecordingMetadata) GetResourceName() string {
+	if x != nil {
+		return x.ResourceName
+	}
+	return ""
+}
+
+func (x *SessionRecordingMetadata) GetType() SessionRecordingType {
+	if x != nil {
+		return x.Type
+	}
+	return SessionRecordingType_SESSION_RECORDING_TYPE_UNSPECIFIED
 }
 
 // SessionRecordingThumbnail is a thumbnail of a session recording.
@@ -516,7 +592,7 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\x04user\x18\x01 \x01(\tR\x04user\"E\n" +
 	"\x1bSessionRecordingResizeEvent\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\x05R\x04cols\x12\x12\n" +
-	"\x04rows\x18\x02 \x01(\x05R\x04rows\"\xf2\x02\n" +
+	"\x04rows\x18\x02 \x01(\x05R\x04rows\"\xf4\x03\n" +
 	"\x18SessionRecordingMetadata\x125\n" +
 	"\bduration\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\bduration\x12L\n" +
 	"\x06events\x18\x02 \x03(\v24.teleport.recordingmetadata.v1.SessionRecordingEventR\x06events\x12\x1d\n" +
@@ -527,7 +603,11 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\n" +
 	"start_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
 	"\bend_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
-	"\fcluster_name\x18\a \x01(\tR\vclusterName\"\x83\x02\n" +
+	"\fcluster_name\x18\a \x01(\tR\vclusterName\x12\x12\n" +
+	"\x04user\x18\b \x01(\tR\x04user\x12#\n" +
+	"\rresource_name\x18\t \x01(\tR\fresourceName\x12G\n" +
+	"\x04type\x18\n" +
+	" \x01(\x0e23.teleport.recordingmetadata.v1.SessionRecordingTypeR\x04type\"\x83\x02\n" +
 	"\x19SessionRecordingThumbnail\x12\x10\n" +
 	"\x03svg\x18\x01 \x01(\fR\x03svg\x12\x12\n" +
 	"\x04cols\x18\x02 \x01(\x05R\x04cols\x12\x12\n" +
@@ -536,7 +616,10 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\bcursor_y\x18\x05 \x01(\x05R\acursorY\x12<\n" +
 	"\fstart_offset\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
 	"\n" +
-	"end_offset\x18\a \x01(\v2\x19.google.protobuf.DurationR\tendOffsetBfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
+	"end_offset\x18\a \x01(\v2\x19.google.protobuf.DurationR\tendOffset*^\n" +
+	"\x14SessionRecordingType\x12&\n" +
+	"\"SESSION_RECORDING_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aSESSION_RECORDING_TYPE_SSH\x10\x01BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
 
 var (
 	file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescOnce sync.Once
@@ -550,34 +633,37 @@ func file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP() []
 	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescData
 }
 
+var file_teleport_recordingmetadata_v1_recordingmetadata_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_goTypes = []any{
-	(*SessionRecordingEvent)(nil),           // 0: teleport.recordingmetadata.v1.SessionRecordingEvent
-	(*SessionRecordingInactivityEvent)(nil), // 1: teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
-	(*SessionRecordingJoinEvent)(nil),       // 2: teleport.recordingmetadata.v1.SessionRecordingJoinEvent
-	(*SessionRecordingResizeEvent)(nil),     // 3: teleport.recordingmetadata.v1.SessionRecordingResizeEvent
-	(*SessionRecordingMetadata)(nil),        // 4: teleport.recordingmetadata.v1.SessionRecordingMetadata
-	(*SessionRecordingThumbnail)(nil),       // 5: teleport.recordingmetadata.v1.SessionRecordingThumbnail
-	(*durationpb.Duration)(nil),             // 6: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),           // 7: google.protobuf.Timestamp
+	(SessionRecordingType)(0),               // 0: teleport.recordingmetadata.v1.SessionRecordingType
+	(*SessionRecordingEvent)(nil),           // 1: teleport.recordingmetadata.v1.SessionRecordingEvent
+	(*SessionRecordingInactivityEvent)(nil), // 2: teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
+	(*SessionRecordingJoinEvent)(nil),       // 3: teleport.recordingmetadata.v1.SessionRecordingJoinEvent
+	(*SessionRecordingResizeEvent)(nil),     // 4: teleport.recordingmetadata.v1.SessionRecordingResizeEvent
+	(*SessionRecordingMetadata)(nil),        // 5: teleport.recordingmetadata.v1.SessionRecordingMetadata
+	(*SessionRecordingThumbnail)(nil),       // 6: teleport.recordingmetadata.v1.SessionRecordingThumbnail
+	(*durationpb.Duration)(nil),             // 7: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),           // 8: google.protobuf.Timestamp
 }
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_depIdxs = []int32{
-	6,  // 0: teleport.recordingmetadata.v1.SessionRecordingEvent.start_offset:type_name -> google.protobuf.Duration
-	6,  // 1: teleport.recordingmetadata.v1.SessionRecordingEvent.end_offset:type_name -> google.protobuf.Duration
-	1,  // 2: teleport.recordingmetadata.v1.SessionRecordingEvent.inactivity:type_name -> teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
-	2,  // 3: teleport.recordingmetadata.v1.SessionRecordingEvent.join:type_name -> teleport.recordingmetadata.v1.SessionRecordingJoinEvent
-	3,  // 4: teleport.recordingmetadata.v1.SessionRecordingEvent.resize:type_name -> teleport.recordingmetadata.v1.SessionRecordingResizeEvent
-	6,  // 5: teleport.recordingmetadata.v1.SessionRecordingMetadata.duration:type_name -> google.protobuf.Duration
-	0,  // 6: teleport.recordingmetadata.v1.SessionRecordingMetadata.events:type_name -> teleport.recordingmetadata.v1.SessionRecordingEvent
-	7,  // 7: teleport.recordingmetadata.v1.SessionRecordingMetadata.start_time:type_name -> google.protobuf.Timestamp
-	7,  // 8: teleport.recordingmetadata.v1.SessionRecordingMetadata.end_time:type_name -> google.protobuf.Timestamp
-	6,  // 9: teleport.recordingmetadata.v1.SessionRecordingThumbnail.start_offset:type_name -> google.protobuf.Duration
-	6,  // 10: teleport.recordingmetadata.v1.SessionRecordingThumbnail.end_offset:type_name -> google.protobuf.Duration
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	7,  // 0: teleport.recordingmetadata.v1.SessionRecordingEvent.start_offset:type_name -> google.protobuf.Duration
+	7,  // 1: teleport.recordingmetadata.v1.SessionRecordingEvent.end_offset:type_name -> google.protobuf.Duration
+	2,  // 2: teleport.recordingmetadata.v1.SessionRecordingEvent.inactivity:type_name -> teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
+	3,  // 3: teleport.recordingmetadata.v1.SessionRecordingEvent.join:type_name -> teleport.recordingmetadata.v1.SessionRecordingJoinEvent
+	4,  // 4: teleport.recordingmetadata.v1.SessionRecordingEvent.resize:type_name -> teleport.recordingmetadata.v1.SessionRecordingResizeEvent
+	7,  // 5: teleport.recordingmetadata.v1.SessionRecordingMetadata.duration:type_name -> google.protobuf.Duration
+	1,  // 6: teleport.recordingmetadata.v1.SessionRecordingMetadata.events:type_name -> teleport.recordingmetadata.v1.SessionRecordingEvent
+	8,  // 7: teleport.recordingmetadata.v1.SessionRecordingMetadata.start_time:type_name -> google.protobuf.Timestamp
+	8,  // 8: teleport.recordingmetadata.v1.SessionRecordingMetadata.end_time:type_name -> google.protobuf.Timestamp
+	0,  // 9: teleport.recordingmetadata.v1.SessionRecordingMetadata.type:type_name -> teleport.recordingmetadata.v1.SessionRecordingType
+	7,  // 10: teleport.recordingmetadata.v1.SessionRecordingThumbnail.start_offset:type_name -> google.protobuf.Duration
+	7,  // 11: teleport.recordingmetadata.v1.SessionRecordingThumbnail.end_offset:type_name -> google.protobuf.Duration
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_teleport_recordingmetadata_v1_recordingmetadata_proto_init() }
@@ -595,13 +681,14 @@ func file_teleport_recordingmetadata_v1_recordingmetadata_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc), len(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_teleport_recordingmetadata_v1_recordingmetadata_proto_goTypes,
 		DependencyIndexes: file_teleport_recordingmetadata_v1_recordingmetadata_proto_depIdxs,
+		EnumInfos:         file_teleport_recordingmetadata_v1_recordingmetadata_proto_enumTypes,
 		MessageInfos:      file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes,
 	}.Build()
 	File_teleport_recordingmetadata_v1_recordingmetadata_proto = out.File
