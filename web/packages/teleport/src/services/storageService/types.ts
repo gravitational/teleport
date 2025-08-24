@@ -44,6 +44,8 @@ export const KeysEnum = {
   REMEMBERED_SSO_USERNAME: 'grv_teleport_remembered_sso_username',
   SESSION_RECORDINGS_VIEW_MODE: 'grv_teleport_session_recordings_view_mode',
   SESSION_RECORDINGS_DENSITY: 'grv_teleport_session_recordings_density',
+  SESSION_RECORDINGS_DISMISSED_CTA:
+    'grv_teleport_session_recordings_dismissed_cta',
 
   // TODO(bl-nero): Remove once the new role editor is in acceptable state.
   USE_NEW_ROLE_EDITOR: 'grv_teleport_use_new_role_editor',

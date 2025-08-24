@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { type FallbackProps } from 'react-error-boundary';
 
 import { Danger } from 'design/Alert';
@@ -37,6 +37,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import { SessionSummariesCTA } from 'teleport/SessionRecordings/list/SessionSummariesCTA';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
@@ -50,10 +51,21 @@ import {
 
 interface ListSessionRecordingsRouteProps {
   actionSlot?: ActionSlot;
+  headerSlot?: ReactNode;
 }
 
-export function ListSessionRecordingsRoute({
+export function ListSessionRecordingsRoute() {
+  return (
+    <ListSessionRecordings
+      actionSlot={null}
+      headerSlot={<SessionSummariesCTA />}
+    />
+  );
+}
+
+export function ListSessionRecordings({
   actionSlot,
+  headerSlot,
 }: ListSessionRecordingsRouteProps) {
   const ranges = useMemo(() => getRangeOptions(), []);
 
@@ -99,14 +111,24 @@ export function ListSessionRecordingsRoute({
 
   return (
     <FeatureBox minHeight={0} padding={0} hideBottomSpacing={true}>
-      <FeatureHeader alignItems="center" mx={0} mb={1}>
+      <FeatureHeader
+        alignItems="center"
+        mx={0}
+        mb={1}
+        justifyContent="space-between"
+      >
         <FeatureHeaderTitle mr="8">Session Recordings</FeatureHeaderTitle>
-        <RangePicker
-          ml="auto"
-          range={state.range}
-          ranges={ranges}
-          onChangeRange={handleSetRange}
-        />
+
+        <Flex alignItems="center" gap={3}>
+          {headerSlot}
+
+          <RangePicker
+            ml="auto"
+            range={state.range}
+            ranges={ranges}
+            onChangeRange={handleSetRange}
+          />
+        </Flex>
       </FeatureHeader>
 
       <ExternalAuditStorageCta />
