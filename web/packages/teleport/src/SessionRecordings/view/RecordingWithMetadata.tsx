@@ -149,14 +149,12 @@ export function RecordingWithMetadata({
   return (
     <Grid sidebarVisible={sidebarVisible}>
       <Player>
-        <TerminalContainer>
-          <RecordingPlayer
-            clusterId={clusterId}
-            sessionId={sessionId}
-            durationMs={data.metadata.duration}
-            recordingType="ssh"
-          />
-        </TerminalContainer>
+        <RecordingPlayer
+          clusterId={clusterId}
+          sessionId={sessionId}
+          durationMs={data.metadata.duration}
+          recordingType="ssh"
+        />
       </Player>
 
       {sidebarVisible ? (
