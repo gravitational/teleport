@@ -1,3 +1,5 @@
+import styled from 'styled-components';
+
 import type { RecordingType } from 'teleport/services/recordings';
 import { DesktopPlayer } from 'teleport/SessionRecordings/view/DesktopPlayer';
 import SshPlayer from 'teleport/SessionRecordings/view/SshPlayer';
@@ -9,6 +11,14 @@ interface RecordingPlayerProps {
   sessionId: string;
 }
 
+const Container = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+`;
+
 export function RecordingPlayer({
   clusterId,
   durationMs,
@@ -17,15 +27,23 @@ export function RecordingPlayer({
 }: RecordingPlayerProps) {
   if (recordingType === 'desktop') {
     return (
-      <DesktopPlayer
-        sid={sessionId}
-        clusterId={clusterId}
-        durationMs={durationMs}
-      />
+      <Container>
+        <DesktopPlayer
+          sid={sessionId}
+          clusterId={clusterId}
+          durationMs={durationMs}
+        />
+      </Container>
     );
   }
 
   return (
-    <SshPlayer sid={sessionId} clusterId={clusterId} durationMs={durationMs} />
+    <Container>
+      <SshPlayer
+        sid={sessionId}
+        clusterId={clusterId}
+        durationMs={durationMs}
+      />
+    </Container>
   );
 }
