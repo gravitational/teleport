@@ -70,10 +70,10 @@ func SetCookie(w http.ResponseWriter, user, sid string, expiry time.Time) error 
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	}
-	// if expiry is zero, we can skip MaxAge and treat as a session cookie.
+	// if expiry is zero or in the past, we can skip MaxAge and treat as a session cookie.
 	// Otherwise, set maxage
-	if !expiry.IsZero() {
-		c.MaxAge = int(time.Until(expiry).Seconds())
+	if maxAge := int(time.Until(expiry).Seconds()); maxAge > 0 {
+		c.MaxAge = maxAge
 	}
 	http.SetCookie(w, c)
 	return nil

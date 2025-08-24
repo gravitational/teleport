@@ -55,13 +55,13 @@ func TestCookies(t *testing.T) {
 			expectedCookie: "__Host-session=7b2275736572223a226c6c616d61222c22736964223a223938373635227d; Path=/; Max-Age=9; HttpOnly; Secure; SameSite=Lax",
 		},
 		{
-			name:           "expired cert",
+			name:           "expired cert (returns session cookie)",
 			expiry:         time.Now().Add(-10 * time.Second),
 			expectClear:    false,
-			expectedCookie: "__Host-session=7b2275736572223a226c6c616d61222c22736964223a223938373635227d; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax",
+			expectedCookie: "__Host-session=7b2275736572223a226c6c616d61222c22736964223a223938373635227d; Path=/; HttpOnly; Secure; SameSite=Lax",
 		},
 		{
-			name:           "zero time",
+			name:           "zero time (returns session cookie)",
 			expiry:         time.Time{},
 			expectClear:    false,
 			expectedCookie: "__Host-session=7b2275736572223a226c6c616d61222c22736964223a223938373635227d; Path=/; HttpOnly; Secure; SameSite=Lax",
