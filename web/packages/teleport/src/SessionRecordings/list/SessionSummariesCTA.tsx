@@ -43,7 +43,7 @@ export const CTALink = styled(Link)`
   }
 `;
 
-const DismissButton = styled.button`
+export const DismissButton = styled.button`
   background: transparent;
   border: none;
   border-radius: ${p => p.theme.radii[3]}px;
