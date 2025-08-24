@@ -87,7 +87,7 @@ export function SessionSummariesCTA() {
 
       <Text>Summarize session recordings with AI</Text>
 
-      <DismissButton onClick={handleDismiss}>
+      <DismissButton onClick={handleDismiss} aria-label="Dismiss">
         <Cross size="small" />
       </DismissButton>
     </CTALink>
