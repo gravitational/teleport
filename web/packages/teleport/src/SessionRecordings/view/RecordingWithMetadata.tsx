@@ -186,7 +186,7 @@ export function RecordingWithMetadata({
 
               <InfoGridLabel>Resource</InfoGridLabel>
 
-              <div>{data.metadata.resource}</div>
+              <div>{data.metadata.resourceName}</div>
 
               <InfoGridLabel>Duration</InfoGridLabel>
 
