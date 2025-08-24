@@ -85,7 +85,7 @@ export interface SessionRecordingMetadata {
   endTime: number;
   clusterName: string;
   user: string;
-  resource: string;
+  resourceName: string;
   type: RecordingType;
 }
 
