@@ -35,10 +35,11 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 	var buf bytes.Buffer
 
 	cols, rows := state.Cols, state.Rows
-	charWidth := 100.0 / (float64(cols) + 2.0)
-	rowHeight := fontSize * lineHeight
-	pixelWidth := int((float64(cols) + 2.0) * (fontSize * 0.6))
-	pixelHeight := int((float64(rows) + 1.0) * rowHeight)
+
+	charWidthPx := fontSize * 0.6
+	rowHeightPx := fontSize * lineHeight
+	pixelWidth := int((float64(cols) + 2.0) * charWidthPx)
+	pixelHeight := int((float64(rows) + 1.0) * rowHeightPx)
 
 	closeHeader := writeSVGHeader(&buf, pixelWidth, pixelHeight)
 
@@ -47,8 +48,8 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 		cursor = &cursorPos{x: state.CursorX, y: state.CursorY}
 	}
 
-	renderBackgrounds(&buf, state.PrimaryBuffer, cols, rows, charWidth, rowHeight, cursor)
-	renderText(&buf, state.PrimaryBuffer, cols, rows, charWidth, cursor)
+	renderBackgrounds(&buf, state.PrimaryBuffer, cols, rows, charWidthPx, rowHeightPx, cursor)
+	renderText(&buf, state.PrimaryBuffer, cols, rows, charWidthPx, rowHeightPx, cursor)
 
 	buf.WriteString(closeHeader())
 
@@ -58,23 +59,23 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 // writeSVGHeader writes the SVG header and styles to the buffer.
 // It returns a function that closes the SVG tags when called.
 func writeSVGHeader(buf *bytes.Buffer, width, height int) func() string {
-	x := 1.0 * 100.0 / (float64(width) / fontSize / 0.6)
-	y := 0.5 * 100.0 / (float64(height) / fontSize / lineHeight)
+	xOffset := fontSize * 0.6
+	yOffset := fontSize * lineHeight * 0.5
 
 	fmt.Fprintf(buf, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" font-size="%.0f" class="terminal">`,
 		width, height, fontSize)
-	fmt.Fprintf(buf, `<rect width="100%%" height="100%%" class="bg-default"/><svg x="%.3f%%" y="%.3f%%">`,
-		x, y)
+	fmt.Fprintf(buf, `<rect width="100%%" height="100%%" class="bg-default"/><svg x="%.1f" y="%.1f">`,
+		xOffset, yOffset)
 
 	return func() string {
 		return "</svg></svg>"
 	}
 }
 
-func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidth, rowHeight float64, cursor *cursorPos) {
+func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidthPx, rowHeightPx float64, cursor *cursorPos) {
 	type bgRect struct {
-		x, y, w float64
-		color   vt10x.Color
+		x, y, w, h float64
+		color      vt10x.Color
 	}
 	var rects []bgRect
 
@@ -83,7 +84,7 @@ func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int
 			continue
 		}
 
-		yPos := 100.0 * float64(y) / (float64(rows) + 1.0)
+		yPos := float64(y) * rowHeightPx
 		var currentRect *bgRect
 
 		for x := 0; x < len(buffer[y]); x++ {
@@ -95,24 +96,29 @@ func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int
 				continue
 			}
 
-			xPos := 100.0 * float64(x) / (float64(cols) + 2.0)
+			xPos := float64(x) * charWidthPx
 
 			if currentRect != nil && currentRect.color == attrs.background && currentRect.y == yPos {
-				currentRect.w += charWidth
+				currentRect.w += charWidthPx
 			} else {
-				newRect := bgRect{x: xPos, y: yPos, w: charWidth, color: attrs.background}
+				newRect := bgRect{
+					x:     xPos,
+					y:     yPos,
+					w:     charWidthPx,
+					h:     rowHeightPx,
+					color: attrs.background,
+				}
 				rects = append(rects, newRect)
 				currentRect = &rects[len(rects)-1]
 			}
 		}
 	}
 
-	// Render all background rectangles
 	if len(rects) > 0 {
-		buf.WriteString(`<g>`)
+		buf.WriteString(`<g shape-rendering="crispEdges">`)
 		for _, rect := range rects {
-			fmt.Fprintf(buf, `<rect x="%.3f%%" y="%.3f%%" width="%.3f%%" height="%.3f"`,
-				rect.x, rect.y, rect.w, rowHeight)
+			fmt.Fprintf(buf, `<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"`,
+				rect.x, rect.y, rect.w, rect.h)
 
 			if rect.color < 16 {
 				fmt.Fprintf(buf, ` class="bg-%d"`, rect.color)
@@ -126,7 +132,7 @@ func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int
 	}
 }
 
-func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidth float64, cursor *cursorPos) {
+func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidthPx, rowHeightPx float64, cursor *cursorPos) {
 	buf.WriteString(`<text>`)
 
 	for y := 0; y < len(buffer); y++ {
@@ -143,8 +149,8 @@ func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charW
 			continue
 		}
 
-		yPos := 100.0 * float64(y) / (float64(rows) + 1.0)
-		fmt.Fprintf(buf, `<tspan y="%.3f%%" dy="1em">`, yPos)
+		yPos := float64(y) * rowHeightPx
+		fmt.Fprintf(buf, `<tspan y="%.1f" dy="1em">`, yPos)
 
 		type span struct {
 			x     float64
@@ -175,7 +181,7 @@ func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charW
 				(lastX >= 0 && x > lastX+1)
 
 			if needNewSpan {
-				xPos := 100.0 * float64(x) / (float64(cols) + 2.0)
+				xPos := float64(x) * charWidthPx
 				newSpan := span{x: xPos, attrs: attrs}
 				spans = append(spans, newSpan)
 				currentSpan = &spans[len(spans)-1]
@@ -208,9 +214,7 @@ func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charW
 		}
 
 		for _, s := range spans {
-			buf.WriteString(`<tspan x="`)
-			fmt.Fprintf(buf, "%.3f%%", s.x)
-			buf.WriteString(`"`)
+			fmt.Fprintf(buf, `<tspan x="%.1f"`, s.x)
 
 			var classes []string
 			var style string
