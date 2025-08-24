@@ -140,7 +140,7 @@ export function RecordingItem({
           </Flex>
           <Flex alignItems="center" gap={2}>
             <ItemSpan>
-              <User size="small" color="pink" />
+              <User size="small" color="interactive.solid.primary.default" />
 
               <Text>{recording.user}</Text>
             </ItemSpan>
@@ -148,7 +148,7 @@ export function RecordingItem({
             <ArrowRight size="small" color="text.slightlyMuted" />
 
             <ItemSpan>
-              <Server size="small" color="cyan" />
+              <Server size="small" color="interactive.solid.accent.default" />
 
               <Text>{recording.hostname}</Text>
             </ItemSpan>
