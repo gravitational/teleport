@@ -224,7 +224,7 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 		servicesCtx.Session = sessionEnd
 		servicesCtx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
 		// Also add the roles of the user to the context so that they can be used
-		// in the `where` by `has_access` function.
+		// in the `where` by `can_view` function.
 		servicesCtx.Roles = a.context.Checker.Roles()
 		return nil
 	}
@@ -1405,7 +1405,6 @@ func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	default:
 		return trace.Wrap(a.checkAction(apidefaults.Namespace, kind, types.VerbList, types.VerbRead))
 	}
-
 }
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.

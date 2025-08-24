@@ -3184,8 +3184,8 @@ func (p boolParser) Parse(string) (any, error) {
 func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
 	whereParser, err := NewWhereParser(
 		ctx,
-		// register has_access function if the resource is a session.
-		ConditionalOption(resource == types.KindSession, WithHasAccessFunction()),
+		// register can_view function if the resource is a session.
+		ConditionalOption(resource == types.KindSession, WithCanViewFunction()),
 	)
 	if err != nil {
 		return trace.Wrap(err)

@@ -214,12 +214,12 @@ func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
 // predicate.Def used to create a parser for the `where` section in access rules.
 type WhereParserOpt func(RuleContext, *predicate.Def)
 
-// WithHasAccessFunction adds a has_access function to the parser definition.
+// WithCanViewFunction adds a can_view function to the parser definition.
 // This function will be used to check if the user has access to the resource
 // specified in the context.
-func WithHasAccessFunction() WhereParserOpt {
+func WithCanViewFunction() WhereParserOpt {
 	return func(ctx RuleContext, def *predicate.Def) {
-		def.Functions["has_access"] = hasAccessFunc(ctx)
+		def.Functions["can_view"] = canViewResourceFunc(ctx)
 	}
 }
 
@@ -242,7 +242,7 @@ func NewWhereParser(ctx RuleContext, opts ...WhereParserOpt) (predicate.Parser, 
 	return predicate.NewParser(def)
 }
 
-func hasAccessFunc(ctx RuleContext) func() predicate.BoolPredicate {
+func canViewResourceFunc(ctx RuleContext) func() predicate.BoolPredicate {
 	return func() predicate.BoolPredicate {
 		return func() bool {
 			resource, err := ctx.GetResource()

@@ -6407,7 +6407,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					},
 					Options: types.RoleOptions{
 						IDP: &types.IdPOptions{},
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			errAssertionFunc:    require.NoError,
@@ -6423,7 +6424,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{},
 						},
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			errAssertionFunc:    require.NoError,
@@ -6434,7 +6436,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				createRole(t, "roleV7IdPEnabled", types.V7, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, true),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			errAssertionFunc:    require.NoError,
@@ -6445,7 +6448,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				createRole(t, "roleV7IdPDisabled", types.V7, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, false),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
@@ -6458,11 +6462,13 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				createRole(t, "roleV7IdPEnabled", types.V7, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, true),
-					}}),
+					},
+				}),
 				createRole(t, "roleV7IdPDisabled", types.V7, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, false),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
@@ -6475,7 +6481,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				createRole(t, "roleV7IdPEnabled", types.V7, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, true),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: false,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
@@ -6498,7 +6505,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					},
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, false),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
@@ -6520,7 +6528,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					},
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, true),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			errAssertionFunc:    require.NoError,
@@ -6532,7 +6541,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					Allow: roleV8SAMLAllowed(t),
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, false),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			errAssertionFunc:    require.NoError,
@@ -6553,7 +6563,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					},
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, true),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
@@ -6572,7 +6583,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					Options: types.RoleOptions{
 						RequireMFAType: types.RequireMFAType_SESSION,
 						IDP:            idpEnabled(t, true),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
@@ -6591,7 +6603,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					Options: types.RoleOptions{
 						RequireMFAType: types.RequireMFAType_SESSION,
 						IDP:            idpEnabled(t, true),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
@@ -6606,7 +6619,9 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, true),
-					}})},
+					},
+				}),
+			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
 				MFARequired: MFARequiredAlways,
@@ -6622,7 +6637,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						IDP: idpEnabled(t, true),
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
@@ -6639,7 +6655,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					Allow: roleV8SAMLAllowed(t),
 					Options: types.RoleOptions{
 						RequireMFAType: types.RequireMFAType_SESSION,
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
@@ -6657,7 +6674,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					Allow: roleV8SAMLAllowed(t),
 					Options: types.RoleOptions{
 						RequireMFAType: types.RequireMFAType_SESSION,
-					}}),
+					},
+				}),
 			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
@@ -6671,7 +6689,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 			roles: RoleSet{
 				createRole(t, "roleV8MFARequired", types.V8, types.RoleSpecV6{
 					Allow: roleV8SAMLAllowed(t),
-				})},
+				}),
+			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
 				MFARequired: MFARequiredAlways,
@@ -10195,7 +10214,6 @@ func TestMatchRequestKubernetesResource(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestMCPToolMatcher(t *testing.T) {
@@ -10700,7 +10718,7 @@ func TestAuditSessionRBAC(t *testing.T) {
 				newRole(&types.Rule{
 					Resources: []string{types.KindSession},
 					Verbs:     []string{types.VerbRead},
-					Where:     `has_access()`,
+					Where:     `can_view()`,
 				}, nil),
 			},
 			context: Context{
@@ -10716,7 +10734,7 @@ func TestAuditSessionRBAC(t *testing.T) {
 				newRole(&types.Rule{
 					Resources: []string{types.KindSession},
 					Verbs:     []string{types.VerbRead},
-					Where:     `has_access()`,
+					Where:     `can_view()`,
 				}, nil),
 			},
 			context: Context{
@@ -10732,7 +10750,7 @@ func TestAuditSessionRBAC(t *testing.T) {
 				newRole(&types.Rule{
 					Resources: []string{types.KindSession},
 					Verbs:     []string{types.VerbRead},
-					Where:     `has_access()`,
+					Where:     `can_view()`,
 				}, nil),
 			},
 			context: Context{
@@ -10747,7 +10765,7 @@ func TestAuditSessionRBAC(t *testing.T) {
 				newRole(&types.Rule{
 					Resources: []string{types.KindSession},
 					Verbs:     []string{types.VerbRead},
-					Where:     `has_access() && contains_all(user.spec.traits["team"], session.user_traits["team"])`,
+					Where:     `can_view() && contains_all(user.spec.traits["team"], session.user_traits["team"])`,
 				}, nil),
 			},
 			context: Context{
@@ -10763,7 +10781,7 @@ func TestAuditSessionRBAC(t *testing.T) {
 				newRole(&types.Rule{
 					Resources: []string{types.KindSession},
 					Verbs:     []string{types.VerbRead},
-					Where:     `has_access() && contains_all(user.spec.traits["team"], session.user_traits["team"])`,
+					Where:     `can_view() && contains_all(user.spec.traits["team"], session.user_traits["team"])`,
 				}, nil),
 			},
 			context: Context{

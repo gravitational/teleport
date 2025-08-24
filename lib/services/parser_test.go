@@ -163,7 +163,6 @@ func TestParserForIdentifierSubcondition(t *testing.T) {
 					}},
 				}},
 			}}))
-
 }
 
 func TestNewResourceExpression(t *testing.T) {
@@ -595,13 +594,13 @@ func TestPredicateContainsAny(t *testing.T) {
 	}
 }
 
-func TestHasAccess(t *testing.T) {
+func TestCanView(t *testing.T) {
 	newRole := func(mut func(*types.RoleV6)) *types.RoleV6 {
 		r := newRole(mut)
 		r.Spec.Allow.Rules = append(r.Spec.Allow.Rules, types.Rule{
 			Resources: []string{types.KindSession},
 			Verbs:     []string{types.VerbRead, types.VerbList},
-			Where:     "has_access()",
+			Where:     "can_view()",
 		})
 		r.CheckAndSetDefaults()
 		return r
@@ -801,7 +800,6 @@ func TestHasAccess(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			accessChecker := makeAccessCheckerWithRolePointers(tc.roles)
 			for j, check := range tc.checks {
 				comment := fmt.Sprintf("check #%v:  server: %v, should access: %v", j, check.server.GetName(), check.hasAccess)
