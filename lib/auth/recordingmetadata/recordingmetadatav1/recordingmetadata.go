@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/terminal"
@@ -222,6 +223,12 @@ loop:
 				}
 
 				metadata.ClusterName = e.ClusterName
+				metadata.User = e.User
+
+				if e.Protocol == events.EventProtocolSSH {
+					metadata.ResourceName = e.ServerHostname
+					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH
+				}
 
 				metadata.StartCols = int32(size.W)
 				metadata.StartRows = int32(size.H)

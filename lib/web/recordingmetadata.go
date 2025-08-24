@@ -196,26 +196,41 @@ type inactivityEvent struct {
 }
 
 type sessionRecordingMetadata struct {
-	Duration    int64         `json:"duration"`
-	Events      []interface{} `json:"events"`
-	StartCols   int32         `json:"startCols"`
-	StartRows   int32         `json:"startRows"`
-	StartTime   int64         `json:"startTime"`
-	EndTime     int64         `json:"endTime"`
-	ClusterName string        `json:"clusterName"`
+	Duration     int64         `json:"duration"`
+	Events       []interface{} `json:"events"`
+	StartCols    int32         `json:"startCols"`
+	StartRows    int32         `json:"startRows"`
+	StartTime    int64         `json:"startTime"`
+	EndTime      int64         `json:"endTime"`
+	ClusterName  string        `json:"clusterName"`
+	ResourceName string        `json:"resourceName,omitempty"`
+	User         string        `json:"user,omitempty"`
+	Type         string        `json:"type,omitempty"`
+}
+
+func pbTypeToString(t recordingmetadatav1.SessionRecordingType) string {
+	switch t {
+	case recordingmetadatav1.SessionRecordingType_SESSION_RECORDING_TYPE_SSH:
+		return "ssh"
+	default:
+		return "unknown"
+	}
 }
 
 // encodeSessionRecordingMetadata converts the session recording metadata to a format more suitable for the frontend
 // to use.
 func encodeSessionRecordingMetadata(metadata *recordingmetadatav1.SessionRecordingMetadata) sessionRecordingMetadata {
 	result := sessionRecordingMetadata{
-		Duration:    convertDurationToMs(metadata.Duration),
-		StartCols:   metadata.StartCols,
-		StartRows:   metadata.StartRows,
-		Events:      make([]interface{}, 0, len(metadata.Events)),
-		StartTime:   metadata.StartTime.AsTime().Unix(),
-		EndTime:     metadata.EndTime.AsTime().Unix(),
-		ClusterName: metadata.ClusterName,
+		Duration:     convertDurationToMs(metadata.Duration),
+		StartCols:    metadata.StartCols,
+		StartRows:    metadata.StartRows,
+		Events:       make([]interface{}, 0, len(metadata.Events)),
+		StartTime:    metadata.StartTime.AsTime().Unix(),
+		EndTime:      metadata.EndTime.AsTime().Unix(),
+		ClusterName:  metadata.ClusterName,
+		ResourceName: metadata.ResourceName,
+		User:         metadata.User,
+		Type:         pbTypeToString(metadata.Type),
 	}
 
 	for _, event := range metadata.Events {
