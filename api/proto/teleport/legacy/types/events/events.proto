@@ -3687,6 +3687,13 @@ message DatabaseSessionEnd {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "session_stop,omitempty"
   ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // MFADeviceMetadata is a common MFA device metadata.
@@ -3961,6 +3968,12 @@ message WindowsDesktopSessionEnd {
   bool Recorded = 12 [(gogoproto.jsontag) = "recorded"];
   // Participants is a list of participants in the session.
   repeated string Participants = 13 [(gogoproto.jsontag) = "participants"];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 14 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // CertificateCreate is emitted when a certificate is issued.

@@ -135,6 +135,7 @@ func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDes
 		},
 		UserMetadata:          userMetadata,
 		SessionMetadata:       d.getSessionMetadata(),
+		ConnectionMetadata:    d.getConnectionMetadata(),
 		WindowsDesktopService: d.desktopServiceUUID,
 		DesktopAddr:           d.desktop.GetAddr(),
 		Domain:                d.desktop.GetDomain(),

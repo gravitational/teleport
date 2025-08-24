@@ -171,10 +171,11 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionEndEvent,
 			libevents.DatabaseSessionEndCode),
-		UserMetadata:     MakeUserMetadata(session),
-		SessionMetadata:  MakeSessionMetadata(session),
-		DatabaseMetadata: MakeDatabaseMetadata(session),
-		StartTime:        session.StartTime,
+		UserMetadata:       MakeUserMetadata(session),
+		SessionMetadata:    MakeSessionMetadata(session),
+		ConnectionMetadata: MakeConnectionMetadata(session),
+		DatabaseMetadata:   MakeDatabaseMetadata(session),
+		StartTime:          session.StartTime,
 	}
 	endTime := a.cfg.Clock.Now()
 	event.SetTime(endTime)
@@ -371,6 +372,15 @@ func MakeServerMetadata(session *Session) events.ServerMetadata {
 // MakeUserMetadata returns common user metadata for database session.
 func MakeUserMetadata(session *Session) events.UserMetadata {
 	return session.Identity.GetUserMetadata()
+}
+
+// MakeConnectionMetadata returns common connection metadata for database session.
+func MakeConnectionMetadata(session *Session) events.ConnectionMetadata {
+	return events.ConnectionMetadata{
+		RemoteAddr: session.ClientIP,
+		LocalAddr:  session.Database.GetURI(),
+		Protocol:   libevents.EventProtocolDB,
+	}
 }
 
 // MakeSessionMetadata returns common session metadata for database session.
