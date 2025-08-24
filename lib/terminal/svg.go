@@ -28,6 +28,7 @@ import (
 const (
 	fontSize   = 14.0
 	lineHeight = 1.2
+	charRatio  = 0.602 // Menlo mono font character width/height ratio
 )
 
 // VtStateToSvg converts a terminal state to an SVG representation
@@ -36,7 +37,7 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 
 	cols, rows := state.Cols, state.Rows
 
-	charWidthPx := fontSize * 0.6
+	charWidthPx := fontSize * charRatio
 	rowHeightPx := fontSize * lineHeight
 	pixelWidth := int((float64(cols) + 2.0) * charWidthPx)
 	pixelHeight := int((float64(rows) + 1.0) * rowHeightPx)
