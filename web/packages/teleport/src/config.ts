@@ -95,6 +95,9 @@ const cfg = {
   // isPolicyEnabled refers to the Teleport Policy product
   isPolicyEnabled: false,
 
+  // sessionSummarizerEnabled refers to the AI session summary feature
+  sessionSummarizerEnabled: false,
+
   configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
