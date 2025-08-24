@@ -46,6 +46,8 @@ export const KeysEnum = {
   SESSION_RECORDINGS_DENSITY: 'grv_teleport_session_recordings_density',
   SESSION_RECORDINGS_DISMISSED_CTA:
     'grv_teleport_session_recordings_dismissed_cta',
+  SESSION_RECORDINGS_DISMISSED_SETUP:
+    'grv_teleport_session_recordings_dismissed_setup',
 
   // TODO(bl-nero): Remove once the new role editor is in acceptable state.
   USE_NEW_ROLE_EDITOR: 'grv_teleport_use_new_role_editor',
