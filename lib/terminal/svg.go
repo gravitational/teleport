@@ -137,106 +137,100 @@ func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charW
 	buf.WriteString(`<text>`)
 
 	for y := 0; y < len(buffer); y++ {
-		isEmpty := true
+		// Check if the entire row has any non-space content
+		hasContent := false
 		for x := 0; x < len(buffer[y]); x++ {
+			glyph := buffer[y][x]
 			isCursor := cursor != nil && cursor.x == x && cursor.y == y
-			if (buffer[y][x].Char != 0 && buffer[y][x].Char != ' ') || isCursor {
-				isEmpty = false
+			if (glyph.Char != 0 && glyph.Char != ' ') || isCursor {
+				hasContent = true
 				break
 			}
 		}
 
-		if isEmpty {
+		if !hasContent {
 			continue
 		}
 
 		yPos := float64(y) * rowHeightPx
 		fmt.Fprintf(buf, `<tspan y="%.1f" dy="1em">`, yPos)
 
-		type span struct {
-			x     float64
-			text  strings.Builder
-			attrs textAttrs
-		}
+		col := 0
+		for col < len(buffer[y]) {
+			glyph := buffer[y][col]
+			isCursor := cursor != nil && cursor.x == col && cursor.y == y
 
-		var spans []span
-		var currentSpan *span
-
-		var lastX = -1
-		for x := 0; x < len(buffer[y]); x++ {
-			glyph := buffer[y][x]
-			isCursor := cursor != nil && cursor.x == x && cursor.y == y
-
-			if glyph.Char == 0 && !isCursor {
+			// Skip spaces completely (unless it's the cursor position)
+			if glyph.Char == ' ' || (glyph.Char == 0 && !isCursor) {
+				col++
 				continue
 			}
 
-			attrs := getTextAttrs(glyph, cursor, x, y)
+			startCol := col
+			attrs := getTextAttrs(glyph, cursor, col, y)
+			var text strings.Builder
 
-			// Check if we need a new span
-			needNewSpan := currentSpan == nil ||
-				currentSpan.attrs.foreground != attrs.foreground ||
-				currentSpan.attrs.bold != attrs.bold ||
-				currentSpan.attrs.italic != attrs.italic ||
-				currentSpan.attrs.underline != attrs.underline ||
-				(lastX >= 0 && x > lastX+1)
+			// Collect consecutive non-space characters with same attributes
+			for col < len(buffer[y]) {
+				currentGlyph := buffer[y][col]
+				currentIsCursor := cursor != nil && cursor.x == col && cursor.y == y
 
-			if needNewSpan {
-				xPos := float64(x) * charWidthPx
-				newSpan := span{x: xPos, attrs: attrs}
-				spans = append(spans, newSpan)
-				currentSpan = &spans[len(spans)-1]
-			}
+				// Stop if we hit a space or null (unless cursor)
+				if currentGlyph.Char == ' ' || (currentGlyph.Char == 0 && !currentIsCursor) {
+					break
+				}
 
-			// Add character to current span
-			charToRender := glyph.Char
-			if isCursor && charToRender == 0 {
-				charToRender = ' '
-			}
+				// Stop if attributes change
+				currentAttrs := getTextAttrs(currentGlyph, cursor, col, y)
+				if currentAttrs != attrs {
+					break
+				}
 
-			if charToRender != ' ' || (lastX >= 0 && x == lastX+1) || isCursor {
-				spanPtr := &spans[len(spans)-1]
+				// Add the character
+				charToRender := currentGlyph.Char
+				if currentIsCursor && charToRender == 0 {
+					charToRender = ' '
+				}
+
 				switch charToRender {
 				case '\'':
-					spanPtr.text.WriteString("&#39;")
+					text.WriteString("&#39;")
 				case '"':
-					spanPtr.text.WriteString("&quot;")
+					text.WriteString("&quot;")
 				case '&':
-					spanPtr.text.WriteString("&amp;")
+					text.WriteString("&amp;")
 				case '>':
-					spanPtr.text.WriteString("&gt;")
+					text.WriteString("&gt;")
 				case '<':
-					spanPtr.text.WriteString("&lt;")
+					text.WriteString("&lt;")
 				default:
-					spanPtr.text.WriteRune(charToRender)
+					text.WriteRune(charToRender)
 				}
-				lastX = x
-			}
-		}
 
-		for _, s := range spans {
-			fmt.Fprintf(buf, `<tspan x="%.1f"`, s.x)
+				col++
+			}
+
+			xPos := float64(startCol) * charWidthPx
+			fmt.Fprintf(buf, `<tspan x="%.1f"`, xPos)
 
 			var classes []string
 			var style string
 
-			if s.attrs.foreground == vt10x.DefaultFG {
-				// No class needed for the default foreground, inherits from parent
-			} else if s.attrs.foreground < 16 {
-				// Basic 16 ANSI colors - use class for theming
-				classes = append(classes, fmt.Sprintf("fg-%d", s.attrs.foreground))
+			if attrs.foreground == vt10x.DefaultFG {
+				// No class needed for default foreground
+			} else if attrs.foreground < 16 {
+				classes = append(classes, fmt.Sprintf("fg-%d", attrs.foreground))
 			} else {
-				// Extended colors (256 palette or RGB) - use inline style
-				style = fmt.Sprintf("fill:%s", colorToHex(s.attrs.foreground))
+				style = fmt.Sprintf("fill:%s", colorToHex(attrs.foreground))
 			}
 
-			if s.attrs.bold {
+			if attrs.bold {
 				classes = append(classes, "b")
 			}
-			if s.attrs.italic {
+			if attrs.italic {
 				classes = append(classes, "i")
 			}
-			if s.attrs.underline {
+			if attrs.underline {
 				classes = append(classes, "u")
 			}
 
@@ -253,7 +247,7 @@ func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charW
 			}
 
 			buf.WriteString(`>`)
-			buf.WriteString(s.text.String())
+			buf.WriteString(text.String())
 			buf.WriteString(`</tspan>`)
 		}
 
