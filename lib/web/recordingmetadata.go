@@ -268,8 +268,9 @@ type sessionRecordingThumbnailResponse struct {
 	Rows          int32  `json:"rows"`
 	CursorX       int32  `json:"cursorX"`
 	CursorY       int32  `json:"cursorY"`
-	StartOffsetMs int64  `json:"startOffsetMs"`
-	EndOffsetMs   int64  `json:"endOffsetMs"`
+	CursorVisible bool   `json:"cursorVisible"`
+	StartOffset   int64  `json:"startOffset"`
+	EndOffset     int64  `json:"endOffset"`
 }
 
 // encodeSessionRecordingThumbnail converts the session recording thumbnail to a format more suitable for the frontend.
@@ -280,8 +281,9 @@ func encodeSessionRecordingThumbnail(thumbnail *recordingmetadatav1.SessionRecor
 		Rows:          thumbnail.Rows,
 		CursorX:       thumbnail.CursorX,
 		CursorY:       thumbnail.CursorY,
-		StartOffsetMs: convertDurationToMs(thumbnail.StartOffset),
-		EndOffsetMs:   convertDurationToMs(thumbnail.EndOffset),
+		CursorVisible: thumbnail.CursorVisible,
+		StartOffset:   convertDurationToMs(thumbnail.StartOffset),
+		EndOffset:     convertDurationToMs(thumbnail.EndOffset),
 	}
 }
 

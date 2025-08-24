@@ -312,13 +312,14 @@ loop:
 
 func thumbnailEntryToProto(t *thumbnailEntry) *pb.SessionRecordingThumbnail {
 	return &pb.SessionRecordingThumbnail{
-		Svg:         terminal.VtStateToSvg(t.state),
-		Cols:        int32(t.state.Cols),
-		Rows:        int32(t.state.Rows),
-		CursorX:     int32(t.state.CursorX),
-		CursorY:     int32(t.state.CursorY),
-		StartOffset: durationpb.New(t.startOffset),
-		EndOffset:   durationpb.New(t.endOffset),
+		Svg:           terminal.VtStateToSvg(t.state),
+		Cols:          int32(t.state.Cols),
+		Rows:          int32(t.state.Rows),
+		CursorX:       int32(t.state.CursorX),
+		CursorY:       int32(t.state.CursorY),
+		CursorVisible: t.state.CursorVisible,
+		StartOffset:   durationpb.New(t.startOffset),
+		EndOffset:     durationpb.New(t.endOffset),
 	}
 }
 
