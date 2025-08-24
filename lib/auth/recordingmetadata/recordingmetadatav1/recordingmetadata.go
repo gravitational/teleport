@@ -323,12 +323,28 @@ func thumbnailEntryToProto(t *thumbnailEntry) *pb.SessionRecordingThumbnail {
 	}
 }
 
+// getRandomThumbnail selects a random thumbnail from the middle 60% of the provided thumbnails slice.
+// This tries to get a thumbnail that is more representative of the session, avoiding the very start and end.
 func getRandomThumbnail(thumbnails []*thumbnailEntry) *thumbnailEntry {
 	if len(thumbnails) == 0 {
 		return nil
 	}
 
-	randomIndex := rand.IntN(len(thumbnails))
+	if len(thumbnails) < 5 {
+		randomIndex := rand.IntN(len(thumbnails))
+		return thumbnails[randomIndex]
+	}
+
+	startIndex := int(float64(len(thumbnails)) * 0.2) // start at 20%
+	endIndex := int(float64(len(thumbnails)) * 0.8)   // end at 80%
+
+	if startIndex >= endIndex {
+		endIndex = startIndex + 1
+	}
+
+	rangeSize := endIndex - startIndex
+	randomOffset := rand.IntN(rangeSize)
+	randomIndex := startIndex + randomOffset
 
 	return thumbnails[randomIndex]
 }
