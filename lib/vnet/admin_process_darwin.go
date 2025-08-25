@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -113,7 +114,29 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 			}
 		}
 	})
-	return trace.Wrap(g.Wait(), "running VNet admin process")
+
+	done := make(chan error)
+	go func() {
+		done <- g.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		return trace.Wrap(err, "running VNet admin process")
+	case <-ctx.Done():
+		timer := time.NewTimer(5 * time.Second)
+		defer timer.Stop()
+
+		select {
+		case <-done:
+			// network stack exited cleanly within timeout
+			return trace.Wrap(err, "running VNet admin process")
+		case <-timer.C:
+			log.ErrorContext(ctx, "VNet admin process did not exit within 5 seconds, forcing shutdown.")
+			os.Exit(1)
+			return nil
+		}
+	}
 }
 
 func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
