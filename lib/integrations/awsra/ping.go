@@ -74,10 +74,10 @@ func NewPingClient(ctx context.Context, req *AWSClientConfig) (PingClient, error
 // Ping calls the following AWS API:
 // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListProfiles.html
 // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListTagsForResource.html
-// It returns a list of Roles Anywhere Profiles that are enabled.\
+// It returns a list of Roles Anywhere Profiles that are enabled.
 //
-// If profileARN is provided, it will ignore that specific Profile when counting the list of profiles.
-func Ping(ctx context.Context, clt PingClient, profileARN string) (*PingResponse, error) {
+// It will ignore any profile matching ignoredProfileARN.
+func Ping(ctx context.Context, clt PingClient, ignoredProfileARN string) (*PingResponse, error) {
 	var errs []error
 
 	profileCounter := 0
@@ -92,10 +92,10 @@ func Ping(ctx context.Context, clt PingClient, profileARN string) (*PingResponse
 			break
 		}
 		for _, profile := range profiles {
-			// Ignore disabled profiles, profiles without assigned roles and
+			// Ignore disabled profiles, profiles without assigned roles and the ignoreProfileARN.
 			if profile.Enabled &&
 				len(profile.Roles) > 0 &&
-				profile.Arn != profileARN {
+				profile.Arn != ignoredProfileARN {
 
 				profileCounter++
 			}
