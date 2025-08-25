@@ -213,8 +213,12 @@ else
 	# capture the current limit
 	CURRENT_ULIMIT := $(shell ulimit -n)
 
+	# Use shell's built-in test for a more reliable integer comparison.
+	# Note: '1' means true (the limit is too low).
+	IS_TOO_LOW := $(shell if [ "$(CURRENT_ULIMIT)" -lt 1024 ]; then echo "1"; fi)
+
 	# fail early if it’s too low
-	ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024),1)
+	ifeq ($(IS_TOO_LOW),1)
 		$(error ulimit -n is too low ($(CURRENT_ULIMIT)); set ulimit -n 1024)
 	endif
 endif
