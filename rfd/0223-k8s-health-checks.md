@@ -388,7 +388,7 @@ Previous planning and implementation work from database health checks makes disp
 - [web/packages/teleport/src/services/kube/types.ts](https://github.com/gravitational/teleport/blob/d08586408b3ad2af327af4af2644f7ac8de4e825/web/packages/teleport/src/services/kube/types.ts#L21)
 - [web/packages/teleterm/src/ui/DocumentCluster/UnifiedResources.tsx](https://github.com/gravitational/teleport/blob/d08586408b3ad2af327af4af2644f7ac8de4e825/web/packages/teleterm/src/ui/DocumentCluster/UnifiedResources.tsx#L560)
 
-The Teleterm (Teleport Connect) UI is implemented at the same time as the Web UI. Teleterm shares UI components, such as `UnifiedResource`, making the implementation closely related.
+The Teleport Connect UI is implemented at the same time as the Web UI. Teleport Connect  shares UI components, such as `UnifiedResource`, making the implementation closely related.
 
 
 #### Prometheus Implementation
