@@ -34,16 +34,14 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // ConnectSSEServer establishes an SSE stream with the MCP server and finds the
 // endpoint used for posting client requests. If successful, the transport
 // reader and message writer are returned.
-func ConnectSSEServer(ctx context.Context, baseURL *url.URL) (*SSEResponseReader, *SSERequestWriter, error) {
-	httpClient, err := defaults.HTTPClient()
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "making HTTP client")
+func ConnectSSEServer(ctx context.Context, baseURL *url.URL, transport http.RoundTripper) (*SSEResponseReader, *SSERequestWriter, error) {
+	httpClient := &http.Client{
+		Transport: transport,
 	}
 
 	connectReq, err := http.NewRequestWithContext(ctx, "GET", baseURL.String(), nil)
@@ -60,7 +58,7 @@ func ConnectSSEServer(ctx context.Context, baseURL *url.URL) (*SSEResponseReader
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, nil, trace.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, nil, trace.Errorf("unexpected status code: %d. Ensure the server URL is reachable, and is serving an MCP SSE server on the specified path.", resp.StatusCode)
 	}
 
 	reader := NewSSEResponseReader(resp.Body)

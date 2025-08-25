@@ -19,6 +19,7 @@
 package mcputils
 
 import (
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestConnectSSEServer(t *testing.T) {
 	testServerURL, err := url.Parse(testServerSSEEndpoint)
 	require.NoError(t, err)
 
-	reader, writer, err := ConnectSSEServer(t.Context(), testServerURL)
+	reader, writer, err := ConnectSSEServer(t.Context(), testServerURL, http.DefaultTransport)
 	require.NoError(t, err)
 	defer reader.Close()
 

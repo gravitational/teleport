@@ -20,12 +20,17 @@ package mcp
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -43,6 +48,10 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	if err != nil {
 		return trace.Wrap(err, "parsing SSE URI")
 	}
+	httpTransport, err := s.makeHTTPTransport(sessionCtx.App)
+	if err != nil {
+		return trace.Wrap(err, "creating HTTP transport")
+	}
 	session, err := s.makeSessionHandler(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "setting up session handler")
@@ -52,7 +61,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	defer session.logger.InfoContext(ctx, "Completed handling stdio to SSE session")
 
 	// Initialize SSE stream.
-	sseResponseReader, sseRequestWriter, err := mcputils.ConnectSSEServer(ctx, baseURL)
+	sseResponseReader, sseRequestWriter, err := mcputils.ConnectSSEServer(ctx, baseURL, httpTransport)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -114,4 +123,19 @@ func makeSSEBaseURI(app types.Application) (*url.URL, error) {
 		return nil, trace.BadParameter("unknown scheme type: %v", baseURL.Scheme)
 	}
 	return baseURL, nil
+}
+
+func (s *Server) makeHTTPTransport(app types.Application) (http.RoundTripper, error) {
+	// Use similar settings from lib/srv/app/transport.go.
+	tr, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Add a timeout to control how long it takes to (start) getting a response
+	// from the target server.
+	tr.ResponseHeaderTimeout = time.Minute
+	tr.TLSClientConfig = utils.TLSConfig(s.cfg.CipherSuites)
+	tr.TLSClientConfig.InsecureSkipVerify = lib.IsInsecureDevMode() || app.GetInsecureSkipVerify()
+	return tr, nil
 }

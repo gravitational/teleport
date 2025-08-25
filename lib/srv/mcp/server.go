@@ -56,6 +56,9 @@ type ServerConfig struct {
 	AccessPoint AccessPoint
 	// EnableDemoServer enables the "Teleport Demo" MCP server.
 	EnableDemoServer bool
+	// CipherSuites is the list of TLS cipher suites that have been configured
+	// for this process.
+	CipherSuites []uint16
 
 	clock clockwork.Clock
 }
@@ -73,6 +76,9 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
+	}
+	if len(c.CipherSuites) == 0 {
+		return trace.BadParameter("missing CipherSuites")
 	}
 	if c.Log == nil {
 		c.Log = slog.With(teleport.ComponentKey, teleport.ComponentMCP)

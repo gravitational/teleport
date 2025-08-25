@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
 
@@ -49,6 +50,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 		ParentContext: ctx,
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
 	})
 	require.NoError(t, err)
 

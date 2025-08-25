@@ -284,6 +284,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		HostID:           c.cfg.HostID,
 		AccessPoint:      c.cfg.AccessPoint,
 		EnableDemoServer: c.cfg.MCPDemoServer,
+		CipherSuites:     c.cfg.CipherSuites,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

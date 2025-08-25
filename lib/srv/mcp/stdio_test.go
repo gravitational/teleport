@@ -34,6 +34,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
 
@@ -44,6 +45,7 @@ func Test_handleAuthErrStdio(t *testing.T) {
 		ParentContext: ctx,
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
 	})
 	require.NoError(t, err)
 
@@ -77,6 +79,7 @@ func Test_handleStdio(t *testing.T) {
 		ParentContext: ctx,
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
 	})
 	require.NoError(t, err)
 
@@ -150,6 +153,7 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 		ParentContext: t.Context(),
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
 	})
 	require.NoError(t, err)
 
