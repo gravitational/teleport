@@ -183,9 +183,7 @@ else
 endif
 
 # windows-build is a wrapper around the main build target for Windows systems.
-# It sets CGO_ENABLED=1 and then calls the unified build target.
 .PHONY: windows-build
-windows-build: CGOFLAG := CGO_ENABLED=1
 windows-build: BINARIES=$(BUILDDIR)/terraform-provider-teleport$(EXE)
 windows-build: build
 	@echo "Windows build complete: $(BINARIES)"
