@@ -90,18 +90,21 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "Network stack terminated.")
 		if err := networkStack.run(ctx); err != nil {
 			return trace.Wrap(err, "running network stack")
 		}
 		return errors.New("network stack terminated")
 	})
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "OS configuration loop exited.")
 		if err := osConfigurator.runOSConfigurationLoop(ctx); err != nil {
 			return trace.Wrap(err, "running OS configuration loop")
 		}
 		return errors.New("OS configuration loop terminated")
 	})
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "Ping loop exited.")
 		tick := time.Tick(time.Second)
 		for {
 			select {
