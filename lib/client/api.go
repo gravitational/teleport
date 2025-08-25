@@ -197,6 +197,14 @@ type Config struct {
 	// Remote host to connect
 	Host string
 
+	SrcHost string
+
+	SrcLogin string
+
+	DestHost string
+
+	DestLogin string
+
 	// SearchKeywords host to connect
 	SearchKeywords []string
 
