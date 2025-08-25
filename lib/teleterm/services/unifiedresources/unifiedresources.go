@@ -37,6 +37,7 @@ var supportedResourceKinds = []string{
 	types.KindApp,
 	types.KindSAMLIdPServiceProvider,
 	types.KindWindowsDesktop,
+	types.KindMCP,
 }
 
 func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {

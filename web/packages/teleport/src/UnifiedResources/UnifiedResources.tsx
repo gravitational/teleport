@@ -114,6 +114,10 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
       kind: 'git_server',
       disabled: !flags.gitServers,
     },
+    {
+      kind: 'mcp',
+      disabled: !flags.applications,
+    },
   ];
 };
 
