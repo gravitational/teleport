@@ -338,26 +338,6 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	}
 	ret.Integration = uiIg
 
-	integrationStatus := req.integration.GetStatus()
-
-	switch req.integration.GetSubKind() {
-	case types.IntegrationSubKindAWSRolesAnywhere:
-		ret.RolesAnywhereProfileSync = &ui.RolesAnywhereProfileSync{}
-
-		awsRolesAnywhereSpec := req.integration.GetAWSRolesAnywhereIntegrationSpec()
-		if awsRolesAnywhereSpec != nil {
-			ret.RolesAnywhereProfileSync.Enabled = awsRolesAnywhereSpec.ProfileSyncConfig.Enabled
-		}
-
-		if integrationStatus.AWSRolesAnywhere != nil {
-			ret.RolesAnywhereProfileSync.Status = integrationStatus.AWSRolesAnywhere.LastProfileSync.Status
-			ret.RolesAnywhereProfileSync.ErrorMessage = integrationStatus.AWSRolesAnywhere.LastProfileSync.ErrorMessage
-			ret.RolesAnywhereProfileSync.SyncedProfiles = int(integrationStatus.AWSRolesAnywhere.LastProfileSync.SyncedProfiles)
-			ret.RolesAnywhereProfileSync.SyncStartTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.StartTime
-			ret.RolesAnywhereProfileSync.SyncEndTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.EndTime
-		}
-	}
-
 	var nextPage string
 	for {
 		filters := &usertasksv1.ListUserTasksFilters{
@@ -422,25 +402,57 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		nextPage = nextToken
 	}
 
+	switch req.integration.GetSubKind() {
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		ret.RolesAnywhereProfileSync = &ui.RolesAnywhereProfileSync{}
+
+		awsRolesAnywhereSpec := req.integration.GetAWSRolesAnywhereIntegrationSpec()
+		if awsRolesAnywhereSpec != nil {
+			ret.RolesAnywhereProfileSync.Enabled = awsRolesAnywhereSpec.ProfileSyncConfig.Enabled
+		}
+
+		integrationStatus := req.integration.GetStatus()
+		if integrationStatus.AWSRolesAnywhere != nil {
+			ret.RolesAnywhereProfileSync.Status = integrationStatus.AWSRolesAnywhere.LastProfileSync.Status
+			ret.RolesAnywhereProfileSync.ErrorMessage = integrationStatus.AWSRolesAnywhere.LastProfileSync.ErrorMessage
+			ret.RolesAnywhereProfileSync.SyncedProfiles = int(integrationStatus.AWSRolesAnywhere.LastProfileSync.SyncedProfiles)
+			ret.RolesAnywhereProfileSync.SyncStartTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.StartTime
+			ret.RolesAnywhereProfileSync.SyncEndTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.EndTime
+		}
+
+	case types.IntegrationSubKindAWSOIDC:
+		// For now, Deploying Database Services is only possible using the AWS OIDC Integration.
+		// When/if more integrations (eg, AWS IAM Roles Anywhere) support it, this must be updated.
+		ecsCount, err := countAWSOIDCDeployedDatabaseServices(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ret.AWSRDS.ECSDatabaseServiceCount = ecsCount
+	}
+
+	return ret, nil
+}
+
+func countAWSOIDCDeployedDatabaseServices(ctx context.Context, req collectIntegrationStatsRequest) (int, error) {
 	regions, err := fetchRelevantAWSRegions(ctx, req.databaseGetter, req.discoveryConfigLister)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
 	services, err := listDeployedDatabaseServices(ctx, req.logger, req.integration.GetName(), regions, req.awsOIDCClient)
-	switch {
-	case trace.IsAccessDenied(err):
+	if err != nil {
 		// The number of ECS Database Services is shown when listing the integration status.
 		// However, listing ECS Services is only possible after the user goes through the RDS enrollment flows, which adds the required policy to the IAM Role.
 		// If this calls returns an access denied, we assume the user doesn't have the required IAM Policies in their IAM Role and show 0 instead.
+		if trace.IsAccessDenied(err) {
+			return 0, nil
+		}
 
-	case err != nil:
-		return nil, trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
-	ret.AWSRDS.ECSDatabaseServiceCount = len(services)
-
-	return ret, nil
+	return len(services), nil
 }
 
 func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, lastSyncTime time.Time, new *discoveryconfigv1.ResourcesDiscoveredSummary) {

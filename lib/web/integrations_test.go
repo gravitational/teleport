@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -537,11 +538,13 @@ func TestCollectIntegrationStats(t *testing.T) {
 		clt := &mockRelevantAWSRegionsClient{
 			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{},
 			databaseServices: &proto.ListResourcesResponse{},
-			databases:        make([]types.Database, 0),
+			databases: []types.Database{
+				&types.DatabaseV3{Spec: types.DatabaseSpecV3{AWS: types.AWS{Region: "us-west-1"}}},
+			},
 		}
 
 		deployedDatabaseServicesClient := &mockDeployedDatabaseServices{
-			listErr: trace.AccessDenied("AccessDenied to ECS:ListServices"),
+			listErr: errors.New("only aws oidc integrations can list deployed database services"),
 		}
 		req := collectIntegrationStatsRequest{
 			logger:                logger,
