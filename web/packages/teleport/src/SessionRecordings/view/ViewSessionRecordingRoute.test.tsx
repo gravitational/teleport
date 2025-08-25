@@ -108,77 +108,197 @@ function withSessionDuration(durationMs: number, recordingType: RecordingType) {
   );
 }
 
-describe('with metadata', () => {
-  it('renders metadata correctly if recordingType is in the URL', async () => {
-    server.use(createMetadataHandler(mockMetadata, []));
+test('renders metadata correctly if recordingType is in the URL', async () => {
+  server.use(createMetadataHandler(mockMetadata, []));
 
-    setupTest(
-      cfg.getPlayerRoute(
+  setupTest(
+    cfg.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: 'ssh',
+        durationMs: 3600000,
+      }
+    )
+  );
+
+  expect(await screen.findByText('test-server')).toBeInTheDocument();
+});
+
+test('renders the duration correctly', async () => {
+  server.use(createMetadataHandler(mockMetadata, []));
+
+  setupTest(
+    cfg.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: 'ssh',
+        durationMs: 3600000,
+      }
+    )
+  );
+
+  expect(await screen.findByText('1h')).toBeInTheDocument();
+});
+
+test('renders non-SSH recordings correctly', async () => {
+  server.use(createMetadataHandler({ ...mockMetadata, type: 'k8s' }, []));
+
+  setupTest(
+    cfg.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: 'k8s',
+        durationMs: 3600000,
+      }
+    )
+  );
+
+  expect(
+    await screen.findByText(
+      'RecordingPlayer: test-cluster/test-session/3600000/k8s'
+    )
+  ).toBeInTheDocument();
+});
+
+test('displays the username', async () => {
+  server.use(createMetadataHandler(mockMetadata, []));
+
+  setupTest(
+    cfg.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: 'ssh',
+        durationMs: 3600000,
+      }
+    )
+  );
+
+  expect(await screen.findByText('testuser')).toBeInTheDocument();
+});
+
+test('shows the start/end time', async () => {
+  server.use(createMetadataHandler(mockMetadata, []));
+
+  setupTest(
+    cfg.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: 'ssh',
+        durationMs: 3600000,
+      }
+    )
+  );
+
+  expect(await screen.findByText('Jan 01, 2021 00:00')).toBeInTheDocument();
+  expect(await screen.findByText('Jan 01, 2021 01:00')).toBeInTheDocument();
+});
+
+test('falls back to loading the duration if metadata is not available and no URL params', async () => {
+  server.use(
+    createMetadataHandler(mockMetadata, [], {
+      shouldError: true,
+      errorMessage: 'Metadata not available',
+    })
+  );
+
+  withSessionDuration(3600000, 'ssh');
+
+  setupTest(
+    cfg.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: undefined,
+        durationMs: undefined,
+      }
+    )
+  );
+
+  expect(await screen.findByTestId('recording-player')).toBeInTheDocument();
+});
+
+test('falls back to the session player if metadata is not available', async () => {
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+
+  server.use(
+    createMetadataHandler(mockMetadata, [], {
+      shouldError: true,
+      errorMessage: 'Metadata not available',
+    })
+  );
+
+  setupTest(
+    cfg.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: 'ssh',
+        durationMs: 3600000,
+      }
+    )
+  );
+
+  expect(await screen.findByTestId('recording-player')).toBeInTheDocument();
+});
+
+test('shows error if metadata and duration are not available', async () => {
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+
+  server.use(
+    createMetadataHandler(mockMetadata, [], {
+      shouldError: true,
+      errorMessage: 'Metadata not available',
+    }),
+    http.get(cfg.api.sessionDurationPath, () =>
+      HttpResponse.json(
         {
-          clusterId: 'test-cluster',
-          sid: 'test-session',
+          durationMs: null,
+          recordingType: null,
         },
         {
-          recordingType: 'ssh',
-          durationMs: 3600000,
+          status: 404,
         }
       )
-    );
+    )
+  );
 
-    expect(await screen.findByText('test-server')).toBeInTheDocument();
-  });
+  setupTest(
+    cfg.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: undefined,
+        durationMs: undefined,
+      }
+    )
+  );
 
-  it('falls back to loading the duration if metadata is not available and no URL params', async () => {
-    server.use(
-      createMetadataHandler(mockMetadata, [], {
-        shouldError: true,
-        errorMessage: 'Metadata not available',
-      })
-    );
-
-    withSessionDuration(3600000, 'ssh');
-
-    setupTest(
-      cfg.getPlayerRoute(
-        {
-          clusterId: 'test-cluster',
-          sid: 'test-session',
-        },
-        {
-          recordingType: undefined,
-          durationMs: undefined,
-        }
-      )
-    );
-
-    expect(await screen.findByTestId('recording-player')).toBeInTheDocument();
-  });
-
-  it('falls back to the session player if metadata is not available', async () => {
-    jest.spyOn(console, 'error').mockImplementation(() => {});
-
-    server.use(
-      createMetadataHandler(mockMetadata, [], {
-        shouldError: true,
-        errorMessage: 'Metadata not available',
-      })
-    );
-
-    setupTest(
-      cfg.getPlayerRoute(
-        {
-          clusterId: 'test-cluster',
-          sid: 'test-session',
-        },
-        {
-          recordingType: 'ssh',
-          durationMs: 3600000,
-        }
-      )
-    );
-
-    expect(await screen.findByTestId('recording-player')).toBeInTheDocument();
-  });
+  expect(
+    await screen.findByText('Unable to determine the length of this session', {
+      exact: false,
+    })
+  ).toBeInTheDocument();
 });
 
 interface MetadataHandlerOptions {
