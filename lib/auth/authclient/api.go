@@ -1216,6 +1216,8 @@ type Cache interface {
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// ListAccessLists returns a paginated list of access lists.
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// ListAccessListsWithFilter returns a paginated list of access lists.
+	ListAccessListsWithFilter(context.Context, int, string, string, *types.SortBy) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 

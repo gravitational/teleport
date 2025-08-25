@@ -20,12 +20,14 @@ package services
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -40,6 +42,8 @@ type AccessListsGetter interface {
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// ListAccessLists returns a paginated list of access lists.
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// ListAccessListsWithFilter returns a filtered and sorted paginated list of access lists.
+	ListAccessListsWithFilter(context.Context, int, string, string, *types.SortBy) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 	// GetAccessListsToReview returns access lists that the user needs to review.
@@ -275,4 +279,58 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 		review.SetExpiry(cfg.Expires)
 	}
 	return &review, nil
+}
+
+func MatchAccessList(al *accesslist.AccessList, search string) bool {
+	search = strings.ToLower(strings.TrimSpace(search))
+	if search == "" {
+		return true
+	}
+
+	searchTerms := strings.Split(search, " ")
+
+	// Title match
+	if matchesAllTerms(searchTerms, strings.ToLower(al.Spec.Title)) {
+		return true
+	}
+
+	// Name match
+	if matchesAllTerms(searchTerms, strings.ToLower(al.GetName())) {
+		return true
+	}
+
+	// Owner names match
+	for _, owner := range al.Spec.Owners {
+		if matchesAllTerms(searchTerms, strings.ToLower(owner.Name)) {
+			return true
+		}
+	}
+
+	// Description match
+	if matchesAllTerms(searchTerms, strings.ToLower(al.Spec.Description)) {
+		return true
+	}
+
+	// Roles match
+	for _, role := range al.Spec.Grants.Roles {
+		if matchesAllTerms(searchTerms, strings.ToLower(role)) {
+			return true
+		}
+	}
+
+	// Type-specific matches
+	if strings.Contains(al.Origin(), search) {
+		return true
+	}
+
+	return false
+}
+
+func matchesAllTerms(terms []string, target string) bool {
+	for _, term := range terms {
+		if !strings.Contains(target, term) {
+			return false
+		}
+	}
+	return true
 }
