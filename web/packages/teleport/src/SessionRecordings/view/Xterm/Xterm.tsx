@@ -46,6 +46,10 @@ export default function Xterm({ tty }: { tty: Tty }) {
   }, []);
 
   useEffect(() => {
+    if (!refContainer.current) {
+      return;
+    }
+
     const term = new TerminalPlayer(tty, {
       el: refContainer.current,
       fontFamily: theme.fonts.mono,
@@ -66,13 +70,15 @@ export default function Xterm({ tty }: { tty: Tty }) {
       e.stopPropagation();
     }
 
+    const container = refContainer.current;
+
     // Stop wheel event from reaching the terminal
     // to allow parent container of xterm to scroll instead.
-    window.addEventListener('wheel', stopPropagating, true);
+    container.addEventListener('wheel', stopPropagating, { passive: true });
 
     function cleanup() {
       term.destroy();
-      window.removeEventListener('wheel', stopPropagating, true);
+      container.removeEventListener('wheel', stopPropagating);
     }
 
     return cleanup;
