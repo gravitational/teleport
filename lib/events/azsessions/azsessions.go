@@ -44,7 +44,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils/azure"
 )
 
 // sessionContainerParam and inprogressContainerParam are the parameters in the
@@ -190,7 +192,9 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		ClientOptions: azure.CoreClientOptions(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Azure credentials")
 	}
@@ -199,7 +203,9 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		containerURL := cfg.ServiceURL
 		containerURL.Path = name
 
-		cntClient, err := container.NewClient(containerURL.String(), cred, nil)
+		cntClient, err := container.NewClient(containerURL.String(), cred, &container.ClientOptions{
+			ClientOptions: azure.CoreClientOptions(),
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -406,8 +412,12 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		partURLs = append(partURLs, h.partBlob(upload, part.Number).URL())
 	}
 
+	scope := "https://storage.azure.com/.default"
+	if modules.IsBoringBinary() {
+		scope = "https://storage.usgovcloudapi.net/.default"
+	}
 	token, err := h.cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://storage.azure.com/.default"},
+		Scopes: []string{scope},
 	})
 	if err != nil {
 		return trace.Wrap(err, "obtaining Azure authentication token")
