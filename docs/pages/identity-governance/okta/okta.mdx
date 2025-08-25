@@ -44,11 +44,10 @@ to align with the state defined by Teleport's RBAC configuration.
 
 ## Get started
 
-To start the enrolment, visit the Teleport Web UI and click **Access** and then
-**Integrations** on the menu bar at the left of the screen. Then click **Enroll
-New Integration** and select **Okta** tile.
+To start the enrolment, visit the Teleport Web UI and click **Identity Security** and then
+**Integrations** at the left of the screen. Then under **New Integration** select the **Okta** tile.
 
-![Enroll an Access Request plugin](../../../img/enterprise/plugins/enroll.png)
+![Add Integration plugin](../../../img/enterprise/plugins/integration-plugin.png)
 
 This will bring you to the SSO integration configuration screen. Read [Guided
 Okta SSO Integration](./guided-sso.mdx) for supplementary instructions as you
@@ -82,7 +81,6 @@ Security Integration directly from the status page.
 When configuring a new integration, the setup wizard provides a
 dedicated Identity Security step with guided configuration instructions.
 
-
 ## Managing integration components
 
 At any point in the guided flow, you can return to the integration status page
@@ -102,38 +100,33 @@ You can delete the Okta integration by taking the following steps:
    the corresponding Teleport accounts. Once the Teleport accounts have been
    automatically deleted you can proceed to delete the integration.
 
-1. Navigate to **Access** -> **Integrations** and click anywhere on the Okta
-   integration row to visit the integration status page. 
+2. Navigate to **Access** -> **Integrations** and click anywhere on the Okta
+   integration row to visit the integration status page.
 
-1. Click **Delete Integration** .
-
+3. Click **Delete Integration**.  
    ![Delete Okta integration](../../../img/enterprise/plugins/okta/okta-delete-integration.png)
 
-1. Permanently delete the SAML connector created as part of the integration.
+4. Permanently delete the SAML connector created as part of the integration.
    Navigate to the **Auth Connectors** page in the Teleport UI and select the
-   option to delete it.
+   option to delete it. The SAML connector created during the enrollment process
+   is ***not*** deleted when the hosted Okta integration is deleted, and will
+   automatically be re-used if the Okta integration is re-enrolled.
 
-  The SAML connector created during the enrollment process is ***not*** deleted
-  when the hosted Okta integration is deleted, and will automatically be re-used
-  if the Okta integration is re-enrolled.
-
-1. Clean up Access Lists created by the Okta integration. These are not deleted
+5. Clean up Access Lists created by the Okta integration. These are not deleted
    when the Okta integration is deleted. To delete Okta-sourced Access Lists,
    run the following command:
 
    ```code
    $ tctl plugins cleanup okta
-   ```
 
-   If any Access Lists created by the integration are nested members or owners
-   of Teleport-created Access Lists, cleanup will fail. Any nested Access Lists
-   need to be unassigned before you can perform a cleanup.
+If any Access Lists created by the integration are nested members or owners
+of Teleport-created Access Lists, cleanup will fail. Any nested Access Lists
+need to be unassigned before you can perform a cleanup.
 
-   <Admonition type="warning">
-   If the Okta integration is still active, removing Okta-sourced Access Lists
-   could revoke Okta access from users in your organization. Exercise caution
-   when cleaning up Access Lists.
-   </Admonition>
+<Admonition type="warning">
+If the Okta integration is still active, removing Okta-sourced Access Lists
+could revoke Okta access from users in your organization. Exercise caution
+when cleaning up Access Lists.
+</Admonition>
 
-Once the integration is deleted, you can manually remove any remaining user
-accounts with `tctl`.
+Once the integration is deleted, you can manually remove any remaining user accounts with `tctl`.
