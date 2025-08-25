@@ -3570,6 +3570,18 @@ message PostgresFunctionCall {
   repeated string FunctionArgs = 6 [(gogoproto.jsontag) = "function_args,omitempty"];
 }
 
+// WindowsCertificateMetadata contains metadata about certificates
+// issued for Windows environments.
+message WindowsCertificateMetadata {
+  string Subject = 1 [(gogoproto.jsontag) = "subject"];
+  string SerialNumber = 2 [(gogoproto.jsontag) = "serial_number"];
+  string UPN = 3 [(gogoproto.jsontag) = "upn"];
+  repeated string CRLDistributionPoints = 4 [(gogoproto.jsontag) = "crl_distribution_points"];
+  int32 KeyUsage = 5 [(gogoproto.jsontag) = "key_usage"];
+  repeated int32 ExtendedKeyUsage = 6 [(gogoproto.jsontag) = "extended_key_usage"];
+  repeated string EnhancedKeyUsage = 7 [(gogoproto.jsontag) = "enhanced_key_usage"];
+}
+
 // WindowsDesktopSessionStart is emitted when a user connects to a desktop.
 message WindowsDesktopSessionStart {
   // Metadata is common event metadata.
@@ -3620,6 +3632,8 @@ message WindowsDesktopSessionStart {
   // NLA indicates whether Teleport performed Network Level Authentication (NLA)
   // when initiating this session.
   bool NLA = 13 [(gogoproto.jsontag) = "nla"];
+
+  WindowsCertificateMetadata CertMetadata = 14 [(gogoproto.jsontag) = "certificate"];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.
@@ -3959,6 +3973,19 @@ message CertificateCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // CertificateAuthority holds information about the issuer of the certificate.
+  CertificateAuthority CertificateAuthority = 5 [(gogoproto.jsontag) = "certificate_authority"];
+}
+
+// CertificateAuthority holds information about the issuer of the certificate.
+message CertificateAuthority {
+  // Type of the cert authority
+  string Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+  // Domain of the cert authority
+  string Domain = 2 [(gogoproto.jsontag) = "domain,omitempty"];
+  // SubjectKeyID is BASE32-encoded subject key ID from authority certificate
+  string SubjectKeyID = 3 [(gogoproto.jsontag) = "subject_key_id,omitempty"];
 }
 
 // RenewableCertificateGenerationMismatch is emitted when a renewable
@@ -4794,6 +4821,9 @@ message OneOf {
     events.SigstorePolicyCreate SigstorePolicyCreate = 210;
     events.SigstorePolicyUpdate SigstorePolicyUpdate = 211;
     events.SigstorePolicyDelete SigstorePolicyDelete = 212;
+    events.AutoUpdateAgentRolloutTrigger AutoUpdateAgentRolloutTrigger = 213;
+    events.AutoUpdateAgentRolloutForceDone AutoUpdateAgentRolloutForceDone = 214;
+    events.AutoUpdateAgentRolloutRollback AutoUpdateAgentRolloutRollback = 215;
   }
 }
 
@@ -6786,6 +6816,13 @@ message OktaUserSync {
   int32 num_users_total = 8 [(gogoproto.jsontag) = "num_users_total"];
 }
 
+// LabelSelector is a label selector that can be specified by the client to
+// filter the resources that are returned by the server.
+message LabelSelector {
+  string Key = 1 [(gogoproto.jsontag) = "key"];
+  repeated string Values = 2 [(gogoproto.jsontag) = "values"];
+}
+
 // SPIFFESVIDIssued is an event recorded when a SPIFFE SVID is issued.
 message SPIFFESVIDIssued {
   // Metadata is a common event metadata
@@ -6839,6 +6876,10 @@ message SPIFFESVIDIssued {
     (gogoproto.jsontag) = "attributes,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+  // The name selector specified by the client when requesting the SVID.
+  string NameSelector = 15 [(gogoproto.jsontag) = "name_selector,omitempty"];
+  // The label selectors specified by the client when requesting the SVID.
+  repeated LabelSelector LabelSelectors = 16 [(gogoproto.jsontag) = "label_selectors,omitempty"];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.
@@ -7322,6 +7363,108 @@ message AutoUpdateVersionDelete {
   ];
 
   // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AutoUpdateAgentRolloutTrigger is emitted when one or many groups from the auto update agent rollout are manually
+// triggered.
+message AutoUpdateAgentRolloutTrigger {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated string groups = 4;
+
+  // Status indicates whether the trigger was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AutoUpdateAgentRolloutForceDone is emitted when one or many groups from the auto update agent rollout are manually
+// forced into the done state.
+message AutoUpdateAgentRolloutForceDone {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated string groups = 4;
+
+  // Status indicates whether the trigger was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AutoUpdateAgentRolloutRollback is emitted when one or many groups from the auto update agent rollout are manually
+// rolledback.
+message AutoUpdateAgentRolloutRollback {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated string groups = 4;
+
+  // Status indicates whether the trigger was successful.
   Status Status = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,

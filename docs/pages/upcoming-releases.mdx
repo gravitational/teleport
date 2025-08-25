@@ -1,6 +1,9 @@
 ---
 title: Teleport Upcoming Releases
 description: A timeline of upcoming Teleport releases.
+labels:
+ - reference
+ - platform-wide
 ---
 
 Teleport releases a new major version approximately every 4 months, and provides
@@ -12,9 +15,9 @@ months.
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                   |
-|---------|------------------------|
-| 18.1.0  | Week of August 4, 2025 |
+| Version | Date                      |
+|---------|---------------------------|
+| 18.2.0  | Week of September 1, 2025 |
 
 We continue to support the following major versions of Teleport:
 
@@ -24,41 +27,45 @@ We continue to support the following major versions of Teleport:
 | v17.x   | November 16, 2024 | February 2026  | v16.0.0               |
 | v16.x   | June 14, 2024     | October 2025   | v15.0.0               |
 
-### 18.1.0
+### 18.2.0
 
 #### Encrypted session recordings
 
 Teleport will provide the ability to integrate with Hardware Security Modules
 (HSMs) in order to encrypt session recordings prior to uploading them to storage.
 
-#### VNet for SSH
+#### AI session summaries
 
-Teleport VNet will add native support for SSH, enabling any SSH client to connect
-to Teleport SSH servers with zero configuration. Advanced Teleport features like
-per-session MFA will have first-class support for a seamless user experience.
+Teleport Identity Security will provide an updated session recordings view that
+will include AI-generated summaries for SSH, Kubernetes and database sessions.
 
-#### Identifier-first login
+#### Teleport Connect Managed Updates
 
-Teleport will add support for identifier-first login flows. When enabled, the initial
-login screen will contain only a username prompt. Users will be presented with the 
-SSO connectors that apply to them after submitting their username.
+Teleport Connect will be able to detect when application updates are available and
+automatically apply them on the next restart.
 
-#### Bound keypair joining for Machine ID
+#### Teleport Device Trust Intune Support
 
-The new bound keypair join method for Machine ID is a more secure and user-friendly
-alternative to token joining in both on-prem environments and cloud providers without
-a delegated join method. It allows for automatic self-recovery in case of expired client
-certificates and gives administrators new options to manage and automate bot joining.
+Teleport will include a new hosted plugin for Microsoft's Intune suite, allowing
+trusted devices to be synchronized from the Intune inventory.
 
-#### Sailpoint SCIM integration
+#### Terraform support for Access List members
 
-Teleport will support Sailpoint as a SCIM provider allowing to synchronize Sailpoint
-entitlement groups with Teleport access lists.
+Users will be able to provision Access Lists and their members (including other
+nested Access Lists) with terraform.
 
-#### Improved access requests UX
+#### Long-term access requests UX
 
-Teleport web UI will make a better distinction between just-in-time and long-term
-access request UX.
+Teleport access requests creation dialog in web UI will better differentiate between
+short and long-term access requests.
+
+#### Database web terminal for MySQL
+
+Teleport web UI will provide terminal interface for MySQL database access.
+
+#### Database access for AlloyDB
+
+Teleport will support database access for GCP AlloyDB databases.
 
 ## Teleport Cloud
 
@@ -66,8 +73,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of         | Description                                                  |
 |-----------------|--------------------------------------------------------------|
-| August 11, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
-| August 11, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
+| August 04, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
+| August 04, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

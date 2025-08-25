@@ -38,14 +38,8 @@
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@ianvs/prettier-plugin-sort-imports": "^4.4.0",
-    "@storybook/addon-actions": "^8.3.4",
-    "@storybook/addon-controls": "^8.3.4",
-    "@storybook/addon-toolbars": "^8.3.4",
-    "@storybook/components": "^8.3.4",
-    "@storybook/preview-api": "^8.3.4",
-    "@storybook/react": "^8.3.4",
-    "@storybook/react-vite": "^8.3.4",
-    "@storybook/test-runner": "^0.19.1",
+    "@storybook/react-vite": "^9.0.17",
+    "@storybook/test-runner": "^0.23.0",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",
@@ -64,11 +58,11 @@
     "jsdom-testing-mocks": "^1.13.1",
     "msw": "^2.4.9",
     "msw-storybook-addon": "^2.0.3",
-    "node-gyp": "^11.2.0",
+    "node-gyp": "^11.3.0",
     "playwright": "^1.47.2",
     "prettier": "^3.3.3",
     "react-select-event": "^5.5.1",
-    "storybook": "^8.3.4",
+    "storybook": "^9.0.17",
     "svgo": "^4.0.0",
     "typescript": "^5.7.2",
     "vite": "^5.4.8"
@@ -111,7 +105,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@10.12.4+sha512.5ea8b0deed94ed68691c9bad4c955492705c5eeb8a87ef86bc62c74a26b037b08ff9570f108b2e4dbd1dd1a9186fea925e527f141c648e85af45631074680184",
+  "packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748",
   "engines": {
     "node": "^22"
   }

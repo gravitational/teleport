@@ -424,7 +424,7 @@ message AWS {
   ];
   // AccountID is the AWS account ID this database belongs to.
   string AccountID = 4 [(gogoproto.jsontag) = "account_id,omitempty"];
-  // ElastiCache contains AWS ElastiCache Redis specific metadata.
+  // ElastiCache contains Amazon ElastiCache Redis-specific metadata.
   ElastiCache ElastiCache = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "elasticache,omitempty"
@@ -444,7 +444,7 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
-  // RedshiftServerless contains AWS Redshift Serverless specific metadata.
+  // RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
   RedshiftServerless RedshiftServerless = 9 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redshift_serverless,omitempty"
@@ -470,7 +470,7 @@ message AWS {
   // SessionTags is a list of AWS STS session tags.
   map<string, string> SessionTags = 15 [(gogoproto.jsontag) = "session_tags,omitempty"];
 
-  // DocumentDB contains AWS DocumentDB specific metadata.
+  // DocumentDB contains Amazon DocumentDB-specific metadata.
   DocumentDB DocumentDB = 16 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "docdb,omitempty"
@@ -519,7 +519,7 @@ message RDSProxy {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
-// ElastiCache contains AWS ElastiCache Redis specific metadata.
+// ElastiCache contains Amazon ElastiCache Redis-specific metadata.
 message ElastiCache {
   // ReplicationGroupID is the Redis replication group ID.
   string ReplicationGroupID = 1 [(gogoproto.jsontag) = "replication_group_id,omitempty"];
@@ -543,7 +543,7 @@ message MemoryDB {
   string EndpointType = 4 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// RedshiftServerless contains AWS Redshift Serverless specific metadata.
+// RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
 message RedshiftServerless {
   // WorkgroupName is the workgroup name.
   string WorkgroupName = 1 [(gogoproto.jsontag) = "workgroup_name,omitempty"];
@@ -563,7 +563,7 @@ message OpenSearch {
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// DocumentDB contains AWS DocumentDB specific metadata.
+// DocumentDB contains Amazon DocumentDB-specific metadata.
 message DocumentDB {
   // ClusterID is the cluster identifier.
   string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
@@ -716,6 +716,9 @@ message InstanceSpecV1 {
 
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
+
+  // UpdaterInfo stores information about how the Teleport updater is doing.
+  UpdaterV2Info UpdaterInfo = 10;
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -764,6 +767,37 @@ message InstanceControlLogEntry {
   map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
+// UpdaterV2Info is used by Teleport to send information about how the Teleport updater is doing.
+message UpdaterV2Info {
+  // UpdateGroup is the update group the agent's updater is part of.
+  // The autoupdate_agent_rollout resource controls when different groups update.
+  // Reporting the update group in the Hello allows us to track the update progress per group.
+  // See RFD 184 for more details.
+  string UpdateGroup = 1;
+  // UpdateUUID is the agent's updater UUID.
+  // Each updater has a UUID, this can be used in two cases:
+  // - To update individual agents when doing canary updates
+  // - To track the lowest non-updated agent to avoid a deadlock when doing a progressive rollout
+  bytes UpdateUUID = 2;
+  // UpdaterStatus represents any updater-related status information that the Teleport cluster
+  // should be aware of. For example, the fact the updater got disabled, the version pinned,
+  // or that the updater seems to not be running.
+  UpdaterStatus UpdaterStatus = 3;
+}
+
+enum UpdaterStatus {
+  // UPDATER_STATUS_UNSPECIFIED is the zero value.
+  UPDATER_STATUS_UNSPECIFIED = 0;
+  // UPDATER_STATUS_OK means that everything looks OK from the agent pov.
+  UPDATER_STATUS_OK = 1;
+  // UPDATER_STATUS_DISABLED means that automatic updates seem disabled or paused.
+  UPDATER_STATUS_DISABLED = 2;
+  // UPDATER_STATUS_PINNED means that a specific version is pinned.
+  UPDATER_STATUS_PINNED = 3;
+  // UPDATER_STATUS_UNREADABLE means that the agent failed to read its update status.
+  UPDATER_STATUS_UNREADABLE = 4;
+}
+
 // InstanceFilter matches instance resources.
 message InstanceFilter {
   // ServerID matches exactly one instance by server ID if specified.
@@ -788,6 +822,9 @@ message InstanceFilter {
 
   // NewerThanVersion is an optional exclusive lower version bound.
   string NewerThanVersion = 7;
+
+  // UpdateGroup matches instance update group if specified.
+  string UpdateGroup = 8;
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth Service instance in a Teleport cluster.
@@ -1152,6 +1189,8 @@ message TLSKeyPair {
   bytes Key = 2 [(gogoproto.jsontag) = "key,omitempty"];
   // KeyType is the type of the Key.
   PrivateKeyType KeyType = 3 [(gogoproto.jsontag) = "key_type,omitempty"];
+  // CRL is an empty DER-encoded revocation list.
+  bytes CRL = 4 [(gogoproto.jsontag) = "crl"];
 }
 
 // JWTKeyPair is a PEM encoded keypair used for signing JWT tokens.
@@ -1693,6 +1732,18 @@ message ProvisionTokenSpecV2Kubernetes {
     // This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
     string JWKS = 1 [(gogoproto.jsontag) = "jwks,omitempty"];
   }
+  message OIDCConfig {
+    // Issuer is the URI of the OIDC issuer. It must have an accessible and
+    // OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should
+    // be a valid URL and must exactly match the `issuer` field in a service
+    // account JWT. For example:
+    // https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+    string Issuer = 1 [(gogoproto.jsontag) = "issuer,omitempty"];
+
+    // InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement
+    // that the issuer must use HTTPS.
+    bool InsecureAllowHTTPIssuer = 2 [(gogoproto.jsontag) = "insecure_allow_http_issuer"];
+  }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
   message Rule {
@@ -1707,6 +1758,7 @@ message ProvisionTokenSpecV2Kubernetes {
   // Service Account token. Support values:
   // - `in_cluster`
   // - `static_jwks`
+  // - `oidc`
   // If unset, this defaults to `in_cluster`.
   string Type = 2 [
     (gogoproto.jsontag) = "type,omitempty",
@@ -1714,6 +1766,8 @@ message ProvisionTokenSpecV2Kubernetes {
   ];
   // StaticJWKS is the configuration specific to the `static_jwks` type.
   StaticJWKSConfig StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
+  // OIDCConfig configures the `oidc` type.
+  OIDCConfig OIDC = 4 [(gogoproto.jsontag) = "oidc,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the
@@ -2203,9 +2257,9 @@ message ClusterNetworkingConfigSpecV2 {
   // missed before the server disconnects the connection to the client.
   int64 KeepAliveCountMax = 3 [(gogoproto.jsontag) = "keep_alive_count_max"];
 
-  // SessionControlTimeout is the session control lease expiry and defines
-  // the upper limit of how long a node may be out of contact with the auth
-  // server before it begins terminating controlled sessions.
+  // SessionControlTimeout is the session control lease expiry and defines the
+  // upper limit of how long a node may be out of contact with the Auth Service
+  // before it begins terminating controlled sessions.
   int64 SessionControlTimeout = 4 [
     (gogoproto.jsontag) = "session_control_timeout",
     (gogoproto.casttype) = "Duration"
@@ -2559,6 +2613,8 @@ message DeviceTrust {
   //   endpoints.
   // - "required": enforces the presence of device extensions for sensitive
   //   endpoints.
+  // - "required-for-humans": enforces the presence of device extensions for
+  //   sensitive endpoints, for human users only (bots are exempt).
   //
   // Mode is always "off" for OSS.
   // Defaults to "optional" for Enterprise.
@@ -5095,6 +5151,10 @@ message OIDCConnectorSpecV3 {
   SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
   // MFASettings contains settings to enable SSO MFA checks through this auth connector.
   OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
+  // RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization
+  // requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
+  // for authorization request parameters.
+  string RequestObjectMode = 22 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards

@@ -2,6 +2,9 @@
 title: Reference for the teleport_login_rule Terraform resource
 sidebar_label: login_rule
 description: This page describes the supported values of the teleport_login_rule resource of the Teleport Terraform provider.
+labels:
+ - reference
+ - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -24,6 +27,8 @@ resource "teleport_login_rule" "example" {
 
   version  = "v1"
   priority = 0
+
+  # Either traits_map or traits_expression must be provided, but not both.
   traits_map = {
     "logins" = {
       values = [
@@ -37,6 +42,12 @@ resource "teleport_login_rule" "example" {
       ]
     }
   }
+  #   # This traits_expression is functionally equivalent to the traits_map above.
+  #   traits_expression = <<EOF
+  # dict(
+  #   pair("logins", union(external.logins, external.username))
+  #   pair("groups", external.groups))
+  # EOF
 }
 ```
 

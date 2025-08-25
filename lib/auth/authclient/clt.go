@@ -85,7 +85,7 @@ var (
 	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 	// complete the challenge with.
 	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "MFA is required to access this resource but user has no MFA devices; see Account Settings in the Web UI or use 'tsh mfa add' to register MFA devices",
+		Message: "Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device",
 	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
@@ -307,6 +307,15 @@ func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.Rever
 // DeleteAllTokens not implemented: can only be called locally.
 func (c *Client) DeleteAllTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// PatchToken not implemented: can only be called locally
+func (c *Client) PatchToken(
+	ctx context.Context,
+	token string,
+	updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+) (types.ProvisionToken, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // AddUserLoginAttempt logs user login attempt
@@ -1229,9 +1238,20 @@ type ProvisioningService interface {
 	// CreateToken creates a new provision token for the auth server
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
 
+	// PatchToken performs a conditional update on the named token using
+	// `updateFn`, retrying internally if a comparison failure occurs.
+	PatchToken(
+		ctx context.Context,
+		token string,
+		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+	) (types.ProvisionToken, error)
+
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+
+	// ListProvisionTokens retrieves a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 type ValidateTrustedClusterRequest struct {
@@ -1596,7 +1616,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Databases
 	services.DatabaseServices
 	services.Kubernetes
@@ -1620,6 +1640,8 @@ type ClientI interface {
 	types.WebTokensGetter
 
 	DynamicDesktopClient() *dynamicwindows.Client
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient

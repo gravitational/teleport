@@ -3,6 +3,9 @@ title: Run a Self-Hosted Demo Cluster
 description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
 videoBanner: BJWbSqiDLeU
 tocDepth: 3
+labels:
+ - get-started
+ - platform-wide
 ---
 
 See how a self-hosted Teleport deployment works by completing the tutorial
@@ -15,10 +18,10 @@ You can also get started right away with a production-ready Teleport cluster by
 signing up for a [free trial of Teleport Enterprise
 Cloud](https://goteleport.com/signup/).
 
-![Architecture of the setup you will complete in this
-guide](../img/linux-server-diagram.png)
+## How it works
 
-We will run the following Teleport services:
+In this guide, we show you how to run the following Teleport services on a
+single Linux server:
 
 - **Teleport Auth Service:** The certificate authority for your cluster. It
   issues certificates and conducts authentication challenges. The Auth Service
@@ -29,6 +32,9 @@ We will run the following Teleport services:
 - **Teleport SSH Service:** An SSH server implementation that takes advantage of
   Teleport's short-lived certificates, sophisticated RBAC, session recording,
   and other features.
+
+![Architecture of the setup you will complete in this
+guide](../img/linux-server-diagram.png)
 
 ## Prerequisites
 

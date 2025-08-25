@@ -25,19 +25,24 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"io"
 	"log/slog"
+	"maps"
+	"math/big"
+	"slices"
+	"time"
 
 	kms "cloud.google.com/go/kms/apiv1"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -377,6 +382,35 @@ func sshSignerFromCryptoSigner(cryptoSigner crypto.Signer) (ssh.Signer, error) {
 	}
 }
 
+var ErrUnusableKey = errors.New("unable to sign with requested key")
+
+// TLSSigner returns a crypto.Signer for the given TLSKeyPair.
+// It returns ErrUnusableKey if unable to create a signer from the given keypair,
+// e.g. if it is stored in an HSM or KMS this auth service is not configured to use.
+func (m *Manager) TLSSigner(ctx context.Context, keypair *types.TLSKeyPair) (crypto.Signer, error) {
+	for _, backend := range m.usableSigningBackends {
+		canUse, err := backend.canSignWithKey(ctx, keypair.Key, keypair.KeyType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !canUse {
+			continue
+		}
+		pub, err := publicKeyFromTLSCertPem(keypair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signer, err := backend.getSigner(ctx, keypair.Key, pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: backend.name()}, nil
+	}
+
+	return nil, ErrUnusableKey
+}
+
 // GetTLSCertAndSigner selects a usable TLS keypair from the given CA
 // and returns the PEM-encoded TLS certificate and a [crypto.Signer].
 func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {
@@ -520,15 +554,41 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	certificate, err := tlsca.ParseCertificatePEM(tlsCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	crl, err := GenerateCRL(certificate, signer)
+	if err != nil {
+		return nil, err
+	}
 	return &types.TLSKeyPair{
 		Cert:    tlsCert,
 		Key:     tlsKey,
 		KeyType: keyType(tlsKey),
+		CRL:     crl,
 	}, nil
 }
 
-// New JWTKeyPair create a new JWT keypair in the keystore backend and returns
-// it.
+// GenerateCRL generates an empty x509 certificate revocation list.
+func GenerateCRL(caCert *x509.Certificate, signer crypto.Signer) ([]byte, error) {
+	revocationList := &x509.RevocationList{
+		Number:     big.NewInt(1),
+		ThisUpdate: time.Now().Add(-1 * time.Minute), // 1 min in the past to account for clock skew.
+
+		// Note the 10 year expiration date. CRLs are always empty, so they don't need to change frequently.
+		NextUpdate: time.Now().Add(10 * 365 * 24 * time.Hour),
+	}
+	crl, err := x509.CreateRevocationList(rand.Reader, revocationList, caCert, signer)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating CRL")
+	}
+	return crl, nil
+}
+
+// NewJWTKeyPair create a new JWT keypair in the keystore backend and returns it.
 func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error) {
 	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
 	if err != nil {
@@ -669,7 +729,7 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 		}
 		caKeyTypes[desc] = struct{}{}
 	}
-	result.CAKeyTypes = maps.Keys(caKeyTypes)
+	result.CAKeyTypes = slices.Collect(maps.Keys(caKeyTypes))
 	return result, nil
 }
 

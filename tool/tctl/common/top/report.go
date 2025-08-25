@@ -18,21 +18,16 @@ package top
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"iter"
 	"math"
-	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -375,20 +370,6 @@ type Bucket struct {
 	Count int64
 	// UpperBound is an upper bound of the bucket
 	UpperBound float64
-}
-
-func fetchAndGenerateReport(ctx context.Context, client *roundtrip.Client, prev *Report, period time.Duration) (*Report, error) {
-	re, err := client.Get(ctx, client.Endpoint("metrics"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(trace.ConvertSystemError(err))
-	}
-
-	var parser expfmt.TextParser
-	metrics, err := parser.TextToMetricFamilies(re.Reader())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return generateReport(metrics, prev, period)
 }
 
 func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period time.Duration) (*Report, error) {

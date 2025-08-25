@@ -41,7 +41,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -72,7 +72,7 @@ func TestCreateBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botCreator, _, err := auth.CreateUserAndRole(
+	botCreator, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-creator",
 		[]string{},
@@ -83,7 +83,7 @@ func TestCreateBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	botCreatorWhere, _, err := auth.CreateUserAndRole(
+	botCreatorWhere, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-creator-where",
 		[]string{},
@@ -95,16 +95,16 @@ func TestCreateBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(
+	testRole, err := authtest.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(
+	unprivilegedUser, err := authtest.CreateUser(
 		ctx, srv.Auth(), "no-perms", testRole,
 	)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(
 		ctx,
@@ -595,7 +595,7 @@ func TestCreateBot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			bot, err := client.BotServiceClient().CreateBot(ctx, tt.req)
@@ -638,22 +638,22 @@ func TestUpdateBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botUpdaterUser, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-updater", []string{}, []types.Rule{
+	botUpdaterUser, _, err := authtest.CreateUserAndRole(srv.Auth(), "bot-updater", []string{}, []types.Rule{
 		{
 			Resources: []string{types.KindBot},
 			Verbs:     []string{types.VerbUpdate},
 		},
 	})
 	require.NoError(t, err)
-	beforeRole, err := auth.CreateRole(ctx, srv.Auth(), "before-role", types.RoleSpecV6{})
+	beforeRole, err := authtest.CreateRole(ctx, srv.Auth(), "before-role", types.RoleSpecV6{})
 	require.NoError(t, err)
-	afterRole, err := auth.CreateRole(ctx, srv.Auth(), "after-role", types.RoleSpecV6{})
+	afterRole, err := authtest.CreateRole(ctx, srv.Auth(), "after-role", types.RoleSpecV6{})
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(ctx, srv.Auth(), "no-perms", beforeRole)
+	unprivilegedUser, err := authtest.CreateUser(ctx, srv.Auth(), "no-perms", beforeRole)
 	require.NoError(t, err)
 
 	// Create a pre-existing bot so we can check you can update an existing bot.
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
@@ -978,7 +978,7 @@ func TestUpdateBot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			bot, err := client.BotServiceClient().UpdateBot(ctx, tt.req)
@@ -1031,14 +1031,14 @@ func TestUpsertBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botCreator, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-creator", []string{}, []types.Rule{
+	botCreator, _, err := authtest.CreateUserAndRole(srv.Auth(), "bot-creator", []string{}, []types.Rule{
 		{
 			Resources: []string{types.KindBot},
 			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
 		},
 	})
 	require.NoError(t, err)
-	botWhereCreator, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-where-creator", []string{}, []types.Rule{
+	botWhereCreator, _, err := authtest.CreateUserAndRole(srv.Auth(), "bot-where-creator", []string{}, []types.Rule{
 		{
 			Resources: []string{types.KindBot},
 			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
@@ -1046,13 +1046,13 @@ func TestUpsertBot(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(ctx, srv.Auth(), "test-role", types.RoleSpecV6{})
+	testRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-role", types.RoleSpecV6{})
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(ctx, srv.Auth(), "no-perms", testRole)
+	unprivilegedUser, err := authtest.CreateUser(ctx, srv.Auth(), "no-perms", testRole)
 	require.NoError(t, err)
 
 	// Create a pre-existing bot so we can check you can upsert over an existing bot.
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
@@ -1576,7 +1576,7 @@ func TestUpsertBot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			bot, err := client.BotServiceClient().UpsertBot(ctx, tt.req)
@@ -1618,7 +1618,7 @@ func TestGetBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botGetterUser, _, err := auth.CreateUserAndRole(
+	botGetterUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-getter",
 		[]string{},
@@ -1629,7 +1629,7 @@ func TestGetBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	botGetterWhereUser, _, err := auth.CreateUserAndRole(
+	botGetterWhereUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-getter-where",
 		[]string{},
@@ -1641,16 +1641,16 @@ func TestGetBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(
+	testRole, err := authtest.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(
+	unprivilegedUser, err := authtest.CreateUser(
 		ctx, srv.Auth(), "no-perms", testRole,
 	)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(
 		ctx,
@@ -1760,7 +1760,7 @@ func TestGetBot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			bot, err := client.BotServiceClient().GetBot(ctx, tt.req)
@@ -1779,7 +1779,7 @@ func TestListBots(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botListerUser, _, err := auth.CreateUserAndRole(
+	botListerUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-lister",
 		[]string{},
@@ -1790,7 +1790,7 @@ func TestListBots(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	botListWhereUser, _, err := auth.CreateUserAndRole(
+	botListWhereUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-lister-where",
 		[]string{},
@@ -1802,16 +1802,16 @@ func TestListBots(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(
+	testRole, err := authtest.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(
+	unprivilegedUser, err := authtest.CreateUser(
 		ctx, srv.Auth(), "no-perms", testRole,
 	)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(
 		ctx,
@@ -1908,7 +1908,7 @@ func TestListBots(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			res, err := client.BotServiceClient().ListBots(ctx, tt.req)
@@ -1934,7 +1934,7 @@ func TestDeleteBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botDeleterUser, _, err := auth.CreateUserAndRole(
+	botDeleterUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-deleter",
 		[]string{},
@@ -1945,7 +1945,7 @@ func TestDeleteBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	botWhereDeleterUser, _, err := auth.CreateUserAndRole(
+	botWhereDeleterUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-deleter-where",
 		[]string{},
@@ -1957,27 +1957,27 @@ func TestDeleteBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(
+	testRole, err := authtest.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(
+	unprivilegedUser, err := authtest.CreateUser(
 		ctx, srv.Auth(), "no-perms", testRole,
 	)
 	require.NoError(t, err)
 
 	// Create a user/role with a bot-like name but that isn't a bot to ensure we
 	// don't delete it
-	_, err = auth.CreateUser(
+	_, err = authtest.CreateUser(
 		ctx, srv.Auth(), "bot-not-bot", testRole,
 	)
 	require.NoError(t, err)
-	_, err = auth.CreateRole(
+	_, err = authtest.CreateRole(
 		ctx, srv.Auth(), "bot-not-bot", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(
 		ctx,
@@ -2123,7 +2123,7 @@ func TestDeleteBot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			_, err = client.BotServiceClient().DeleteBot(ctx, tt.req)
@@ -2138,15 +2138,15 @@ func TestDeleteBot(t *testing.T) {
 	}
 }
 
-func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
-	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+func newTestTLSServer(t testing.TB) (*authtest.TLSServer, *eventstest.MockRecorderEmitter) {
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
 
 	emitter := &eventstest.MockRecorderEmitter{}
-	srv, err := as.NewTestTLSServer(func(config *auth.TestTLSServerConfig) {
+	srv, err := as.NewTestTLSServer(func(config *authtest.TLSServerConfig) {
 		config.APIConfig.Emitter = emitter
 	})
 	require.NoError(t, err)

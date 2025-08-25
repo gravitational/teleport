@@ -2,7 +2,7 @@ ARG BUILDBOX
 ARG BASE_IMAGE=gcr.io/distroless/static-debian12
 
 # BUILDPLATFORM is provided by Docker/buildx
-FROM --platform=$BUILDPLATFORM $BUILDBOX as builder
+FROM --platform=$BUILDPLATFORM $BUILDBOX AS builder
 
 WORKDIR /go/src/github.com/gravitational/teleport/integrations/kube-agent-updater
 

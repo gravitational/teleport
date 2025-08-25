@@ -69,7 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -381,7 +381,7 @@ func TestWithRsync(t *testing.T) {
 					if !assert.NoError(t, err) {
 						return
 					}
-					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+					sshCert, tlsCert, err := asrv.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 						SSHPubKey:      sshPubKey,
 						TLSPubKey:      tlsPubKey,
 						Username:       s.user.GetName(),
@@ -609,7 +609,7 @@ func TestProxySSHJumpHost(t *testing.T) {
 				rootServerOpts := []testserver.TestServerOptFunc{
 					testserver.WithBootstrap(connector, accessUser),
 					testserver.WithHostname("node01"),
-					testserver.WithClusterName(t, "root"),
+					testserver.WithClusterName("root"),
 					testserver.WithAuthConfig(
 						func(cfg *servicecfg.AuthConfig) {
 							cfg.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
@@ -618,20 +618,30 @@ func TestProxySSHJumpHost(t *testing.T) {
 						},
 					),
 				}
-				rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+				rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, rootServer.Close())
+					require.NoError(t, rootServer.Wait())
+				})
 
 				leafServerOpts := []testserver.TestServerOptFunc{
 					testserver.WithBootstrap(accessUser),
 					testserver.WithHostname("node02"),
-					testserver.WithClusterName(t, "leaf"),
+					testserver.WithClusterName("leaf"),
 					testserver.WithAuthConfig(
 						func(cfg *servicecfg.AuthConfig) {
 							cfg.NetworkingConfig.SetProxyListenerMode(leafListenerMode)
 						},
 					),
 				}
-				leafServer := testserver.MakeTestServer(t, leafServerOpts...)
-				testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+				leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, leafServer.Close())
+					require.NoError(t, leafServer.Wait())
+				})
+				SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 				rootProxyAddr, err := rootServer.ProxyWebAddr()
 				require.NoError(t, err)
@@ -973,21 +983,19 @@ func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
 	require.True(t, ok)
 
-	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(keyring), nil
-	})
+	agentServer := sshagent.NewServer(sshagent.NewStaticClientGetter(keyring))
 
 	// Start the SSH agent.
-	err := teleAgent.ListenUnixSocket(sockDir, sockName, nil)
+	err := agentServer.ListenUnixSocket(sockDir, sockName, nil)
 	require.NoError(t, err)
-	go teleAgent.Serve()
+	go agentServer.Serve()
 	t.Cleanup(func() {
-		teleAgent.Close()
+		agentServer.Close()
 	})
 
-	t.Setenv(teleport.SSHAuthSock, teleAgent.Path)
+	t.Setenv(teleport.SSHAuthSock, agentServer.Path)
 
-	return keyring, teleAgent.Path
+	return keyring, agentServer.Path
 }
 
 func disableAgent(t *testing.T) {
@@ -1000,7 +1008,7 @@ func (s *suite) setMockSSOLogin(t *testing.T) CliOption {
 }
 
 // deprecated: Use mustLogin instead which requires migrating from newTestSuite to
-// tools/teleport/testenv.MakeTestServer.
+// tools/teleport/testenv.NewTeleportProcess.
 func mustLoginLegacy(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
 	tshHome = t.TempDir()
 	kubeConfig = filepath.Join(t.TempDir(), teleport.KubeConfigFile)
@@ -1022,7 +1030,7 @@ func mustLoginLegacy(t *testing.T, s *suite, args ...string) (tshHome, kubeConfi
 // login with new temp tshHome and set it in Env. This is useful
 // when running "ssh" commands with a tsh "ProxyCommand".
 // deprecated: Create a new helper that depends on mustLogin instead which requires migrating from
-// newTestSuite to tools/teleport/testenv.MakeTestServer.
+// newTestSuite to tools/teleport/testenv.NewTeleportProcess.
 func mustLoginSetEnvLegacy(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
 	tshHome, kubeConfig = mustLoginLegacy(t, s, args...)
 	t.Setenv(types.HomeEnvVar, tshHome)
@@ -1482,14 +1490,22 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		userName    = "admin"
 	)
 
+	appServer := testserver.StartDummyHTTPServer(appName)
+	t.Cleanup(appServer.Close)
+
 	rootServerOpts := []testserver.TestServerOptFunc{
-		testserver.WithClusterName(t, clusterName),
-		testserver.WithTestApp(t, appName),
+		testserver.WithClusterName(clusterName),
+		testserver.WithTestApp(appName, appServer.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	process := testserver.MakeTestServer(t, rootServerOpts...)
+	process, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	authServer := process.GetAuthServer()
 
 	// create admin role and user.
@@ -1544,7 +1560,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	// make other auth API calls beyond just accessing the app.
 	tlsPub, err := privateKey.MarshalTLSPublicKey()
 	require.NoError(t, err)
-	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+	sshCert, tlsCert, err := authServer.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 		SSHPubKey:      privateKey.MarshalSSHPublicKey(),
 		TLSPubKey:      tlsPub,
 		Username:       userName,
@@ -1627,7 +1643,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 	connector := mockConnector(t)
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, user),
-		testserver.WithClusterName(t, clusterName),
+		testserver.WithClusterName(clusterName),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Apps = servicecfg.AppsConfig{
@@ -1643,7 +1659,12 @@ func TestProxyAppMultiPort(t *testing.T) {
 			}
 		}),
 	}
-	process := testserver.MakeTestServer(t, rootServerOpts...)
+	process, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	tshHome, _ := mustLogin(t, process, user, connector.GetName())
 

@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -851,7 +851,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 	s.logger.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
 	// request user agent connection if a SSH user agent is set
-	var userAgent teleagent.Agent
+	var userAgent sshagent.Client
 	if params.GetUserAgent != nil {
 		ua, err := params.GetUserAgent()
 		if err != nil {
@@ -976,11 +976,10 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 	if err == nil {
 		// Return the appropriate message if the user is trying to connect to a
 		// cluster or a node.
-		message := fmt.Sprintf("cluster %v is offline", s.GetName())
 		if req.Address != constants.RemoteAuthServer {
-			message = fmt.Sprintf("node %v is offline", req.Address)
+			return nil, trace.ConnectionProblem(nil, "node %v is offline", req.Address)
 		}
-		err = trace.ConnectionProblem(nil, message)
+		return nil, trace.ConnectionProblem(nil, "cluster %v is offline", s.GetName())
 	}
 	return nil, err
 }

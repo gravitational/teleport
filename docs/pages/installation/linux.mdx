@@ -1,6 +1,9 @@
 ---
 title: Installing Teleport on Linux
 description: How to install Teleport on Linux using our package repositories, TAR archives, or our one-line installation script for various distributions.
+labels:
+- reference
+- platform-wide
 ---
 
 Teleport maintains DEB and RPM package repositories for different operating
@@ -25,7 +28,7 @@ archives containing Teleport binaries.
 
 If you are starting out with Teleport, we recommend beginning with a [Teleport Cloud](https://goteleport.com/signup/) account. From there, the only Teleport components you need to deploy yourself are Teleport Agents, which is discussed in the [next section](#installing-teleport-as-an-agent).
 
-If you are self-hosting a Teleport cluster, please take a look at our [Linux Demo](../linux-demo.mdx) for the Teleport Community Edition or our [Self-Hosting Teleport](../admin-guides/deploy-a-cluster/deploy-a-cluster.mdx) section in the docs for more information on Teleport Enterprise Self-Hosted.
+If you are self-hosting a Teleport cluster, please take a look at our [Linux Demo](../linux-demo.mdx) for the Teleport Community Edition or our [Self-Hosting Teleport](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) section in the docs for more information on Teleport Enterprise Self-Hosted.
 
 <Tabs>
 <TabItem label="Teleport Enterprise Cloud (Managed)">
@@ -72,7 +75,7 @@ The above methods for installing Teleport on a Linux server do not generate a Te
 See the following guides for help setting up a configuration file:
 
 - [Teleport Configuration Reference](../reference/config.mdx): This will provide you with the command you need to generate and populate the `/etc/config.yaml` file as well as further configuration options for your cluster.
-- [Self-Hosted Demo Cluster](../admin-guides/deploy-a-cluster/deploy-a-cluster.mdx): If you are deploying the Teleport Auth Service and Proxy Service, read this guide for an example of a configuration file.
+- [Self-Hosted Demo Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx): If you are deploying the Teleport Auth Service and Proxy Service, read this guide for an example of a configuration file.
 
 ## Installing Teleport as an agent
 
@@ -89,7 +92,7 @@ Outside of the WebUI, you can run our one-line cluster install script on your Li
    $ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
    ```
 
-You can also use the example Terraform module for deploying agents in [Deploy Agents with Terraform](../admin-guides/infrastructure-as-code/terraform-starter/enroll-resources.mdx).
+You can also use the example Terraform module for deploying agents in [Deploy Agents with Terraform](../zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources.mdx).
 
 ### Agent configuration
 
@@ -101,7 +104,7 @@ See the following guides for examples of setting up a configuration file:
   up Teleport Agents in order to enroll infrastructure resources in your cluster. These
   guides include examples of setting up Teleport configuration files.
 - [Self-Hosted Demo
-  Cluster](../admin-guides/deploy-a-cluster/deploy-a-cluster.mdx): If you are
+  Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx): If you are
   deploying the Teleport Auth Service and Proxy Service, read this guide for an
   example of a configuration file.
 - [Teleport Configuration Reference](../reference/config.mdx): A guide to all
@@ -393,10 +396,10 @@ script](#one-line-installation-script).
    <TabItem label="TAR">
 
    ```code
-   $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
-   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
    $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
-   $ shasum --check -a 256 ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
+   $ shasum --check --algorithm 256 < ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
+   # ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz: OK
    $ tar -xvf ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
    $ cd ${TELEPORT_PKG?}
    $ sudo ./teleport-update enable --proxy example.teleport.sh # or sudo ./install for static installation
@@ -405,10 +408,10 @@ script](#one-line-installation-script).
    <TabItem label="DEB">
 
    ```code
-   $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb.sha256
-   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb.sha256
    $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
-   $ shasum --check -a 256 ${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
+   $ shasum --check --algorithm 256 < ${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb.sha256
+   # ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}.deb: OK
    $ sudo dpkg -i ${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
    $ sudo teleport-update enable --proxy example.teleport.sh # enable Managed Updates
    ```
@@ -417,9 +420,10 @@ script](#one-line-installation-script).
    <TabItem label="RPM">
 
    ```code
-   $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm.sha256
-   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm.sha256
    $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
+   $ shasum --check --algorithm 256 < ${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm.sha256
+   # ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.deb: OK
    $ shasum --check -a 256 https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
    # Or use yum localinstall, dnf localinstall etc.
    $ sudo rpm -i https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
@@ -436,10 +440,10 @@ script](#one-line-installation-script).
    <TabItem label="TAR">
 
    ```code
-   $ curl https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz.sha256
-   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz.sha256
    $ curl -O https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
-   $ shasum --check -a 256 teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
+   $ shasum --check --algorithm 256 < teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz.sha256
+   # teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz: OK
    $ tar -xvf teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
    $ cd teleport-ent
    $ sudo ./teleport-update enable --proxy example.teleport.sh # or sudo ./install for static installation
@@ -451,10 +455,10 @@ script](#one-line-installation-script).
    architectures.
 
    ```code
-   $ curl https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb.sha256
-   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb.sha256
    $ curl -O https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
-   $ shasum --check -a 256 teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
+   $ shasum --check --algorithm 256 < teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb.sha256
+   # teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb: OK
    $ sudo dpkg -i teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
    $ sudo teleport-update enable --proxy example.teleport.sh # enable Managed Updates
    ```
@@ -466,10 +470,9 @@ script](#one-line-installation-script).
    architectures.
 
    ```code
-   $ curl https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm.sha256
-   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm.sha256
    $ curl -O https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm
-   $ shasum --check -a 256 https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm
+   $ shasum --check --algorithm 256 < teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm.sha256
    # Or use yum localinstall, dnf localinstall etc.
    $ sudo rpm -i https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm
    $ sudo teleport-update enable --proxy example.teleport.sh # enable Managed Updates
@@ -488,4 +491,4 @@ On cloud-hosted Teleport Enterprise you can visit a download page in the Web UI.
 in the upper right and select Downloads from the menu.
 
 Customers who self-host Teleport Enterprise can access Enterprise downloads and their license
-file from their [dedicated account dashboard](../admin-guides/deploy-a-cluster/license.mdx).
+file from their [dedicated account dashboard](../zero-trust-access/deploy-a-cluster/license.mdx).

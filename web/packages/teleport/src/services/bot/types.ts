@@ -70,6 +70,7 @@ export type BotInstanceSummary = {
   host_name_latest?: string;
   version_latest?: string;
   active_at_latest?: string;
+  os_latest?: string;
 };
 
 export type GetBotInstanceResponse = {
@@ -125,5 +126,9 @@ export enum BotUiFlow {
 }
 export type EditBotRequest = {
   // roles is the list of roles to assign to the bot
-  roles: string[];
+  roles?: string[] | null;
+  // traits is the list of traits to assign to the bot
+  traits?: ApiBotTrait[] | null;
+  // max_session_ttl is the maximum session TTL
+  max_session_ttl?: string | null;
 };

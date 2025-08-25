@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"crypto/rand"
@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -81,7 +82,7 @@ func TestProcessKubeCSR(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got: %v", err)
 
 	// Create the user and allow it to request the additional role.
-	_, err = CreateUserRoleAndRequestable(s.a, username, roleB)
+	_, err = authtest.CreateUserRoleAndRequestable(s.a, username, roleB)
 	require.NoError(t, err)
 
 	// CSR with allowed, known roles.

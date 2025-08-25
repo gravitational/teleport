@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/event-handler
 
-go 1.23.11
+go 1.24.6
 
 require (
 	github.com/alecthomas/kong v1.2.1
@@ -50,8 +50,9 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.3.2 // indirect
-	github.com/BurntSushi/toml v1.4.0 // indirect
+	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
+	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
@@ -144,12 +145,14 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
+	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
+	github.com/go-ldap/ldap/v3 v3.4.11 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
 	github.com/go-openapi/errors v0.22.0 // indirect
@@ -161,7 +164,7 @@ require (
 	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
-	github.com/go-piv/piv-go/v2 v2.3.0 // indirect
+	github.com/go-piv/piv-go/v2 v2.4.0 // indirect
 	github.com/go-webauthn/webauthn v0.11.2 // indirect
 	github.com/go-webauthn/x v0.1.14 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
@@ -339,14 +342,14 @@ require (
 	go.opentelemetry.io/proto/otlp v1.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
-	golang.org/x/mod v0.23.0 // indirect
+	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/oauth2 v0.29.0 // indirect
-	golang.org/x/sync v0.13.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/term v0.30.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/sync v0.15.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
+	golang.org/x/text v0.26.0 // indirect
 	google.golang.org/api v0.224.0 // indirect
 	google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect

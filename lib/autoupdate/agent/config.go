@@ -34,6 +34,11 @@ import (
 )
 
 const (
+	// defaultSetting is used to represent the default value for updater config.
+	defaultSetting = "default"
+)
+
+const (
 	// updateConfigName specifies the name of the file inside versionsDirName containing configuration for the teleport update.
 	updateConfigName = "update.yaml"
 
@@ -43,6 +48,7 @@ const (
 )
 
 // UpdateConfig describes the update.yaml file schema.
+// Pointer values should be replaced and not mutated, see Copy.
 type UpdateConfig struct {
 	// Version of the configuration file
 	Version string `yaml:"version"`
@@ -54,7 +60,16 @@ type UpdateConfig struct {
 	Status UpdateStatus `yaml:"status"`
 }
 
+// Copy an UpdateConfig. Pointers are not copied.
+func (cfg *UpdateConfig) Copy() *UpdateConfig {
+	if cfg == nil {
+		return &UpdateConfig{}
+	}
+	return toPtr(*cfg)
+}
+
 // UpdateSpec describes the spec field in update.yaml.
+// Pointer values should be replaced and not mutated, see Copy.
 type UpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
@@ -71,6 +86,7 @@ type UpdateSpec struct {
 }
 
 // UpdateStatus describes the status field in update.yaml.
+// Pointer values should be replaced and not mutated, see Copy.
 type UpdateStatus struct {
 	// IDFile is the path to a temporary file containing the updater ID.
 	IDFile string `yaml:"id_file,omitempty"`
@@ -202,7 +218,7 @@ func writeConfig(filename string, cfg *UpdateConfig) error {
 	}))
 }
 
-func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
+func updateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Proxy != "" {
 		spec.Proxy = override.Proxy
 	}
@@ -228,7 +244,7 @@ func overrideOptional(orig, override string) string {
 	switch override {
 	case "":
 		return orig
-	case "default":
+	case defaultSetting:
 		return ""
 	default:
 		return override

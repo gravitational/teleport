@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"bytes"
@@ -45,6 +45,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -209,7 +211,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			m := &Middleware{
+			m := &auth.Middleware{
 				ClusterName: localClusterName,
 			}
 
@@ -294,7 +296,7 @@ func TestWrapContextWithUser(t *testing.T) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			m := &Middleware{
+			m := &auth.Middleware{
 				ClusterName: clusterName.GetClusterName(),
 			}
 
@@ -588,7 +590,7 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := &Middleware{
+			a := &auth.Middleware{
 				ClusterName: localClusterName,
 				Handler: &fakeHTTPHandler{
 					t:                 t,
@@ -608,8 +610,8 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 			if tt.args.impersonateIdentity != nil {
 				data, err := json.Marshal(tt.args.impersonateIdentity)
 				require.NoError(t, err)
-				r.Header.Set(TeleportImpersonateUserHeader, string(data))
-				r.Header.Set(TeleportImpersonateIPHeader, tt.args.impersonatedIPAddr)
+				r.Header.Set(auth.TeleportImpersonateUserHeader, string(data))
+				r.Header.Set(auth.TeleportImpersonateIPHeader, tt.args.impersonatedIPAddr)
 			}
 			rsp := httptest.NewRecorder()
 			a.ServeHTTP(rsp, r)
@@ -661,8 +663,8 @@ func (h *fakeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	require.Equal(h.t, h.userIP, r.RemoteAddr)
 	// Ensure that the Teleport-Impersonate-User header is not set on the request
 	// after the middleware has run.
-	require.Empty(h.t, r.Header.Get(TeleportImpersonateUserHeader))
-	require.Empty(h.t, r.Header.Get(TeleportImpersonateIPHeader))
+	require.Empty(h.t, r.Header.Get(auth.TeleportImpersonateUserHeader))
+	require.Empty(h.t, r.Header.Get(auth.TeleportImpersonateIPHeader))
 }
 
 type fakeConn struct {
@@ -685,27 +687,27 @@ func (f *fakeConn) RemoteAddr() net.Addr {
 func TestValidateClientVersion(t *testing.T) {
 	cases := []struct {
 		name          string
-		middleware    *Middleware
+		middleware    *auth.Middleware
 		clientVersion string
 		errAssertion  func(t *testing.T, err error)
 	}{
 		{
 			name:       "rejection disabled",
-			middleware: &Middleware{},
+			middleware: &auth.Middleware{},
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
 		},
 		{
 			name:       "rejection enabled and client version not specified",
-			middleware: &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			middleware: &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
 		},
 		{
 			name:          "client rejected",
-			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			middleware:    &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			clientVersion: semver.Version{Major: api.VersionMajor - 2}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
@@ -713,7 +715,7 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:          "valid client v-1",
-			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			middleware:    &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			clientVersion: semver.Version{Major: api.VersionMajor - 1}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
@@ -721,7 +723,7 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:          "valid client v-0",
-			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			middleware:    &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			clientVersion: semver.Version{Major: api.VersionMajor}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
@@ -729,7 +731,7 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:          "invalid client version",
-			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			middleware:    &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			clientVersion: "abc123",
 			errAssertion: func(t *testing.T, err error) {
 				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
@@ -737,7 +739,7 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:          "pre-release client allowed",
-			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			middleware:    &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			clientVersion: semver.Version{Major: api.VersionMajor - 1, PreRelease: "dev.abcd.123"}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
@@ -745,7 +747,7 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:          "pre-release client rejected",
-			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			middleware:    &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			clientVersion: semver.Version{Major: api.VersionMajor - 2, PreRelease: "dev.abcd.123"}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
@@ -760,14 +762,14 @@ func TestValidateClientVersion(t *testing.T) {
 				ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{"version": tt.clientVersion}))
 			}
 
-			tt.errAssertion(t, tt.middleware.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I}))
+			tt.errAssertion(t, tt.middleware.ValidateClientVersion(ctx, auth.IdentityInfo{Conn: &fakeConn{}, IdentityGetter: authtest.TestBuiltin(types.RoleNode).I}))
 		})
 	}
 }
 
 func TestRejectedClientClusterAlertContents(t *testing.T) {
 	var alerts []types.ClusterAlert
-	mw := Middleware{
+	mw := auth.Middleware{
 		OldestSupportedVersion: teleport.MinClientSemVer(),
 		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
 			alerts = append(alerts, a)
@@ -791,13 +793,13 @@ func TestRejectedClientClusterAlertContents(t *testing.T) {
 	}{
 		{
 			name:     "invalid node",
-			identity: TestServerID(types.RoleNode, "1-2-3-4").I,
+			identity: authtest.TestServerID(types.RoleNode, "1-2-3-4").I,
 			expected: fmt.Sprintf("Connection from Node 1-2-3-4 at 127.0.0.1:6514, running an unsupported version of v%s was rejected. Connections will be allowed after upgrading the agent to v%s or newer", version, alertVersion),
 		},
 		{
 			name:      "invalid tsh",
 			userAgent: "tsh/" + teleport.Version,
-			identity:  TestUser("llama").I,
+			identity:  authtest.TestUser("llama").I,
 			expected:  fmt.Sprintf("Connection from tsh v%s by llama was rejected. Connections will be allowed after upgrading tsh to v%s or newer", version, alertVersion),
 		},
 		{
@@ -815,7 +817,7 @@ func TestRejectedClientClusterAlertContents(t *testing.T) {
 
 		{
 			name:     "invalid tool",
-			identity: TestUser("llama").I,
+			identity: authtest.TestUser("llama").I,
 			expected: fmt.Sprintf("Connection from tsh, tctl, tbot, or a plugin running v%s by llama was rejected. Connections will be allowed after upgrading to v%s or newer", version, alertVersion),
 		},
 	}
@@ -829,7 +831,7 @@ func TestRejectedClientClusterAlertContents(t *testing.T) {
 				"user-agent": test.userAgent,
 			}))
 
-			err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: test.identity})
+			err := mw.ValidateClientVersion(ctx, auth.IdentityInfo{Conn: &fakeConn{}, IdentityGetter: test.identity})
 			assert.Error(t, err)
 
 			// Assert that only an alert was created and the content matches expectations.
@@ -842,14 +844,14 @@ func TestRejectedClientClusterAlertContents(t *testing.T) {
 
 			// Reset the last alert time to a time beyond the rate limit, allowing the next
 			// rejection to trigger another alert.
-			mw.lastRejectedAlertTime.Store(time.Now().Add(-25 * time.Hour).UnixNano())
+			mw.SetLastRejectedTime(time.Now().Add(-25 * time.Hour))
 		})
 	}
 }
 
 func TestRejectedClientClusterAlert(t *testing.T) {
 	var alerts []types.ClusterAlert
-	mw := Middleware{
+	mw := auth.Middleware{
 		OldestSupportedVersion: teleport.MinClientSemVer(),
 		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
 			alerts = append(alerts, a)
@@ -861,7 +863,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
 		"version": semver.Version{Major: api.VersionMajor - 20}.String(),
 	}))
-	err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
+	err := mw.ValidateClientVersion(ctx, auth.IdentityInfo{Conn: &fakeConn{}, IdentityGetter: authtest.TestBuiltin(types.RoleNode).I})
 	assert.Error(t, err)
 
 	// Validate a client with an unknown version, which should trigger an alert, however,
@@ -869,7 +871,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 	ctx = metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
 		"version": "abcd",
 	}))
-	err = mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
+	err = mw.ValidateClientVersion(ctx, auth.IdentityInfo{Conn: &fakeConn{}, IdentityGetter: authtest.TestBuiltin(types.RoleNode).I})
 	assert.Error(t, err)
 
 	// Assert that only a single alert was created based on the above rejections.
@@ -885,7 +887,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 
 			// Reset the last alert time to a time beyond the rate limit, allowing the next
 			// rejection to trigger another alert.
-			mw.lastRejectedAlertTime.Store(time.Now().Add(-25 * time.Hour).UnixNano())
+			mw.SetLastRejectedTime(time.Now().Add(-25 * time.Hour))
 
 			// Create a new context with the user-agent set to a client tool. This should alter the
 			// text in the alert to indicate the connection was from a client tool and not an agent.
@@ -901,7 +903,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
+					err := mw.ValidateClientVersion(ctx, auth.IdentityInfo{Conn: &fakeConn{}, IdentityGetter: authtest.TestBuiltin(types.RoleNode).I})
 					assert.Error(t, err)
 				}()
 			}

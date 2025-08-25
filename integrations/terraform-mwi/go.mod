@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform-mwi
 
-go 1.24.4
+go 1.24.6
 
 require (
 	github.com/gravitational/teleport v0.0.0 // replaced
@@ -215,7 +215,7 @@ require (
 	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
-	github.com/go-piv/piv-go/v2 v2.3.0 // indirect
+	github.com/go-piv/piv-go/v2 v2.4.0 // indirect
 	github.com/go-resty/resty/v2 v2.15.3 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
@@ -258,7 +258,7 @@ require (
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
-	github.com/grafana/pyroscope-go v1.2.3-0.20250624101038-0410c20e9693 // indirect
+	github.com/grafana/pyroscope-go v1.2.4 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.8 // indirect
 	github.com/gravitational/license v0.0.0-20240313232707-8312e719d624 // indirect
 	github.com/gravitational/roundtrip v1.0.2 // indirect

@@ -3108,6 +3108,35 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}, nil
 }
 
+// ListProvisionTokens retrieves a paginated list of provision tokens.
+func (g *GRPCServer) ListProvisionTokens(ctx context.Context, req *authpb.ListProvisionTokensRequest) (*authpb.ListProvisionTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := types.NewTeleportRoles(req.FilterRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ts, nextKey, err := auth.ServerWithRoles.ListProvisionTokens(ctx, int(req.Limit), req.StartKey, roles, req.FilterBotName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	provisionTokensV2 := make([]*types.ProvisionTokenV2, len(ts))
+	for i, t := range ts {
+		var ok bool
+		if provisionTokensV2[i], ok = t.(*types.ProvisionTokenV2); !ok {
+			return nil, trace.Errorf("encountered unexpected token type: %T", t)
+		}
+	}
+	return &authpb.ListProvisionTokensResponse{
+		Tokens:  provisionTokensV2,
+		NextKey: nextKey,
+	}, nil
+}
+
 // UpsertTokenV2 upserts a token.
 func (g *GRPCServer) UpsertTokenV2(ctx context.Context, req *authpb.UpsertTokenV2Request) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -3673,6 +3702,32 @@ func (g *GRPCServer) GetApps(ctx context.Context, _ *emptypb.Empty) (*types.AppV
 	return &types.AppV3List{
 		Apps: appsV3,
 	}, nil
+}
+
+// ListApps returns a page of application resources.
+func (g *GRPCServer) ListApps(ctx context.Context, req *authpb.ListAppsRequest) (*authpb.ListAppsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	apps, next, err := auth.ListApps(ctx, int(req.Limit), req.StartKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListAppsResponse{
+		Applications: make([]*types.AppV3, 0, len(apps)),
+		NextKey:      next,
+	}
+
+	for _, app := range apps {
+		appV3, ok := app.(*types.AppV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported application type %T", app)
+		}
+		resp.Applications = append(resp.Applications, appV3)
+	}
+	return resp, nil
 }
 
 // DeleteApp removes the specified application resource.

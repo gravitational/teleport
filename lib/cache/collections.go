@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -49,7 +50,10 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
-	botInstances *collection[*machineidv1.BotInstance, botInstanceIndex]
+	botInstances      *collection[*machineidv1.BotInstance, botInstanceIndex]
+	remoteClusters    *collection[types.RemoteCluster, remoteClusterIndex]
+	plugins           *collection[types.Plugin, pluginIndex]
+	autoUpdateReports *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -87,13 +91,35 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 			out.botInstances = collect
 			out.byKind[resourceKind] = out.botInstances
+		case types.KindAutoUpdateAgentReport:
+			collect, err := newAutoUpdateAgentReportCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateReports = collect
+			out.byKind[resourceKind] = out.autoUpdateReports
+		case types.KindRemoteCluster:
+			collect, err := newRemoteClusterCollection(c.Trust, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.remoteClusters = collect
+			out.byKind[resourceKind] = out.remoteClusters
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
 		default:
 			_, legacyOk := legacyCollections[resourceKind]
 			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 			}
 		}
-
 	}
 
 	return out, nil

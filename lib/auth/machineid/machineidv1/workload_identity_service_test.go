@@ -31,7 +31,7 @@ import (
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 )
@@ -77,14 +77,14 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := auth.CreateUser(
+	authorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
 		role,
 	)
 	require.NoError(t, err)
-	unauthorizedUser, err := auth.CreateUser(
+	unauthorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"unauthorized",
@@ -219,7 +219,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			res, err := client.WorkloadIdentityServiceClient().
@@ -261,14 +261,14 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := auth.CreateUser(
+	authorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
 		role,
 	)
 	require.NoError(t, err)
-	unauthorizedUser, err := auth.CreateUser(
+	unauthorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"unauthorized",
@@ -390,7 +390,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			res, err := client.WorkloadIdentityServiceClient().

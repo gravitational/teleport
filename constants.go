@@ -738,6 +738,14 @@ const (
 	// credentials using any workload_identity resource. This exists to simplify
 	// Day 0 UX experience with workload identity.
 	PresetWildcardWorkloadIdentityIssuerRoleName = "wildcard-workload-identity-issuer"
+
+	// PresetAccessPluginRoleName is a name of a preset role that includes
+	// permissions required by self-hosted access request plugin.
+	PresetAccessPluginRoleName = "access-plugin"
+
+	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
+	// includes permissions to read access request resources.
+	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

@@ -1,4 +1,4 @@
-.version: &version "17.5.5"
+.version: &version "17.7.2"
 
 apiVersion: v2
 name: teleport-plugin-slack

@@ -124,6 +124,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_AutoUpdateAgentRollout{
 				AutoUpdateAgentRollout: r,
 			}
+		case *autoupdate.AutoUpdateAgentReport:
+			out.Resource = &proto.Event_AutoUpdateAgentReport{
+				AutoUpdateAgentReport: r,
+			}
 		case *identitycenterv1.Account:
 			out.Resource = &proto.Event_IdentityCenterAccount{
 				IdentityCenterAccount: r,
@@ -356,6 +360,11 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_PluginStaticCredentials{
 			PluginStaticCredentials: r,
 		}
+	case *types.PluginV1:
+		out.Resource = &proto.Event_Plugin{
+			Plugin: r,
+		}
+
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -607,6 +616,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetAutoUpdateAgentRollout(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetAutoUpdateAgentReport(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetUserTask(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
@@ -630,6 +642,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetWorkloadIdentityX509Revocation(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetPlugin(); r != nil {
+		out.Resource = r
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)

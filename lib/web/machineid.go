@@ -24,6 +24,7 @@ import (
 	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -218,7 +219,9 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 }
 
 // updateBot updates a bot with provided roles. The only supported change via this endpoint today is roles.
-func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+// TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV2
+// MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
+func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	var request updateBotRequest
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
 		return nil, trace.Wrap(err)
@@ -261,6 +264,90 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 
 type updateBotRequest struct {
 	Roles []string `json:"roles"`
+}
+
+// updateBotV2 updates a bot with provided roles, traits and max_session_ttl.
+func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	var request updateBotRequestV2
+	if err := httplib.ReadResourceJSON(r, &request); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	botName := p.ByName("name")
+	if botName == "" {
+		return nil, trace.BadParameter("empty name")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mask, err := fieldmaskpb.New(&machineidv1.Bot{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	spec := machineidv1.BotSpec{}
+
+	if request.Roles != nil {
+		mask.Append(&machineidv1.Bot{}, "spec.roles")
+
+		spec.Roles = request.Roles
+	}
+
+	if request.Traits != nil {
+		mask.Append(&machineidv1.Bot{}, "spec.traits")
+
+		traits := make([]*machineidv1.Trait, len(request.Traits))
+		for i, trait := range request.Traits {
+			traits[i] = &machineidv1.Trait{
+				Name:   trait.Name,
+				Values: trait.Values,
+			}
+		}
+
+		spec.Traits = traits
+	}
+
+	if request.MaxSessionTtl != "" {
+		mask.Append(&machineidv1.Bot{}, "spec.max_session_ttl")
+
+		ttl, err := time.ParseDuration(request.MaxSessionTtl)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		spec.MaxSessionTtl = durationpb.New(ttl)
+	}
+
+	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
+		UpdateMask: mask,
+		Bot: &machineidv1.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: botName,
+			},
+			Spec: &spec,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to find existing bot")
+	}
+
+	return updated, nil
+}
+
+type updateBotRequestV2 struct {
+	Roles         []string                `json:"roles"`
+	Traits        []updateBotRequestTrait `json:"traits"`
+	MaxSessionTtl string                  `json:"max_session_ttl"`
+}
+
+type updateBotRequestTrait struct {
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
 }
 
 // getBotInstance retrieves a bot instance by id
@@ -352,6 +439,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 			uiInstance.HostNameLatest = heartbeat.Hostname
 			uiInstance.VersionLatest = heartbeat.Version
 			uiInstance.ActiveAtLatest = heartbeat.RecordedAt.AsTime().Format(time.RFC3339)
+			uiInstance.OSLatest = heartbeat.Os
 		}
 
 		return uiInstance
@@ -375,4 +463,5 @@ type BotInstance struct {
 	HostNameLatest   string `json:"host_name_latest,omitempty"`
 	VersionLatest    string `json:"version_latest,omitempty"`
 	ActiveAtLatest   string `json:"active_at_latest,omitempty"`
+	OSLatest         string `json:"os_latest,omitempty"`
 }

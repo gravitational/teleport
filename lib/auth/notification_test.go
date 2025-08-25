@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -32,6 +32,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -41,7 +42,7 @@ func TestNotifications(t *testing.T) {
 
 	fakeClock := clockwork.NewFakeClock()
 
-	authServer, err := NewTestAuthServer(TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:          t.TempDir(),
 		Clock:        fakeClock,
 		CacheEnabled: true,
@@ -298,7 +299,7 @@ func TestNotifications(t *testing.T) {
 	}
 
 	// Test fetching notifications for auditor.
-	auditorClient, err := srv.NewClient(TestUser(auditorUsername))
+	auditorClient, err := srv.NewClient(authtest.TestUser(auditorUsername))
 	require.NoError(t, err)
 	defer auditorClient.Close()
 
@@ -397,7 +398,7 @@ func TestNotifications(t *testing.T) {
 	require.Equal(t, auditorExpectedNotifsAfterDismissal, notificationsToTitlesList(t, resp.Notifications))
 
 	// Test fetching notifications for manager.
-	managerClient, err := srv.NewClient(TestUser(managerUsername))
+	managerClient, err := srv.NewClient(authtest.TestUser(managerUsername))
 	require.NoError(t, err)
 	defer managerClient.Close()
 

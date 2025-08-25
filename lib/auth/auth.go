@@ -32,12 +32,13 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"crypto/x509"
+	"encoding/base32"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"math/big"
+	"maps"
 	mathrand "math/rand/v2"
 	"net"
 	"os"
@@ -57,7 +58,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -97,6 +97,7 @@ import (
 	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bitbucket"
+	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -512,7 +513,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
-		Apps:                            cfg.Apps,
+		Applications:                    cfg.Apps,
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
@@ -681,6 +682,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if as.k8sJWKSValidator == nil {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
+	if as.k8sOIDCValidator == nil {
+		as.k8sOIDCValidator = kubetoken.ValidateTokenWithOIDC
+	}
 
 	if as.gcpIDTokenValidator == nil {
 		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
@@ -698,6 +702,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if as.bitbucketIDTokenValidator == nil {
 		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
+	}
+
+	if as.createBoundKeypairValidator == nil {
+		as.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+			return boundkeypair.NewChallengeValidator(subject, clusterName, publicKey)
+		}
 	}
 
 	// Add in a login hook for generating state during user login.
@@ -736,7 +746,7 @@ type Services struct {
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
@@ -1120,6 +1130,9 @@ type Server struct {
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
 	k8sJWKSValidator k8sJWKSValidator
+	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
+	// auth server using a known OIDC endpoint. It can be overridden in tests.
+	k8sOIDCValidator k8sOIDCValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
@@ -1131,6 +1144,10 @@ type Server struct {
 	terraformIDTokenValidator terraformCloudIDTokenValidator
 
 	bitbucketIDTokenValidator bitbucketIDTokenValidator
+
+	// createBoundKeypairValidator is a helper to create new bound keypair
+	// challenge validators. Used to override the implementation used in tests.
+	createBoundKeypairValidator createBoundKeypairValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1427,6 +1444,7 @@ const (
 	upgradeWindowCheckKey
 	roleCountKey
 	accessListReminderNotificationsKey
+	autoUpdateAgentReportKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1515,6 +1533,12 @@ func (a *Server) runPeriodicOperations() {
 			Duration:      10 * time.Minute,
 			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.HalfJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateAgentReportKey,
+			Duration:      constants.AutoUpdateAgentReportPeriod,
+			FirstDuration: retryutils.FullJitter(constants.AutoUpdateAgentReportPeriod),
+			// No jitter here, this is intentional and required for accurate tracking across auths.
 		})
 	}
 
@@ -1640,6 +1664,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.tallyRoles(a.closeCtx)
 			case accessListReminderNotificationsKey:
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
+			case autoUpdateAgentReportKey:
+				go a.reportAgentVersions(a.closeCtx)
 			}
 		}
 	}
@@ -2054,6 +2080,13 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.clock = clock
+}
+
+// SetBcryptCost sets bcryptCostOverride, used in tests
+func (a *Server) SetBcryptCost(cost int) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.bcryptCostOverride = &cost
 }
 
 func (a *Server) SetSCIMService(scim services.SCIM) {
@@ -2483,6 +2516,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 }
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
+// TODO(tross): Figure out how to move this into test only code.
 type GenerateUserTestCertsRequest struct {
 	SSHPubKey               []byte
 	TLSPubKey               []byte
@@ -2496,11 +2530,23 @@ type GenerateUserTestCertsRequest struct {
 	TLSAttestationStatement *hardwarekey.AttestationStatement
 	AppName                 string
 	AppSessionID            string
+	DeviceExtensions        DeviceExtensions
+	Renewable               bool
+	Generation              uint64
+	ActiveRequests          []string
+	KubernetesCluster       string
+	Usage                   []string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
-	ctx := context.Background()
+	return a.GenerateUserTestCertsWithContext(context.TODO(), req)
+}
+
+// GenerateUserTestCertsWithContext is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
+func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.Username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -2515,7 +2561,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
+	certReq := certRequest{
 		user:                             userState,
 		ttl:                              req.TTL,
 		compatibility:                    req.Compatibility,
@@ -2531,7 +2577,20 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		appName:                          req.AppName,
 		appSessionID:                     req.AppSessionID,
-	})
+		deviceExtensions:                 req.DeviceExtensions,
+		generation:                       req.Generation,
+		renewable:                        req.Renewable,
+		activeRequests:                   req.ActiveRequests,
+		kubernetesCluster:                req.KubernetesCluster,
+		usage:                            req.Usage,
+	}
+
+	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
+		certReq.botName = botName
+		certReq.botInstanceID = uuid.NewString()
+	}
+
+	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -3050,7 +3109,7 @@ func (a *Server) augmentUserCertificates(
 	}
 
 	// Issue audit event on success, same as [Server.generateCert].
-	a.emitCertCreateEvent(ctx, newIdentity, notAfter)
+	a.emitCertCreateEvent(ctx, tlsCA, newIdentity, notAfter)
 
 	return &proto.Certs{
 		SSH: newAuthorizedKey,
@@ -3449,6 +3508,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	var signedTLSCert []byte
+	var tlsIssuer *tlsca.CertAuthority
 	if req.tlsPublicKey != nil {
 		tlsCryptoPubKey, err := keys.ParsePublicKey(req.tlsPublicKey)
 		if err != nil {
@@ -3476,9 +3536,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		tlsIssuer = tlsCA
 	}
 
-	a.emitCertCreateEvent(ctx, &identity, notAfter)
+	a.emitCertCreateEvent(ctx, tlsIssuer, &identity, notAfter)
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
@@ -3648,9 +3709,17 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 	return tlsCA, sshSigner, ca, nil
 }
 
-func (a *Server) emitCertCreateEvent(ctx context.Context, identity *tlsca.Identity, notAfter time.Time) {
+func (a *Server) emitCertCreateEvent(ctx context.Context, issuer *tlsca.CertAuthority, identity *tlsca.Identity, notAfter time.Time) {
 	eventIdentity := identity.GetEventIdentity()
 	eventIdentity.Expires = notAfter
+	var certAuthority *apievents.CertificateAuthority
+	if issuer != nil {
+		certAuthority = &apievents.CertificateAuthority{
+			Type:         string(types.UserCA),
+			Domain:       issuer.Cert.Issuer.CommonName,
+			SubjectKeyID: base32.HexEncoding.EncodeToString(issuer.Cert.SubjectKeyId),
+		}
+	}
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
 		Metadata: apievents.Metadata{
 			Type: events.CertificateCreateEvent,
@@ -3663,6 +3732,7 @@ func (a *Server) emitCertCreateEvent(ctx context.Context, identity *tlsca.Identi
 			// fetched. Need to propagate user-agent from HTTP calls.
 			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
 		},
+		CertificateAuthority: certAuthority,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit certificate create event.")
 	}
@@ -3692,7 +3762,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 
-			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			err := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
@@ -3736,7 +3806,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 		return trace.Wrap(fnErr)
 	}
 
-	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+	retErr := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
@@ -5049,12 +5119,12 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 	tok, err := a.GetToken(ctx, token)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+			return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 		}
 		return nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+		return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 	}
 
 	return tok, nil
@@ -5499,7 +5569,7 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 
 	// Only modify the original request if additional reviewers were found.
 	if len(additionalReviewers) > 0 {
-		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), maps.Keys(additionalReviewers)...))
+		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), slices.Collect(maps.Keys(additionalReviewers))...))
 	}
 }
 
@@ -6492,6 +6562,9 @@ func (a *Server) createAccessListReminderNotification(ctx context.Context, owner
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
+//
+// WARNING: This is not safe for use in clusters using HSMs or KMS for private key material.
+// Instead, you should prefer using the CRLs that are already present in the certificate_authority resource.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
 	clusterName, err := a.GetClusterName()
@@ -6506,10 +6579,8 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): this will only create a CRL for an active signer.
-	// If there are multiple signers (multiple HSMs), we won't have the full CRL coverage.
-	// Generate a CRL per signer and return all of them separately.
-
+	// Note: this will only create a CRL for a single active signer.
+	// If there are multiple signers (HSMs), we won't have the full CRL coverage.
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if trace.IsNotFound(err) {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this
@@ -6526,13 +6597,8 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Empty CRL valid for 1yr.
-	template := &x509.RevocationList{
-		Number:     big.NewInt(1),
-		ThisUpdate: time.Now().Add(-1 * time.Minute), // 1 min in the past to account for clock skew.
-		NextUpdate: time.Now().Add(365 * 24 * time.Hour),
-	}
-	crl, err := x509.CreateRevocationList(rand.Reader, template, tlsAuthority.Cert, tlsAuthority.Signer)
+
+	crl, err := keystore.GenerateCRL(tlsAuthority.Cert, tlsAuthority.Signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7826,7 +7892,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if usage >= int(monthlyLimit) {
-		return trace.AccessDenied(limitReachedMessage)
+		return trace.AccessDenied("%s", limitReachedMessage)
 	}
 
 	return nil

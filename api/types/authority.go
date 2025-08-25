@@ -556,6 +556,7 @@ func (k *TLSKeyPair) Clone() *TLSKeyPair {
 		KeyType: k.KeyType,
 		Key:     slices.Clone(k.Key),
 		Cert:    slices.Clone(k.Cert),
+		CRL:     slices.Clone(k.CRL),
 	}
 }
 

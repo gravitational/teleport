@@ -63,8 +63,8 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -658,7 +658,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 				}
 
 				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported on the web terminal, please register a supported mfa method to connect to this server")
+					return nil, trace.Wrap(authclient.ErrNoMFADevices)
 				}
 
 				var codec protobufMFACodec
@@ -673,7 +673,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 	}
 }
 
-type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)
+type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error)
 
 // connectToHost establishes a connection to the target host. To reduce connection
 // latency if per session mfa is required, connections are tried with the existing
@@ -689,9 +689,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 		return nil, trace.Wrap(err)
 	}
 
-	getAgent := func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(tc.LocalAgent()), nil
-	}
+	getAgent := sshagent.NewStaticClientGetter(tc.LocalAgent())
 	cert, err := t.ctx.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -903,14 +901,14 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
-func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
 			const message = "error: ambiguous host could match multiple nodes\n\nHint: try addressing the node by unique id (ex: user@node-id)\n"
-			return nil, trace.NotFound(message)
+			return nil, trace.NotFound("%s", message)
 		}
 
 		return nil, trace.Wrap(err)
@@ -956,7 +954,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
 // host with the retrieved single use certs.
-func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
 	authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream.WSStream)
 	if err != nil {
@@ -968,7 +966,7 @@ func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws terminal.
 
 // connectToNodeWithMFABase attempts to dial the host with the provided auth
 // methods.
-func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.HostLogin,
 		Auth:            authMethods,

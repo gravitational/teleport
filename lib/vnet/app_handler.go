@@ -49,6 +49,10 @@ type tcpAppHandlerConfig struct {
 	appInfo     *vnetv1.AppInfo
 	appProvider *appProvider
 	clock       clockwork.Clock
+	// alwaysTrustRootClusterCA can be set in tests so that TLS dials to the
+	// proxy always trust the root cluster CA rather than the system cert pool,
+	// even when ALPN conn upgrades are not required.
+	alwaysTrustRootClusterCA bool
 }
 
 func newTCPAppHandler(cfg *tcpAppHandlerConfig) *tcpAppHandler {
@@ -102,9 +106,13 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 		InsecureSkipVerify:      dialOptions.GetInsecureSkipVerify(),
 		Clock:                   h.cfg.clock,
 	}
-	if certPoolPEM := dialOptions.GetRootClusterCaCertPool(); len(certPoolPEM) > 0 {
+	if dialOptions.GetAlpnConnUpgradeRequired() || h.cfg.alwaysTrustRootClusterCA {
+		certPoolPEM := dialOptions.GetRootClusterCaCertPool()
+		if len(certPoolPEM) == 0 {
+			return nil, trace.BadParameter("ALPN conn upgrade required but no root CA cert pool provided")
+		}
 		caPool := x509.NewCertPool()
-		if !caPool.AppendCertsFromPEM(dialOptions.GetRootClusterCaCertPool()) {
+		if !caPool.AppendCertsFromPEM(certPoolPEM) {
 			return nil, trace.Errorf("failed to parse root cluster CA certs")
 		}
 		localProxyConfig.RootCAs = caPool
@@ -157,7 +165,7 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 }
 
 // localProxyMiddleware wraps around [client.CertChecker] and additionally makes it so that its
-// OnNewConnection method calls the same method of [appProvider].
+// OnNewConnection method calls OnNewAppConnection on [appProvider].
 type localProxyMiddleware struct {
 	appKey      *vnetv1.AppKey
 	certChecker *client.CertChecker
@@ -169,7 +177,7 @@ func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnprox
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(m.appProvider.OnNewConnection(ctx, m.appKey))
+	return trace.Wrap(m.appProvider.OnNewAppConnection(ctx, m.appKey))
 }
 
 func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {

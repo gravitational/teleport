@@ -100,6 +100,22 @@ func (p *vnetClientApplication) ReissueAppCert(ctx context.Context, appInfo *vne
 	return cert, trace.Wrap(err)
 }
 
+// UserTLSCert returns the user TLS certificate for the given profile.
+func (p *vnetClientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
+	profile, err := p.clientStore.GetProfile(profileName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "loading user profile %s", profileName)
+	}
+	tlsConfig, err := profile.TLSConfig()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "loading TLS config for profile")
+	}
+	if len(tlsConfig.Certificates) == 0 {
+		return tls.Certificate{}, trace.Errorf("user tls config has no certificates")
+	}
+	return tlsConfig.Certificates[0], nil
+}
+
 // GetDialOptions returns ALPN dial options for the profile.
 func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error) {
 	profile, err := p.clientStore.GetProfile(profileName)
@@ -111,18 +127,21 @@ func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName 
 		AlpnConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.cf.InsecureSkipVerify,
 	}
-	if dialOpts.AlpnConnUpgradeRequired {
-		dialOpts.RootClusterCaCertPool, err = p.getRootClusterCACertPoolPEM(ctx, profileName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	dialOpts.RootClusterCaCertPool, err = p.getRootClusterCACertPoolPEM(ctx, profileName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return dialOpts, nil
 }
 
-// OnNewConnection gets called before each VNet connection. It's a noop as tsh doesn't need to do
+// OnNewSSHSession gets called before each VNet SSH connection. It's a noop as
+// tsh doesn't need to do anything extra here.
+func (p *vnetClientApplication) OnNewSSHSession(ctx context.Context, profileName, rootClusterName string) {
+}
+
+// OnNewAppConnection gets called before each VNet app connection. It's a noop as tsh doesn't need to do
 // anything extra here.
-func (p *vnetClientApplication) OnNewConnection(_ context.Context, _ *vnetv1.AppKey) error {
+func (p *vnetClientApplication) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
 	return nil
 }
 

@@ -1,6 +1,9 @@
 ---
 title: Okta User Sync
 description: Explains how to set up Okta user sync with the guided integration flow.
+labels:
+ - how-to
+ - identity-governance
 ---
 
 Okta user sync imports Okta users as Teleport users via a continuous
@@ -19,11 +22,11 @@ integration enrollment flow.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v17.3.0 or higher)"!)
 
 - An Okta authentication connector. 
 
-  <Admonition>
+  <Admonition type="important">
   Before following the guided user sync integration flow, you must have
   completed the [guided Okta single sign-on flow](./guided-sso.mdx).
   </Admonition>

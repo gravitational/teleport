@@ -35,6 +35,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -47,6 +48,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/boundkeypair"
+	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
@@ -332,6 +335,130 @@ func TestGetTokens(t *testing.T) {
 	}
 }
 
+func TestListProvisionTokens(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	expiry := time.Now().UTC().Add(30 * time.Minute)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	items := []struct {
+		name string
+		spec types.ProvisionTokenSpecV2
+	}{
+		{
+			name: "test-token-3",
+			spec: types.ProvisionTokenSpecV2{
+				Roles:   types.SystemRoles{types.RoleBot, types.RoleNode},
+				BotName: "bot-2",
+			},
+		},
+		{
+			name: "test-token-1",
+			spec: types.ProvisionTokenSpecV2{
+				Roles: types.SystemRoles{types.RoleNode},
+			},
+		},
+		{
+			name: "test-token-2",
+			spec: types.ProvisionTokenSpecV2{
+				Roles:   types.SystemRoles{types.RoleBot},
+				BotName: "bot-1",
+			},
+		},
+	}
+
+	for _, item := range items {
+		token, err := types.NewProvisionTokenFromSpec(
+			item.name,
+			expiry,
+			item.spec)
+		require.NoError(t, err)
+		err = env.server.Auth().CreateToken(ctx, token)
+		require.NoError(t, err)
+	}
+
+	endpoint := pack.clt.Endpoint("v2", "webapi", "tokens")
+
+	t.Run("paging", func(t *testing.T) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{
+			"page_token": []string{""}, // default to the start
+			"page_size":  []string{strconv.Itoa(2)},
+		})
+		require.NoError(t, err)
+		resp := ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+
+		require.Len(t, resp.Items, 2)
+		assert.Equal(t, "test-token-3", resp.NextPageToken)
+		assert.Equal(t, "test-token-1", resp.Items[0].ID)
+		assert.Equal(t, "test-token-2", resp.Items[1].ID)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"page_token": []string{resp.NextPageToken},
+			"page_size":  []string{strconv.Itoa(2)},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+
+		require.Len(t, resp.Items, 1)
+		assert.Empty(t, resp.NextPageToken)
+		assert.Equal(t, "test-token-3", resp.Items[0].ID)
+	})
+
+	t.Run("filter by roles", func(t *testing.T) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{
+			"role": []string{"Node", "Bot"},
+		})
+		require.NoError(t, err)
+		resp := ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 3)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"role": []string{"Node"},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 2)
+		assert.Equal(t, "test-token-1", resp.Items[0].ID)
+		assert.Equal(t, "test-token-3", resp.Items[1].ID)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"role": []string{"Bot"},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 2)
+		assert.Equal(t, "test-token-2", resp.Items[0].ID)
+		assert.Equal(t, "test-token-3", resp.Items[1].ID)
+	})
+
+	t.Run("filter by bot name", func(t *testing.T) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{
+			"bot_name": []string{""},
+		})
+		require.NoError(t, err)
+		resp := ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 3)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"bot_name": []string{"bot-1"},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 1)
+		assert.Equal(t, "test-token-2", resp.Items[0].ID)
+	})
+}
+
 func TestDeleteToken(t *testing.T) {
 	ctx := context.Background()
 	username := "test-user@example.com"
@@ -480,6 +607,9 @@ func TestCreateTokenExpiry(t *testing.T) {
 		},
 	})
 
+	// TODO: Remove this once bound keypair experiment flag is removed.
+	boundkeypairexperiment.SetEnabled(true)
+
 	ctx := context.Background()
 	username := "test-user@example.com"
 	env := newWebPack(t, 1)
@@ -622,6 +752,15 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				{
 					ProjectName: "my-project",
 				},
+			},
+		}
+	case types.JoinMethodBoundKeypair:
+		spec.BoundKeypair = &types.ProvisionTokenSpecV2BoundKeypair{
+			Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+				InitialPublicKey: "abcd",
+			},
+			Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+				Mode: boundkeypair.RecoveryModeInsecure,
 			},
 		}
 	}

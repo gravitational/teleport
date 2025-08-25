@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -56,6 +56,8 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -68,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -211,7 +212,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		},
 	})
 
-	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm bool) InitConfig {
+	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm bool) auth.InitConfig {
 		cfg := setupConfig(t)
 		cfg.FIPS = fips
 		if hsm {
@@ -223,7 +224,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		}
 		// Pre-generate all CAs to keep tests fast esp. with SoftHSM.
 		for _, caType := range types.CertAuthTypes {
-			cfg.BootstrapResources = append(cfg.BootstrapResources, suite.NewTestCAWithConfig(suite.TestCAConfig{
+			cfg.BootstrapResources = append(cfg.BootstrapResources, authtest.NewTestCAWithConfig(authtest.TestCAConfig{
 				Type:        caType,
 				ClusterName: cfg.ClusterName.GetClusterName(),
 				Clock:       cfg.Clock,
@@ -298,7 +299,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 						// configured gets the expected default suite, whether
 						// or not anything else in the cluster auth preference is set.
 						cfg := setupInitConfig(t, origin, tc.fips, tc.hsm)
-						auth1, err := Init(ctx, cfg)
+						auth1, err := auth.Init(ctx, cfg)
 						require.NoError(t, err)
 						t.Cleanup(func() { auth1.Close() })
 						authPref, err := auth1.GetAuthPreference(ctx)
@@ -308,7 +309,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 
 						// Start a second auth server with the same backend and
 						// config, assert that the default suite remains.
-						auth2, err := Init(ctx, cfg)
+						auth2, err := auth.Init(ctx, cfg)
 						require.NoError(t, err)
 						t.Cleanup(func() { auth2.Close() })
 						authPref, err = auth2.GetAuthPreference(ctx)
@@ -338,7 +339,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 						// server upgraded to v17 will still have an unspecified
 						// signature algorithm suite and won't get a new one
 						// until explicitly opting in.
-						auth3, err := Init(ctx, cfg)
+						auth3, err := auth.Init(ctx, cfg)
 						require.NoError(t, err)
 						t.Cleanup(func() { auth3.Close() })
 						authPref, err = auth3.GetAuthPreference(ctx)
@@ -374,7 +375,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 						},
 					})
 				}
-				cfg := TestAuthServerConfig{
+				cfg := authtest.AuthServerConfig{
 					Dir:  t.TempDir(),
 					FIPS: tc.fips,
 					AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
@@ -388,11 +389,11 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				if tc.hsm {
 					cfg.KeystoreConfig = HSMTestConfig(t)
 				}
-				testAuthServer, err := NewTestAuthServer(cfg)
+				testAuthServer, err := authtest.NewAuthServer(cfg)
 				require.NoError(t, err)
 				tlsServer, err := testAuthServer.NewTestTLSServer()
 				require.NoError(t, err)
-				clt, err := tlsServer.NewClient(TestAdmin())
+				clt, err := tlsServer.NewClient(authtest.TestAdmin())
 				require.NoError(t, err)
 
 				for _, suiteValue := range types.SignatureAlgorithmSuite_value {
@@ -581,14 +582,14 @@ func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 }
 
 type testDynamicallyConfigurableParams struct {
-	withDefaults, withConfigFile, withAnotherConfigFile func(*testing.T, *InitConfig) types.ResourceWithOrigin
-	setDynamic                                          func(*testing.T, *Server)
-	getStored                                           func(*testing.T, *Server) types.ResourceWithOrigin
+	withDefaults, withConfigFile, withAnotherConfigFile func(*testing.T, *auth.InitConfig) types.ResourceWithOrigin
+	setDynamic                                          func(*testing.T, *auth.Server)
+	getStored                                           func(*testing.T, *auth.Server) types.ResourceWithOrigin
 }
 
 func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurableParams) {
-	initAuthServer := func(t *testing.T, conf InitConfig) *Server {
-		authServer, err := Init(context.Background(), conf)
+	initAuthServer := func(t *testing.T, conf auth.InitConfig) *auth.Server {
+		authServer, err := auth.Init(context.Background(), conf)
 		require.NoError(t, err)
 		t.Cleanup(func() { authServer.Close() })
 		return authServer
@@ -708,11 +709,11 @@ func TestAuthPreference(t *testing.T) {
 	ctx := context.Background()
 
 	testDynamicallyConfigurable(t, testDynamicallyConfigurableParams{
-		withDefaults: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+		withDefaults: func(t *testing.T, conf *auth.InitConfig) types.ResourceWithOrigin {
 			conf.AuthPreference = types.DefaultAuthPreference()
 			return conf.AuthPreference
 		},
-		withConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+		withConfigFile: func(t *testing.T, conf *auth.InitConfig) types.ResourceWithOrigin {
 			fromConfigFile, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 				Type:                    constants.OIDC,
 				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
@@ -721,12 +722,12 @@ func TestAuthPreference(t *testing.T) {
 			conf.AuthPreference = fromConfigFile
 			return conf.AuthPreference
 		},
-		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+		withAnotherConfigFile: func(t *testing.T, conf *auth.InitConfig) types.ResourceWithOrigin {
 			conf.AuthPreference = newWebauthnAuthPreferenceConfigFromFile(t)
 			conf.AuthPreference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1)
 			return conf.AuthPreference
 		},
-		setDynamic: func(t *testing.T, authServer *Server) {
+		setDynamic: func(t *testing.T, authServer *auth.Server) {
 			dynamically, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 				SecondFactor: constants.SecondFactorOff,
 			})
@@ -734,7 +735,7 @@ func TestAuthPreference(t *testing.T) {
 			_, err = authServer.UpsertAuthPreference(ctx, dynamically)
 			require.NoError(t, err)
 		},
-		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
+		getStored: func(t *testing.T, authServer *auth.Server) types.ResourceWithOrigin {
 			authPref, err := authServer.GetAuthPreference(ctx)
 			require.NoError(t, err)
 			return authPref
@@ -754,7 +755,7 @@ func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	conf.AuthPreference = authPref
-	_, err = Init(ctx, conf)
+	_, err = auth.Init(ctx, conf)
 	require.Error(t, err)
 }
 
@@ -763,11 +764,11 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	ctx := context.Background()
 
 	testDynamicallyConfigurable(t, testDynamicallyConfigurableParams{
-		withDefaults: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+		withDefaults: func(t *testing.T, conf *auth.InitConfig) types.ResourceWithOrigin {
 			conf.ClusterNetworkingConfig = types.DefaultClusterNetworkingConfig()
 			return conf.ClusterNetworkingConfig
 		},
-		withConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+		withConfigFile: func(t *testing.T, conf *auth.InitConfig) types.ResourceWithOrigin {
 			fromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 				ClientIdleTimeout: types.Duration(7 * time.Minute),
 			})
@@ -775,7 +776,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 			conf.ClusterNetworkingConfig = fromConfigFile
 			return conf.ClusterNetworkingConfig
 		},
-		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+		withAnotherConfigFile: func(t *testing.T, conf *auth.InitConfig) types.ResourceWithOrigin {
 			anotherFromConfigFile, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 				ClientIdleTimeout: types.Duration(10 * time.Minute),
 				KeepAliveInterval: types.Duration(3 * time.Minute),
@@ -784,7 +785,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 			conf.ClusterNetworkingConfig = anotherFromConfigFile
 			return conf.ClusterNetworkingConfig
 		},
-		setDynamic: func(t *testing.T, authServer *Server) {
+		setDynamic: func(t *testing.T, authServer *auth.Server) {
 			dynamically, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 				KeepAliveInterval: types.Duration(4 * time.Minute),
 			})
@@ -793,7 +794,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 			_, err = authServer.UpsertClusterNetworkingConfig(ctx, dynamically)
 			require.NoError(t, err)
 		},
-		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
+		getStored: func(t *testing.T, authServer *auth.Server) types.ResourceWithOrigin {
 			authPref, err := authServer.GetClusterNetworkingConfig(ctx)
 			require.NoError(t, err)
 			return authPref
@@ -806,11 +807,11 @@ func TestSessionRecordingConfig(t *testing.T) {
 	ctx := context.Background()
 
 	testDynamicallyConfigurable(t, testDynamicallyConfigurableParams{
-		withDefaults: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+		withDefaults: func(t *testing.T, conf *auth.InitConfig) types.ResourceWithOrigin {
 			conf.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 			return conf.SessionRecordingConfig
 		},
-		withConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+		withConfigFile: func(t *testing.T, conf *auth.InitConfig) types.ResourceWithOrigin {
 			fromConfigFile, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 				Mode: types.RecordOff,
 			})
@@ -818,7 +819,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 			conf.SessionRecordingConfig = fromConfigFile
 			return conf.SessionRecordingConfig
 		},
-		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
+		withAnotherConfigFile: func(t *testing.T, conf *auth.InitConfig) types.ResourceWithOrigin {
 			anotherFromConfigFile, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 				Mode: types.RecordAtProxySync,
 			})
@@ -826,7 +827,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 			conf.SessionRecordingConfig = anotherFromConfigFile
 			return conf.SessionRecordingConfig
 		},
-		setDynamic: func(t *testing.T, authServer *Server) {
+		setDynamic: func(t *testing.T, authServer *auth.Server) {
 			dynamically, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 				Mode: types.RecordAtNodeSync,
 			})
@@ -835,7 +836,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 			_, err = authServer.UpsertSessionRecordingConfig(ctx, dynamically)
 			require.NoError(t, err)
 		},
-		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
+		getStored: func(t *testing.T, authServer *auth.Server) types.ResourceWithOrigin {
 			authPref, err := authServer.GetSessionRecordingConfig(ctx)
 			require.NoError(t, err)
 			return authPref
@@ -845,7 +846,8 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -855,7 +857,7 @@ func TestClusterID(t *testing.T) {
 	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(context.Background(), conf)
+	authServer, err = auth.Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -867,7 +869,8 @@ func TestClusterID(t *testing.T) {
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -878,7 +881,7 @@ func TestClusterName(t *testing.T) {
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
-	authServer, err = Init(context.Background(), newConfig)
+	authServer, err = auth.Init(context.Background(), newConfig)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -918,7 +921,7 @@ func TestInitCertFailureRecovery(t *testing.T) {
 	// BootstrapResources have lead to an unrecoverable state in the past.
 	// See https://github.com/gravitational/teleport/pull/49638.
 	conf.BootstrapResources = []types.Resource{cap}
-	_, err = Init(ctx, conf, func(s *Server) error {
+	_, err = auth.Init(ctx, conf, func(s *auth.Server) error {
 		s.TrustInternal = &failingTrustInternal{
 			TrustInternal: s.TrustInternal,
 		}
@@ -926,7 +929,7 @@ func TestInitCertFailureRecovery(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	_, err = Init(ctx, conf)
+	_, err = auth.Init(ctx, conf)
 	require.NoError(t, err)
 }
 
@@ -940,6 +943,8 @@ func TestPresets(t *testing.T) {
 		teleport.PresetAuditorRoleName,
 		teleport.PresetTerraformProviderRoleName,
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
+		teleport.PresetAccessPluginRoleName,
+		teleport.PresetListAccessRequestResourcesRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
@@ -947,11 +952,11 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		err := createPresetRoles(ctx, as)
+		err := auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = createPresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -972,7 +977,7 @@ func TestPresets(t *testing.T) {
 		access, err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = createPresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -1015,7 +1020,7 @@ func TestPresets(t *testing.T) {
 		accessRole, err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
-		err = createPresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1079,7 +1084,7 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Apply defaults.
-		err = createPresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1150,7 +1155,7 @@ func TestPresets(t *testing.T) {
 				return r, nil
 			})
 
-		err := createPresetRoles(ctx, roleManager)
+		err := auth.CreatePresetRoles(ctx, roleManager)
 		require.NoError(t, err)
 		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
 		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
@@ -1190,7 +1195,7 @@ func TestPresets(t *testing.T) {
 				Return(role, nil)
 		}
 
-		err = createPresetRoles(ctx, roleManager)
+		err = auth.CreatePresetRoles(ctx, roleManager)
 		require.NoError(t, err)
 		roleManager.AssertExpectations(t)
 
@@ -1247,7 +1252,7 @@ func TestPresets(t *testing.T) {
 				return r, nil
 			})
 
-		err = createPresetRoles(ctx, roleManager)
+		err = auth.CreatePresetRoles(ctx, roleManager)
 		require.NoError(t, err)
 		require.Empty(t, remainingPresets)
 		roleManager.AssertExpectations(t)
@@ -1291,10 +1296,10 @@ func TestPresets(t *testing.T) {
 			// existing cluster and asserting that everything still
 			// returns success
 			for i := 0; i < 2; i++ {
-				err := createPresetRoles(ctx, as)
+				err := auth.CreatePresetRoles(ctx, as)
 				require.NoError(t, err)
 
-				err = createPresetUsers(ctx, as)
+				err = auth.CreatePresetUsers(ctx, as)
 				require.NoError(t, err)
 			}
 
@@ -1320,18 +1325,18 @@ func TestPresets(t *testing.T) {
 			sysUser := services.NewSystemAutomaticAccessBotUser().(*types.UserV2)
 
 			// GIVEN a user database...
-			auth := newMockUserManager(t)
+			manager := newMockUserManager(t)
 
 			// Set the expectation that all user creations will succeed EXCEPT
 			// for our known system user
-			auth.On("CreateUser", mock.Anything, mock.Anything).
+			manager.On("CreateUser", mock.Anything, mock.Anything).
 				Run(requireSystemResource(t, 1)).
 				Maybe().
 				Return(sysUser, nil)
 
 			// All attempts to upsert should succeed, and record the being upserted
 			var upsertedUsers []string
-			auth.On("UpsertUser", mock.Anything, mock.Anything).
+			manager.On("UpsertUser", mock.Anything, mock.Anything).
 				Run(func(args mock.Arguments) {
 					u := args.Get(1).(types.User)
 					upsertedUsers = append(upsertedUsers, u.GetName())
@@ -1339,11 +1344,11 @@ func TestPresets(t *testing.T) {
 				Return(sysUser, nil)
 
 			// WHEN I attempt to create the preset users...
-			err := createPresetUsers(ctx, auth)
+			err := auth.CreatePresetUsers(ctx, manager)
 
 			// EXPECT that the process succeeds and the system user was upserted
 			require.NoError(t, err)
-			auth.AssertExpectations(t)
+			manager.AssertExpectations(t)
 			require.Contains(t, upsertedUsers, sysUser.Metadata.Name)
 		})
 	})
@@ -1354,7 +1359,7 @@ func TestGetPresetUsers(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildOSS,
 	})
-	require.Empty(t, getPresetUsers())
+	require.Empty(t, auth.GetPresetUsers())
 
 	// preset user @teleport-access-approval-bot on enterprise
 	modulestest.SetTestModules(t, modulestest.Modules{
@@ -1362,7 +1367,7 @@ func TestGetPresetUsers(t *testing.T) {
 	})
 	require.Equal(t, []types.User{
 		services.NewSystemAutomaticAccessBotUser(),
-	}, getPresetUsers())
+	}, auth.GetPresetUsers())
 }
 
 type mockUserManager struct {
@@ -1402,13 +1407,13 @@ func (m *mockUserManager) UpsertUser(ctx context.Context, user types.User) (type
 	return args.Get(0).(types.User), args.Error(1)
 }
 
-var _ PresetUsers = &mockUserManager{}
+var _ auth.PresetUsers = &mockUserManager{}
 
 type mockRoleManager struct {
 	mock.Mock
 }
 
-var _ PresetRoleManager = &mockRoleManager{}
+var _ auth.PresetRoleManager = &mockRoleManager{}
 
 func newMockRoleManager(t *testing.T) *mockRoleManager {
 	m := &mockRoleManager{}
@@ -1466,7 +1471,7 @@ func toSet(items []string) map[string]struct{} {
 	return result
 }
 
-func setupConfig(t *testing.T) InitConfig {
+func setupConfig(t *testing.T) auth.InitConfig {
 	tempDir := t.TempDir()
 
 	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
@@ -1488,7 +1493,7 @@ func setupConfig(t *testing.T) InitConfig {
 		processStorage.Close()
 	})
 
-	return InitConfig{
+	return auth.InitConfig{
 		DataDir:                 tempDir,
 		HostUUID:                "00000000-0000-0000-0000-000000000000",
 		NodeName:                "foo",
@@ -1654,13 +1659,13 @@ func TestInit_bootstrap(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		modifyConfig func(*InitConfig)
+		modifyConfig func(*auth.InitConfig)
 		assertError  require.ErrorAssertionFunc
 	}{
 		{
 			// Issue https://github.com/gravitational/teleport/issues/7853.
 			name: "OK bootstrap CAs",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					hostCA.Clone(),
@@ -1676,7 +1681,7 @@ func TestInit_bootstrap(t *testing.T) {
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					invalidHostCA.Clone(),
@@ -1692,7 +1697,7 @@ func TestInit_bootstrap(t *testing.T) {
 		},
 		{
 			name: "NOK bootstrap User CA missing keys",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					hostCA.Clone(),
@@ -1708,7 +1713,7 @@ func TestInit_bootstrap(t *testing.T) {
 		},
 		{
 			name: "NOK bootstrap JWT CA missing keys",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					hostCA.Clone(),
@@ -1724,7 +1729,7 @@ func TestInit_bootstrap(t *testing.T) {
 		},
 		{
 			name: "NOK bootstrap Database CA missing keys",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					hostCA.Clone(),
@@ -1739,7 +1744,7 @@ func TestInit_bootstrap(t *testing.T) {
 		},
 		{
 			name: "NOK bootstrap Database Client CA missing keys",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					hostCA.Clone(),
@@ -1755,7 +1760,7 @@ func TestInit_bootstrap(t *testing.T) {
 		},
 		{
 			name: "NOK bootstrap OpenSSH CA missing keys",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					hostCA.Clone(),
@@ -1771,7 +1776,7 @@ func TestInit_bootstrap(t *testing.T) {
 		},
 		{
 			name: "NOK bootstrap SAML IdP CA missing keys",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					hostCA.Clone(),
@@ -1791,7 +1796,7 @@ func TestInit_bootstrap(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
-			_, err := Init(context.Background(), cfg)
+			_, err := auth.Init(context.Background(), cfg)
 			test.assertError(t, err)
 		})
 	}
@@ -1875,12 +1880,12 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		modifyConfig func(*InitConfig)
+		modifyConfig func(*auth.InitConfig)
 		assertError  require.ErrorAssertionFunc
 	}{
 		{
 			name: "Apply unsupported resource",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, lock)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
@@ -1890,14 +1895,14 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 		},
 		{
 			name: "Apply ProvisionToken",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
 			},
 			assertError: require.NoError,
 		},
 		{
 			name: "Apply User (invalid, missing role)",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
 			},
 			assertError: require.Error,
@@ -1905,7 +1910,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 		// We test both user+role and role+user to validate that ordering doesn't matter
 		{
 			name: "Apply User+Role",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 			},
@@ -1913,7 +1918,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 		},
 		{
 			name: "Apply Role+User",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 			},
@@ -1921,21 +1926,21 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 		},
 		{
 			name: "Apply Role",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 			},
 			assertError: require.NoError,
 		},
 		{
 			name: "Apply ClusterNetworkingConfig",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, clusterNetworkingConfig)
 			},
 			assertError: require.NoError,
 		},
 		{
 			name: "Apply AuthPreference",
-			modifyConfig: func(cfg *InitConfig) {
+			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, authPref)
 			},
 			assertError: require.NoError,
@@ -1946,7 +1951,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
-			_, err := Init(context.Background(), cfg)
+			_, err := auth.Init(context.Background(), cfg)
 			test.assertError(t, err)
 		})
 	}
@@ -1976,12 +1981,12 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	ctx := context.Background()
 
 	conf := setupConfig(t)
-	authServer, err := Init(ctx, conf)
+	authServer, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
 	// no getter is registered, sync should fail
-	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+	require.Error(t, authServer.SyncUpgradeWindowStartHour(ctx))
 
 	// maintenance config does not exist yet
 	cmc, err := authServer.GetClusterMaintenanceConfig(ctx)
@@ -2000,7 +2005,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	})
 
 	// sync should now succeed
-	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+	require.NoError(t, authServer.SyncUpgradeWindowStartHour(ctx))
 
 	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
 	require.NoError(t, err)
@@ -2016,7 +2021,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	fakeHour = 16
 	mu.Unlock()
 
-	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+	require.NoError(t, authServer.SyncUpgradeWindowStartHour(ctx))
 
 	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
 	require.NoError(t, err)
@@ -2031,7 +2036,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	fakeHour = 36
 	mu.Unlock()
 
-	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+	require.Error(t, authServer.SyncUpgradeWindowStartHour(ctx))
 
 	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
 	require.NoError(t, err)
@@ -2047,7 +2052,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	fakeHour = math.MaxInt64
 	mu.Unlock()
 
-	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+	require.Error(t, authServer.SyncUpgradeWindowStartHour(ctx))
 
 	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
 	require.NoError(t, err)
@@ -2063,7 +2068,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	mu.Unlock()
 
 	// sync should now succeed again
-	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+	require.NoError(t, authServer.SyncUpgradeWindowStartHour(ctx))
 
 	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
 	require.NoError(t, err)
@@ -2080,7 +2085,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	fakeError = fmt.Errorf("uh-oh")
 	mu.Unlock()
 
-	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+	require.Error(t, authServer.SyncUpgradeWindowStartHour(ctx))
 
 	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
 	require.NoError(t, err)
@@ -2098,7 +2103,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	mu.Unlock()
 
 	// sync should now succeed again
-	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+	require.NoError(t, authServer.SyncUpgradeWindowStartHour(ctx))
 
 	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
 	require.NoError(t, err)
@@ -2116,7 +2121,7 @@ func TestIdentityChecker(t *testing.T) {
 	ctx := context.Background()
 
 	conf := setupConfig(t)
-	authServer, err := Init(ctx, conf)
+	authServer, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
@@ -2184,7 +2189,7 @@ func TestIdentityChecker(t *testing.T) {
 			t.Cleanup(func() { sshServer.Close() })
 			require.NoError(t, sshServer.Start())
 
-			identity, err := GenerateIdentity(authServer, state.IdentityID{
+			identity, err := auth.GenerateIdentity(authServer, state.IdentityID{
 				Role:     types.RoleNode,
 				HostUUID: uuid.New().String(),
 				NodeName: "node-1",
@@ -2209,7 +2214,7 @@ func TestIdentityChecker(t *testing.T) {
 func TestInitCreatesCertsIfMissing(t *testing.T) {
 	ctx := context.Background()
 	conf := setupConfig(t)
-	auth, err := Init(ctx, conf)
+	auth, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = auth.Close()
@@ -2327,7 +2332,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				authCfg.SkipVersionCheck = true
 			}
 
-			_, err = Init(ctx, authCfg)
+			_, err = auth.Init(ctx, authCfg)
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -2444,7 +2449,7 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 				listRules: test.existingRules,
 			}
 
-			err := createPresetDatabaseObjectImportRule(context.Background(), m)
+			err := auth.CreatePresetDatabaseObjectImportRule(context.Background(), m)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(test.expectCreate, m.created))
 			require.True(t, proto.Equal(test.expectUpsert, m.upserted))
@@ -2481,15 +2486,15 @@ version: v1`
 
 	for _, test := range []struct {
 		name string
-		fn   func(cfg *InitConfig)
+		fn   func(cfg *auth.InitConfig)
 	}{
-		{name: "bootstrap", fn: func(cfg *InitConfig) { cfg.BootstrapResources = resources }},
-		{name: "apply", fn: func(cfg *InitConfig) { cfg.ApplyOnStartupResources = resources }},
+		{name: "bootstrap", fn: func(cfg *auth.InitConfig) { cfg.BootstrapResources = resources }},
+		{name: "apply", fn: func(cfg *auth.InitConfig) { cfg.ApplyOnStartupResources = resources }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := setupConfig(t)
 			test.fn(&cfg)
-			auth, err := Init(ctx, cfg)
+			auth, err := auth.Init(ctx, cfg)
 			require.NoError(t, err)
 
 			config, err := auth.GetAutoUpdateConfig(ctx)

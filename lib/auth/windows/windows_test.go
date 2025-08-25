@@ -19,17 +19,12 @@
 package windows
 
 import (
-	"context"
-	"crypto/x509"
-	"encoding/asn1"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -38,116 +33,11 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestGenerateCredentials verifies that the smartcard certificates generated
-// by Teleport meet the requirements for Windows logon.
-func TestGenerateCredentials(t *testing.T) {
-	const (
-		clusterName = "test"
-		user        = "test-user"
-		domain      = "test.example.com"
-	)
-
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		ClusterName: clusterName,
-		Dir:         t.TempDir(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, authServer.Close())
-	})
-
-	tlsServer, err := authServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, tlsServer.Close())
-	})
-
-	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, client.Close())
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	testSid := "S-1-5-21-1329593140-2634913955-1900852804-500"
-
-	for _, test := range []struct {
-		name               string
-		activeDirectorySID string
-	}{
-		{
-			name:               "no ad sid",
-			activeDirectorySID: "",
-		},
-		{
-			name:               "with ad sid",
-			activeDirectorySID: testSid,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			certb, keyb, err := GenerateWindowsDesktopCredentials(ctx, &GenerateCredentialsRequest{
-				Username:           user,
-				Domain:             domain,
-				TTL:                5 * time.Minute,
-				ClusterName:        clusterName,
-				ActiveDirectorySID: test.activeDirectorySID,
-				AuthClient:         client,
-			})
-			require.NoError(t, err)
-			require.NotNil(t, certb)
-			require.NotNil(t, keyb)
-
-			cert, err := x509.ParseCertificate(certb)
-			require.NoError(t, err)
-			require.NotNil(t, cert)
-
-			require.Equal(t, user, cert.Subject.CommonName)
-			require.Contains(t, cert.CRLDistributionPoints,
-				`ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
-
-			foundKeyUsage := false
-			foundAltName := false
-			foundAdUserMapping := false
-			for _, extension := range cert.Extensions {
-				switch {
-				case extension.Id.Equal(EnhancedKeyUsageExtensionOID):
-					foundKeyUsage = true
-					var oids []asn1.ObjectIdentifier
-					_, err = asn1.Unmarshal(extension.Value, &oids)
-					require.NoError(t, err)
-					require.Len(t, oids, 2)
-					require.Contains(t, oids, ClientAuthenticationOID)
-					require.Contains(t, oids, SmartcardLogonOID)
-				case extension.Id.Equal(SubjectAltNameExtensionOID):
-					foundAltName = true
-					var san SubjectAltName[upn]
-					_, err = asn1.Unmarshal(extension.Value, &san)
-					require.NoError(t, err)
-					require.Equal(t, UPNOtherNameOID, san.OtherName.OID)
-					require.Equal(t, user+"@"+domain, san.OtherName.Value.Value)
-				case extension.Id.Equal(ADUserMappingExtensionOID):
-					foundAdUserMapping = true
-					var adUserMapping SubjectAltName[adSid]
-					_, err = asn1.Unmarshal(extension.Value, &adUserMapping)
-					require.NoError(t, err)
-					require.Equal(t, ADUserMappingInternalOID, adUserMapping.OtherName.OID)
-					require.Equal(t, []byte(testSid), adUserMapping.OtherName.Value.Value)
-
-				}
-			}
-			require.True(t, foundKeyUsage)
-			require.True(t, foundAltName)
-			require.Equal(t, test.activeDirectorySID != "", foundAdUserMapping)
-		})
-	}
-}
-
 func TestCRLDN(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		clusterName string
+		issuerSKID  []byte
 		crlDN       string
 		caType      types.CertAuthType
 	}{
@@ -173,9 +63,23 @@ func TestCRLDN(t *testing.T) {
 			caType:      types.UserCA,
 			crlDN:       "CN=cluster.goteleport.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
+		{
+			name:        "user CA with SKID",
+			clusterName: "example.com",
+			caType:      types.UserCA,
+			issuerSKID:  []byte{0x61, 0xbe, 0xe7, 0xf0, 0xb4, 0x88, 0x78, 0x33, 0x40, 0x7d, 0x7a, 0xc0, 0xa8, 0x2a, 0xeb, 0x3e, 0x9d, 0x9f, 0xa1, 0xba},
+			crlDN:       "CN=C6VEFS5KH1S36G3TFB0AGANB7QEPV8DQ_example.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
+		},
+		{
+			name:        "long CN truncated",
+			clusterName: "reallylongclustername.goteleport.com",
+			caType:      types.UserCA,
+			issuerSKID:  []byte{0x61, 0xbe, 0xe7, 0xf0, 0xb4, 0x88, 0x78, 0x33, 0x40, 0x7d, 0x7a, 0xc0, 0xa8, 0x2a, 0xeb, 0x3e, 0x9d, 0x9f, 0xa1, 0xba},
+			crlDN:       "CN=C6VEFS5KH1S36G3TFB0AGANB7QEPV8DQ_reallylongclustern,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.crlDN, crlDN(test.clusterName, "test.goteleport.com", test.caType))
+			require.Equal(t, test.crlDN, CRLDN(test.clusterName, test.issuerSKID, "test.goteleport.com", test.caType))
 		})
 	}
 }

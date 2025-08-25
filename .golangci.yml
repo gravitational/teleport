@@ -1,6 +1,6 @@
 version: '2'
 run:
-  go: '1.23'
+  go: '1.24'
   timeout: 15m
 linters:
   default: none
@@ -143,6 +143,19 @@ linters:
               desc: use "github.com/gravitational/teleport/lib/msgraph" instead
             - pkg: github.com/cloudflare/cfssl
               desc: use "crypto" or "x/crypto" instead
+            - pkg: github.com/gogo/protobuf/jsonpb
+              desc: gogoproto jsonpb has inconsistent interactions with any
+                message that directly or indirectly makes use of
+                gogoproto.casttype, and will happily violate the protobuf json
+                encoding spec in those situations. It should only be used for
+                existing marshaling and unmarshaling that can't easily be
+                migrated away from jsonpb, but it should not be used by new
+                code. If you need to encode and decode a gogoproto-generated
+                message in protobuf json, use
+                google.golang.org/protobuf/encoding/protojson together with
+                google.golang.org/protobuf/protoadapt instead, or, better yet,
+                see if you can move the code generation for that message to the
+                modern protoc-gen-go.
         test_packages:
           files:
             - '!$test'
@@ -150,8 +163,12 @@ linters:
             - '!**/e/lib/aws/identitycenter/test/**'
             - '!**/e/lib/devicetrust/testenv/**'
             - '!**/e/lib/jamf/testenv/**'
+            - '!**/e/lib/idp/saml/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
+            - '!**/integration/db/fixture.go'
+            - '!**/integration/helpers/**'
+            - '!**/integrations/lib/testing/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -170,6 +187,10 @@ linters:
             - pkg: github.com/gravitational/teleport/tool/teleport/testenv
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/modules/modulestest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/auth/authtest
               desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
@@ -210,7 +231,6 @@ linters:
             - '!**/integrations/lib/testing/integration/authhelper.go'
             - '!**/integrations/lib/testing/integration/suite.go'
             - '!**/integrations/operator/controllers/resources/testlib/**'
-            - '!**/tool/teleport/testenv/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -232,6 +252,7 @@ linters:
             - '!**/integrations/access/msteams/testlib/**'
             - '!**/integrations/access/slack/testlib/**'
             - '!**/integrations/operator/controllers/resources/testlib/**'
+            - '!**/lib/auth/authtest/**'
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
             - '!**/lib/backend/test/**'
@@ -247,7 +268,6 @@ linters:
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/cli.go'
             - '!**/lib/utils/testutils/**'
-            - '!**/tool/teleport/testenv/**'
           deny:
             - pkg: testing
               desc: testing should not be imported outside of tests
@@ -270,7 +290,7 @@ linters:
         - pattern: ^protojson\.Unmarshal$
           msg: use protojson.UnmarshalOptions and consider enabling DiscardUnknown
         - pattern: ^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$
-          msg: use jsonpb.Unmarshaler and consider enabling AllowUnknownFields
+          msg: use protojson if possible, or use jsonpb.Unmarshaler and consider enabling AllowUnknownFields
     misspell:
       locale: US
     nolintlint:

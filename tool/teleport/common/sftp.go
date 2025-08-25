@@ -32,7 +32,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"

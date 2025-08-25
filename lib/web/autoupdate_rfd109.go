@@ -92,7 +92,7 @@ func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Req
 
 	// RFD 109 specifies that version from channels must have the leading "v".
 	// As h.autoUpdateAgentVersion doesn't, we must add it.
-	_, err = fmt.Fprintf(w, "v%s", targetVersion)
+	_, err = fmt.Fprintf(w, "v%s", targetVersion.String())
 	return nil, trace.Wrap(err)
 }
 

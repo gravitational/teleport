@@ -89,26 +89,57 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 }
 
 func TestRoundtrip(t *testing.T) {
-	t.Run("with custom subkind", func(t *testing.T) {
-		accessList := newAccessList(t, "access-list")
-		accessList.ResourceHeader.SetSubKind("access-list-subkind")
+	t.Parallel()
 
-		converted, err := FromProto(ToProto(accessList))
-		require.NoError(t, err)
+	type testCase struct {
+		name           string
+		modificationFn func(*accesslist.AccessList)
+	}
 
-		require.Empty(t, cmp.Diff(accessList, converted))
-	})
+	for _, tc := range []testCase{
+		{
+			name:           "no-modifications",
+			modificationFn: func(accessList *accesslist.AccessList) {},
+		},
+		{
+			name: "with-subkind",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.ResourceHeader.SetSubKind("access-list-subkind")
+			},
+		},
+		{
+			name: "deprecated-dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.DeprecatedDynamic
+			},
+		},
+		{
+			name: "default-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.Default
+			},
+		},
+		{
+			name: "static-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.Static
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			accessList := newAccessList(t, "access-list")
+			tc.modificationFn(accessList)
 
-	t.Run("with non-default type", func(t *testing.T) {
-		accessList := newAccessList(t, "access-list")
-		accessList.Spec.Type = accesslist.Static
+			converted, err := FromProto(ToProto(accessList))
+			require.NoError(t, err)
 
-		converted, err := FromProto(ToProto(accessList))
-		require.NoError(t, err)
+			if accessList.Spec.Type == accesslist.DeprecatedDynamic {
+				accessList.Spec.Type = accesslist.Default
+			}
 
-		require.Empty(t, cmp.Diff(accessList, converted))
-		require.Equal(t, accesslist.Static, converted.Spec.Type)
-	})
+			require.Empty(t, cmp.Diff(accessList, converted))
+		})
+	}
 }
 
 func Test_FromProto_withBadType(t *testing.T) {

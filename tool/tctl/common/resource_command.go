@@ -185,6 +185,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateVersion:                  rc.createAutoUpdateVersion,
 		types.KindGitServer:                          rc.createGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.createAutoUpdateAgentRollout,
+		types.KindAutoUpdateAgentReport:              rc.upsertAutoUpdateAgentReport,
 		types.KindWorkloadIdentityX509IssuerOverride: rc.createWorkloadIdentityX509IssuerOverride,
 		types.KindSigstorePolicy:                     rc.createSigstorePolicy,
 	}
@@ -209,6 +210,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindDynamicWindowsDesktop:              rc.updateDynamicWindowsDesktop,
 		types.KindGitServer:                          rc.updateGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.updateAutoUpdateAgentRollout,
+		types.KindAutoUpdateAgentReport:              rc.upsertAutoUpdateAgentReport,
 		types.KindWorkloadIdentityX509IssuerOverride: rc.updateWorkloadIdentityX509IssuerOverride,
 		types.KindSigstorePolicy:                     rc.updateSigstorePolicy,
 	}
@@ -517,7 +519,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 	}
 	err = services.CheckDynamicLabelsInDenyRules(role)
 	if trace.IsBadParameter(err) {
-		return trace.BadParameter(dynamicLabelWarningMessage(role))
+		return trace.BadParameter("%s", dynamicLabelWarningMessage(role))
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2236,7 +2238,7 @@ func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
 
 	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetAuthPreference(ctx))
@@ -2250,7 +2252,7 @@ func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client
 
 	managedByStaticConfig := storedNetConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
@@ -2264,7 +2266,7 @@ func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client)
 
 	managedByStaticConfig := storedRecConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
@@ -2690,12 +2692,24 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &netRestrictionsCollection{nr}, nil
 	case types.KindApp:
 		if rc.ref.Name == "" {
-			apps, err := client.GetApps(ctx)
+			apps, err := stream.Collect(clientutils.Resources(ctx, client.ListApps))
 			if err != nil {
+				// TODO(tross) DELETE IN v21.0.0
+				if trace.IsNotImplemented(err) {
+					apps, err := client.GetApps(ctx)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					return &appCollection{apps: apps}, nil
+				}
+
 				return nil, trace.Wrap(err)
 			}
+
 			return &appCollection{apps: apps}, nil
 		}
+
 		app, err := client.GetApp(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3386,6 +3400,29 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateAgentRolloutCollection{version}, nil
+	case types.KindAutoUpdateAgentReport:
+		if rc.ref.Name != "" {
+			report, err := client.GetAutoUpdateAgentReport(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &autoUpdateAgentReportCollection{reports: []*autoupdatev1pb.AutoUpdateAgentReport{report}}, nil
+		}
+
+		var reports []*autoupdatev1pb.AutoUpdateAgentReport
+		var nextToken string
+		for {
+			resp, token, err := client.ListAutoUpdateAgentReports(ctx, 0, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			reports = append(reports, resp...)
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &autoUpdateAgentReportCollection{reports: reports}, nil
 	case types.KindAccessMonitoringRule:
 		if rc.ref.Name != "" {
 			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
@@ -3672,7 +3709,7 @@ func getOneResourceNameToDelete[T types.ResourceWithLabels](rs []T, ref services
 			names = append(names, r.GetName())
 		}
 		msg := formatAmbiguousDeleteMessage(ref, resDesc, names)
-		return "", trace.BadParameter(msg)
+		return "", trace.BadParameter("%s", msg)
 	}
 }
 
@@ -3960,6 +3997,21 @@ func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, cli
 	}
 
 	fmt.Println("autoupdate_agent_rollout has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) upsertAutoUpdateAgentReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	report, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentReport](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = client.UpsertAutoUpdateAgentReport(ctx, report)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_agent_report has been created")
 	return nil
 }
 

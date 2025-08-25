@@ -197,7 +197,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "DocumentDB contains AWS DocumentDB specific metadata.",
+							Description: "DocumentDB contains Amazon DocumentDB-specific metadata.",
 							Optional:    true,
 						},
 						"elasticache": {
@@ -223,7 +223,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "ElastiCache contains AWS ElastiCache Redis specific metadata.",
+							Description: "ElastiCache contains Amazon ElastiCache Redis-specific metadata.",
 							Optional:    true,
 						},
 						"external_id": {
@@ -372,7 +372,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "RedshiftServerless contains AWS Redshift Serverless specific metadata.",
+							Description: "RedshiftServerless contains Amazon Redshift Serverless-specific metadata.",
 							Optional:    true,
 						},
 						"region": {
@@ -1161,7 +1161,7 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
 				"session_control_timeout": {
-					Description: "SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.",
+					Description: "SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the Auth Service before it begins terminating controlled sessions.",
 					Optional:    true,
 					Type:        DurationType{},
 				},
@@ -1394,7 +1394,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"mode": {
-							Description: "Mode of verification for trusted devices.  The following modes are supported:  - \"off\": disables both device authentication and authorization. - \"optional\": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - \"required\": enforces the presence of device extensions for sensitive endpoints.  Mode is always \"off\" for OSS. Defaults to \"optional\" for Enterprise.",
+							Description: "Mode of verification for trusted devices.  The following modes are supported:  - \"off\": disables both device authentication and authorization. - \"optional\": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - \"required\": enforces the presence of device extensions for sensitive endpoints. - \"required-for-humans\": enforces the presence of device extensions for sensitive endpoints, for human users only (bots are exempt).  Mode is always \"off\" for OSS. Defaults to \"optional\" for Enterprise.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -3235,6 +3235,11 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Description: "RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.",
 					Optional:    true,
 				}),
+				"request_object_mode": {
+					Description: "RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
 				"scope": {
 					Description: "Scope specifies additional scopes set by provider.",
 					Optional:    true,
@@ -32227,6 +32232,23 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["request_object_mode"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.RequestObjectMode"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.RequestObjectMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.RequestObjectMode = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -33332,6 +33354,28 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 								v.Unknown = false
 								tf.Attrs["mfa"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["request_object_mode"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.RequestObjectMode"})
+						} else {
+							v, ok := tf.Attrs["request_object_mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.RequestObjectMode", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.RequestObjectMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.RequestObjectMode) == ""
+							}
+							v.Value = string(obj.RequestObjectMode)
+							v.Unknown = false
+							tf.Attrs["request_object_mode"] = v
 						}
 					}
 				}

@@ -1,6 +1,9 @@
 ---
 title: Okta App and Group Sync
 description: Explains how to enable the Okta app and group sync integration, which imports Okta configurations into the Teleport RBAC system.
+labels:
+ - how-to
+ - identity-governance
 ---
 
 Okta has its own permissions system that doesn't directly map into Teleport. This
@@ -49,7 +52,7 @@ List will be removed from Teleport on the next sync.
 
 - An Okta authentication connector. 
 
-  <Admonition>
+  <Admonition type="important">
   Before following the guided app and group sync integration flow, you must have
   completed the following:
   - [Guided Okta single sign-on flow](./guided-sso.mdx).

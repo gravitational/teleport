@@ -1,6 +1,9 @@
 ---
 title: Run Teleport Identity Security with Access Graph on Self-Hosted Clusters with Helm
 description: How to deploy Access Graph on self-hosted clusters using Helm.
+labels:
+ - how-to
+ - identity-security
 ---
 
 Using Teleport Identity Security with Access Graph on a self-hosted Teleport cluster requires
@@ -22,7 +25,7 @@ to Teleport Enterprise customers.
 - Helm >= (=helm.version=)
 - A running Teleport Enterprise cluster v14.3.6 or later.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
-    [using the `teleport-cluster` Helm chart](../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx)
+    [using the `teleport-cluster` Helm chart](../../zero-trust-access/deploy-a-cluster/helm-deployments/helm-deployments.mdx)
     in the same Kubernetes cluster that will be used to deploy Access Graph.
 - An updated `license.pem` with Identity Security enabled.
 - A PostgreSQL database server v14 or later.
@@ -205,10 +208,10 @@ $ kubectl -n <Var name="teleport-cluster-namespace" /> rollout restart deploymen
 $ kubectl -n <Var name="teleport-cluster-namespace" /> rollout status deployment/teleport-proxy  # Wait for the deployment to succeed
 ```
 
-## Step 4/4. View the Access Graph in the Web UI
+## Step 4/4. View Access Graph data in the Graph Explorer
 
-You can find the Access Graph in the "Access Management" tab in the Web UI.
-![Access Management menu item](../../../img/access-graph/menu-item.png)
+In order to visualize the data from the Access Graph service, use the Graph Explorer in the Web UI. 
+Click **Identity Security** --> **Graph Explorer** and then select a resource to view in the Graph Explorer. 
 
 To access the interface, your user must have a role that allows `list` and `read` verbs on the `access_graph` resource, e.g.:
 

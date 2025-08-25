@@ -1097,7 +1097,7 @@ func (b *Backend) deleteDocuments(docs []*firestore.DocumentSnapshot) error {
 }
 
 // ConvertGRPCError converts gRPC errors
-func ConvertGRPCError(err error, args ...interface{}) error {
+func ConvertGRPCError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -1107,15 +1107,15 @@ func ConvertGRPCError(err error, args ...interface{}) error {
 	case codes.DeadlineExceeded:
 		return context.DeadlineExceeded
 	case codes.FailedPrecondition:
-		return trace.BadParameter(err.Error(), args...)
+		return trace.BadParameter("%s", err)
 	case codes.NotFound:
-		return trace.NotFound(err.Error(), args...)
+		return trace.NotFound("%s", err)
 	case codes.AlreadyExists:
-		return trace.AlreadyExists(err.Error(), args...)
+		return trace.AlreadyExists("%s", err)
 	case codes.OK:
 		return nil
 	default:
-		return trace.Wrap(err, args...)
+		return trace.Wrap(err)
 	}
 }
 

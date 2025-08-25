@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/srv/git"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 )
@@ -413,7 +413,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
 	// request user agent connection if a SSH user agent is set
-	var userAgent teleagent.Agent
+	var userAgent sshagent.Client
 	if params.GetUserAgent != nil {
 		ua, err := params.GetUserAgent()
 		if err != nil {
@@ -703,14 +703,14 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	// Skip direct dial when the tunnel error is not a not found error. This
 	// means the agent is tunneling but the connection failed for some reason.
 	if !trace.IsNotFound(tunnelErr) {
-		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, "%s", tunnelMsg)
 	}
 
 	skip, err := s.skipDirectDial(params)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	} else if skip {
-		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, "%s", tunnelMsg)
 	}
 
 	// If no tunnel connection was found, dial to the target host.
@@ -719,7 +719,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.log.WithField("address", params.To.String()).Debugf("All attempted dial methods failed. tunnel=%q, peer=%q, direct=%q", tunnelErr, peerErr, directErr)
 		aggregateErr := trace.NewAggregate(tunnelErr, peerErr, directErr)
-		return nil, false, trace.ConnectionProblem(aggregateErr, directMsg)
+		return nil, false, trace.ConnectionProblem(aggregateErr, "%s", directMsg)
 	}
 
 	// Return a direct dialed connection.

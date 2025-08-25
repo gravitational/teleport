@@ -56,7 +56,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/mod/semver"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -921,6 +920,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// v2 endpoint processes "suggestedLabels" field
 	h.POST("/v2/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
+	// used to retrieve a paginated list of tokens. Items can be filtered by roles and bot name.
+	h.GET("/v2/webapi/tokens", h.WithAuth(h.listProvisionTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
 	// install script, the ':token' wildcard is a hack to make the router happy and support
@@ -1166,7 +1167,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Create bot join tokens
 	h.POST("/webapi/sites/:site/machine-id/token", h.WithClusterAuth(h.createBotJoinToken))
 	// PUT Machine ID bot by name
+	// TODO(nicholasmarais1158) DELETE IN v20.0.0
+	// Replaced by `PUT /v2/webapi/sites/:site/machine-id/bot/:name` which allows editing more than just roles.
 	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
+	// PUT Machine ID bot by name
+	h.PUT("/v2/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV2))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
 
@@ -1646,6 +1651,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
+	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
 	return webclient.PingResponse{
 		Auth:              authSettings,
@@ -1654,7 +1660,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:  teleport.MinClientSemVer().String(),
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
 		Edition:           modules.GetModules().BuildType(),
 		FIPS:              modules.IsBoringBinary(),
 	}, nil
@@ -1690,7 +1696,18 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			AutoUpdate:       h.automaticUpdateSettings184(ctx, group, "" /* updater UUID */),
 		}, nil
 	})
-	return resp, err
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Now we modulate the autoupdate answer on a per-request basis.
+	// We don't want to cache one answer per updater UUID, so we take the
+	// cached result and just override what we must.
+	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
+	if updaterID != "" {
+		resp.AutoUpdate = h.automaticUpdateSettings184(r.Context(), group, updaterID)
+	}
+	return resp, nil
 }
 
 func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2115,18 +2132,18 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadResourceJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.WithError(err).Error("Failed to parse request remote address.")
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -2145,9 +2162,9 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		logger.WithError(err).Error("Failed to create GitHub auth request.")
 		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
-			return nil, trace.AccessDenied(SSOLoginFailureInvalidRedirect)
+			return nil, trace.AccessDenied("%s", SSOLoginFailureInvalidRedirect)
 		}
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -2268,8 +2285,14 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// semver parsing requires a 'v' at the beginning of the version string.
-	version := semver.Major("v" + ping.ServerVersion)
+
+	const group, agentUUD = "", ""
+	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
+	if err != nil {
+		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
+		targetVersion = teleport.SemVer()
+	}
+
 	instTmpl, err := template.New("").Parse(installer.GetScript())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2285,7 +2308,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	// By default, it uses the stable/v<majorVersion> channel.
-	repoChannel := fmt.Sprintf("stable/%s", version)
+	repoChannel := fmt.Sprintf("stable/v%d", targetVersion.Major)
 
 	// If the updater must be installed, then change the repo to stable/cloud
 	// It must also install the version specified in
@@ -2298,7 +2321,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
-		MajorVersion:      shsprintf.EscapeDefaultContext(version),
+		MajorVersion:      shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
 		TeleportPackage:   teleportPackage,
 		RepoChannel:       shsprintf.EscapeDefaultContext(repoChannel),
 		AutomaticUpgrades: strconv.FormatBool(installUpdater),
@@ -4952,7 +4975,7 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 	const missingCookieMsg = "missing session cookie"
 	cookie, err := r.Cookie(websession.CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
-		return nil, trace.AccessDenied(missingCookieMsg)
+		return nil, trace.AccessDenied("%s", missingCookieMsg)
 	}
 	decodedCookie, err := websession.DecodeCookie(cookie.Value)
 	if err != nil {
