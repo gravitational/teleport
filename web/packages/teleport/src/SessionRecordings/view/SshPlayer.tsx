@@ -16,7 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
@@ -30,10 +37,26 @@ import { getAccessToken, getHostName } from 'teleport/services/api';
 import ProgressBar from './ProgressBar';
 import Xterm from './Xterm';
 
-export default function Player({ sid, clusterId, durationMs }) {
+interface PlayerProps {
+  sid: string;
+  clusterId: string;
+  durationMs: number;
+  onTimeChange?: (time: number) => void;
+  showTimeline?: () => void;
+}
+
+export interface PlayerHandle {
+  moveToTime: (time: number) => void;
+}
+
+const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
+  { sid, clusterId, durationMs, onTimeChange, showTimeline },
+  ref
+) {
   const { tty, playerStatus, statusText, time } = useStreamingSshPlayer(
     clusterId,
-    sid
+    sid,
+    onTimeChange
   );
 
   // statusText is currently only set when an error happens, so for now we can assume
@@ -43,6 +66,17 @@ export default function Player({ sid, clusterId, durationMs }) {
   const isLoading = playerStatus === StatusEnum.LOADING;
   const isPlaying = playerStatus === StatusEnum.PLAYING;
   const isComplete = isError || playerStatus === StatusEnum.COMPLETE;
+
+  const moveToTime = useCallback(
+    (newTime: number) => {
+      tty.move(newTime);
+    },
+    [tty]
+  );
+
+  useImperativeHandle(ref, () => ({
+    moveToTime,
+  }));
 
   if (isError) {
     return (
@@ -81,10 +115,13 @@ export default function Player({ sid, clusterId, durationMs }) {
         toggle={() => {
           isPlaying ? tty.stop() : tty.play();
         }}
+        showTimeline={showTimeline}
       />
     </StyledPlayer>
   );
-}
+});
+
+export { Player as default };
 
 const StatusBox = props => (
   <Box width="100%" textAlign="center" p={3} {...props} />
@@ -98,7 +135,11 @@ const StyledPlayer = styled.div`
   justify-content: space-between;
 `;
 
-function useStreamingSshPlayer(clusterId: string, sid: string) {
+function useStreamingSshPlayer(
+  clusterId: string,
+  sid: string,
+  onTimeChange?: (time: number) => void
+) {
   const [playerStatus, setPlayerStatus] = useState(StatusEnum.LOADING);
   const [statusText, setStatusText] = useState('');
   const [time, setTime] = useState(0);
@@ -109,8 +150,14 @@ function useStreamingSshPlayer(clusterId: string, sid: string) {
       .replace(':clusterId', clusterId)
       .replace(':sid', sid)
       .replace(':token', getAccessToken());
-    return new TtyPlayer({ url, setPlayerStatus, setStatusText, setTime });
-  }, [clusterId, sid, setPlayerStatus, setStatusText, setTime]);
+    return new TtyPlayer({
+      url,
+      onTimeChange,
+      setPlayerStatus,
+      setStatusText,
+      setTime,
+    });
+  }, [clusterId, sid, setPlayerStatus, setStatusText, onTimeChange]);
 
   useEffect(() => {
     tty.connect();
