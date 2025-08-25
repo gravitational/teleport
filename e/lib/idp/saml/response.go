@@ -29,7 +29,11 @@ const (
 	// Webauthn is the MFA response value that contains the result of
 	// Per Session MFA assertion, i.e the credential object created from
 	// the result of navigator.credentials.get.
+	// TODO(cthach): DELETE IN v20.0.0 WebAuthn field.
 	Webauthn MessageType = "Webauthn"
+	// MFAResponse is the MFA response value that contains the result of
+	// MFA assertion. It can include a WebAuthn or SSO response.
+	MFAResponse MessageType = "MFAResponse"
 	// SAMLAuthRequest is used to relay base64 encoded original SAML authentication
 	// request data when the user is redirected to login page for authentication.
 	SAMLAuthRequest = "SAMLAuthRequest"

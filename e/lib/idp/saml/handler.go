@@ -143,7 +143,7 @@ func (s *Service) authorize(r *http.Request, sp types.SAMLIdPServiceProvider) (*
 	}
 
 	accessState := authCtx.Checker.GetAccessState(authPref)
-	if r.URL.Query().Get(Webauthn.String()) != "" {
+	if r.URL.Query().Get(Webauthn.String()) != "" || r.URL.Query().Get(MFAResponse.String()) != "" {
 		// For now, authorize the user on the assumption that the provided MFA
 		// Response is valid. It will be passed to the Auth Server for verification
 		// before the final assertion is signed.

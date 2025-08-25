@@ -2,7 +2,6 @@ package saml
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 
@@ -16,7 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client" // TODO(cthach): Move common MFA types to a separate package.
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -192,26 +191,32 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 		return trace.Wrap(err)
 	}
 
-	// Make the SAML IdP response on the auth server.
-	ctx := req.HTTPRequest.Context()
+	// Get the MFA response from the query parameter `MFAResponse`. The MFA
+	// response will later be used to authenticate the user.
+	encodedMFAResp := req.HTTPRequest.URL.Query().Get(MFAResponse.String())
+
+	// If `MFAResponse` is not available, it might mean we're dealing with an older client,
+	// so try to get the MFA response from the WebAuthn query parameter.
+	// TODO(cthach): DELETE IN v20.0.0 WebAuthn query parameter.
+	if encodedMFAResp == "" {
+		encodedMFAResp = req.HTTPRequest.URL.Query().Get(Webauthn.String())
+	}
 
 	var mfaProtoResponse *proto.MFAAuthenticateResponse
-	if webauthnQuery := req.HTTPRequest.URL.Query().Get(Webauthn.String()); webauthnQuery != "" {
-		var webauthn mfaResponse
-		decodedWebauthn, err := base64.RawURLEncoding.DecodeString(webauthnQuery)
+	if encodedMFAResp != "" {
+		decodedMFAResp, err := base64.RawURLEncoding.DecodeString(encodedMFAResp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := json.Unmarshal(decodedWebauthn, &webauthn); err != nil {
+
+		mfaProtoResponse, err = client.ParseMFAChallengeResponse(decodedMFAResp)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		mfaProtoResponse = &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(webauthn.WebauthnAssertionResponse),
-			},
-		}
 	}
+
+	// Make the SAML IdP response on the auth server.
+	ctx := req.HTTPRequest.Context()
 
 	resp, err := s.client.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, &samlidppb.ProcessSAMLIdPRequestRequest{
 		Assertion:                    assertionBytes,
@@ -243,12 +248,6 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	s.emitAuthAttemptEvent(ctx, session.UserName, req.ServiceProviderMetadata.EntityID, "", nil)
 
 	return nil
-}
-
-// copied from lib/web/files.go
-type mfaResponse struct {
-	// WebauthnResponse is the response from authenticators.
-	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // addAttribute will add an attribute to the given slice if the number of values is non-zero. If there is one element,

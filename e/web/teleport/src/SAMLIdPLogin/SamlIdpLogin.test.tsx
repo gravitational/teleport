@@ -1,54 +1,114 @@
 import { render, screen, waitFor } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
-import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
+import {
+  SsoChallengeResponse,
+  WebauthnAssertionResponse,
+} from 'teleport/services/mfa';
 
 import { SAMLIdPLogin } from './SAMLIdPLogin';
 
 const baseUrl = 'http://example.com';
 
+// Use a shared mock function for getChallengeResponse so spies and resolved values
+// are consistent across all uses of useMfa in the component and tests.
+const mockGetChallengeResponse = jest.fn();
+
+// Mock useMfa to always return the same mockGetChallengeResponse instance.
+jest.mock('teleport/lib/useMfa', () => {
+  return {
+    useMfa: () => ({
+      getChallengeResponse: mockGetChallengeResponse,
+    }),
+    shouldShowMfaPrompt: jest.fn(),
+  };
+});
+
 describe('valid redirect_uri', () => {
-  beforeEach(() => {
-    jest.spyOn(history, 'push').mockImplementation();
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce({
-      totpChallenge: true,
-      webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+  describe('with WebAuthn MFA', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      jest.spyOn(history, 'push').mockImplementation();
+      mockGetChallengeResponse.mockResolvedValue({
+        webauthn_response: {} as WebauthnAssertionResponse,
+      });
     });
-    jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+
+    cfg.baseUrl = baseUrl;
+    const tests: Array<{
+      name: string;
+      redirectUri: string;
+      expectedRedirection: string;
+    }> = [
+      {
+        name: 'valid URL',
+        redirectUri: 'http://example.com' + cfg.routes.samlIdpSso,
+        expectedRedirection: 'http://example.com' + cfg.routes.samlIdpSso,
+      },
+      {
+        name: 'valid host, invalid path',
+        redirectUri: 'http://example.com/enterprise/test/saml-idp/sso',
+        expectedRedirection: 'http://example.com/web',
+      },
+    ];
+
+    test.each(tests)('$name', async ({ redirectUri, expectedRedirection }) => {
+      jest
+        .spyOn(history, 'getRedirectParam')
+        .mockReturnValue(redirectUri.toString());
+      render(<SAMLIdPLogin />);
+
+      await waitFor(() => {
+        expect(history.push).toHaveBeenCalledWith(
+          expectedRedirection +
+            '?MFAResponse=eyJ3ZWJhdXRobkFzc2VydGlvblJlc3BvbnNlIjp7fSwibWZhX3Jlc3BvbnNlIjp7fX0' + // Base64 encoded JSON: `{"mfa_response":{}}`
+            '&Webauthn=eyJ3ZWJhdXRobkFzc2VydGlvblJlc3BvbnNlIjp7fSwibWZhX3Jlc3BvbnNlIjp7fX0', // Base64 encoded JSON: `{"webauthnAssertionResponse":{}}`
+          true
+        );
+      });
+    });
   });
 
-  cfg.baseUrl = baseUrl;
-  const tests: Array<{
-    name: string;
-    redirectUri: string;
-    expectedRedirection: string;
-  }> = [
-    {
-      name: 'valid URL',
-      redirectUri: 'http://example.com' + cfg.routes.samlIdpSso,
-      expectedRedirection: 'http://example.com' + cfg.routes.samlIdpSso,
-    },
-    {
-      name: 'valid host, invalid path',
-      redirectUri: 'http://example.com/enterprise/test/saml-idp/sso',
-      expectedRedirection: 'http://example.com/web',
-    },
-  ];
+  describe('with SSO MFA', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      jest.spyOn(history, 'push').mockImplementation();
+      mockGetChallengeResponse.mockResolvedValue({
+        sso_response: {} as SsoChallengeResponse,
+      });
+    });
 
-  test.each(tests)('$name', async ({ redirectUri, expectedRedirection }) => {
-    jest
-      .spyOn(history, 'getRedirectParam')
-      .mockReturnValue(redirectUri.toString());
-    render(<SAMLIdPLogin />);
+    cfg.baseUrl = baseUrl;
+    const tests: Array<{
+      name: string;
+      redirectUri: string;
+      expectedRedirection: string;
+    }> = [
+      {
+        name: 'valid URL',
+        redirectUri: 'http://example.com' + cfg.routes.samlIdpSso,
+        expectedRedirection: 'http://example.com' + cfg.routes.samlIdpSso,
+      },
+      {
+        name: 'valid host, invalid path',
+        redirectUri: 'http://example.com/enterprise/test/saml-idp/sso',
+        expectedRedirection: 'http://example.com/web',
+      },
+    ];
 
-    await waitFor(() => {
-      // Webauthn value "e30" represents an empty JSON tag {} converted to base64 (e30=).
-      // The trailing '=' character is removed by the bufferToBase64url converter.
-      expect(history.push).toHaveBeenCalledWith(
-        expectedRedirection + '?Webauthn=e30',
-        true
-      );
+    test.each(tests)('$name', async ({ redirectUri, expectedRedirection }) => {
+      jest
+        .spyOn(history, 'getRedirectParam')
+        .mockReturnValue(redirectUri.toString());
+      render(<SAMLIdPLogin />);
+
+      await waitFor(() => {
+        expect(history.push).toHaveBeenCalledWith(
+          expectedRedirection + '?MFAResponse=eyJtZmFfcmVzcG9uc2UiOnt9fQ', // Base64 encoded JSON: `{"mfa_response":{}}`
+          true
+        );
+      });
     });
   });
 });

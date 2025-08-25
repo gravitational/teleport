@@ -4,15 +4,25 @@ import { useEffect } from 'react';
 import { Alert, Flex, H1, Indicator } from 'design';
 import CardError, { AccessDenied } from 'design/CardError';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { isAbortError } from 'shared/utils/abortError';
 import { bufferToBase64url } from 'shared/utils/base64';
+import { isAbortError } from 'shared/utils/error';
 
 import cfg from 'e-teleport/config';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import AuthnDialog from 'teleport/components/AuthnDialog';
+import { useMfa } from 'teleport/lib/useMfa';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
 
 export function SAMLIdPLogin() {
   const { attempt, setAttempt } = useAttempt('processing');
+
+  // This route always requires MFA.
+  const mfa = useMfa({
+    req: {
+      scope: MfaChallengeScope.USER_SESSION,
+    },
+    isMfaRequired: true,
+  });
 
   useEffect(() => {
     const signal = new AbortController();
@@ -27,25 +37,28 @@ export function SAMLIdPLogin() {
           });
           return;
         }
-        // Prompt for MFA, we only get routed here when MFA
-        // is required for SAML IdP Sessions.
-        const mfaChallenge = await auth.getMfaChallenge(
-          { scope: MfaChallengeScope.USER_SESSION },
-          signal.signal
-        );
 
-        const mfaResponse = await auth.getMfaChallengeResponse(
-          mfaChallenge,
-          'webauthn'
-        );
-        // url safe base64 encoding is chosen here because with just a
-        // plain JSON or even encodeURIComponent encoded string, it can break
-        // the CSP header or result in a mismatch between the CSP directive and
-        // form action URL when the value passes through the Go's html templating.
+        const mfaResponse = await mfa.getChallengeResponse();
+
+        // Short circuit if no supported MFA methods were completed.
+        if (!mfaResponse.webauthn_response && !mfaResponse.sso_response) {
+          throw new Error(
+            "Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device"
+          );
+        }
+
+        // Use URL-safe base64 encoding to avoid CSP issues with JSON or encodeURIComponent.
         const mfaResponseBytes = new TextEncoder().encode(
           JSON.stringify({
-            // TODO(Joerger): Handle non-webauthn response.
-            webauthnAssertionResponse: mfaResponse.webauthn_response,
+            // Keep webauthnAssertionResponse for backward compatibility. If
+            // webauthn_response is not present, webauthnAssertionResponse will
+            // not be included in the final payload.
+            // TODO(cthach): DELETE IN v20.0.0.
+            webauthnAssertionResponse:
+              mfaResponse.webauthn_response ?? undefined,
+
+            mfa_response:
+              mfaResponse.webauthn_response || mfaResponse.sso_response,
           })
         );
         const urlSafeMfaResponse = bufferToBase64url(mfaResponseBytes.buffer);
@@ -58,14 +71,26 @@ export function SAMLIdPLogin() {
         let entryUrl = history.getRedirectParam();
         entryUrl = history.ensureKnownRoute(entryUrl);
         let { pathname, search } = parsePath(history.ensureBaseUrl(entryUrl));
-        if (search) {
-          search = `${search}&Webauthn=${urlSafeMfaResponse}`;
-        } else {
-          search = `?Webauthn=${urlSafeMfaResponse}`;
+
+        // Query parameters are defined in e/lib/idp/saml/response.go.
+        const searchParams = new URLSearchParams(search);
+
+        // Set MFAResponse parameter to the base64-encoded JSON of the MFA response.
+        searchParams.set('MFAResponse', urlSafeMfaResponse);
+
+        // Set Webauthn parameter for backward compatibility.
+        // TODO(cthach): DELETE IN v20.0.0.
+        if (mfaResponse.webauthn_response) {
+          searchParams.set('Webauthn', urlSafeMfaResponse);
         }
 
-        const url = `${pathname}${search}`;
-        history.push(url, true);
+        const url = new URL(pathname, window.location.origin);
+        url.search = searchParams.toString();
+
+        // Redirect to SAML IdP login handler. The handler will verify the MFA
+        // response and redirect to the original SAML IdP URL with the SAML
+        // assertion.
+        history.push(url.toString(), true);
       } catch (err) {
         // ignore abort errors
         if (isAbortError(err)) {
@@ -84,7 +109,7 @@ export function SAMLIdPLogin() {
     return () => {
       signal.abort();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- Only run the effect once on mount
 
   if (attempt.status === 'failed') {
     if (attempt.statusCode === 400) {
@@ -93,7 +118,12 @@ export function SAMLIdPLogin() {
     return <SAMLLoginAccessDenied statusText={attempt.statusText} />;
   }
 
-  return <SAMLLoginProcessing />;
+  return (
+    <>
+      <SAMLLoginProcessing />
+      <AuthnDialog mfaState={mfa} />
+    </>
+  );
 }
 
 export function SAMLLoginProcessing() {

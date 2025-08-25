@@ -24,158 +24,168 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestAuth(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	env := newTEnv(ctx, t, clock)
-	env.testServices.Client.SigningCtx = testenv.WithRole(ctx, types.RoleProxy)
+	for _, tt := range []struct {
+		// mfaQueryParamName is the name of the query parameter used for the MFA response.
+		mfaQueryParamName string
+	}{
+		// TODO(cthach): DELETE IN v20.0.0 Webauthn query parameter.
+		{mfaQueryParamName: Webauthn.String()},
+		{mfaQueryParamName: MFAResponse.String()},
+	} {
+		ctx := context.Background()
+		clock := clockwork.NewFakeClock()
+		env := newTEnv(ctx, t, clock)
+		env.testServices.Client.SigningCtx = testenv.WithRole(ctx, types.RoleProxy)
 
-	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
+		user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
 
-	path := path.Join(IdPRoute, "login", "shortcut-name")
-	sp1, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "shortcut-name",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1", "https://sp1.com/acs"),
-			EntityID:         "sp1",
-			RelayState:       "test-relay-state",
-		},
-	)
-	require.NoError(t, err)
-	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
+		path := path.Join(IdPRoute, "login", "shortcut-name")
+		sp1, err := types.NewSAMLIdPServiceProvider(
+			types.Metadata{
+				Name: "shortcut-name",
+			},
+			types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: testenv.NewTestEntityDescriptor("sp1", "https://sp1.com/acs"),
+				EntityID:         "sp1",
+				RelayState:       "test-relay-state",
+			},
+		)
+		require.NoError(t, err)
+		require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
 
-	// No user.
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, path, nil)
+		// No user.
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, path, nil)
 
-	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+		env.samlIdPService.ServeHTTP(w, r)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
 
-	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
-		require.False(t, event.Success)
-		require.Empty(t, event.User)
-		require.Empty(t, event.ServiceProviderEntityID)
-	})
+		expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+			require.False(t, event.Success)
+			require.Empty(t, event.User)
+			require.Empty(t, event.ServiceProviderEntityID)
+		})
 
-	// User provided.
-	w = httptest.NewRecorder()
-	r = httptest.NewRequest(http.MethodGet, path, nil)
-	r = r.WithContext(authz.ContextWithUser(ctx, user))
+		// User provided.
+		w = httptest.NewRecorder()
+		r = httptest.NewRequest(http.MethodGet, path, nil)
+		r = r.WithContext(authz.ContextWithUser(ctx, user))
 
-	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusOK, w.Code)
+		env.samlIdPService.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code)
 
-	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
-		require.True(t, event.Success)
-		require.Equal(t, user.Username, event.User)
-		require.Empty(t, event.Error)
-		require.Equal(t, "sp1", event.ServiceProviderEntityID)
-	})
+		expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+			require.True(t, event.Success)
+			require.Equal(t, user.Username, event.User)
+			require.Empty(t, event.Error)
+			require.Equal(t, "sp1", event.ServiceProviderEntityID)
+		})
 
-	// Disable access to the IdP.
-	authPref, err := env.testServices.ClusterService.GetAuthPreference(ctx)
-	require.NoError(t, err)
-	authPref.SetSAMLIdPEnabled(false)
-	authPref, err = env.testServices.ClusterService.UpdateAuthPreference(ctx, authPref)
-	require.NoError(t, err)
+		// Disable access to the IdP.
+		authPref, err := env.testServices.ClusterService.GetAuthPreference(ctx)
+		require.NoError(t, err)
+		authPref.SetSAMLIdPEnabled(false)
+		authPref, err = env.testServices.ClusterService.UpdateAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 
-	w = httptest.NewRecorder()
-	r = httptest.NewRequest(http.MethodGet, path, nil)
-	r = r.WithContext(authz.ContextWithUser(ctx, user))
+		w = httptest.NewRecorder()
+		r = httptest.NewRequest(http.MethodGet, path, nil)
+		r = r.WithContext(authz.ContextWithUser(ctx, user))
 
-	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusForbidden, w.Code)
+		env.samlIdPService.ServeHTTP(w, r)
+		require.Equal(t, http.StatusForbidden, w.Code)
 
-	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
-		require.False(t, event.Success)
-		require.Equal(t, user.Username, event.User)
-		require.Equal(t, "SAML IdP is disabled at the cluster level", event.Error)
-		require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
-	})
+		expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+			require.False(t, event.Success)
+			require.Equal(t, user.Username, event.User)
+			require.Equal(t, "SAML IdP is disabled at the cluster level", event.Error)
+			require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+		})
 
-	// Reenable the SAML IdP.
-	authPref.SetSAMLIdPEnabled(true)
-	_, err = env.testServices.ClusterService.UpdateAuthPreference(ctx, authPref)
-	require.NoError(t, err)
+		// Reenable the SAML IdP.
+		authPref.SetSAMLIdPEnabled(true)
+		_, err = env.testServices.ClusterService.UpdateAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 
-	// User is expired.
-	user.Identity.Expires = clock.Now().Add(-30 * time.Minute)
-	w = httptest.NewRecorder()
-	r = httptest.NewRequest(http.MethodGet, path, nil)
-	r = r.WithContext(authz.ContextWithUser(ctx, user))
+		// User is expired.
+		user.Identity.Expires = clock.Now().Add(-30 * time.Minute)
+		w = httptest.NewRecorder()
+		r = httptest.NewRequest(http.MethodGet, path, nil)
+		r = r.WithContext(authz.ContextWithUser(ctx, user))
 
-	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+		env.samlIdPService.ServeHTTP(w, r)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
 
-	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
-		require.False(t, event.Success)
-		require.Equal(t, user.Username, event.User)
-		require.Equal(t, "identity is expired", event.Error)
-		require.Empty(t, event.ServiceProviderEntityID)
-	})
+		expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+			require.False(t, event.Success)
+			require.Equal(t, user.Username, event.User)
+			require.Equal(t, "identity is expired", event.Error)
+			require.Empty(t, event.ServiceProviderEntityID)
+		})
 
-	user.Identity.Expires = user.Identity.Expires.Add(30 * time.Minute)
+		user.Identity.Expires = user.Identity.Expires.Add(30 * time.Minute)
 
-	// Require MFA.
-	a, ok := authPref.(*types.AuthPreferenceV2)
-	require.True(t, ok)
-	a.Spec.RequireMFAType = types.RequireMFAType_SESSION
-	_, err = env.testServices.ClusterService.UpdateAuthPreference(ctx, authPref)
-	require.NoError(t, err)
+		// Require MFA.
+		a, ok := authPref.(*types.AuthPreferenceV2)
+		require.True(t, ok)
+		a.Spec.RequireMFAType = types.RequireMFAType_SESSION
+		_, err = env.testServices.ClusterService.UpdateAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 
-	// No MFA should redirect to /web/saml-idp/login.
-	w = httptest.NewRecorder()
-	r = httptest.NewRequest(http.MethodGet, path, nil)
-	r = r.WithContext(authz.ContextWithUser(ctx, user))
+		// No MFA should redirect to /web/saml-idp/login.
+		w = httptest.NewRecorder()
+		r = httptest.NewRequest(http.MethodGet, path, nil)
+		r = r.WithContext(authz.ContextWithUser(ctx, user))
 
-	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusSeeOther, w.Code)
+		env.samlIdPService.ServeHTTP(w, r)
+		require.Equal(t, http.StatusSeeOther, w.Code)
 
-	// no event is emitted as this redirect is expected.
+		// no event is emitted as this redirect is expected.
 
-	result := w.Result()
-	require.NoError(t, result.Body.Close())
-	resultURL, err := result.Location()
-	require.NoError(t, err)
-	require.Equal(t, "/web/saml-idp/login", resultURL.Path)
-	require.Equal(t, "redirect_uri=https://example.com/enterprise/saml-idp/login/shortcut-name", resultURL.RawQuery)
+		result := w.Result()
+		require.NoError(t, result.Body.Close())
+		resultURL, err := result.Location()
+		require.NoError(t, err)
+		require.Equal(t, "/web/saml-idp/login", resultURL.Path)
+		require.Equal(t, "redirect_uri=https://example.com/enterprise/saml-idp/login/shortcut-name", resultURL.RawQuery)
 
-	// MFA provided.
-	w = httptest.NewRecorder()
-	r = httptest.NewRequest(http.MethodGet, path, nil)
-	r = r.WithContext(authz.ContextWithUser(ctx, user))
+		// MFA provided.
+		w = httptest.NewRecorder()
+		r = httptest.NewRequest(http.MethodGet, path, nil)
+		r = r.WithContext(authz.ContextWithUser(ctx, user))
 
-	fakeWebauthnResponse := &mfaResponse{
-		WebauthnAssertionResponse: &webauthntypes.CredentialAssertionResponse{
-			PublicKeyCredential: webauthntypes.PublicKeyCredential{
-				Credential: webauthntypes.Credential{
-					ID:   "id",
-					Type: "type",
+		fakeWebauthnResponse := &client.MFAChallengeResponse{
+			WebauthnAssertionResponse: &webauthntypes.CredentialAssertionResponse{
+				PublicKeyCredential: webauthntypes.PublicKeyCredential{
+					Credential: webauthntypes.Credential{
+						ID:   "id",
+						Type: "type",
+					},
 				},
 			},
-		},
+		}
+		webauthnBytes, err := json.Marshal(fakeWebauthnResponse)
+		require.NoError(t, err)
+		r.URL.RawQuery = url.Values{
+			tt.mfaQueryParamName: []string{base64.RawURLEncoding.EncodeToString(webauthnBytes)},
+		}.Encode()
+
+		env.samlIdPService.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+			require.True(t, event.Success)
+			require.Equal(t, user.Username, event.User)
+			require.Empty(t, event.Error)
+			require.Equal(t, "sp1", event.ServiceProviderEntityID)
+		})
 	}
-	webauthnBytes, err := json.Marshal(fakeWebauthnResponse)
-	require.NoError(t, err)
-	r.URL.RawQuery = url.Values{
-		Webauthn.String(): []string{base64.RawURLEncoding.EncodeToString(webauthnBytes)},
-	}.Encode()
-
-	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusOK, w.Code)
-
-	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
-		require.True(t, event.Success)
-		require.Equal(t, user.Username, event.User)
-		require.Empty(t, event.Error)
-		require.Equal(t, "sp1", event.ServiceProviderEntityID)
-	})
 }
 
 func TestMetadata(t *testing.T) {
