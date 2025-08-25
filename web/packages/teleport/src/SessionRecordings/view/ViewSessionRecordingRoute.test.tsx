@@ -66,7 +66,7 @@ const mockMetadata: SessionRecordingMetadata = {
   endTime: 1609462800, // Jan 1, 2021
   duration: 3600000, // 1 hour in milliseconds
   user: 'testuser',
-  resource: 'test-server',
+  resourceName: 'test-server',
   clusterName: 'test-cluster',
   events: [],
   startCols: 80,
@@ -99,7 +99,7 @@ function setupTest(initialEntry?: string) {
 
 function withSessionDuration(durationMs: number, recordingType: RecordingType) {
   server.use(
-    http.get(cfg.api.sessionDurationPath, req =>
+    http.get(cfg.api.sessionDurationPath, () =>
       HttpResponse.json({
         durationMs,
         recordingType,
