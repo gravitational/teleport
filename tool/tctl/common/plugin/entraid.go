@@ -78,7 +78,7 @@ With the output of Step 1, please copy and paste the following information:
 
 To finish the Entra ID integration, manually configure the Application in Microsoft Entra ID.
 
-Follow the instructions provided in the Teleport documentation: [https://goteleport.com/docs/admin-guides/teleport-policy/integrations/entra-id/].
+Follow the instructions provided in the Teleport documentation: [https://goteleport.com/docs/identity-security/integrations/entra-id/].
 
 After completing the Entra ID setup, copy and paste the following information:
 `
