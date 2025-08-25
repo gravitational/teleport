@@ -506,7 +506,7 @@ const colors: ThemeColors = {
 
   sessionRecordingTimeline: {
     background: '#1f2549',
-    header: { text: '' },
+    headerBackground: 'rgba(0, 0, 0, 0.13)',
     frameBorder: 'rgba(255, 255, 255, 0.2)',
     progressLine: '#E53E3E',
     border: {
@@ -524,8 +524,14 @@ const colors: ThemeColors = {
         border: '#86c4ed',
         text: '#86c4ed',
       },
-      join: { background: '#009EFF', text: '' },
-      default: { background: 'rgba(255, 255, 255, 0.54)', text: '' },
+      join: {
+        background: '#009EFF',
+        text: 'rgba(0, 0, 0, 0.87)',
+      },
+      default: {
+        background: 'rgba(255, 255, 255, 0.54)',
+        text: '',
+      },
     },
     timeMarks: {
       primary: '#718096',

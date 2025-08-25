@@ -229,9 +229,7 @@ export type ThemeColors = {
 
   sessionRecordingTimeline: {
     background: string;
-    header: {
-      text: string;
-    };
+    headerBackground: string;
     frameBorder: string;
     progressLine: string;
     cursor: string;
@@ -240,10 +238,23 @@ export type ThemeColors = {
       hover: string;
     };
     events: {
-      inactivity: { background: string; text: string };
-      resize: { background: string; border: string; text: string };
-      join: { background: string; text: string };
-      default: { background: string; text: string };
+      inactivity: {
+        background: string;
+        text: string;
+      };
+      resize: {
+        background: string;
+        border: string;
+        text: string;
+      };
+      join: {
+        background: string;
+        text: string;
+      };
+      default: {
+        background: string;
+        text: string;
+      };
     };
     timeMarks: {
       primary: string;
