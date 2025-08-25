@@ -84,20 +84,8 @@ and `proxy-sync` identically (perform synchronous recording).
 ### Encryption
 
 Teleport supports at-rest encryption of session recordings for all 4 recording
-modes. It can be enabled through the `teleport.yaml` configuration or
-dynamically through the `session_recording_config` resource. Any required
-encryption keys are provisioned using the CA key storage backend which is
-configured by setting `ca_key_params` in the `auth_service` section of the
-`teleport.yaml`. Similar to CAs, when no `ca_key_params` are provided then the
-encryption keys will be software generated and saved in Teleport's storage
-backend.
-
-<Admonition type="note">
-In distributed HA environments where the Teleport Auth Service is composed of multiple
-instances, it is important that all instances have access to the same key storage backend
-and keys. Otherwise availability of session replay may be degraded. This holds true even
-when using [Manual Encryption Key Management](#manual-encryption-key-management).
-</Admonition>
+modes. It can be enabled through the `teleport.yaml` configuration file or
+dynamically through the `session_recording_config` resource.
 
 An example of enabling encryption using the `teleport.yaml`:
 
@@ -117,6 +105,16 @@ spec:
   encryption:
     enabled: yes
 ```
+
+Any encryption keys are provisioned using the same key storage backend
+configured for CAs.
+
+<Admonition type="note">
+In distributed HA environments where there are multiple Teleport Auth Services,
+it is important that all services have access to the same key storage backend
+and keys. Otherwise availability of session replay may be degraded. This holds
+true even when using [Manual Encryption Key Management](#manual-encryption-key-management).
+</Admonition>
 
 ### Record at the SSH node
 
@@ -250,7 +248,7 @@ order to play recordings.
 
 ## Upload completer
 
-Every Teleport process runs a service called the _upload completer_ which periodically
+Every Teleport process runs a service called the *upload completer* which periodically
 checks for abandoned uploads and completes them if there is not an active session tracker
 for the session associated with the recording. By default, the upload completer runs
 every 5 minutes, and session trackers have a 30 minute expiration period. This means it
@@ -267,41 +265,6 @@ to storage. If the Auth Service goes down during a session, the uncompleted uplo
 as a series of parts (in cloud storage or on an Auth Service instance's disk) and it is the
 responsibility of the Auth Service's upload completer to detect the abandoned upload and
 complete it.
-
-## Key Rotation
-
-Rotation of session recording encryption keys is performed with `tctl`.
-
-1. Begin the key rotation. This will fail if a rotation is already in progress.
-
-```code
-$ tctl recordings encryption rotate
-```
-
-1. Check status to confirm rotation is in progress
-
-```code
-$ tctl recordings encryption status
-Rotation in progress
-Key Pair Fingerprint                                             State
----------------------------------------------------------------- --------
-48303729235b962c69940fe4cc9d47fcd6f5dd3bcbd149a6d4944098ce01b84c rotating
-8a8581543c70cd2ed5e993080670aefec2c620ef792730f020cb463350adeccb active
-```
-
-1. Either complete the key rotation or rollback to the original key
-
-```code
-$ tctl recordings encryption complete-rotation
-```
-
-```code
-$ tctl recordings encryption rollback-rotation
-```
-
-Completing a key rotation will retain the rotated key for future replay of historical
-session recordings. All recordings captured after rotation will only be replayable with
-the new key.
 
 ## Manual Encryption Key Management
 
@@ -320,10 +283,6 @@ For this reason, Teleport can be configured to use externally managed keys. This
 controlled using the `encryption.manual_key_management` configuration in either the
 `teleport.yaml` file or the dynamic `session_recording_config` resource.
 
-As an example, we will configure Teleport to use existing keys stored in a PKCS#11
-compliant HSM backend. The active key in the HSM is labeled with `session_recording_002`
-and a previously rotated key was labeled with `session_recording_001`.
-
 ```yaml
 encryption:
   enabled: yes
@@ -331,39 +290,10 @@ encryption:
     enabled: yes
     active_keys:
       - type: pkcs11
-        label: "session_recordings_002"
+        label: 'session_recordings_002'
     rotated_keys:
       - type: pkcs11
-        label: "session_recordings_001"
-```
-
-Teleport will search the HSM for the keys described in both `active_keys` and
-`rotated_keys`. The active keys will be used during encryption and replay of any new
-session recordings. The rotated keys will be used during replay of historical session
-recordings, but will not be used during encryption operations.
-
-As mentioned previously, it is important that all Teleport Auth Service instances have
-access to the same keys. Degraded availability of replays should be expected if instances
-are using different keys.
-
-Key rotations are also left to be managed manually, but can be achieved by modifying
-which labels appear in which list. For example, if introducing a new
-`session_recordings_003` key, you might update your configuration accordingly:
-
-```yaml
-encryption:
-  enabled: yes
-  manual_key_management:
-    enabled: yes
-    active_keys:
-      - type: pkcs11
-        label: "session_recordings_003"
-
-    rotated_keys:
-      - type: pkcs11
-        label: "session_recordings_002"
-      - type: pkcs11
-        label: "session_recordings_001"
+        label: 'session_recordings_001'
 ```
 
 <Admonition type="warning">
@@ -377,5 +307,6 @@ defined when the key is first provisioned.
 ## Related reading
 
 - [Recording Proxy Mode](../../enroll-resources/server-access/guides/recording-proxy-mode.mdx)
+- [Encrypted Session Recordings](../../enroll-resources/server-access/guides/encrypted-session-recordings.mdx)
 - [SSH recording modes](../monitoring/audit.mdx)
 - [Session recording for desktops](../agent-services/desktop-access-reference/sessions.mdx)
