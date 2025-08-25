@@ -185,6 +185,7 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 			CSRFToken:         response.Req.CSRFToken,
 			Username:          response.Username,
 			SessionName:       response.Session.GetName(),
+			SessionExpiry:     response.Session.Expiry(),
 			ClientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
@@ -390,6 +391,7 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 			CSRFToken:         response.Req.CSRFToken,
 			Username:          response.Username,
 			SessionName:       response.Session.GetName(),
+			SessionExpiry:     response.Session.Expiry(),
 			ClientRedirectURL: redirect,
 		}
 
