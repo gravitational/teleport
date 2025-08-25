@@ -279,12 +279,7 @@ func (m *mcpDBConfigCommand) run() error {
 	return trace.Wrap(runMCPConfig(m.cf, &m.clientConfig, m))
 }
 
-func (m *mcpDBConfigCommand) printInstructions(w io.Writer) error {
-	configFormat, err := m.clientConfig.format()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func (m *mcpDBConfigCommand) printInstructions(w io.Writer, configFormat mcpconfig.ConfigFormat) error {
 	config := mcpconfig.NewConfig(configFormat)
 	// Since the database is being added to a "fresh" config file the database
 	// will always be new and we can ignore the additional message as well.
@@ -292,7 +287,7 @@ func (m *mcpDBConfigCommand) printInstructions(w io.Writer) error {
 		return trace.Wrap(err)
 	}
 
-	if _, err := fmt.Fprintln(w, "Here is a sample JSON configuration for launching Teleport MCP servers:"); err != nil {
+	if _, err := fmt.Fprintf(w, "Here is a sample JSON configuration for launching Teleport MCP servers using %s format:\n", configFormat); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := config.Write(w, mcpconfig.FormatJSONOption(m.clientConfig.jsonFormat)); err != nil {
