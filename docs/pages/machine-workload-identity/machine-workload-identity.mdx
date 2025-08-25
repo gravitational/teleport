@@ -30,43 +30,6 @@ Teleport provides machines with an identity ("bot") that can authenticate to the
 
 Bots authenticate using join tokens that specify which bot user they grant access to and what proof (join method) is needed. Each tbot client connection creates a server-side Bot Instance to track installations over time.
 
-## Integrated use cases
-
-Zero Trust Access & Flexible Workload Identity can work together to create a comprehensive security model. Machines can securely access resources while workloads communicate securely with each other and external services, all managed through Teleport's unified access plane.
-
-### CI/CD pipeline with end-to-end authentication
-
-A [CI/CD system](../machine-workload-identity/machine-id/deployment/deployment.mdx#cicd) securely deploys services to Kubernetes and establishes secure communication channels between them:
-
-- The pipeline authenticates through the proxy to deploy to Kubernetes and receives credentials to interact with cloud APIs (e.g., to push container images)
-- Services deployed by the pipeline receive SPIFFE identities for mutual TLS. The pipeline manages the identity lifecycle for the services it deploys
-
-### Cloud-native application with third-party API access
-
-A Kubernetes-based application needs access to both internal services and external APIs:
-
-- Automation tools authenticate to configure the cluster securely
-- Application components are issued SPIFFE identities
-- Identities authenticate to internal services via mTLS
-- JWT-based authentication is used for external API access
-
-### Zero Trust security implementation
-
-A [Zero Trust strategy](../machine-workload-identity/workload-identity/getting-started.mdx/) is applied across workloads and automation:
-
-- Automation scripts authenticate through the proxy to perform infrastructure tasks
-- Workloads authenticate using short-lived, cryptographically verifiable identities
-- Security teams use Teleport’s unified audit logs to trace all identity activity
-
-### Identity-based communication without shared secrets
-
-Zero-trust, identity-based communication without shared secrets are rotated automatically without human involvement.
-
-Instead of managing static credentials (e.g., API keys, database passwords), workloads authenticate using short-lived X.509 certificates or JWTs compatible with the SPIFFE/SPIRE standard.
-
-- The service issues new identities to workloads on a regular schedule, dynamically issued by Teleport’s Auth Service and rotate automatically
-- All identity issuance and usage is recorded in audit logs
-
 ## Key differences
 
 **Flexible Workload Identities**: Issues SPIFFE-compatible identities for various authentication purposes; doesn't use Teleport Proxy for workload-to-workload communication

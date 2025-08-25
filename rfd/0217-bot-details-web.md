@@ -1,6 +1,6 @@
 ---
 authors: Nick Marais (nicholas.marais@goteleport.com)
-state: draft
+state: implemented
 ---
 # RFD0217 - Bot Details (web)
 
@@ -66,6 +66,8 @@ So that I can feel confident that the agents will work going forwards.
 Shows basic details and configuration. All items are readonly. Date/time items have a hover state which shows a tooltip with the full date and time.
 
 ![](assets/0217-feature-info.png)
+
+A lock status is included showing details of the in-force lock on hover. If more than once lock is in-force, appropriate messaging is shown explaining that removing the lock state need to be done by navigating to **Identity Governance > Session & Identity Locks** where the user can review all locks.
 
 **Data source**
 
@@ -173,7 +175,11 @@ Locks the bot after confirmation. Shows a loading indicator during the call to t
 
 ![](assets/0217-feature-lock-bot.png)
 
-Once a bot is locked, to unlock it requires navigating to **Identity Governance > Session & Identity Locks**, finding the lock in question and removing it. Deleting a lock requires it's UUID, which wont be know on this page.
+#### Unlock bot
+
+Unlocks a bot after confirmation. Shows a loading indicator during the call to the api. On success, removes the dialog but remains on the bot detail page. On error, shows a message within the confirmation dialog.
+
+![](assets/0217-feature-unlock-bot.png)
 
 ### Implementation
 
@@ -185,7 +191,7 @@ In order to keep the implementation modular, each logical section of the page fe
 
 ##### `GET /v1/webapi/sites/:site/machine-id/bot/:name`
 
-Fetch a bot by name, including roles and traits. Endpoint exists and will be reused. 
+Fetch a bot by name, including roles and traits. Endpoint exists and will be reused.
 
 ##### `GET /v2/webapi/tokens?role=bot&bot_name=:name`
 
@@ -258,21 +264,25 @@ In a scenario where an older version proxy is in place, the api will return a 40
 
 Delete a bot. Existing endpoint.
 
-##### `GET /v1/webapi/sites/:site/locks`
+##### `GET /v2/webapi/sites/:site/locks`
 
 Returns in-force locks for the bot, either role or user locks.
 
 **Approach**
 
-Existing endpoint which will be extended to support filtering for in-force locks only, as well as filtering for the provided targets (the bot's user and role). The underlying RPC and it's cache already support these filters.
+New (v2) endpoint which will support filtering for in-force locks only, as well as filtering for the provided targets (the bot's user). The underlying RPC and it's cache already support these filters.
 
 **Backwards compatibility**
 
-In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all locks including those not in-force and those not targeted at the bot being viewed. To mitigate this, and prevent showing a false "locked" status, the frontend app will re-filter for applicable locks and disregard the rest.
+In a scenario where an older version proxy is in place, the endpoint will return a 404 (including a `proxyVersion` field), as the new endpoint wont exist. In this case, the frontend will detect the version mismatch and provide the user with an explanation.
 
 ##### `PUT /v1/webapi/sites/:site/locks`
 
 Creates a new lock. Endpoint exists and will be used as-is to create a lock for a bot by name including a message and TTL.
+
+##### `DELETE /v1/webapi/sites/:site/locks/:uuid`
+
+Removed a lock by ID. Existing endpoint will be used as-is to remove a lock.
 
 #### UI
 
