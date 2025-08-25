@@ -8,11 +8,15 @@ labels:
  - terraform
 ---
 
-This guide shows end-to-end Entra ID integration configuration using Terraform and `tctl`.
-You will configure Entra ID side of configuration using Terraform and install the Entra ID 
-plugin in Teleport using `tctl`.
+This guide shows you how to integrate Teleport with Microsoft Entra ID using Terraform and `tctl`.
+You will configure the Entra ID side of the configuration using Terraform and install the Entra ID 
+plugin in Teleport using `tctl`. 
 
-See [getting started with Entra ID integration](getting-started.mdx) for a guided end-to-end Entra ID configuration. 
+For other supported configuration methods, see the following guides:
+- [Getting Started with the Entra ID Integration](getting-started.mdx)
+- [Configure the Entra ID Integration using Azure Portal](manual-installation.mdx)
+
+If you are new to the Teleport Entra ID integration, start by reading [how the integration works](entra-id.mdx). 
 
 ## Prerequisites
 
@@ -21,29 +25,32 @@ See [getting started with Entra ID integration](getting-started.mdx) for a guide
 
 ## Step 1/3. Prepare Terraform
 
-First, set up `azuread` [provider](https://registry.terraform.io/providers/hashicorp/azuread/latest/docs) in your 
+First, set up the `azuread` [provider](https://registry.terraform.io/providers/hashicorp/azuread/latest/docs) in your 
 working environment from where you want to run the Terraform plan.
 
 Next, clone the Teleport Entra ID integration example module, which is available in the Teleport Github repository [TODO: update link placeholder](https://github.com/gravitational/teleport/pull/58252).
 
-The example provides a configurable Terraform module to setup Entra ID with attributes that are 
+The example provides a configurable Terraform module to set up Entra ID with attributes that are 
 required for the Teleport Entra ID integration.  
 
 ## Step 2/3. Configure and apply
 
-The example Terraform module provides Entra ID configuration option based on the authentication
-method you wish to configure for the Teleport Entra ID integration. 
+The example Terraform module provides Entra ID configuration options are based on the 
+Microsoft Graph API authentication method you wish to configure for the Teleport Entra ID integration. 
 
-Setting up Teleport as an ODIC IdP 
-option is the only supported method if you are using Teleport Cloud. If you have a self-hosted 
-Teleport Cluster, you must ensure that the Teleport Proxy Service is publicly accessible.
+Teleport supports two types of Microsoft Graph API authentication methods:
+Teleport as an OIDC IdP and system credentials. 
+
+Setting up Teleport as an OIDC IdP option is the only supported method if you are using Teleport Cloud.
+If you have a self-hosted Teleport Cluster, you must ensure that the Teleport Proxy Service is publicly accessible.
 
 Alternatively, using system credentials setup is best suited if you have a self-hosted Teleport cluster 
-or when the Teleport Proxy Service is not publicly accessible.  
+or when the Teleport Proxy Service is not publicly accessible. You can learn more about the differences 
+on these authentication methods on this [page](entra-id.mdx#choosing-the-microsoft-graph-api-authentication-method).
 
-At minimum, the Terraform example expects the following input variables.
+At minimum, the Terraform example expects the following input variables:
 - `app_name`: Name of the enterprise application that will be created in Entra ID.
-- `proxy_service_address`: Teleport Proxy Service host. E.g., `example.teleport.sh`.
+- `proxy_service_address`: Teleport Proxy Service host, e.g., `example.teleport.sh`.
 - `certificate_expiry_date`: SAML assertion signing certificate expiry date. 
    E.g., `2026-05-01T01:02:03Z`. Note that an expired certificate will prevent users from 
    signing in to Teleport. If it expires, you will need to update this value in Terraform, 
@@ -76,10 +83,10 @@ $ terraform apply
 ```
 
 </TabItem>
-<TabItem label="System Credential" name="entra-system-cred">
+<TabItem label="System credential" name="entra-system-cred">
 
 You need additional input variables to set up managed identity.
-- `use_system_credentials`: Configures Terraform module to plan for resources required 
+- `use_system_credentials`: Configures the Terraform module to plan for resources required 
    for the system credential setup. Value must be `true`.
 - `graph_permission_ids`: Permission IDs of the Microsoft Graph API permissions required for the integration:
   - `Application.ReadWrite.OwnedBy`
@@ -88,6 +95,9 @@ You need additional input variables to set up managed identity.
 - `managed_id`:  Principal ID of the managed identity which is assigned to the Teleport Auth Service.
 
 The simplest way to retrieve the permission IDs is to run the PowerShell script in your Azure Cloud Shell.
+A working PowerShell script is provided below. 
+<details>
+<summary>PowerShell script</summary>
 
 ```powershell
 Connect-AzureAD
@@ -109,6 +119,8 @@ foreach ($appRole in $appRoles) {
   "{0} : {1}" -f $appRole.Value, $appRole.Id 
 }
 ```
+
+</details>
 
 Once you have the permission IDs and the principal ID of the managed identity ready,
 create `tfvars` with your inputs.
@@ -159,7 +171,7 @@ $ tctl plugins install entraid \
 ```
 </TabItem>
 
-<TabItem label="System Credential" name="entra-system-cred">
+<TabItem label="System credential" name="entra-system-cred">
 ```code
 $ tctl plugins install entraid \
     --name entra-id-default \
@@ -189,7 +201,7 @@ plugin service that imports users and groups from Entra ID to Teleport.
 
 ## Next steps
 
+- Learn how to [configure access](configure-access.mdx) for Entra ID users.
 - Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/azuread.mdx). 
-- Learn more about [Access List](../access-lists/access-lists.mdx) management.
 - Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
 - See [FAQs](faq.mdx) related to the Teleport Entra ID integration. 
