@@ -16,15 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { forwardRef } from 'react';
 import styled from 'styled-components';
 
 import type { RecordingType } from 'teleport/services/recordings';
 import { DesktopPlayer } from 'teleport/SessionRecordings/view/DesktopPlayer';
-import SshPlayer from 'teleport/SessionRecordings/view/SshPlayer';
+import SshPlayer, {
+  type PlayerHandle,
+} from 'teleport/SessionRecordings/view/SshPlayer';
 
 interface RecordingPlayerProps {
   clusterId: string;
   durationMs: number;
+  onTimeChange?: (time: number) => void;
   recordingType: RecordingType;
   sessionId: string;
   onToggleSidebar?: () => void;
@@ -39,33 +43,43 @@ const Container = styled.div`
   bottom: 0;
 `;
 
-export function RecordingPlayer({
-  clusterId,
-  durationMs,
-  recordingType,
-  sessionId,
-  onToggleSidebar,
-}: RecordingPlayerProps) {
-  if (recordingType === 'desktop') {
+export const RecordingPlayer = forwardRef<PlayerHandle, RecordingPlayerProps>(
+  function RecordingPlayer(
+    {
+      clusterId,
+      durationMs,
+      onTimeChange,
+      onToggleSidebar,
+      recordingType,
+      sessionId,
+      showTimeline,
+    },
+    ref
+  ) {
+    if (recordingType === 'desktop') {
+      return (
+        <Container>
+          <DesktopPlayer
+            sid={sessionId}
+            clusterId={clusterId}
+            durationMs={durationMs}
+          />
+        </Container>
+      );
+    }
+
     return (
       <Container>
-        <DesktopPlayer
+        <SshPlayer
+          ref={ref}
+          onTimeChange={onTimeChange}
+          onToggleSidebar={onToggleSidebar}
           sid={sessionId}
           clusterId={clusterId}
           durationMs={durationMs}
+          showTimeline={showTimeline}
         />
       </Container>
     );
   }
-
-  return (
-    <Container>
-      <SshPlayer
-        sid={sessionId}
-        clusterId={clusterId}
-        durationMs={durationMs}
-        onToggleSidebar={onToggleSidebar}
-      />
-    </Container>
-  );
-}
+);
