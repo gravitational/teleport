@@ -75,7 +75,13 @@ func (c *SessionCtx) checkAndSetDefaults() error {
 		c.Identity = c.AuthCtx.Identity.GetIdentity()
 	}
 	if c.sessionID == "" {
-		c.sessionID = session.NewID()
+		transportType := types.GetMCPServerTransportType(c.App.GetURI())
+		switch transportType {
+		case types.MCPTransportHTTP:
+			c.sessionID = session.ID(c.Identity.RouteToApp.SessionID)
+		default:
+			c.sessionID = session.NewID()
+		}
 	}
 	return nil
 }

@@ -33,6 +33,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 )
 
 // AccessPoint defines functions that the MCP server requires from the caching
@@ -40,6 +41,12 @@ import (
 type AccessPoint interface {
 	services.AuthPreferenceGetter
 	services.ClusterNameGetter
+}
+
+// AuthClient defines functions that the MCP server requires from the auth
+// client.
+type AuthClient interface {
+	appcommon.AppTokenGenerator
 }
 
 // ServerConfig is the config for the MCP forward server.
@@ -54,6 +61,8 @@ type ServerConfig struct {
 	HostID string
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint AccessPoint
+	// AuthClient is a client directly connected to the Auth server.
+	AuthClient AuthClient
 	// EnableDemoServer enables the "Teleport Demo" MCP server.
 	EnableDemoServer bool
 	// CipherSuites is the list of TLS cipher suites that have been configured
@@ -76,6 +85,9 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
+	}
+	if c.AuthClient == nil {
+		return trace.BadParameter("missing AuthClient")
 	}
 	if len(c.CipherSuites) == 0 {
 		return trace.BadParameter("missing CipherSuites")
@@ -119,6 +131,8 @@ func (s *Server) HandleSession(ctx context.Context, sessionCtx *SessionCtx) erro
 		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeExecServerRunner))
 	case types.MCPTransportSSE:
 		return trace.Wrap(s.handleStdioToSSE(ctx, sessionCtx))
+	case types.MCPTransportHTTP:
+		return trace.Wrap(s.handleStreamableHTTP(ctx, sessionCtx))
 	default:
 		return trace.BadParameter("unknown transport type: %v", transportType)
 	}

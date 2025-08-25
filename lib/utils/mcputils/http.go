@@ -22,7 +22,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 
@@ -107,11 +109,13 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 
 	msg, err := r.ReadMessage(r.ctx)
 	if err != nil {
-		if utils.IsOKNetworkError(err) {
+		if utils.IsOKNetworkError(err) || errors.Is(err, context.Canceled) {
+			slog.DebugContext(r.ctx, "=== stopping sse reader")
 			return 0, io.EOF
 		}
 		return 0, trace.Wrap(err)
 	}
+	slog.DebugContext(r.ctx, "=== read sse message", "msg", msg)
 
 	var base BaseJSONRPCMessage
 	if err := json.Unmarshal([]byte(msg), &base); err != nil {
