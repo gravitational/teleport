@@ -9,6 +9,7 @@ interface RecordingPlayerProps {
   durationMs: number;
   recordingType: RecordingType;
   sessionId: string;
+  showTimeline?: () => void;
 }
 
 const Container = styled.div`
