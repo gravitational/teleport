@@ -26,7 +26,7 @@ import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { KeysEnum } from 'teleport/services/storageService';
 
-export const CTALink = styled(Link)`
+export const CtaLink = styled(Link)`
   border: 1px solid ${p => p.theme.colors.spotBackground[1]};
   border-radius: ${p => p.theme.radii[3]}px;
   padding: ${p =>
@@ -61,7 +61,7 @@ export const DismissButton = styled.button`
   }
 `;
 
-export function SessionSummariesCTA() {
+export function SessionSummariesCta() {
   const [dismissed, setDismissed] = useLocalStorage(
     KeysEnum.SESSION_RECORDINGS_DISMISSED_CTA,
     false
@@ -82,7 +82,7 @@ export function SessionSummariesCTA() {
   }
 
   return (
-    <CTALink to="/" target="_blank">
+    <CtaLink to="/" target="_blank">
       <ChatCircleSparkle size="small" />
 
       <Text>Summarize session recordings with AI</Text>
@@ -90,6 +90,6 @@ export function SessionSummariesCTA() {
       <DismissButton onClick={handleDismiss} aria-label="Dismiss">
         <Cross size="small" />
       </DismissButton>
-    </CTALink>
+    </CtaLink>
   );
 }
