@@ -3,10 +3,10 @@ module register-app-service
 go 1.23.0
 
 require (
-	github.com/docker/docker v27.1.1+incompatible
+	github.com/docker/docker v28.3.3+incompatible
 	github.com/gravitational/teleport/api v0.0.0-20250801210118-2fb5249f5743
 	github.com/gravitational/trace v1.4.1
-	google.golang.org/grpc v1.66.3
+	google.golang.org/grpc v1.67.0
 )
 
 require (
@@ -14,6 +14,8 @@ require (
 	github.com/beevik/etree v1.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
@@ -32,6 +34,7 @@ require (
 	github.com/jonboulle/clockwork v0.4.0 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/term v0.0.0-20221205130635-1aeaba878587 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
