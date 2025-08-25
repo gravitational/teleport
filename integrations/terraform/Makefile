@@ -191,6 +191,10 @@ windows-build: build
 	@echo "Windows build complete: $(BINARIES)"
 
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
+# Define and check ulimit only on non-Windows systems.
+ifneq ($(OS),Windows_NT)
+CURRENT_ULIMIT := $(shell ulimit -n)
+endif
 
 TEST_ARGS?=
 
