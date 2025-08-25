@@ -7674,3 +7674,84 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 		})
 	}
 }
+
+func TestParseCopySpec(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		copySpec          []string
+		assertErr         assert.ErrorAssertionFunc
+		expectedSrcHost   string
+		expectedSrcLogin  string
+		expectedDestHost  string
+		expectedDestLogin string
+	}{
+		{
+			name:             "one source, one dest",
+			copySpec:         []string{"foo:/path", "bar:/path"},
+			assertErr:        assert.NoError,
+			expectedSrcHost:  "foo",
+			expectedDestHost: "bar",
+		},
+		{
+			name:              "source and dest with login",
+			copySpec:          []string{"foo@bar:/path", "baz@quux:/other/path"},
+			assertErr:         assert.NoError,
+			expectedSrcHost:   "bar",
+			expectedSrcLogin:  "foo",
+			expectedDestHost:  "quux",
+			expectedDestLogin: "baz",
+		},
+		{
+			name:             "multiple sources",
+			copySpec:         []string{"foo@bar:/path/one", "foo@bar:/path/two", "baz:/dest"},
+			assertErr:        assert.NoError,
+			expectedSrcHost:  "bar",
+			expectedSrcLogin: "foo",
+			expectedDestHost: "baz",
+		},
+		{
+			name:             "local target",
+			copySpec:         []string{"/local/path", "foo:/remote"},
+			assertErr:        assert.NoError,
+			expectedDestHost: "foo",
+		},
+		{
+			name:      "empty spec",
+			assertErr: assert.Error,
+		},
+		{
+			name:      "one target",
+			copySpec:  []string{"foo@bar:/path"},
+			assertErr: assert.Error,
+		},
+		{
+			name:      "multiple source hosts",
+			copySpec:  []string{"foo:/path", "bar:/path", "/out"},
+			assertErr: assert.Error,
+		},
+		{
+			name:      "distinct logins",
+			copySpec:  []string{"alice@foo:/path", "bob@foo:/path", "/out"},
+			assertErr: assert.Error,
+		},
+		{
+			name:      "same source and destination host",
+			copySpec:  []string{"foo:/path", "foo:/other/path"},
+			assertErr: assert.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var config client.Config
+			err := parseCopySpec(&CLIConf{
+				CopySpec: tc.copySpec,
+			}, &config)
+			tc.assertErr(t, err)
+			assert.Equal(t, tc.expectedSrcHost, config.SrcHost)
+			assert.Equal(t, tc.expectedSrcLogin, config.SrcLogin)
+			assert.Equal(t, tc.expectedDestHost, config.DestHost)
+			assert.Equal(t, tc.expectedDestLogin, config.DestLogin)
+		})
+	}
+}
