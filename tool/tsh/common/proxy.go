@@ -473,6 +473,7 @@ func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
 	if app.IsTCP() {
 		return alpncommon.ProtocolTCP
 	}
+	// Regular apps and MCP apps in HTTP transport.
 	return alpncommon.ProtocolHTTP
 }
 
@@ -516,7 +517,12 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	if app.IsMCP() {
-		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
+		switch types.GetMCPServerTransportType(app.GetURI()) {
+		case types.MCPTransportHTTP:
+			// continue
+		default:
+			return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
+		}
 	}
 
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)

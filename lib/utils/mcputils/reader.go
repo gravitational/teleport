@@ -234,3 +234,31 @@ func ReadOneResponse(ctx context.Context, reader TransportReader) (*JSONRPCRespo
 	}
 	return base.makeResponse(), nil
 }
+
+func MarshalRequestOrNotification(rawMessage string) (any, error) {
+	var base baseJSONRPCMessage
+	if parseError := json.Unmarshal([]byte(rawMessage), &base); parseError != nil {
+		return nil, trace.Wrap(parseError)
+	}
+
+	switch {
+	case base.isNotification():
+		return base.makeNotification(), nil
+	case base.isRequest():
+		return base.makeRequest(), nil
+	default:
+		return nil, trace.BadParameter("message is not a request or notification")
+	}
+}
+
+func MarshalResponse(rawMessage string) (*JSONRPCResponse, error) {
+	var base baseJSONRPCMessage
+	if parseError := json.Unmarshal([]byte(rawMessage), &base); parseError != nil {
+		return nil, trace.Wrap(parseError)
+	}
+
+	if !base.isResponse() {
+		return nil, trace.BadParameter("message is not a response")
+	}
+	return base.makeResponse(), nil
+}

@@ -1727,6 +1727,16 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 			types.Server.CloneResource,
 		)
 		return resp, trace.Wrap(err)
+	case types.KindWindowsDesktop:
+		resp, err := buildListResourcesResponse(
+			c.collections.windowsDesktops.store.resources(windowsDesktopNameIndex, req.StartKey, ""),
+			limit,
+			filter,
+			func(desktop types.WindowsDesktop) types.ResourceWithLabels {
+				return desktop.CloneResource()
+			},
+		)
+		return resp, trace.Wrap(err)
 	case types.KindWindowsDesktopService:
 		resp, err := buildListResourcesResponse(
 			c.collections.windowsDesktopServices.store.resources(windowsDesktopServiceNameIndex, req.StartKey, ""),

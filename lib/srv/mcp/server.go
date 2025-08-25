@@ -119,6 +119,10 @@ func (s *Server) HandleSession(ctx context.Context, sessionCtx *SessionCtx) erro
 		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeExecServerRunner))
 	case types.MCPTransportSSE:
 		return trace.Wrap(s.handleStdioToSSE(ctx, sessionCtx))
+	case types.MCPTransportHTTP:
+		err := s.handleStreamableHTTP(ctx, sessionCtx)
+		s.cfg.Log.DebugContext(ctx, "===handleStreamableHTTP error", "error", err)
+		return trace.Wrap(err)
 	default:
 		return trace.BadParameter("unknown transport type: %v", transportType)
 	}

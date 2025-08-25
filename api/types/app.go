@@ -519,7 +519,7 @@ func (a *AppV3) checkMCP() error {
 	switch GetMCPServerTransportType(a.Spec.URI) {
 	case MCPTransportStdio:
 		return trace.Wrap(a.checkMCPStdio())
-	case MCPTransportSSE:
+	case MCPTransportSSE, MCPTransportHTTP:
 		_, err := url.Parse(a.Spec.URI)
 		return trace.Wrap(err)
 	default:
@@ -683,6 +683,8 @@ func GetMCPServerTransportType(uri string) string {
 		return MCPTransportStdio
 	case SchemeMCPSSEHTTP, SchemeMCPSSEHTTPS:
 		return MCPTransportSSE
+	case SchemeMCPHTTP, SchemeMCPHTTPS:
+		return MCPTransportHTTP
 	default:
 		return ""
 	}
