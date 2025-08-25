@@ -12,7 +12,7 @@ state: draft
 
 ## What
 
-Enable automated Kubernetes cluster health checks that are viewed by the Web UI, Teleterm UI, `tctl` command, and Prometheus metrics.
+Enable automated Kubernetes cluster health checks that are viewed by the Web UI, Teleport Connect, `tctl` command, and Prometheus metrics.
 
 ## Why
 
