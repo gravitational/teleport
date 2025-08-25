@@ -191,10 +191,6 @@ windows-build: build
 	@echo "Windows build complete: $(BINARIES)"
 
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
-# Define and check ulimit only on non-Windows systems.
-ifneq ($(OS),Windows_NT)
-CURRENT_ULIMIT := $(shell ulimit -n)
-endif
 
 TEST_ARGS?=
 
@@ -210,17 +206,11 @@ endif
 ifeq ($(OS),Windows_NT)
 	@echo "Skipping ulimit check on Windows"
 else
-	# capture the current limit
-	CURRENT_ULIMIT := $(shell ulimit -n)
-
-	# Use shell's built-in test for a more reliable integer comparison.
-	# Note: '1' means true (the limit is too low).
-	IS_TOO_LOW := $(shell if [ "$(CURRENT_ULIMIT)" -lt 1024 ]; then echo "1"; fi)
-
-	# fail early if it’s too low
-	ifeq ($(IS_TOO_LOW),1)
-		$(error ulimit -n is too low ($(CURRENT_ULIMIT)); set ulimit -n 1024)
-	endif
+	@ULIMIT=$$(ulimit -n); \
+	if [ "$$ULIMIT" -lt 1024 ]; then \
+		echo "ulimit -n is too low ($$ULIMIT); please set ulimit -n 1024"; \
+		exit -1; \
+	fi
 endif
 
 	@go test ./testlib -v $(TEST_ARGS)
