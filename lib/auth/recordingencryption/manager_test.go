@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -39,28 +40,18 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-// It takes forever to generate RSA4096 keys so we generate and cache a few to be used by the fakeKeyStore
-// instead of actually generating a new key every time a test needs one. This cuts down flaky test execution
-// time to ~20-30s instead of timing out at >10m
-var cachedDecrypters = initDecrypters()
-
-func initDecrypters() []crypto.Decrypter {
-	var decrypters []crypto.Decrypter
-	for range 10 {
-		decrypter, err := cryptosuites.GenerateDecrypterWithAlgorithm(cryptosuites.RSA4096)
-		if err != nil {
-			panic("failed to generate RSA 4096 key")
-		}
-
-		decrypters = append(decrypters, decrypter)
-	}
-
-	return decrypters
+func TestMain(m *testing.M) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 type oaepDecrypter struct {
@@ -76,8 +67,6 @@ type fakeKeyStore struct {
 	keyType   types.PrivateKeyType // abusing this field as a way to simulate different auth servers
 	keys      map[string][]crypto.Decrypter
 	currLabel types.KeyLabel
-
-	cacheIdx int
 }
 
 func newFakeKeyStore(keyType types.PrivateKeyType) *fakeKeyStore {
@@ -88,18 +77,22 @@ func newFakeKeyStore(keyType types.PrivateKeyType) *fakeKeyStore {
 }
 
 func (f *fakeKeyStore) genKeys() (crypto.Decrypter, []byte, error) {
-	decrypter := cachedDecrypters[f.cacheIdx]
-	f.cacheIdx += 1
-	if f.cacheIdx >= len(cachedDecrypters) {
-		f.cacheIdx = 0
-	}
-
-	publicKey, err := x509.MarshalPKIXPublicKey(decrypter.Public())
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA4096)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return decrypter, publicKey, nil
+	private, ok := signer.(*rsa.PrivateKey)
+	if !ok {
+		return nil, nil, trace.Errorf("expected RSA key")
+	}
+
+	publicKey, err := x509.MarshalPKIXPublicKey(&private.PublicKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return private, publicKey, nil
 }
 
 func (f *fakeKeyStore) createKey() (crypto.Decrypter, []byte, error) {
