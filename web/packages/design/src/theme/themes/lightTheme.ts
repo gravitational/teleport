@@ -494,6 +494,11 @@ const colors: ThemeColors = {
     caribbean: dataVisualisationColors.primary.caribbean,
   },
 
+  sessionRecording: {
+    resource: '#004570',
+    user: '#311C79',
+  },
+
   sessionRecordingTimeline: {
     background: '#FBFBFC',
     headerBackground: 'rgba(0, 0, 0, 0.05)',
