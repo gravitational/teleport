@@ -208,6 +208,18 @@ func (cf ConfigFormat) serversKey() string {
 	}
 }
 
+// String returns human readable config format name.
+func (cf ConfigFormat) String() string {
+	switch cf {
+	case ConfigFormatClaude:
+		return "Claude/Cursor"
+	case ConfigFormatVSCode:
+		return "VSCode"
+	default:
+		return "Unspecified"
+	}
+}
+
 // ConfigFormatFromPath tries to determine the config format based on its path.
 func ConfigFormatFromPath(configPath string) ConfigFormat {
 	switch {

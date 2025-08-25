@@ -92,10 +92,10 @@ Examples:
   $ tsh mcp config --all --format=vscode
 
   Add all MCP servers to VSCode project
-  $ tsh mcp config --all -client-config=<path-to-project>/.vscode/mcp.json
+  $ tsh mcp config --all --client-config=<path-to-project>/.vscode/mcp.json
 
   Add all MCP servers to Claude Code project
-  $ tsh mcp config --all -client-config=<path-to-project>/.mcp.json
+  $ tsh mcp config --all --client-config=<path-to-project>/.mcp.json
 
   Search MCP servers with labels and add to the specified JSON file
   $ tsh mcp config --labels env=dev --client-config=my-config.json`

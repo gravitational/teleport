@@ -399,13 +399,8 @@ func (c *mcpConfigCommand) maybeAddAutoReconnect(args []string) []string {
 	return append(args, "--no-auto-reconnect")
 }
 
-func (c *mcpConfigCommand) printInstructions(w io.Writer) error {
+func (c *mcpConfigCommand) printInstructions(w io.Writer, configFormat mcpconfig.ConfigFormat) error {
 	if err := c.fetchAndPrintResult(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	configFormat, err := c.clientConfig.format()
-	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -414,16 +409,11 @@ func (c *mcpConfigCommand) printInstructions(w io.Writer) error {
 		return trace.Wrap(err)
 	}
 
-	if _, err := fmt.Fprintln(w, "Here is a sample JSON configuration for launching Teleport MCP servers:"); err != nil {
+	if _, err := fmt.Fprintf(w, "Here is a sample JSON configuration for launching Teleport MCP servers using %s format:\n", configFormat); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := config.Write(w, mcpconfig.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
-	}
-	if !c.autoReconnectSetByUser {
-		if err := c.printAutoReconnectHint(w); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 	if _, err := fmt.Fprintln(w); err != nil {
 		return trace.Wrap(err)
@@ -451,16 +441,6 @@ Teleport MCP servers will be prefixed with "teleport-mcp-" in this
 configuration. You may need to restart your client to reload these new
 configurations.
 `, config.Path())
-	return trace.Wrap(err)
-}
-
-func (c *mcpConfigCommand) printAutoReconnectHint(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `
-By default, tsh automatically starts a new remote MCP session if the previous
-one is interrupted by network issues or tsh session expiration.
-Auto-reconnection is recommended when MCP sessions are stateless across
-requests. To disable it, use the --no-auto-reconnect flag. If disabled, you may
-need to manually restart your client when encountering "disconnected" errors.`)
 	return trace.Wrap(err)
 }
 

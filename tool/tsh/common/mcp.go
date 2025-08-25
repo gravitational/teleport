@@ -52,9 +52,10 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 }
 
 type mcpClientConfigFlags struct {
-	clientConfig string
-	jsonFormat   string
-	configFormat string
+	clientConfig          string
+	jsonFormat            string
+	configFormat          string
+	configFormatSetByUser bool
 }
 
 const (
@@ -98,6 +99,7 @@ func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 			cursorConfigFormatAlias,
 			mcpconfig.DefaultConfigFormat,
 		)).
+		IsSetByUser(&m.configFormatSetByUser).
 		StringVar(&m.configFormat)
 }
 
@@ -122,6 +124,10 @@ func (m *mcpClientConfigFlags) jsonFormatOptions() []string {
 }
 
 func (m *mcpClientConfigFlags) printFooterNotes(w io.Writer) error {
+	if m.configFormatSetByUser {
+		return nil
+	}
+
 	_, err := fmt.Fprintln(w, mcpConfigHint)
 	return trace.Wrap(err)
 }
@@ -180,13 +186,14 @@ func (m *mcpClientConfigFlags) format() (mcpconfig.ConfigFormat, error) {
 func runMCPConfig(cf *CLIConf, flags *mcpClientConfigFlags, exec mcpConfigExec) error {
 	// Ensure the format options are correct, otherwise return error to the
 	// user instead of ignoring the values.
-	if _, err := flags.format(); err != nil {
+	format, err := flags.format()
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch flags.clientConfig {
 	case "":
-		return trace.Wrap(exec.printInstructions(cf.Stdout()))
+		return trace.Wrap(exec.printInstructions(cf.Stdout(), format))
 	default:
 		config, err := flags.loadConfig()
 		if err != nil {
@@ -206,7 +213,7 @@ type mcpConfig interface {
 // directly updating the MCP config.
 type mcpConfigExec interface {
 	// printInstructions prints instructions on how to configure the MCP server.
-	printInstructions(io.Writer) error
+	printInstructions(io.Writer, mcpconfig.ConfigFormat) error
 	// updateConfig directly updates the client config. It might also print
 	// information.
 	updateConfig(io.Writer, *mcpconfig.FileConfig) error
