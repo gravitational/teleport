@@ -72,8 +72,9 @@ export interface SessionRecordingThumbnail {
   rows: number;
   cursorX: number;
   cursorY: number;
-  startTime: number;
-  endTime: number;
+  cursorVisible: boolean;
+  startOffset: number;
+  endOffset: number;
 }
 
 export interface SessionRecordingMetadata {
@@ -111,8 +112,8 @@ export type SessionRecordingMessage =
   | WrappedMessage<SessionRecordingMessageType.Error, SessionRecordingError>;
 
 interface BaseSessionRecordingEvent {
-  startOffsetMs: number;
-  endOffsetMs: number;
+  startTime: number;
+  endTime: number;
 }
 
 interface SessionRecordingInactivityEvent extends BaseSessionRecordingEvent {
@@ -124,13 +125,13 @@ interface SessionRecordingJoinEvent extends BaseSessionRecordingEvent {
   user: string;
 }
 
-interface SessionRecordingResizeEvent extends BaseSessionRecordingEvent {
+export interface SessionRecordingResizeEvent extends BaseSessionRecordingEvent {
   type: SessionRecordingEventType.Resize;
   cols: number;
   rows: number;
 }
 
-type SessionRecordingEvent =
+export type SessionRecordingEvent =
   | SessionRecordingJoinEvent
   | SessionRecordingResizeEvent
   | SessionRecordingInactivityEvent;
