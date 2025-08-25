@@ -725,6 +725,45 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	logger.DebugContext(ctx, "Applying OIDC claims to roles mappings.", "claims_to_roles_count", len(connector.GetClaimsToRoles()))
 	diagCtx.Info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
 
+	// Update the MFA session with a token. Return it to the user to complete the MFA check.
+	if mfaSession != nil {
+		username := idToken.IDTokenClaims.Email
+		if usernameClaim := connector.GetUsernameClaim(); usernameClaim != "" {
+			u, ok := idToken.IDTokenClaims.Claims[usernameClaim].(string)
+			if !ok {
+				return nil, req.ClientLoginIP, trace.BadParameter("The configured username_claim of %q was not received from the IdP. Please update the username_claim in connector %q.", usernameClaim, connector.GetName())
+			}
+			username = u
+		}
+		// validate the mfaSession now that we have the full request details.
+		switch {
+		case mfaSession.ConnectorID != req.ConnectorID:
+			return nil, req.ClientLoginIP, trace.AccessDenied("invalid OIDC MFA session, wrong provider %q", mfaSession.ConnectorID)
+		case mfaSession.ConnectorType != constants.OIDC:
+			return nil, req.ClientLoginIP, trace.AccessDenied("invalid OIDC MFA session, wrong sso type %q", mfaSession.ConnectorType)
+		case mfaSession.Username != username:
+			slog.WarnContext(ctx, "User attempted to validate an SSO MFA session belonging to a different user, denied", "user", username)
+			return nil, req.ClientLoginIP, trace.AccessDenied("invalid OIDC MFA session")
+		}
+
+		token, err := oas.auth.UpsertSSOMFASessionWithToken(ctx, mfaSession)
+		if err != nil {
+			return nil, req.ClientLoginIP, trace.Wrap(err)
+		}
+
+		resp := &authclient.OIDCAuthResponse{
+			Req: OIDCAuthRequestFromProto(req),
+			Identity: types.ExternalIdentity{
+				ConnectorID: req.ConnectorID,
+				Username:    username,
+			},
+			Username: username,
+		}
+
+		resp.MFAToken = token
+		return resp, req.ClientLoginIP, trace.Wrap(err)
+	}
+
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
 	params, err := oas.calculateOIDCUser(ctx, diagCtx, connector, idToken, req)
@@ -774,28 +813,6 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 
 	if !req.CheckUser {
 		return resp, req.ClientLoginIP, nil
-	}
-
-	// Update the MFA session with a token. Return it to the user to complete the MFA check.
-	if mfaSession != nil {
-		// validate the mfaSession now that we have the full request details.
-		switch {
-		case mfaSession.ConnectorID != req.ConnectorID:
-			return nil, req.ClientLoginIP, trace.AccessDenied("invalid OIDC MFA session, wrong provider %q", mfaSession.ConnectorID)
-		case mfaSession.ConnectorType != constants.OIDC:
-			return nil, req.ClientLoginIP, trace.AccessDenied("invalid OIDC MFA session, wrong sso type %q", mfaSession.ConnectorType)
-		case mfaSession.Username != user.GetName():
-			slog.WarnContext(ctx, "User attempted to validate an SSO MFA session belonging to a different user, denied", "user", user.GetName())
-			return nil, req.ClientLoginIP, trace.AccessDenied("invalid OIDC MFA session")
-		}
-
-		token, err := oas.auth.UpsertSSOMFASessionWithToken(ctx, mfaSession)
-		if err != nil {
-			return nil, req.ClientLoginIP, trace.Wrap(err)
-		}
-
-		resp.MFAToken = token
-		return resp, req.ClientLoginIP, trace.Wrap(err)
 	}
 
 	// If the request is coming from a browser, create a web session.

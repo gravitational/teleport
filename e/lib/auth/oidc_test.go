@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -102,12 +103,30 @@ func newUserStore(users []user) userStore {
 // and auth requests.
 type store struct {
 	*storage.Storage
-	userStore userStore
+	userStore      userStore
+	tokenToRequest map[string]op.TokenRequest
+}
+
+// Override 'CreateAccessToken' so that we can snoop token requests.
+func (s store) CreateAccessToken(ctx context.Context, request op.TokenRequest) (string, time.Time, error) {
+	tokenID, time, err := s.Storage.CreateAccessToken(ctx, request)
+	if err == nil {
+		s.tokenToRequest[tokenID] = request
+	}
+	return tokenID, time, err
 }
 
 func (s store) SetUserinfoFromToken(ctx context.Context, userinfo *oidc.UserInfo, tokenID, subject, origin string) error {
 	if err := s.Storage.SetUserinfoFromToken(ctx, userinfo, tokenID, subject, origin); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Special case. The client "mfa-no-roles" should skip
+	// custom claims enrichment.
+	if request, ok := s.tokenToRequest[tokenID]; ok {
+		if slices.Contains(request.GetAudience(), "mfa-no-roles") {
+			return nil
+		}
 	}
 
 	// Inject any custom claims that may have
@@ -393,7 +412,8 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	}
 
 	defaultClients := map[string]*storage.Client{
-		"test": storage.WebClient("test", "secret", "http://example.com"),
+		"test":         storage.WebClient("test", "secret", "http://example.com"),
+		"mfa-no-roles": storage.WebClient("mfa-no-roles", "secret", "http://example.com"),
 	}
 
 	usersStore := newUserStore(defaultUsers)
@@ -403,6 +423,7 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 			usersStore,
 			defaultClients,
 		),
+		tokenToRequest: map[string]op.TokenRequest{},
 	}
 	oidcKeySet := &op.OpenIDKeySet{Storage: opStore}
 
@@ -619,12 +640,16 @@ func (s *OIDCSuite) authenticateUserWithMFA(ctx context.Context, user string, sd
 		return nil, err
 	}
 
+	connectorCopy := *s.connector
+	if err := connectorCopy.WithMFASettings(); err != nil {
+		return nil, err
+	}
 	request, err := s.store.CreateAuthRequest(
 		ctx,
 		&oidc.AuthRequest{
 			Scopes:      []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
-			ClientID:    s.connector.GetClientID(),
-			RedirectURI: s.connector.GetRedirectURLs()[0],
+			ClientID:    connectorCopy.GetClientID(),
+			RedirectURI: connectorCopy.GetRedirectURLs()[0],
 			State:       authRequest.StateToken,
 			Display:     "none",
 		},
@@ -1702,10 +1727,19 @@ func TestValidateOIDCResponseMFA(t *testing.T) {
 	ctx := context.Background()
 	_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 	require.NoError(t, err)
+	// Login first to ensure user is created
+	_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+		ConnectorID:      suite.connector.GetName(),
+		Type:             constants.OIDC,
+		CreateWebSession: true,
+		CheckUser:        true,
+	})
+	require.NoError(t, err)
 
 	for _, tt := range []struct {
 		name              string
 		mutateSessionData func(sd *services.SSOMFASessionData)
+		mutateConnector   func(conn *types.OIDCConnectorV3)
 		checkError        assert.ErrorAssertionFunc
 		checkResponse     func(t *testing.T, token string, resp *authclient.OIDCAuthResponse)
 	}{
@@ -1749,6 +1783,31 @@ func TestValidateOIDCResponseMFA(t *testing.T) {
 				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		},
+		{
+			name: "OK divergent MFA client",
+			mutateConnector: func(conn *types.OIDCConnectorV3) {
+				// Configure MFA settings to use a separate client from the base OIDC connector.
+				// 'mfa-no-roles' is a special client configured to return an ID token with no
+				// custom claims. We'll use this role to validate that MFA authentication does
+				// not require role mapping, only that the user has a valid MFA session and is
+				// currently logged in.
+				conn.Spec.MFASettings = &types.OIDCConnectorMFASettings{
+					Enabled:      true,
+					ClientId:     "mfa-no-roles",
+					ClientSecret: "secret",
+				}
+			},
+			checkError: assert.NoError,
+			checkResponse: func(t *testing.T, token string, resp *authclient.OIDCAuthResponse) {
+				require.NotEmpty(t, resp)
+				assert.NotEmpty(t, resp.MFAToken)
+
+				// MFA session data token should match the response.
+				sd, err := suite.authServer.GetSSOMFASessionData(ctx, token)
+				assert.NoError(t, err)
+				assert.Equal(t, resp.MFAToken, sd.Token)
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			// Add SSO MFA session data for the oidc auth request. This should result in an MFA token being created.
@@ -1759,6 +1818,12 @@ func TestValidateOIDCResponseMFA(t *testing.T) {
 			}
 			if tt.mutateSessionData != nil {
 				tt.mutateSessionData(sd)
+			}
+
+			if tt.mutateConnector != nil {
+				tt.mutateConnector(suite.connector)
+				_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+				require.NoError(t, err)
 			}
 
 			response, err := suite.authenticateUserWithMFA(ctx, "id1",
