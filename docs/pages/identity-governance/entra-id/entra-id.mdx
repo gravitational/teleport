@@ -45,11 +45,13 @@ authentication method.
 
 #### System credentials
 
-Designed for air-gapped Teleport clusters that are not publicly accessible, this setup 
-accommodates environments where Entra ID cannot validate OIDC tokens issued by Teleport. 
+In this setup, Teleport relies on the Microsoft Graph API credentials available where the 
+Teleport Auth Service is running. The setup typically involves configuring a managed identity
+for Teleport Auth Service and assigning that managed identity with the Microsoft Graph API 
+permissions required by the Teleport Entra ID integration.
 
-Instead, Teleport relies on API credentials available where the Teleport 
-Auth Service is running.
+This method is best suited for an air-gapped Teleport clusters where the Teleport Proxy Service
+is not publicly accessible.
 
 ### Choosing guided or manual Entra ID configuration method
 
