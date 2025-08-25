@@ -27,22 +27,31 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/azure"
 )
 
 // AzureBeforeConnect will return a pgx BeforeConnect function suitable for
 // Azure AD authentication. The returned function will set the password of the
 // connection to a token for the relevant scope.
 func AzureBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		ClientOptions: azure.CoreClientOptions(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Azure credentials")
 	}
 
+	scope := "https://ossrdbms-aad.database.windows.net/.default"
+	if modules.GetModules().IsBoringBinary() {
+		scope = "https://ossrdbms-aad.database.usgovcloudapi.net/.default"
+	}
 	beforeConnect := func(ctx context.Context, config *pgx.ConnConfig) error {
 		// the [azcore.TokenCredential] returned by the [azidentity] credential
 		// functions handle caching and single-flighting for us
 		token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-			Scopes: []string{"https://ossrdbms-aad.database.windows.net/.default"},
+			Scopes: []string{scope},
 		})
 		if err != nil {
 			return trace.Wrap(err, "obtaining Azure authentication token")
