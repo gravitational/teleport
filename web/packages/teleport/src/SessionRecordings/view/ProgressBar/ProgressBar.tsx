@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { memo } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
@@ -26,13 +26,42 @@ import { HoverTooltip } from 'design/Tooltip';
 
 import Slider from './Slider';
 
+interface SliderHandle {
+  _handleResize: () => void;
+}
+
 export default function ProgressBar(props: ProgressBarProps) {
   const Icon = props.isPlaying ? Icons.CirclePause : Icons.CirclePlay;
+  const sliderRef = useRef<SliderHandle>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { showTimeline } = props;
+
+  // Force slider to recalculate dimensions when the container resizes or
+  // when the timeline button appears.
+  useEffect(() => {
+    if (!containerRef.current || !sliderRef.current) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      sliderRef.current._handleResize();
+    });
+
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [showTimeline]);
+
   return (
     <StyledProgessBar
       style={props.style}
       id={props.id}
       disabled={props.disabled}
+      ref={containerRef}
     >
       <Flex gap={3}>
         {props.onToggleSidebar && (
@@ -53,6 +82,7 @@ export default function ProgressBar(props: ProgressBarProps) {
       <TimeText>{props.time}</TimeText>
       <SliderContainer>
         <Slider
+          ref={sliderRef}
           min={props.min}
           max={props.max}
           value={props.current}
@@ -65,6 +95,18 @@ export default function ProgressBar(props: ProgressBarProps) {
         />
       </SliderContainer>
       <Restart onRestart={props.onRestart} />
+      {showTimeline && (
+        <HoverTooltip tipContent="Show Timeline">
+          <ActionButton
+            style={{
+              marginLeft: '16px',
+            }}
+            onClick={showTimeline}
+          >
+            <Icons.FilmStrip />
+          </ActionButton>
+        </HoverTooltip>
+      )}
     </StyledProgessBar>
   );
 }
@@ -101,6 +143,7 @@ export type ProgressBarProps = {
   onPlaySpeedChange?: (newSpeed: number) => void;
   onRestart?: () => void;
   onToggleSidebar?: () => void;
+  showTimeline?: () => void;
 };
 
 const PlaySpeedSelector = memo(

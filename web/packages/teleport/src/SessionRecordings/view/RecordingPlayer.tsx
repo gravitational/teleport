@@ -28,6 +28,7 @@ interface RecordingPlayerProps {
   recordingType: RecordingType;
   sessionId: string;
   onToggleSidebar?: () => void;
+  showTimeline?: () => void;
 }
 
 const Container = styled.div`
