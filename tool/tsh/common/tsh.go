@@ -101,6 +101,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
@@ -4527,6 +4528,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
+	c := &client.Config{}
 	// split login & host
 	hostLogin := cf.NodeLogin
 	hostUser := cf.UserHost
@@ -4546,24 +4548,24 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			}
 		}
 	} else if cf.CopySpec != nil {
-		for _, location := range cf.CopySpec {
-			// Extract username and host from "username@host:file/path"
-			userHost, _, found := strings.Cut(location, ":")
-			if !found {
-				continue
+		if err := parseCopySpec(cf, c); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if c.SrcHost != "" {
+			hostUser = c.SrcHost
+			if c.SrcLogin != "" {
+				hostLogin = c.SrcLogin
 			}
-
-			login, hostname, found := strings.Cut(userHost, "@")
-			if found {
-				hostLogin = login
-				hostUser = hostname
-			} else {
-				hostUser = userHost
+		} else {
+			hostUser = c.DestHost
+			if c.DestLogin != "" {
+				hostLogin = c.DestLogin
 			}
-			break
-
 		}
 	}
+
+	c.Host = hostUser
+	c.HostPort = int(cf.NodePort)
 
 	// explicitly passed --labels overrides user@labels positional arg form.
 	if cf.Labels != "" {
@@ -4589,7 +4591,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// 1: start with the defaults
-	c := &client.Config{}
 	c.DialOpts = append(c.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTSH))
 	c.Tracer = cf.tracer
 
@@ -4599,9 +4600,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		// clear proxy jump so it can be overwritten below
 		cf.ProxyJump = ""
 	}
-
-	c.Host = hostUser
-	c.HostPort = int(cf.NodePort)
 
 	// Host may be either %h or %h:%p depending on the command. Proxy
 	// templates match on %h:%p, so we get the full host name here.
@@ -4889,6 +4887,50 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	return c, nil
+}
+
+func unique[T comparable](s []T) []T {
+	return sliceutils.FilterMapUnique(s, func(ss T) (T, bool) { return ss, true })
+}
+
+func parseCopySpec(cf *CLIConf, config *client.Config) error {
+	if len(cf.CopySpec) < 2 {
+		return trace.BadParameter("tsh scp requires at least two targets")
+	}
+	type sftpTarget struct {
+		user string
+		host string
+	}
+	allHosts := make([]sftpTarget, 0, len(cf.CopySpec))
+	for _, location := range cf.CopySpec {
+		var target sftpTarget
+		userHost, _, found := strings.Cut(location, ":")
+		if found {
+			login, hostname, found := strings.Cut(userHost, "@")
+			if found {
+				target.user = login
+				target.host = hostname
+			} else {
+				target.host = userHost
+			}
+		}
+		allHosts = append(allHosts, target)
+	}
+	uniqueSources := unique(allHosts[:len(allHosts)-1])
+	dest := allHosts[len(allHosts)-1]
+	if len(uniqueSources) > 1 {
+		return trace.BadParameter("all source targets must be on the same user/host")
+	}
+	src := uniqueSources[0]
+	if src == dest {
+		return trace.BadParameter("source and destination must be on different hosts")
+	}
+
+	config.SrcHost = src.host
+	config.SrcLogin = src.user
+	config.DestHost = dest.host
+	config.DestLogin = dest.user
+	return nil
 }
 
 // setEnvVariables configures extra env variables to send in client config based on the requested options.
