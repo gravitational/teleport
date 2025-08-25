@@ -1407,17 +1407,17 @@
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/",
-      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/",
+      "destination": "/identity-governance/aws-iam-identity-center/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
-      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/guide/",
+      "destination": "/identity-governance/aws-iam-identity-center/guide/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
-      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "destination": "/identity-governance/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
       "permanent": true
     },
     {
@@ -1512,7 +1512,7 @@
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/using-aws-cli/",
-      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/using-aws-cli/",
+      "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
       "permanent": true
     },
     {
@@ -1633,6 +1633,26 @@
     {
       "source": "/zero-trust-access/management/admin/labels/",
       "destination": "/zero-trust-access/rbac-get-started/labels/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/aws-iam-identity-center/",
+      "destination": "/identity-governance/aws-iam-identity-center/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/aws-iam-identity-center/guide/",
+      "destination": "/identity-governance/aws-iam-identity-center/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "destination": "/identity-governance/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/aws-iam-identity-center/using-aws-cli/",
+      "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
       "permanent": true
     }
   ]
