@@ -403,8 +403,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'intune',
     name: 'Microsoft Intune',
     icon: 'intune',
-    // TODO(ravicious): Update the URL to the actual Intune docs.
-    url: 'https://goteleport.com/docs/identity-governance/device-trust/',
+    url: 'https://goteleport.com/docs/identity-governance/device-trust/intune-integration/',
     cloudHostable: true,
     selfHostable: true,
     disabledIfNoMdmSupport: true,
@@ -416,8 +415,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           match available devices in your Intune inventory. For more details,
           see our docs page about{' '}
           <Link
-            // TODO(ravicious): Update the URL to the actual Intune docs.
-            href="https://goteleport.com/docs/identity-governance/device-trust/"
+            href="https://goteleport.com/docs/identity-governance/device-trust/intune-integration/"
             target="_blank"
           >
             Device Trust and the Intune integration
@@ -479,6 +477,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             </Link>{' '}
             for Microsoft Graph's{' '}
             <code>DeviceManagementManagedDevices.Read.All</code>.
+            <ul>
+              <li>
+                Make sure the permission is granted by an administrator.
+                Otherwise the Graph API will return 401 Forbidden errors.
+              </li>
+            </ul>
           </li>
           <li>
             <Link

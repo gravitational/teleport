@@ -13,9 +13,6 @@ import { CtaEvent } from 'teleport/services/userEvent';
 import { DeviceList } from './DeviceList';
 import { useDevices } from './useDevices';
 
-export const deviceTrustDocUrl =
-  'https://goteleport.com/docs/admin-guides/access-controls/device-trust/';
-
 export const DeviceTrust = () => {
   const props = useDevices();
   let {
@@ -97,8 +94,7 @@ export const DeviceTrust = () => {
                     or{' '}
                     <Link
                       color="text.main"
-                      // TODO(ravicious): Update the URL to the actual Intune docs.
-                      href="https://goteleport.com/docs/identity-governance/device-trust/"
+                      href="https://goteleport.com/docs/identity-governance/device-trust/intune-integration/"
                       target="_blank"
                     >
                       Microsoft&nbsp;Intune

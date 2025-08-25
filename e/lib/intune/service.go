@@ -154,7 +154,8 @@ func (s *Service) Run(ctx context.Context) error {
 				continue
 			}
 
-			s.cfg.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_RUNNING})
+			s.cfg.StatusSink.Emit(ctx, &types.PluginStatusV1{
+				Code: types.PluginStatusCode_RUNNING, LastSyncTime: s.cfg.Clock.Now()})
 
 			if nextDeviceLastSyncDateTime.After(e.Entry.deviceLastSyncDateTime) {
 				e.Entry.deviceLastSyncDateTime = nextDeviceLastSyncDateTime
