@@ -812,7 +812,7 @@ impl Client {
     async fn handle_tdp_sd_remove(
         write_stream: &mut RdpWriteStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
-        sdr: tdp::SharedDirectoryRemove, // TODO
+        sdr: tdp::SharedDirectoryRemove,
     ) -> ClientResult<()> {
         debug!("received tdp: {:?}", sdr);
         let pdu = Self::remove_drive(x224_processor.clone(), sdr.directory_id).await?;
@@ -957,7 +957,7 @@ impl Client {
         task::spawn_blocking(move || {
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-            if let Some(pdu) = rdpdr.remove_drive(device_id) {
+            if let Some(pdu) = rdpdr.remove_device(device_id) {
                 return Ok(pdu);
             }
             Err(ClientError::UnknownDevice(device_id))
@@ -1124,7 +1124,7 @@ enum ClientFunction {
     WriteScreenResize(u32, u32),
     /// Corresponds to [`Client::handle_tdp_sd_announce`]
     HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
-     /// Corresponds to [`Client::handle_tdp_sd_remove`]
+    /// Corresponds to [`Client::handle_tdp_sd_remove`]
     HandleTdpSdRemove(tdp::SharedDirectoryRemove),
     /// Corresponds to [`Client::handle_tdp_sd_info_response`]
     HandleTdpSdInfoResponse(tdp::SharedDirectoryInfoResponse),
@@ -1217,7 +1217,7 @@ impl ClientHandle {
         self.blocking_send(ClientFunction::HandleTdpSdAnnounce(sda))
     }
 
-     pub fn handle_tdp_sd_remove(&self, sda: tdp::SharedDirectoryRemove) -> ClientResult<()> {
+    pub fn handle_tdp_sd_remove(&self, sda: tdp::SharedDirectoryRemove) -> ClientResult<()> {
         self.blocking_send(ClientFunction::HandleTdpSdRemove(sda))
     }
 
@@ -1521,7 +1521,9 @@ impl Display for ClientError {
                 Reason(reason) => Display::fmt(reason, f),
                 _ => Display::fmt(e, f),
             },
-            ClientError::UnknownDevice(id) => Display::fmt(format!("unknown device: {}", id).as_str(), f),
+            ClientError::UnknownDevice(id) => {
+                Display::fmt(format!("unknown device: {}", id).as_str(), f)
+            }
             // TODO(zmb3, probakowski): improve the formatting on the IronRDP side
             // https://github.com/Devolutions/IronRDP/blob/master/crates/ironrdp-connector/src/lib.rs#L263
             ClientError::ConnectorError(e) => match &e.kind {

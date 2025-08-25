@@ -58,6 +58,7 @@ export enum MessageType {
   LATENCY_STATS = 35,
   // MessageType 36 is a server-side only Ping message
   CLIENT_KEYBOARD_LAYOUT = 37,
+  SHARED_DIRECTORY_REMOVE = 38,
   __LAST, // utility value
 }
 
@@ -546,6 +547,21 @@ export default class Codec {
     dataUtf8array.forEach(byte => {
       view.setUint8(offset++, byte);
     });
+
+    return buffer;
+  }
+
+  // | message type (38) | directory_id uint32 |
+  encodeSharedDirectoryRemove(
+    directoryId: number
+  ): Message {
+
+    const bufLen = BYTE_LEN + UINT_32_LEN;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+    view.setUint8(offset++, MessageType.SHARED_DIRECTORY_REMOVE);
+    view.setUint32(offset, directoryId)
 
     return buffer;
   }

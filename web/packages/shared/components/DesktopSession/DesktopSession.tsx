@@ -362,6 +362,7 @@ export function DesktopSession({
         isSharingDirectory={isSharingDirectory(directorySharingState)}
         isSharingClipboard={isSharingClipboard(clipboardSharingState)}
         clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
+        clearSharing={clearSharing}
         onShareDirectory={onShareDirectory}
         onCtrlAltDel={handleCtrlAltDel}
         alerts={alerts}

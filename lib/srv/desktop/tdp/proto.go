@@ -493,8 +493,8 @@ func decodeMouseButton(in byteReader) (MouseButton, error) {
 // KeyboardButton is the keyboard button press message.
 // | message type (5) | key_code uint32 | state byte |
 type KeyboardButton struct {
-	KeyCode uint32      `tdp:"1"`
-	State   ButtonState `tdp:"2"`
+	KeyCode uint32
+	State   ButtonState
 }
 
 func (k KeyboardButton) Encode() ([]byte, error) {
@@ -826,7 +826,7 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 	}, nil
 }
 
-// SharedDirectoryAnnounce announces a new directory to be shared.
+// SharedDirectoryRemove informs the server that the client is no longer sharing a directory.
 // | message type (38) | directory_id uint32
 type SharedDirectoryRemove struct {
 	DirectoryID uint32

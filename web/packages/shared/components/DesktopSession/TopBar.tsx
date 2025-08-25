@@ -36,6 +36,7 @@ export default function TopBar(props: Props) {
     canShareDirectory,
     isSharingDirectory,
     onShareDirectory,
+    clearSharing,
     onCtrlAltDel,
     alerts,
     onRemoveAlert,
@@ -80,6 +81,7 @@ export default function TopBar(props: Props) {
             onDisconnect={onDisconnect}
             showShareDirectory={canShareDirectory && !isSharingDirectory}
             onShareDirectory={onShareDirectory}
+            clearSharing={clearSharing}
             onCtrlAltDel={onCtrlAltDel}
           />
         </Flex>
@@ -109,6 +111,7 @@ type Props = {
   isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
+  clearSharing: VoidFunction;
   onCtrlAltDel: VoidFunction;
   alerts: ToastNotificationItem[];
   isConnected: boolean;

@@ -47,10 +47,8 @@ impl From<CGOSharedDirectoryRemove> for SharedDirectoryRemove {
         // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
         // In other words, all pointer data that needs to persist after this function returns MUST
         // be copied into Rust-owned memory.
-        unsafe {
             SharedDirectoryRemove {
                 directory_id: cgo.directory_id,
-            }
         }
     }
 }
