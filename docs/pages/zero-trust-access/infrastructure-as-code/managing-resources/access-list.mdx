@@ -277,19 +277,18 @@ You can log in as alice and add `bob` to the `support-engineers` Access List.
 <Tabs>
 <TabItem label="Web UI">
 
-Login as `alice` in the web UI, open the management panel and select the
-"Access Lists" tab. Your Access List should be displayed, open it, choose "Enroll
-members" and add `bob`.
+Log in as `alice` in the Web UI, Zero Trust Access, select Access Lists, and click on your Access List. 
+Click "Add new Members or Access Lists or Access Lists" and add `bob`.
 
-![Screenshot of the web UI showing the Access List and the "Enroll Member" button](../../../../img/management/access-list-web-ui.png)
+![Screenshot of the Web UI showing the Access List and the "Enroll Member" button](../../../../img/management/access-list-web-ui.png)
 
 </TabItem>
 <TabItem label="CLI">
 
-Login as `alice` with `tsh`, then add bob to the Access List:
+Log in as `alice` with `tsh`, then add bob to the Access List:
 
 ```code
-# login as alice
+# log in as alice
 $ tsh login --proxy <your-cluster-domain>:<port> --user alice
 
 # tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
