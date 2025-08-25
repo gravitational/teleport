@@ -227,6 +227,32 @@ export type ThemeColors = {
     user: string;
   };
 
+  sessionRecordingTimeline: {
+    background: string;
+    header: {
+      text: string;
+    };
+    frameBorder: string;
+    progressLine: string;
+    cursor: string;
+    border: {
+      default: string;
+      hover: string;
+    };
+    events: {
+      inactivity: { background: string; text: string };
+      resize: { background: string; border: string; text: string };
+      join: { background: string; text: string };
+      default: { background: string; text: string };
+    };
+    timeMarks: {
+      primary: string;
+      secondary: string;
+      absolute: string;
+      text: string;
+    };
+  };
+
   link: string;
 
   highlightedNavigationItem: string;
