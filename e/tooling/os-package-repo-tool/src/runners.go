@@ -26,11 +26,9 @@ type AptRunner struct {
 func NewAptRunner() (*AptRunner, error) {
 	runner := &AptRunner{
 		supportedOSs: map[string][]string{
-			// When adding a new supportedOS, update the lib/web/scripts/node-join/install.sh script
+			// When adding a new supported OS, update the lib/web/scripts/node-join/install.sh script
 			// Otherwise, it will keep using the binary installation instead of the deb repo.
 			"debian": { // See https://wiki.debian.org/DebianReleases#Production_Releases for details
-				"stretch",  // 9
-				"buster",   // 10
 				"bullseye", // 11
 				"bookworm", // 12
 				"trixie",   // 13
