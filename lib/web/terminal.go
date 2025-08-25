@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
+	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -841,23 +842,24 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		// created and the server sends us the session ID it is using
 		writeSessionCtx, writeSessionCancel := context.WithCancel(ctx)
 		defer writeSessionCancel()
-		waitForSessionID := prepareToReceiveSessionID(writeSessionCtx, t.logger, nc)
+
+		waitForSessionID := libsshutils.PrepareToReceiveSessionID(writeSessionCtx, t.logger, nc.Client)
 
 		// wait in a new goroutine because the server won't set a
-		// session ID until we open a shell
+		// session ID until we start the session.
 		go func() {
 			defer close(sessionDataSent)
 
 			sid, status := waitForSessionID()
 			switch status {
-			case sessionIDReceived:
+			case libsshutils.SessionIDReceived:
 				t.sessionData.ID = sid
 				fallthrough
-			case sessionIDNotModified:
+			case libsshutils.SessionIDNotModified:
 				if err := t.writeSessionData(ctx); err != nil {
 					t.logger.WarnContext(ctx, "Failure sending session data", "error", err)
 				}
-			case sessionIDNotSent:
+			case libsshutils.SessionIDNotSent:
 				t.logger.WarnContext(ctx, "Failed to receive session data")
 			default:
 				t.logger.WarnContext(ctx, "Invalid session ID status", "status", status)
