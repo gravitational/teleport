@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -244,7 +245,7 @@ func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64,
 	return ret, "", nil
 }
 
-func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
+func TestCollectIntegrationStats(t *testing.T) {
 	ctx := context.Background()
 	logger := logtest.NewLogger()
 
@@ -501,6 +502,152 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 				ResourcesEnrollmentSuccess: 1,
 				ECSDatabaseServiceCount:    0,
 				DiscoverLastSync:           &syncTime,
+			},
+		}
+		require.Equal(t, expectedSummary, gotSummary)
+	})
+
+	t.Run("returns AWS IAM Roles Anywhere Profile Sync status", func(t *testing.T) {
+		syncStartTime := time.Now()
+		syncEndTime := syncStartTime.Add(5 * time.Minute)
+		integrationName := "my-integration"
+		integration, err := types.NewIntegrationAWSRA(
+			types.Metadata{Name: integrationName},
+			&types.AWSRAIntegrationSpecV1{
+				TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+				ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+					Enabled:                       true,
+					ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
+					ProfileAcceptsRoleSessionName: true,
+					RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
+				},
+			},
+		)
+		require.NoError(t, err)
+		integration.SetStatus(types.IntegrationStatusV1{
+			AWSRolesAnywhere: &types.AWSRAIntegrationStatusV1{
+				LastProfileSync: &types.AWSRolesAnywhereProfileSyncIterationSummary{
+					Status:         "SUCCESS",
+					SyncedProfiles: 4,
+					StartTime:      syncStartTime,
+					EndTime:        syncEndTime,
+				},
+			},
+		})
+
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{},
+			databaseServices: &proto.ListResourcesResponse{},
+			databases: []types.Database{
+				&types.DatabaseV3{Spec: types.DatabaseSpecV3{AWS: types.AWS{Region: "us-west-1"}}},
+			},
+		}
+
+		deployedDatabaseServicesClient := &mockDeployedDatabaseServices{
+			listErr: errors.New("only aws oidc integrations can list deployed database services"),
+		}
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           integration,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+			userTasksClient:       &mockUserTasksLister{},
+		}
+		gotSummary, err := collectIntegrationStats(ctx, req)
+		require.NoError(t, err)
+		expectedSummary := &ui.IntegrationWithSummary{
+			Integration: &ui.Integration{
+				Name:    integrationName,
+				SubKind: "aws-ra",
+				AWSRA: &ui.IntegrationAWSRASpec{
+					TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+					ProfileSyncConfig: ui.AWSRAProfileSync{
+						Enabled:    true,
+						ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
+						RoleARN:    "arn:aws:iam::123456789012:role/SyncRole",
+					},
+				},
+			},
+			RolesAnywhereProfileSync: &ui.RolesAnywhereProfileSync{
+				Enabled:        true,
+				Status:         "SUCCESS",
+				SyncedProfiles: 4,
+				SyncStartTime:  syncStartTime,
+				SyncEndTime:    syncEndTime,
+			},
+		}
+		require.Equal(t, expectedSummary, gotSummary)
+	})
+
+	t.Run("returns AWS IAM Roles Anywhere Profile Sync status with error message", func(t *testing.T) {
+		syncStartTime := time.Now()
+		syncEndTime := syncStartTime.Add(5 * time.Minute)
+		integrationName := "my-integration"
+		integration, err := types.NewIntegrationAWSRA(
+			types.Metadata{Name: integrationName},
+			&types.AWSRAIntegrationSpecV1{
+				TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+				ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+					Enabled:                       true,
+					ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
+					ProfileAcceptsRoleSessionName: true,
+					RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
+				},
+			},
+		)
+		require.NoError(t, err)
+		integration.SetStatus(types.IntegrationStatusV1{
+			AWSRolesAnywhere: &types.AWSRAIntegrationStatusV1{
+				LastProfileSync: &types.AWSRolesAnywhereProfileSyncIterationSummary{
+					Status:         "ERROR",
+					SyncedProfiles: 0,
+					StartTime:      syncStartTime,
+					EndTime:        syncEndTime,
+					ErrorMessage:   "Failed to sync profiles due to access denied error",
+				},
+			},
+		})
+
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{},
+			databaseServices: &proto.ListResourcesResponse{},
+			databases:        make([]types.Database, 0),
+		}
+
+		deployedDatabaseServicesClient := &mockDeployedDatabaseServices{
+			listErr: trace.AccessDenied("AccessDenied to ECS:ListServices"),
+		}
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           integration,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+			userTasksClient:       &mockUserTasksLister{},
+		}
+		gotSummary, err := collectIntegrationStats(ctx, req)
+		require.NoError(t, err)
+		expectedSummary := &ui.IntegrationWithSummary{
+			Integration: &ui.Integration{
+				Name:    integrationName,
+				SubKind: "aws-ra",
+				AWSRA: &ui.IntegrationAWSRASpec{
+					TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+					ProfileSyncConfig: ui.AWSRAProfileSync{
+						Enabled:    true,
+						ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
+						RoleARN:    "arn:aws:iam::123456789012:role/SyncRole",
+					},
+				},
+			},
+			RolesAnywhereProfileSync: &ui.RolesAnywhereProfileSync{
+				Enabled:        true,
+				Status:         "ERROR",
+				SyncedProfiles: 0,
+				SyncStartTime:  syncStartTime,
+				SyncEndTime:    syncEndTime,
+				ErrorMessage:   "Failed to sync profiles due to access denied error",
 			},
 		}
 		require.Equal(t, expectedSummary, gotSummary)

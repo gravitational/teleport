@@ -63,6 +63,7 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -4746,7 +4747,14 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
 	if slices.Contains(a.context.User.GetRoles(), name) {
-		return a.authServer.GetRole(ctx, name)
+		role, err := a.authServer.GetRole(ctx, name)
+		if err != nil && trace.IsNotFound(err) {
+			// Add the UserSessionRoleNotFoundErrorMsg message to indicate this role not found error was
+			// encountered while the user was looking up one of their own roles. At this point, the
+			// role not found error can only happen if a role in their session cert doesn't exist anymore.
+			return nil, trace.Wrap(err, services.UserSessionRoleNotFoundErrorMsg)
+		}
+		return role, trace.Wrap(err)
 	}
 
 	authErr := a.authorizeAction(types.KindRole, types.VerbRead)
@@ -6526,6 +6534,7 @@ func (a *ServerWithRoles) GetDatabase(ctx context.Context, name string) (types.D
 }
 
 // GetDatabases returns all database resources.
+// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Database, err error) {
 	if err := a.authorizeAction(types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -6541,6 +6550,42 @@ func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Data
 		}
 	}
 	return result, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	if err := a.authorizeAction(types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var next string
+	var seen int
+	out, err := iterstream.Collect(
+		iterstream.TakeWhile(
+			iterstream.FilterMap(
+				a.authServer.RangeDatabases(ctx, startKey, ""),
+				func(db types.Database) (types.Database, bool) {
+					if a.checkAccessToDatabase(db) == nil {
+						return db, true
+					}
+					return nil, false
+				},
+			),
+			func(db types.Database) bool {
+				if seen < limit {
+					seen++
+					return true
+				}
+				next = db.GetName()
+				return false
+			},
+		),
+	)
+	return out, next, trace.Wrap(err)
 }
 
 // DeleteDatabase removes the specified database resource.

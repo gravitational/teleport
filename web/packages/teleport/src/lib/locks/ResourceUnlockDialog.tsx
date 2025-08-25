@@ -24,6 +24,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
+import Flex from 'design/Flex/Flex';
 
 import { LockResourceKind } from 'teleport/LocksV2/NewLock/common';
 
@@ -58,12 +59,10 @@ export function ResourceUnlockDialog(props: {
   targetName: string;
   /**
    * Called when the user cancels the unlock operation.
-   * @returns nothing
    */
   onCancel: () => void;
   /**
    * Called when the user completes the unlock operation.
-   * @returns nothing
    */
   onComplete: () => void;
 }) {
@@ -78,14 +77,15 @@ export function ResourceUnlockDialog(props: {
   const handleUnlock = async () => {
     try {
       await unlock();
-      onComplete();
     } catch {
       // Swallow this error - it's handled as `unlockError` above
+      return;
     }
+    onComplete();
   };
 
   return (
-    <Dialog open={true}>
+    <Dialog onClose={onCancel} open={true}>
       <DialogHeader>
         <DialogTitle>Unlock {targetName}?</DialogTitle>
       </DialogHeader>
@@ -101,19 +101,20 @@ export function ResourceUnlockDialog(props: {
         ) : undefined}
       </DialogContent>
       <DialogFooter>
-        <ButtonWarning
-          onClick={handleUnlock}
-          mr="3"
-          disabled={isLoading || !canUnlock || unlockPending}
-        >
-          Remove Lock
-        </ButtonWarning>
-        <ButtonSecondary
-          disabled={isLoading || unlockPending}
-          onClick={onCancel}
-        >
-          Cancel
-        </ButtonSecondary>
+        <Flex gap={3}>
+          <ButtonWarning
+            onClick={handleUnlock}
+            disabled={isLoading || !canUnlock || unlockPending}
+          >
+            Remove Lock
+          </ButtonWarning>
+          <ButtonSecondary
+            disabled={isLoading || unlockPending}
+            onClick={onCancel}
+          >
+            Cancel
+          </ButtonSecondary>
+        </Flex>
       </DialogFooter>
     </Dialog>
   );

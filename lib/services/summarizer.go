@@ -20,7 +20,10 @@ import (
 	"context"
 	"iter"
 
+	"github.com/gravitational/trace"
+
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 )
 
 // Summarizer is a service that provides methods to manage summary inference
@@ -93,4 +96,28 @@ type Summarizer interface {
 	// AllInferencePolicies returns an iterator that retrieves all session
 	// summary inference policies from the backend, without pagination.
 	AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv1.InferencePolicy, error]
+}
+
+// ValidateInferencePolicy validates an inference policy, including checking
+// filter syntax. This function wraps [apisummarizer.ValidateInferencePolicy],
+// as no function in the api/types tree can depend on the lib/services package.
+func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
+	err := apisummarizer.ValidateInferencePolicy(p)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s := p.GetSpec()
+	if s.GetFilter() != "" {
+		parser, err := NewWhereParser(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err = parser.Parse(s.GetFilter()); err != nil {
+			return trace.Wrap(err, "spec.filter has to be a valid predicate")
+		}
+	}
+
+	return nil
 }
