@@ -229,7 +229,7 @@ func ConfigFormatFromPath(configPath string) ConfigFormat {
 		// Works for both, global and projects settings.
 		return ConfigFormatClaude // Cursor uses the same format as Claude.
 	default:
-		return DefaultConfigFormat
+		return ConfigFormatUnspecified
 	}
 }
 
@@ -258,8 +258,7 @@ type FileConfig struct {
 }
 
 // LoadConfigFromFile loads the MCP config from the provided path.
-func LoadConfigFromFile(configPath string) (*FileConfig, error) {
-	format := ConfigFormatFromPath(configPath)
+func LoadConfigFromFile(configPath string, format ConfigFormat) (*FileConfig, error) {
 	data, err := os.ReadFile(configPath)
 	switch {
 	case os.IsNotExist(err):

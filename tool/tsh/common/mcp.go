@@ -103,14 +103,14 @@ func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 		StringVar(&m.configFormat)
 }
 
-func (m *mcpClientConfigFlags) loadConfig() (*mcpconfig.FileConfig, error) {
+func (m *mcpClientConfigFlags) loadConfig(configFormat mcpconfig.ConfigFormat) (*mcpconfig.FileConfig, error) {
 	switch m.clientConfig {
 	case mcpClientConfigClaude:
 		return mcpconfig.LoadClaudeConfigFromDefaultPath()
 	case mcpClientConfigCursor:
 		return mcpconfig.LoadConfigFromGlobalCursor()
 	default:
-		return mcpconfig.LoadConfigFromFile(m.clientConfig)
+		return mcpconfig.LoadConfigFromFile(m.clientConfig, configFormat)
 	}
 }
 
@@ -163,7 +163,7 @@ func (m *mcpClientConfigFlags) format() (mcpconfig.ConfigFormat, error) {
 		}
 
 		return mcpconfig.ConfigFormatUnspecified, trace.BadParameter(
-			"Configuration format mismatch. --client-config=%s option uses %q config format, but --format=%s was set. You can drop one of the flags or adjust the values to match.",
+			"Configuration format mismatch. --client-config=%s option uses %s config format, but --format=%s was set. You can drop one of the flags or adjust the values to match.",
 			m.clientConfig,
 			configFormat,
 			m.configFormat,
@@ -195,7 +195,7 @@ func runMCPConfig(cf *CLIConf, flags *mcpClientConfigFlags, exec mcpConfigExec) 
 	case "":
 		return trace.Wrap(exec.printInstructions(cf.Stdout(), format))
 	default:
-		config, err := flags.loadConfig()
+		config, err := flags.loadConfig(format)
 		if err != nil {
 			return trace.BadParameter("failed to load mcp configuration file at %q: %v", flags.clientConfig, err)
 		}

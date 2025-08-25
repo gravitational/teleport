@@ -50,6 +50,6 @@ func LoadConfigFromGlobalCursor() (*FileConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := LoadConfigFromFile(configPath)
+	config, err := LoadConfigFromFile(configPath, ConfigFormatClaude)
 	return config, trace.Wrap(err)
 }

@@ -32,7 +32,7 @@ func TestFileConfig_fileNotExists(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")
 
-	config, err := LoadConfigFromFile(configPath)
+	config, err := LoadConfigFromFile(configPath, ConfigFormatClaude)
 	require.NoError(t, err)
 	require.NotNil(t, config)
 	require.False(t, config.Exists())
@@ -82,7 +82,7 @@ func TestFileConfig_sampleFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(sampleConfigJSON), 0600))
 
 	// load
-	config, err := LoadConfigFromFile(configPath)
+	config, err := LoadConfigFromFile(configPath, ConfigFormatClaude)
 	require.NoError(t, err)
 	require.NotNil(t, config)
 	require.True(t, config.Exists())
@@ -359,7 +359,7 @@ func TestReadDifferentConfigFormats(t *testing.T) {
 			configPath := tc.filePath(t, t.TempDir())
 			require.NoError(t, os.WriteFile(configPath, []byte(tc.contents), 0600))
 
-			config, err := LoadConfigFromFile(configPath)
+			config, err := LoadConfigFromFile(configPath, ConfigFormatClaude)
 			tc.expectErr(t, err)
 			tc.expectConfig(t, config)
 		})

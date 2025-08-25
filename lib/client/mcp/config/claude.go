@@ -60,6 +60,6 @@ func LoadClaudeConfigFromDefaultPath() (*FileConfig, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "finding Claude Desktop config path")
 	}
-	config, err := LoadConfigFromFile(configPath)
+	config, err := LoadConfigFromFile(configPath, ConfigFormatClaude)
 	return config, trace.Wrap(err)
 }

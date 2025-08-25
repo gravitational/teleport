@@ -407,7 +407,7 @@ func TestMCPDBConfigCommand(t *testing.T) {
 				return
 			}
 
-			jsonConfig, err := mcpconfig.LoadConfigFromFile(configPath)
+			jsonConfig, err := mcpconfig.LoadConfigFromFile(configPath, mcpconfig.ConfigFormatClaude)
 			require.NoError(t, err)
 			mcpCmd, ok := jsonConfig.GetMCPServers()[mcpDBConfigName]
 			require.True(t, ok, "expected configuration to include database access server definition, but got nothing")
@@ -433,7 +433,7 @@ func setupMockDBMCPConfig(t *testing.T, cf *CLIConf, databasesURIs []string, add
 	t.Helper()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")
-	config, err := mcpconfig.LoadConfigFromFile(configPath)
+	config, err := mcpconfig.LoadConfigFromFile(configPath, mcpconfig.ConfigFormatClaude)
 	require.NoError(t, err)
 	require.NoError(t, config.PutMCPServer("local-everything", mcpconfig.MCPServer{
 		Command: "npx",
