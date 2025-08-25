@@ -303,6 +303,8 @@ export function DesktopSession({
 
   function handleMouseWheel(e: WheelEvent) {
     e.preventDefault();
+    // Check modifier states are correct to avoid unintentional zooming whilst scrolling.
+    inputHandler.current.synchronizeModifierState(client, e);
     // We only support pixel scroll events, not line or page events.
     // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
     if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {

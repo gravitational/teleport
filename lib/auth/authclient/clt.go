@@ -1774,4 +1774,7 @@ type ClientI interface {
 	// SummarizerServiceClient returns a client for the session recording
 	// summarizer service.
 	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
+
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 }

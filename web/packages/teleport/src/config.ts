@@ -325,6 +325,8 @@ const cfg = {
     },
 
     presetRolesPath: '/v1/webapi/presetroles',
+    listRequestableRolesPath:
+      '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
@@ -498,6 +500,13 @@ const cfg = {
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
+    },
+
+    sessionRecording: {
+      metadata:
+        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/metadata/ws',
+      thumbnail:
+        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/thumbnail',
     },
   },
 
@@ -874,6 +883,20 @@ const cfg = {
     return route;
   },
 
+  getSessionRecordingMetadataUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.metadata, {
+      clusterId,
+      sessionId,
+    });
+  },
+
+  getSessionRecordingThumbnailUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.thumbnail, {
+      clusterId,
+      sessionId,
+    });
+  },
+
   getConnectionDiagnosticUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
@@ -1131,6 +1154,14 @@ const cfg = {
       default:
         action satisfies never;
     }
+  },
+
+  getListRequestableRolesUrl(params?: UrlListRolesParams) {
+    return generatePath(cfg.api.listRequestableRolesPath, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getDiscoveryConfigUrl(clusterId: string) {
