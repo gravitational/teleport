@@ -85,7 +85,7 @@ jobs:
           done
 
       - name: Check if test symbols are included in binaries
-        run: make lint-test-symbols
+        run: make -C e lint-test-symbols
 
       - name: Mark paths as safe
         run: git config --global --add safe.directory "$( realpath . )"
