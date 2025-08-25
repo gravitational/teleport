@@ -27,6 +27,9 @@ import { TermEvent } from 'teleport/lib/term/enums';
 import Terminal from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';
 
+// Keys that Xterm should not block and let the other handlers handle them instead.
+const doNotBlockKeys = ['?', 't', 'h', 's', 'Escape'];
+
 export default function Xterm({ tty }: { tty: Tty }) {
   const refContainer = useRef<HTMLDivElement>(null);
   const theme = useTheme();
@@ -60,6 +63,10 @@ export default function Xterm({ tty }: { tty: Tty }) {
     terminalPlayer.current = term;
     term.open();
     term.term.focus();
+
+    term.registerCustomKeyEventHandler(
+      (e: KeyboardEvent) => !doNotBlockKeys.includes(e.key)
+    );
 
     term.tty.on(TermEvent.DATA, () => {
       // Keeps the cursor in view.
