@@ -37,7 +37,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { SessionSummariesCTA } from 'teleport/SessionRecordings/list/SessionSummariesCTA';
+import { SessionSummariesCta } from 'teleport/SessionRecordings/list/SessionSummariesCta';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
@@ -58,7 +58,7 @@ export function ListSessionRecordingsRoute() {
   return (
     <ListSessionRecordings
       actionSlot={null}
-      headerSlot={<SessionSummariesCTA />}
+      headerSlot={<SessionSummariesCta />}
     />
   );
 }
