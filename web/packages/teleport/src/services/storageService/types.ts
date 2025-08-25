@@ -49,6 +49,14 @@ export const KeysEnum = {
     'grv_teleport_session_recordings_dismissed_cta',
   SESSION_RECORDINGS_DISMISSED_SETUP:
     'grv_teleport_session_recordings_dismissed_setup',
+  SESSION_RECORDING_SIDEBAR_HIDDEN:
+    'grv_teleport_session_recording_sidebar_hidden',
+  SESSION_RECORDING_TIMELINE_HEIGHT:
+    'grv_teleport_session_recording_timeline_height',
+  SESSION_RECORDING_TIMELINE_HIDDEN:
+    'grv_teleport_session_recording_timeline_hidden',
+  SESSION_RECORDING_TIMELINE_SHOW_ABSOLUTE_TIME:
+    'grv_teleport_session_recording_timeline_show_absolute_time',
 
   // TODO(bl-nero): Remove once the new role editor is in acceptable state.
   USE_NEW_ROLE_EDITOR: 'grv_teleport_use_new_role_editor',
