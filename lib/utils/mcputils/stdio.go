@@ -31,6 +31,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // StderrLogWriter implements io.Writer and logs the content at configured log
@@ -112,5 +113,5 @@ func (r *StdioReader) ReadMessage(context.Context) (string, error) {
 
 // Type returns "stdio".
 func (r *StdioReader) Type() string {
-	return "stdio"
+	return types.MCPTransportStdio
 }
