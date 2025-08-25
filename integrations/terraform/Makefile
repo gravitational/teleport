@@ -10,6 +10,13 @@ ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
 # CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
+
+# On Windows, CGO is required to link against a C wrapper for the windows console API, which provides
+# interactive terminal support. Disabling it causes the build to fail with  "undefined" linker errors
+ifeq ($(OS),Windows_NT)
+CGOFLAG := CGO_ENABLED=1
+endif
+
 # Add .exe suffix for Windows builds
 EXE := $(if $(filter Windows_NT,$(OS)),.exe,)
 
@@ -26,7 +33,11 @@ tfclean:
 clean: tfclean
 	rm -rf $(PROVIDER_PATH)*
 	rm -rf $(BUILDDIR)/*
-	rm -rf $(RELEASE).tar.gz
+ifeq ($(OS),Windows_NT)
+	rm -f $(RELEASE)$(EXE)
+else
+	rm -f $(RELEASE).tar.gz
+endif
 	go clean
 
 .PHONY: build
