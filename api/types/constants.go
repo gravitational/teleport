@@ -937,10 +937,18 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
-	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
-	SchemaMCPStdio = "mcp+stdio://"
+	// SchemeMCPStdio is a URI scheme for MCP servers using stdio transport.
+	SchemeMCPStdio = "mcp+stdio"
 	// MCPTransportStdio indicates the MCP server uses stdio transport.
 	MCPTransportStdio = "stdio"
+	// SchemeMCPSSEHTTP is a URI scheme for MCP servers using HTTP with SSE
+	// transport.
+	SchemeMCPSSEHTTP = "mcp+sse+http"
+	// SchemeMCPSSEHTTPS is a URI scheme for MCP servers using HTTPS with SSE
+	// transport.
+	SchemeMCPSSEHTTPS = "mcp+sse+https"
+	// MCPTransportSSE indicates the MCP server uses SSE transport.
+	MCPTransportSSE = "SSE"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"

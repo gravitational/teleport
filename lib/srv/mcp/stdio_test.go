@@ -34,6 +34,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
 
@@ -44,6 +45,7 @@ func Test_handleAuthErrStdio(t *testing.T) {
 		ParentContext: ctx,
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
 	})
 	require.NoError(t, err)
 
@@ -77,6 +79,7 @@ func Test_handleStdio(t *testing.T) {
 		ParentContext: ctx,
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
 	})
 	require.NoError(t, err)
 
@@ -84,7 +87,7 @@ func Test_handleStdio(t *testing.T) {
 	defer close(handlerDoneCh)
 	go func() {
 		// Use the demo server.
-		handlerErr := s.handleStdio(ctx, *testCtx.SessionCtx, makeDemoServerRunner)
+		handlerErr := s.handleStdio(ctx, testCtx.SessionCtx, makeDemoServerRunner)
 		handlerDoneCh <- struct{}{}
 		require.NoError(t, handlerErr)
 	}()
@@ -150,6 +153,7 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 		ParentContext: t.Context(),
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
 	})
 	require.NoError(t, err)
 
@@ -277,7 +281,7 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			handlerDoneCh := make(chan struct{}, 1)
 			defer close(handlerDoneCh)
 			go func() {
-				handlerErr := s.HandleSession(handlerCtx, *testCtx.SessionCtx)
+				handlerErr := s.HandleSession(handlerCtx, testCtx.SessionCtx)
 				handlerDoneCh <- struct{}{}
 				tt.checkHandlerError(t, handlerErr)
 			}()

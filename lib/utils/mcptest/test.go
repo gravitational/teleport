@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -50,6 +51,15 @@ func NewServerWithVersion(version string) *mcpserver.MCPServer {
 		}, nil
 	})
 	return server
+}
+
+// MustStartSSETestServer starts an SSE server returns the SSE endpoint.
+func MustStartSSETestServer(t *testing.T) string {
+	t.Helper()
+	sseServer := mcpserver.NewSSEServer(NewServer())
+	httpServer := httptest.NewServer(sseServer)
+	t.Cleanup(httpServer.Close)
+	return httpServer.URL + "/sse"
 }
 
 // NewStdioClient creates a new stdio client and ensures the client is closed
