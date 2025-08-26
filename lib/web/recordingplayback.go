@@ -46,32 +46,36 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type requestType byte
+
 // Identifies requests coming from the client (web UI)
 const (
 	// requestTypeFetch requests event data
-	requestTypeFetch byte = 1
+	requestTypeFetch requestType = 1
 )
+
+type responseType byte
 
 // Response types send back to the client
 const (
 	// eventTypeStart indicates stream start
-	eventTypeStart byte = 1
+	eventTypeStart responseType = 1
 	// eventTypeStop indicates stream stop
-	eventTypeStop byte = 2
+	eventTypeStop responseType = 2
 	// eventTypeError indicates an error
-	eventTypeError byte = 3
+	eventTypeError responseType = 3
 	// eventTypeSessionStart indicates session started
-	eventTypeSessionStart byte = 4
+	eventTypeSessionStart responseType = 4
 	// eventTypeSessionPrint contains terminal output
-	eventTypeSessionPrint byte = 5
+	eventTypeSessionPrint responseType = 5
 	// eventTypeSessionEnd indicates session ended
-	eventTypeSessionEnd byte = 6
+	eventTypeSessionEnd responseType = 6
 	// eventTypeResize indicates terminal resize
-	eventTypeResize byte = 7
+	eventTypeResize responseType = 7
 	// eventTypeScreen contains terminal screen state
-	eventTypeScreen byte = 8
+	eventTypeScreen responseType = 8
 	// eventTypeBatch indicates a batch of events
-	eventTypeBatch byte = 9
+	eventTypeBatch responseType = 9
 )
 
 const (
@@ -115,7 +119,7 @@ type recordingPlayback struct {
 
 // fetchRequest represents a request for session events.
 type fetchRequest struct {
-	requestType          byte
+	requestType          requestType
 	startOffset          int64
 	endOffset            int64
 	requestID            int
@@ -124,7 +128,7 @@ type fetchRequest struct {
 
 // sessionEvent represents a single session event with its type, timestamp, and data.
 type sessionEvent struct {
-	eventType byte
+	eventType responseType
 	timestamp int64
 	data      []byte
 }
@@ -333,7 +337,7 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 		eventBatch = eventBatch[:0]
 	}
 
-	addToBatch := func(eventType byte, timestamp int64, data []byte) {
+	addToBatch := func(eventType responseType, timestamp int64, data []byte) {
 		eventBatch = append(eventBatch, sessionEvent{eventType, timestamp, data})
 
 		if len(eventBatch) >= maxBatchSize {
@@ -500,7 +504,7 @@ func (s *recordingPlayback) writeMessage(msgType int, data []byte) error {
 }
 
 // sendEvent sends a single event to the client.
-func (s *recordingPlayback) sendEvent(eventType byte, timestamp int64, data []byte, requestID int) {
+func (s *recordingPlayback) sendEvent(eventType responseType, timestamp int64, data []byte, requestID int) {
 	totalSize := responseHeaderSize + len(data)
 	buf := make([]byte, totalSize)
 
@@ -520,7 +524,7 @@ func (s *recordingPlayback) sendEventBatch(batch []sessionEvent, requestID int) 
 
 	buf := make([]byte, totalSize)
 
-	buf[0] = eventTypeBatch
+	buf[0] = byte(eventTypeBatch)
 	binary.BigEndian.PutUint32(buf[1:5], uint32(len(batch)))
 	binary.BigEndian.PutUint32(buf[5:9], uint32(requestID))
 
@@ -563,7 +567,7 @@ func encodeScreenEvent(state vt10x.TerminalState, cols, rows int, cursor vt10x.C
 	data := terminal.VtStateToANSI(state)
 
 	eventData := make([]byte, requestHeaderSize+len(data))
-	eventData[0] = eventTypeScreen
+	eventData[0] = byte(eventTypeScreen)
 
 	binary.BigEndian.PutUint32(eventData[1:5], uint32(cols))
 	binary.BigEndian.PutUint32(eventData[5:9], uint32(rows))
@@ -577,8 +581,8 @@ func encodeScreenEvent(state vt10x.TerminalState, cols, rows int, cursor vt10x.C
 }
 
 // encodeEvent encodes a session event into a byte slice.
-func encodeEvent(buf []byte, offset int, eventType byte, timestamp int64, data []byte, requestID int) {
-	buf[offset] = eventType
+func encodeEvent(buf []byte, offset int, eventType responseType, timestamp int64, data []byte, requestID int) {
+	buf[offset] = byte(eventType)
 
 	binary.BigEndian.PutUint64(buf[offset+1:offset+9], uint64(timestamp))
 	binary.BigEndian.PutUint32(buf[offset+9:offset+13], uint32(len(data)))
@@ -604,7 +608,7 @@ func decodeBinaryRequest(data []byte) (*fetchRequest, error) {
 	}
 
 	req := &fetchRequest{
-		requestType:          data[0],
+		requestType:          requestType(data[0]),
 		startOffset:          int64(binary.BigEndian.Uint64(data[1:9])),
 		endOffset:            int64(binary.BigEndian.Uint64(data[9:17])),
 		requestID:            int(binary.BigEndian.Uint32(data[17:21])),
