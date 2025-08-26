@@ -94,6 +94,8 @@ export function RecordingItem({
     [actionSlot, recording.sid]
   );
 
+  const hasThumbnail = recording.recordingType === 'ssh';
+
   return (
     <RecordingItemContainer
       data-testid="recording-item"
@@ -105,17 +107,23 @@ export function RecordingItem({
     >
       <ThumbnailContainer density={density} viewMode={viewMode}>
         {recording.playable ? (
-          <ErrorBoundary
-            fallback={<ThumbnailError>Thumbnail not available</ThumbnailError>}
-          >
-            <Suspense fallback={<ThumbnailLoading />}>
-              <RecordingThumbnail
-                clusterId={clusterId}
-                sessionId={recording.sid}
-                styles={thumbnailStyles}
-              />
-            </Suspense>
-          </ErrorBoundary>
+          hasThumbnail ? (
+            <ErrorBoundary
+              fallback={
+                <ThumbnailError>Thumbnail not available</ThumbnailError>
+              }
+            >
+              <Suspense fallback={<ThumbnailLoading />}>
+                <RecordingThumbnail
+                  clusterId={clusterId}
+                  sessionId={recording.sid}
+                  styles={thumbnailStyles}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          ) : (
+            <ThumbnailError>Thumbnail not available</ThumbnailError>
+          )
         ) : (
           <ThumbnailError>
             Non-interactive session, no playback available
