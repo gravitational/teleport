@@ -42,7 +42,8 @@ import (
 	"github.com/gravitational/teleport/lib/terminal"
 )
 
-type uploadHandler interface {
+// UploadHandler uploads session recording metadata and thumbnails.
+type UploadHandler interface {
 	// UploadMetadata uploads session metadata and returns a URL with the uploaded
 	// file in case of success. Session metadata is a file with a [recordingmetadatav1.SessionRecordingMetadata]
 	// protobuf message containing info about the session (duration, events, etc), as well as
@@ -59,7 +60,7 @@ type uploadHandler interface {
 type RecordingMetadataService struct {
 	logger        *slog.Logger
 	streamer      player.Streamer
-	uploadHandler uploadHandler
+	uploadHandler UploadHandler
 }
 
 // RecordingMetadataServiceConfig defines the configuration for the RecordingMetadataService.
@@ -67,7 +68,7 @@ type RecordingMetadataServiceConfig struct {
 	// Streamer is used to stream session events.
 	Streamer player.Streamer
 	// UploadHandler is used to upload session metadata and thumbnails.
-	UploadHandler uploadHandler
+	UploadHandler UploadHandler
 }
 
 const (
