@@ -7,30 +7,31 @@ labels:
 ---
 
 You can protect the AWS Management Console and AWS APIs with Teleport.
-This makes it possible to manage access to AWS infrastructure with Teleport features like Access Requests, Access Lists, and identity locking.
+This allows you to manage access to AWS infrastructure with Teleport features like Access Requests, Access Lists, and identity locking.
 You can also configure Teleport to provide different levels of AWS access automatically when users authenticate using your single sign-on solution.
 
-<Admonition type="note">
-When compared with the [AWS Console and CLI access](aws-console.mdx) method,
-this guide does not require a Teleport Agent to be installed and provides 100% compatibility with AWS SDK based tools.
+<Admonition type="tip">
+When compared with the [AWS Console and CLI access via Teleport Agent](aws-console.mdx) method,
+this guide does not require a Teleport Agent to be installed and provides 100% compatibility with AWS SDK based tools (e.g., terraform).
 However, it does not record the requests in Teleport's audit logs, only that a session was started by a given user.
 </Admonition>
 
 This guide will explain how to:
 
+- Configure AWS Console and CLI access with Teleport using Roles Anywhere
 - Access the AWS Management Console
 - Access the AWS Command Line Interface (CLI)
 - Access applications using AWS SDKs
 
 ## How it works
 
-In this setup, Teleport provides credentials for the user to assume one or more target IAM Roles.
-Teleport users access the AWS Management Console and APIs through the Teleport Web UI and AWS CLI or other AWS tools.
+Teleport leverages AWS IAM Roles Anywhere to issue temporary credentials for assuming target IAM Roles.
 
-Teleport checks the user's RBAC permissions when generating credentials, to ensure only authorized users get access and only to the authorized IAM Role.
+Access is managed through Teleport's RBAC policies, ensuring credentials are only generated for authorized users and roles.
 
-Teleport uses AWS IAM Roles Anywhere to issue temporary credentials to users.
-AWS IAM Roles Anywhere Profiles will appear as Teleport AWS Application resources in the Web UI and users can access their roles through the Web UI or CLI.
+For web console access, you can navigate to the resources page in Teleport Web UI and click on the AWS Application which is named after the Roles Anywhere Profile.
+
+For CLI and SDK based access, you must use `tsh` to obtain the credentials
 
 ## Prerequisites
 
@@ -50,7 +51,9 @@ AWS IAM Roles Anywhere Profiles will appear as Teleport AWS Application resource
 In this section, you will configure AWS IAM resources to allow Teleport to issue AWS credentials.
 
 <Admonition type="note">
-Instead of doing this step manually, you can navigate to your Teleport Web UI, click on Enroll New Resource in Resources listing page, and follow the guide after clicking in AWS CLI/Console Access tile.
+Instead of doing this step manually, you can navigate to your Teleport Web UI,
+click on Enroll New Resource in Resources listing page,
+and follow the guide after clicking on the AWS CLI/Console Access tile.
 </Admonition>
 
 You will create the following resources in AWS:
@@ -63,7 +66,7 @@ You will create the following resources in AWS:
 
 ### Create an IAM Roles Anywhere Trust Anchor
 
-In this section, you will create an IAM Roles Anywhere Trust Anchor which trusts the Teleport's AWS Roles Anywhere CA.
+First, you will create an IAM Roles Anywhere Trust Anchor which trusts the Teleport's AWS Roles Anywhere CA.
 
 1. Obtain the Teleport certificate by:
   <Tabs>
@@ -93,7 +96,7 @@ In this section, you will create an IAM Roles Anywhere Trust Anchor which trusts
 
 ### Set up Profile Sync
 
-This section will create the required AWS resources to enable the Profile Sync.
+Next, you will create the required AWS resources to enable the Profile Sync.
 
 1. Navigate to [Create Role](https://console.aws.amazon.com/iam/home?#/roles/create) and create a new IAM Role called `TeleportRolesAnywhereProfileSync`.
    Trust policy must include the Roles Anywhere service principal:
@@ -167,11 +170,11 @@ Now that the required AWS resources are created, you can create a Teleport AWS I
   $ tctl create -f roles-anywhere-integration.yaml
   ```
 
-Teleport will now start syncing AWS IAM Roles Anywhere Profiles as AWS application resources, every 5 minutes.
+Teleport will now start syncing AWS IAM Roles Anywhere Profiles as AWS applications, every 5 minutes.
 
 ## Step 2/4. Create an AWS IAM Roles Anywhere Profile and assign IAM Roles
 
-In this step, you will create an example Profile and Role so that you can test the integration.
+Now, you will create an example Profile and Role so that you can test the integration.
 
 If you are already leveraging AWS IAM Roles Anywhere Profiles, you can skip this step.
 
@@ -206,29 +209,44 @@ Copy the Profile ARN <Var name="Read Only Profile ARN" />.
 
 1. You should now see the `ExampleReadOnlyAccess` profile listed in your Teleport Web UI in the Resources page.
 
-## Step 3/4. Set up Access
-In this section, you'll create a Teleport Role which will grant access to the `ExampleReadOnlyAccess` Profile and associated IAM Role.
+## Step 3/4. Set up access
+Now you need to grant your users access to the imported AWS profiles/roles.
+You will create a Teleport Role which will grant access to the `ExampleReadOnlyAccess` Profile and associated IAM Role.
 
-1. Create a file named `example-read-only-access-role.yaml` with the following contents:
-  ```yaml
-  kind: role
-  version: v8
-  metadata:
-    name: aws-ro-access
-  spec:
-    allow:
-      app_labels:
-        'teleport.dev/aws-roles-anywhere-profile-arn': '<Var name="Read Only Profile ARN" />'
-      aws_role_arns:
-      - <Var name="Read Only Role ARN" />
-  ```
+  <Tabs>
+    <TabItem label="Web UI">
+    Open your Teleport cluster Web UI, select the "Zero Trust Access" and then "Roles".
 
-1. Create the role with the following command:
-  ```code
-  $ tctl create -f example-read-only-access-role.yaml
-  ```
+    Click the "Create New Role" button, set the role name to `aws-ro-access`.
+    Next, add an Application Access entry, in the Resources section, with the following:
+    - Labels: `teleport.dev/aws-roles-anywhere-profile-arn': '<Var name="Read Only Profile ARN" />'`
+    - AWS Role ARNs: <Var name="Read Only Role ARN" />
+    Proceed to the next steps and create the role.
+    </TabItem>
 
-1. Assign the Role to the users you want to allow access. You can also assign it to an Access List or use it in conjunction with Access Requests.
+    <TabItem label="Via tctl">
+      1. Create a file named `example-read-only-access-role.yaml` with the following contents:
+        ```yaml
+        kind: role
+        version: v8
+        metadata:
+          name: aws-ro-access
+        spec:
+          allow:
+            app_labels:
+              'teleport.dev/aws-roles-anywhere-profile-arn': '<Var name="Read Only Profile ARN" />'
+            aws_role_arns:
+            - <Var name="Read Only Role ARN" />
+        ```
+
+      1. Create the role with the following command:
+        ```code
+        $ tctl create -f example-read-only-access-role.yaml
+        ```
+    </TabItem>
+  </Tabs>
+
+Assign the Role to the users you want to allow access. You can also assign it to an [Access List](../../../identity-governance/access-lists/guide/) or use it in conjunction with [Access Requests](../../../identity-governance/access-requests/).
 
 ## Step 4/4. Access AWS resources
 
@@ -238,6 +256,7 @@ Now that you have configured the Integration and set up the Role, users can acce
 
 1. Visit the home page of the Teleport Web UI and click **Resources**.
    If the Integration found any Profiles as expected, the Web UI will display the name of the Profile.
+   If you don't see any Profiles, see the [Troubleshooting](#troubleshooting) section.
 
 1. Click the **Launch** button for the AWS Console application, then click on the role you would like to assume when signing in to the AWS Console:
 
@@ -286,14 +305,6 @@ provider "aws" {
 
 Setting the `AWS_PROFILE` environment variable is also an option.
 
-#### Set the default profile
-Instead of always setting the AWS Profile in your commands/scripts/configurations, when logging in, you can set it to be the default AWS configuration profile.
-```code
-$ tsh apps login --aws-role arn:aws:iam::278576220453:role/ExampleReadOnlyAccess example-read-only-access --set-as-default-profile
-```
-
-Now, you will be able to run any AWS CLI or AWS SDK based tool (including terraform) without any additional change.
-
 ## Troubleshooting
 
 Read this section if you run into issues while following this guide.
@@ -310,11 +321,11 @@ If you don't see the expected AWS Profiles in the Teleport Web UI, check the fol
     aws_ra:
       profile_sync_config:
         enabled: true
-        profile_arn: arn:aws:rolesanywhere:eu-west-2:278576220453:profile/5c659b8f-7ca3-48ef-a1aa-14c9c93506ee
+        profile_arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/5c659b8f-7ca3-48ef-a1aa-14c9c93506ee
         profile_name_filters:
         - MarcoRA-*
-        role_arn: arn:aws:iam::278576220453:role/marcolocal-teleport-aws-roles-anywhere-role
-      trust_anchor_arn: arn:aws:rolesanywhere:eu-west-2:278576220453:trust-anchor/69a0c3f8-3157-49b2-85dd-75bdef828a68
+        role_arn: arn:aws:iam::123456789012:role/TeleportRolesAnywhereProfileSync
+      trust_anchor_arn: arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/69a0c3f8-3157-49b2-85dd-75bdef828a68
   ```
 
 1. **Integration Status**
@@ -336,7 +347,14 @@ If you don't see the expected AWS Profiles in the Teleport Web UI, check the fol
 1. **Missing permissions**
   Ensure that your Teleport Role allows you access to all the expected Profiles.
   AWS App resources have a specific label which you can use to control access: `teleport.dev/aws-roles-anywhere-profile-arn`.
-  Set it to `*` to allow access to all profiles.
+  Set it to `*` to allow access to all profiles, like so:
+  ```yaml
+  kind: role
+  spec:
+    allow:
+      app_labels:
+        'teleport.dev/aws-roles-anywhere-profile-arn': '*'
+  ```
 
 ## Next Steps
 
