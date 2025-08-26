@@ -307,7 +307,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 	}
 }
 
-func makeAzureSubscription(t *testing.T, subID string) *armsubscription.Subscription {
+func makeAzureSubscription(_ *testing.T, subID string) *armsubscription.Subscription {
 	return &armsubscription.Subscription{
 		SubscriptionID: &subID,
 		State:          to.Ptr(armsubscription.SubscriptionStateEnabled),
