@@ -1,3 +1,8 @@
+variable "tenant_id" {
+  type        = string
+  description = "Entra ID Tenant ID"
+}
+
 variable "app_name" {
   type        = string
   description = "Enterprise application name"
@@ -16,6 +21,8 @@ variable "group_membership_claims" {
 }
 
 # Warning! An expired certificate will break user authentication.
+# If you update this value, you should also update the Entra ID 
+# Auth Connector in Teleport with a new entity descriptor. 
 variable "certificate_expiry_date" {
   type        = string
   description = "Expiry date for the certificate that will be created for SAML assertion signing"
@@ -35,7 +42,7 @@ variable "graph_permission_ids" {
 }
 
 # Only required if use_system_credentials=true
-# You can also refrence a system assigned managed identity configured in the VM resource:
+# You can also reference a system assigned managed identity configured in the VM resource:
 # azurerm_virtual_machine.my_vm.identity[0].principal_id
 variable "managed_id" {
   type        = string
