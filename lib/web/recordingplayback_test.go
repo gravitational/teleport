@@ -595,7 +595,7 @@ func TestBufferedEvents_LargeGap(t *testing.T) {
 func createFetchRequest(start, end int64, requestID uint32, currentScreen bool) []byte {
 	buf := make([]byte, requestHeaderSize)
 
-	buf[0] = requestTypeFetch
+	buf[0] = byte(requestTypeFetch)
 
 	binary.BigEndian.PutUint64(buf[1:9], uint64(start))
 	binary.BigEndian.PutUint64(buf[9:17], uint64(end))
@@ -630,7 +630,7 @@ func fetchAndCollectResponses(t *testing.T, ws *websocket.Conn, start, end int64
 			}
 
 			responses = append(responses, msg)
-			if len(msg) > 0 && msg[0] == eventTypeStop {
+			if len(msg) > 0 && msg[0] == byte(eventTypeStop) {
 				done <- true
 				break
 			}
