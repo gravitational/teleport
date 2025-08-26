@@ -310,7 +310,7 @@ func TestFetchOverWebSocket(t *testing.T) {
 
 	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
 
-	require.Equal(t, 3, len(responses), "Should receive 3 messages: start, print, stop")
+	require.Len(t, responses, 3, "Should receive 3 messages: start, print, stop")
 
 	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
 	require.Equal(t, eventTypeBatch, responses[1][0], "Second message should be batch event")
@@ -328,7 +328,7 @@ func TestErrorOverWebSocket(t *testing.T) {
 
 	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
 
-	require.Equal(t, 3, len(responses), "Should receive 3 messages: start, error, stop")
+	require.Len(t, responses, 3, "Should receive 3 messages: start, error, stop")
 
 	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
 	require.Equal(t, eventTypeError, responses[1][0], "Second message should be error event")
@@ -406,7 +406,7 @@ func TestRequestScreen(t *testing.T) {
 
 	responses := fetchAndCollectResponses(t, ws, 1200, 2200, true)
 
-	require.Equal(t, 4, len(responses), "Should receive 4 messages: start, screen, batch, stop")
+	require.Len(t, responses, 4, "Should receive 4 messages: start, screen, batch, stop")
 
 	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
 	require.Equal(t, eventTypeScreen, responses[1][0], "Second message should be screen event")
@@ -452,7 +452,7 @@ func TestResizeEvent(t *testing.T) {
 
 	responses := fetchAndCollectResponses(t, ws, 0, 1000, true)
 
-	require.Equal(t, 4, len(responses), "Should receive 4 messages: start, screen, batch, stop")
+	require.Len(t, responses, 4, "Should receive 4 messages: start, screen, batch, stop")
 
 	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
 	require.Equal(t, eventTypeScreen, responses[1][0], "Second message should be screen event")
@@ -493,7 +493,7 @@ func TestBufferedEvents(t *testing.T) {
 
 	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
 
-	require.Equal(t, 3, len(responses), "Should receive 3 messages: start, batch, stop")
+	require.Len(t, responses, 3, "Should receive 3 messages: start, batch, stop")
 
 	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
 	require.Equal(t, eventTypeBatch, responses[1][0], "Second message should be batch event")
@@ -505,7 +505,7 @@ func TestBufferedEvents(t *testing.T) {
 
 	responses = fetchAndCollectResponses(t, ws, 1000, 2000, false)
 
-	require.Equal(t, 3, len(responses), "Should receive 3 messages: start, batch, stop")
+	require.Len(t, responses, 3, "Should receive 3 messages: start, batch, stop")
 
 	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
 	require.Equal(t, eventTypeBatch, responses[1][0], "Second message should be batch event")
@@ -564,7 +564,7 @@ func TestBufferedEvents_LargeGap(t *testing.T) {
 
 	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
 
-	require.Equal(t, 3, len(responses), "Should receive 3 messages: start, batch, stop")
+	require.Len(t, responses, 3, "Should receive 3 messages: start, batch, stop")
 
 	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
 	require.Equal(t, eventTypeBatch, responses[1][0], "Second message should be batch event")
@@ -576,7 +576,7 @@ func TestBufferedEvents_LargeGap(t *testing.T) {
 
 	responses = fetchAndCollectResponses(t, ws, 9000, 10000, true)
 
-	require.Equal(t, 4, len(responses), "Should receive 4 messages: start, screen, batch, stop")
+	require.Len(t, responses, 4, "Should receive 4 messages: start, screen, batch, stop")
 
 	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
 	require.Equal(t, eventTypeScreen, responses[1][0], "Second message should be screen event")
