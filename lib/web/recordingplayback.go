@@ -472,15 +472,13 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 
 		eventTime := getEventTime(evt)
 
-		if !inTimeRange && eventTime >= req.startOffset {
-			inTimeRange = true
+		inTimeRange = eventTime >= req.startOffset && eventTime <= req.endOffset
 
-			if req.requestCurrentScreen && !screenSent {
-				flushBatch()
-				s.sendCurrentScreen(req.requestID, eventTime)
+		if inTimeRange && req.requestCurrentScreen && !screenSent {
+			flushBatch()
+			s.sendCurrentScreen(req.requestID, eventTime)
 
-				screenSent = true
-			}
+			screenSent = true
 		}
 
 		if eventTime > req.endOffset {
