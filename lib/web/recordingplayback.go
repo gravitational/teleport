@@ -85,6 +85,12 @@ const (
 
 const websocketCloseTimeout = 5 * time.Second
 
+// websocketMessage represents a message to be written to the websocket
+type websocketMessage struct {
+	messageType int
+	data        []byte
+}
+
 // recordingPlayback manages session event streaming
 type recordingPlayback struct {
 	ctx              context.Context
@@ -94,9 +100,10 @@ type recordingPlayback struct {
 	logger           *slog.Logger
 	mu               sync.Mutex
 	cancelActiveTask context.CancelFunc
+	taskWg           *sync.WaitGroup
 	ws               *websocket.Conn
-	writeChan        chan []byte
-	wg               sync.WaitGroup
+	writeChan        chan websocketMessage
+	closeSent        bool // tracks if a close message has been sent
 
 	stream struct {
 		sync.Mutex
@@ -182,7 +189,7 @@ func newRecordingPlayback(ctx context.Context, ws *websocket.Conn, clt events.Se
 		sessionID: sessionID,
 		logger:    logger,
 		ws:        ws,
-		writeChan: make(chan []byte),
+		writeChan: make(chan websocketMessage),
 	}
 
 	return s
@@ -201,7 +208,36 @@ func (s *recordingPlayback) run() {
 func (s *recordingPlayback) cleanup() {
 	s.cancel()
 
-	gracefulWebSocketClose(s.ws, websocketCloseTimeout)
+	// Wait for any active task to complete
+	s.mu.Lock()
+	wg := s.taskWg
+	alreadySent := s.closeSent
+	s.mu.Unlock()
+
+	if wg != nil {
+		wg.Wait()
+	}
+
+	// Only send close message if we haven't already sent one
+	if !alreadySent {
+		select {
+		case s.writeChan <- websocketMessage{
+			messageType: websocket.CloseMessage,
+			data:        websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+		}:
+		case <-time.After(websocketCloseTimeout):
+		}
+	}
+
+	close(s.writeChan)
+
+	// Wait for peer's close frame response (or timeout)
+	deadline := time.Now().Add(websocketCloseTimeout)
+	_ = s.ws.SetReadDeadline(deadline)
+	_, _, _ = s.ws.ReadMessage()
+
+	// Finally close the underlying connection
+	s.ws.Close()
 }
 
 // writeLoop handles all websocket writes from a dedicated goroutine.
@@ -220,8 +256,13 @@ func (s *recordingPlayback) writeLoop() {
 				return
 			}
 
-			if err := s.ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+			if err := s.ws.WriteMessage(msg.messageType, msg.data); err != nil {
 				s.logWebsocketError(err)
+				return
+			}
+
+			// If we just sent a close message, exit the loop
+			if msg.messageType == websocket.CloseMessage {
 				return
 			}
 		}
@@ -248,8 +289,18 @@ func (s *recordingPlayback) readLoop() {
 		if msgType != websocket.BinaryMessage {
 			s.logger.ErrorContext(s.ctx, "ignoring non-binary websocket message", "session_id", s.sessionID, "type", msgType)
 
-			if err := s.ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "only binary messages are supported")); err != nil {
-				s.logWebsocketError(err)
+			// Mark that we're sending a close message
+			s.mu.Lock()
+			s.closeSent = true
+			s.mu.Unlock()
+
+			// Send close message through the write channel
+			select {
+			case s.writeChan <- websocketMessage{
+				messageType: websocket.CloseMessage,
+				data:        websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "only binary messages are supported"),
+			}:
+			default:
 			}
 
 			return
@@ -280,14 +331,20 @@ func (s *recordingPlayback) createTaskContext() context.Context {
 	if s.cancelActiveTask != nil {
 		// Cancel the active task first
 		s.cancelActiveTask()
+		oldWg := s.taskWg
 		s.mu.Unlock()
 
 		// Wait for streamEvents to terminate before continuing
 		// We unlock the mutex while waiting to avoid deadlock
-		s.wg.Wait()
+		if oldWg != nil {
+			oldWg.Wait()
+		}
 
 		s.mu.Lock()
 	}
+
+	// Create a new WaitGroup for the new task
+	s.taskWg = &sync.WaitGroup{}
 
 	ctx, taskCancel := context.WithCancel(s.ctx)
 	s.cancelActiveTask = taskCancel
@@ -341,19 +398,24 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 
 	s.stream.Unlock()
 
-	go s.streamEvents(ctx, req, eventsChan, errorsChan)
+	// Get the current task's WaitGroup
+	s.mu.Lock()
+	wg := s.taskWg
+	s.mu.Unlock()
+
+	if wg != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.streamEvents(ctx, req, eventsChan, errorsChan)
+		}()
+	} else {
+		go s.streamEvents(ctx, req, eventsChan, errorsChan)
+	}
 }
 
 // streamEvents streams session events to the client.
 func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest, eventsChan <-chan apievents.AuditEvent, errorsChan <-chan error) {
-	s.wg.Add(1)
-
-	defer func() {
-		s.mu.Lock()
-		s.cancelActiveTask = nil
-		s.mu.Unlock()
-		s.wg.Done()
-	}()
 
 	startSent := false
 	screenSent := false
@@ -542,7 +604,7 @@ func (s *recordingPlayback) writeMessage(data []byte) error {
 	select {
 	case <-s.ctx.Done():
 		return s.ctx.Err()
-	case s.writeChan <- data:
+	case s.writeChan <- websocketMessage{messageType: websocket.BinaryMessage, data: data}:
 		return nil
 	case <-time.After(10 * time.Second):
 		return fmt.Errorf("timeout sending message")
