@@ -2,6 +2,7 @@ import { addWeeks } from 'date-fns';
 
 import {
   AccessListMemberKind,
+  AccessListType,
   IneligibleStatus,
   ReviewDayOfMonth,
   ReviewFrequency,
@@ -131,6 +132,15 @@ export const rawAccessListOkta = {
     labels: {
       'okta/org': 'https://some-url',
     },
+  },
+};
+
+export const rawAccessListStatic = {
+  ...rawAccessList,
+  spec: {
+    ...rawAccessList.spec,
+    title: 'Mock Static Access List Title',
+    type: AccessListType.Static,
   },
 };
 

@@ -9,16 +9,14 @@ import type { Option } from 'shared/components/Select';
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 import { AccessList } from 'e-teleport/services/accessmanagement';
-import {
-  AccessListMemberKind,
-  AccessListOrigin,
-} from 'e-teleport/services/accessmanagement/types';
+import { AccessListMemberKind } from 'e-teleport/services/accessmanagement/types';
 
 import { EditKind, NestedListLink, type UserOption } from '../../Shared/Shared';
+import { Action, getActionForbiddenInfo, isActionForbidden } from '../access';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
-import { noEditAcessMsg, oktaReadOnlyMsg } from '../errors';
 import {
   CustomCell,
+  Perms,
   RoleAndTraitLabels,
   UserRevokeButtonCell,
   type AccessListModified,
@@ -26,38 +24,24 @@ import {
 import { EditEligibilityOrGrantRoles } from '../Specs/EditEligibilityOrGrants';
 import { EnrollNewOwners } from './EnrollNewOwners';
 
-const oktaReadOnlyOwnersMsg = oktaReadOnlyMsg({
-  userKind: 'owner',
-  accessKind: 'edit-user',
-});
-const oktaReadOnlyEligibilityMsg = oktaReadOnlyMsg({
-  userKind: 'owner',
-  accessKind: 'eligibility',
-});
-const oktaReadOnlyGrantMsg = oktaReadOnlyMsg({
-  userKind: 'owner',
-  accessKind: 'granted-perms',
-});
-
-export function Owners({
-  accessList,
-  canEditOwners,
-  userOptions,
-  updateAccessList,
-  accessLists,
-  isReadOnlyOktaList,
-  canEditSpecs,
-  fetchRoleOptions,
-}: {
+interface OwnersProps {
   userOptions: UserOption[];
-  canEditOwners: boolean;
   updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
   accessLists: AccessListWithModifiedGrants[];
   isReadOnlyOktaList?: boolean;
   fetchRoleOptions: (input: string) => Promise<Option[]>;
-  canEditSpecs: boolean;
-}) {
+  perms: Perms;
+}
+
+export function Owners(props: OwnersProps) {
+  const {
+    accessList,
+    userOptions,
+    updateAccessList,
+    accessLists,
+    fetchRoleOptions,
+  } = props;
   const { owners, ownershipRequires, ownerGrants } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
   const [deleteOwner, setDeleteOwner] =
@@ -65,8 +49,6 @@ export function Owners({
   const onClickNestedList = useOnClickNestedList();
 
   const [editPermKind, setEditPermKind] = useState<EditKind>();
-
-  const isOktaList = accessList.origin === AccessListOrigin.Okta;
 
   return (
     <Box data-testid="owners-content">
@@ -77,13 +59,15 @@ export function Owners({
               roles={ownershipRequires.roles}
               traits={ownershipRequires.traitList}
               accessKind="requirements"
-              toolTipContent={
-                (!canEditSpecs && noEditAcessMsg) ||
-                (isReadOnlyOktaList && oktaReadOnlyEligibilityMsg) ||
-                undefined
-              }
+              toolTipContent={getActionForbiddenInfo({
+                action: Action.EditOwnersEligibility,
+                ...props,
+              })}
+              editDisabled={isActionForbidden({
+                action: Action.EditOwnersEligibility,
+                ...props,
+              })}
               onEdit={() => setEditPermKind('Owner')}
-              editDisabled={!canEditSpecs || isReadOnlyOktaList}
               userKind="owner"
             />
 
@@ -91,13 +75,15 @@ export function Owners({
               roles={ownerGrants.roles}
               traits={ownerGrants.traitList}
               accessKind="grants"
-              toolTipContent={
-                (!canEditSpecs && noEditAcessMsg) ||
-                (isOktaList && oktaReadOnlyGrantMsg) ||
-                undefined
-              }
+              toolTipContent={getActionForbiddenInfo({
+                action: Action.EditOwnersGrants,
+                ...props,
+              })}
+              editDisabled={isActionForbidden({
+                action: Action.EditOwnersGrants,
+                ...props,
+              })}
               onEdit={() => setEditPermKind('OwnerGrants')}
-              editDisabled={!canEditSpecs || isOktaList}
               userKind="owner"
             />
           </Flex>
@@ -105,16 +91,16 @@ export function Owners({
       </Flex>
       <Flex justifyContent="end">
         <HoverTooltip
-          tipContent={
-            !canEditOwners
-              ? noEditAcessMsg
-              : isReadOnlyOktaList
-                ? oktaReadOnlyOwnersMsg
-                : undefined
-          }
+          tipContent={getActionForbiddenInfo({
+            action: Action.EditOwners,
+            ...props,
+          })}
         >
           <ButtonText
-            disabled={!canEditOwners || isReadOnlyOktaList}
+            disabled={isActionForbidden({
+              action: Action.EditOwners,
+              ...props,
+            })}
             onClick={() => setShowEnrollNewMembers(true)}
             gap={2}
             fill="border"
@@ -204,12 +190,14 @@ export function Owners({
             altKey: 'options-btn',
             render: owner => (
               <UserRevokeButtonCell
-                disabled={!canEditOwners || isReadOnlyOktaList}
-                tooltip={
-                  (!canEditOwners && noEditAcessMsg) ||
-                  (isReadOnlyOktaList && oktaReadOnlyOwnersMsg) ||
-                  undefined
-                }
+                tooltip={getActionForbiddenInfo({
+                  action: Action.EditOwners,
+                  ...props,
+                })}
+                disabled={isActionForbidden({
+                  action: Action.EditOwners,
+                  ...props,
+                })}
                 onClick={() => setDeleteOwner(owner)}
                 ineligibleReason={owner.ineligibleReason}
               />

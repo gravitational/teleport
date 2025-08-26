@@ -16,6 +16,7 @@ import {
   rawAccessListAsMember,
   rawAccessListAsOwner,
   rawAccessListOkta,
+  rawAccessListStatic,
   rawEmptyAccessList,
   rawNestedAccessList,
   rawReviewsResponse,
@@ -272,6 +273,74 @@ export const ViewingAsAdminOktaList: StoryObj = {
         <Alert kind="neutral">
           Devs: has okta badge next to title, can&apos;t modify title and
           can&apos;t modify granted permissions
+        </Alert>
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const ViewingAsAdminStaticList: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(
+          cfg.getAccessListUrl({
+            action: 'reviews',
+            params: { accessListId: rawAccessListStatic.metadata.name },
+          }),
+          () => {
+            return HttpResponse.json(rawReviewsResponse);
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawAccessListStatic.metadata.name),
+          () => {
+            return HttpResponse.json({
+              accessList: rawAccessListStatic,
+            });
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+          () => {
+            return HttpResponse.json({
+              accessList: rawNestedAccessList,
+            });
+          }
+        ),
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new HttpResponse(
+            JSON.stringify({
+              accessLists: [rawAccessListStatic, rawNestedAccessList],
+            })
+          );
+        }),
+        http.get(cfg.oss.getUsersUrl(), () => {
+          return HttpResponse.json([
+            { name: 'apple' },
+            {
+              name: 'carrot',
+            },
+          ]);
+        }),
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+          return HttpResponse.json([]);
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider
+        initialEntries={[
+          generatePath(cfg.routes.accessLists, {
+            accessListId: rawAccessListStatic.metadata.name,
+          }),
+        ]}
+      >
+        <Alert kind="neutral">
+          Devs: no audit tab, all buttons are disabled with appropriate tips
         </Alert>
         <ViewEditAccessList />
       </Provider>

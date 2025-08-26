@@ -25,7 +25,6 @@ import {
   AccessList,
   AccessListMember,
   AccessListMemberKind,
-  AccessListOrigin,
   AccessListRequires,
   accessManagementService,
   ReviewAccessListRequest,
@@ -183,6 +182,9 @@ export function ReviewAccessList({
           </Box>
           {reviewStep === ReviewStep.EditMembershipRequires && (
             <Box mb={4} width="500px">
+              {
+                // TODO(kopiczko): That appears `isOwner` check broken when the adminWhoCanEdit is also an owner.
+              }
               {isOwner ? (
                 <>
                   <H2 mb={3}>Membership Requirements (Read Only)</H2>
@@ -207,11 +209,11 @@ export function ReviewAccessList({
           {reviewStep === ReviewStep.EditMembers && (
             <Box mb={4}>
               <ReviewMembers
+                accessList={accessList}
+                isReadOnlyOktaList={isReadOnlyOktaList}
+                originalMembers={accessList.members}
                 editedMembers={editedMembers}
                 onDeleteMember={handleRemoveMember}
-                originalMembers={accessList.members}
-                isOkta={accessList.origin === AccessListOrigin.Okta}
-                isReadOnlyOktaList={isReadOnlyOktaList}
               />
             </Box>
           )}

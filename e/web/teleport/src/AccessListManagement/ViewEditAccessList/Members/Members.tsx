@@ -19,15 +19,15 @@ import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Trait
 import {
   AccessListMember,
   AccessListMemberKind,
-  AccessListOrigin,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
 
 import { EditKind, NestedListLink, type UserOption } from '../../Shared/Shared';
+import { Action, getActionForbiddenInfo, isActionForbidden } from '../access';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
-import { noEditAcessMsg, oktaReadOnlyMsg } from '../errors';
 import {
   CustomCell,
+  Perms,
   RoleAndTraitLabels,
   UserRevokeButtonCell,
   type AccessListModified,
@@ -35,40 +35,26 @@ import {
 import { EditEligibilityOrGrantRoles } from '../Specs/EditEligibilityOrGrants';
 import { EnrollNewMembers } from './EnrollNewMembers';
 
-const oktaReadOnlyMembersMsg = oktaReadOnlyMsg({
-  userKind: 'member',
-  accessKind: 'edit-user',
-});
-const oktaReadOnlyEligibilityMsg = oktaReadOnlyMsg({
-  userKind: 'member',
-  accessKind: 'eligibility',
-});
-const oktaReadOnlyGrantsMsg = oktaReadOnlyMsg({
-  userKind: 'member',
-  accessKind: 'granted-perms',
-});
-
-export function Members({
-  accessList,
-  userOptions,
-  canEditMembers,
-  canReadMembers,
-  updateAccessList,
-  accessLists,
-  isReadOnlyOktaList,
-  canEditSpecs,
-  fetchRoleOptions,
-}: {
+interface MembersProps {
   userOptions: UserOption[];
-  canEditMembers: boolean;
-  canReadMembers: boolean;
   updateAccessList(accessList: AccessList, members?: AccessListMember[]): void;
   accessList: AccessListModified;
   accessLists: AccessListWithModifiedGrants[];
   isReadOnlyOktaList?: boolean;
+  perms: Perms;
   fetchRoleOptions: (input: string) => Promise<Option[]>;
-  canEditSpecs: boolean;
-}) {
+}
+
+export function Members(props: MembersProps) {
+  const {
+    accessList,
+    userOptions,
+    updateAccessList,
+    accessLists,
+    isReadOnlyOktaList,
+    perms,
+    fetchRoleOptions,
+  } = props;
   const { members, membershipRequires, inheritedMemberGrants, grants } =
     accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
@@ -82,7 +68,7 @@ export function Members({
     inheritedMemberGrants.traits
   ).traitList;
 
-  const isOktaList = accessList.origin === AccessListOrigin.Okta;
+  const canReadMembers = perms.isOwner || perms.adminWhoCanRead;
 
   return (
     <Box data-testid="members-content">
@@ -93,13 +79,15 @@ export function Members({
               roles={membershipRequires.roles}
               traits={membershipRequires.traitList}
               accessKind="requirements"
-              toolTipContent={
-                (!canEditSpecs && noEditAcessMsg) ||
-                (isReadOnlyOktaList && oktaReadOnlyEligibilityMsg) ||
-                undefined
-              }
+              toolTipContent={getActionForbiddenInfo({
+                action: Action.EditMembersEligibility,
+                ...props,
+              })}
+              editDisabled={isActionForbidden({
+                action: Action.EditMembersEligibility,
+                ...props,
+              })}
               onEdit={() => setEditPermKind('Member')}
-              editDisabled={!canEditSpecs || isReadOnlyOktaList}
               userKind="member"
             />
 
@@ -107,13 +95,15 @@ export function Members({
               roles={grants.roles}
               traits={grants.traitList}
               accessKind="grants"
-              toolTipContent={
-                (!canEditSpecs && noEditAcessMsg) ||
-                (isOktaList && oktaReadOnlyGrantsMsg) ||
-                undefined
-              }
+              toolTipContent={getActionForbiddenInfo({
+                action: Action.EditMembersGrants,
+                ...props,
+              })}
+              editDisabled={isActionForbidden({
+                action: Action.EditMembersGrants,
+                ...props,
+              })}
               onEdit={() => setEditPermKind('Grants')}
-              editDisabled={!canEditSpecs || isOktaList}
               required
               userKind="member"
             />
@@ -138,14 +128,16 @@ export function Members({
         <>
           <Box textAlign="right">
             <HoverTooltip
-              tipContent={
-                (!canEditMembers && noEditAcessMsg) ||
-                (isReadOnlyOktaList && oktaReadOnlyMembersMsg) ||
-                undefined
-              }
+              tipContent={getActionForbiddenInfo({
+                action: Action.EditMembers,
+                ...props,
+              })}
             >
               <ButtonText
-                disabled={!canEditMembers || isReadOnlyOktaList}
+                disabled={isActionForbidden({
+                  action: Action.EditMembers,
+                  ...props,
+                })}
                 onClick={() => setShowEnrollNewMembers(true)}
                 gap={2}
                 fill="border"
@@ -156,9 +148,10 @@ export function Members({
             </HoverTooltip>
           </Box>
           <AccessListMemberTable
-            members={members}
-            canEditMembers={canEditMembers}
+            accessList={accessList}
             isReadOnlyOktaList={isReadOnlyOktaList}
+            members={members}
+            perms={perms}
             onDeleteMember={setDeleteMember}
           />
         </>
@@ -206,16 +199,18 @@ export function Members({
 }
 
 export const AccessListMemberTable = ({
-  members,
-  canEditMembers,
+  accessList,
   isReadOnlyOktaList,
+  members,
+  perms,
   onDeleteMember = null,
   hideIneligibleReason = false,
   isReviewing = false,
 }: {
-  members: AccessListModified['members'];
-  canEditMembers: boolean;
+  accessList: Pick<AccessListModified, 'origin' | 'type'>;
   isReadOnlyOktaList?: boolean;
+  members: AccessListModified['members'];
+  perms: Perms | 'skip-permissions-check';
   onDeleteMember?(m: AccessListModified['members'][number]): void;
   hideIneligibleReason?: boolean;
   isReviewing?: boolean;
@@ -350,13 +345,24 @@ export const AccessListMemberTable = ({
           isNonRender: !onDeleteMember,
           render: member => (
             <UserRevokeButtonCell
-              disabled={!canEditMembers || isReadOnlyOktaList}
+              disabled={
+                perms !== 'skip-permissions-check' &&
+                isActionForbidden({
+                  accessList,
+                  isReadOnlyOktaList,
+                  action: Action.EditMembers,
+                  perms,
+                })
+              }
               tooltip={
-                !canEditMembers
-                  ? noEditAcessMsg
-                  : isReadOnlyOktaList
-                    ? oktaReadOnlyMembersMsg
-                    : undefined
+                perms !== 'skip-permissions-check'
+                  ? getActionForbiddenInfo({
+                      accessList,
+                      isReadOnlyOktaList,
+                      action: Action.EditMembers,
+                      perms,
+                    })
+                  : undefined
               }
               onClick={() => onDeleteMember(member)}
               ineligibleReason={member.ineligibleReason}

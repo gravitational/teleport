@@ -1,10 +1,15 @@
 import { Alert, Box, H2, Text } from 'design';
 import { pluralize } from 'shared/utils/text';
 
-import type { AccessListWithNestedOwnersMembersTitles } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+import type {
+  AccessListModified,
+  AccessListWithNestedOwnersMembersTitles,
+} from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import {
   AccessListGrant,
   AccessListMember,
+  AccessListOrigin,
+  isReadOnly,
 } from 'e-teleport/services/accessmanagement';
 
 import { TraitConvenience } from '../../Traits';
@@ -17,29 +22,39 @@ export type Grant = Omit<TraitConvenience, 'traitList'> &
   Omit<AccessListGrant, 'traits'>;
 
 type Props = {
+  accessList: AccessListModified;
   editedMembers: AccessListWithNestedOwnersMembersTitles['members'];
   onDeleteMember(member: AccessListMember): void;
   originalMembers: AccessListMember[];
-  isOkta: boolean;
   isReadOnlyOktaList?: boolean;
 };
 
 export function ReviewMembers({
+  accessList,
+  isReadOnlyOktaList = false,
+  originalMembers,
   editedMembers,
   onDeleteMember,
-  originalMembers,
-  isOkta,
-  isReadOnlyOktaList = false,
 }: Props) {
   const numMembersDeleted = getMembersDeleted(
     originalMembers,
     editedMembers
   ).length;
 
+  const isOkta = accessList.origin === AccessListOrigin.Okta;
+
   return (
     <>
       {isOkta && <DeleteMemberWarning isReviewing={true} />}
       <H2 mb={3}>Members</H2>
+      {isReadOnly(accessList.type) && (
+        <Alert kind="outline-info">
+          <Text>
+            Editing members is disabled, this Access List is managed by IaC
+            tools or an integration and is read-only in the web UI.
+          </Text>
+        </Alert>
+      )}
       {isReadOnlyOktaList && (
         <Alert kind="outline-info">
           <Text>
@@ -49,12 +64,13 @@ export function ReviewMembers({
         </Alert>
       )}
       <AccessListMemberTable
+        accessList={accessList}
+        isReadOnlyOktaList={isReadOnlyOktaList}
         members={editedMembers}
-        canEditMembers={true}
+        perms={'skip-permissions-check'}
         onDeleteMember={onDeleteMember}
         hideIneligibleReason={true}
         isReviewing={true}
-        isReadOnlyOktaList={isReadOnlyOktaList}
       />
       <Box mt={5} mb={-8}>
         <H2>Changes</H2>

@@ -227,5 +227,9 @@ export enum AccessListType {
 }
 
 export function isReviewable(type: AccessListType): boolean {
-  return type === AccessListType.Default;
+  return type !== AccessListType.Scim && type !== AccessListType.Static;
+}
+
+export function isReadOnly(type: AccessListType): boolean {
+  return type === AccessListType.Static;
 }

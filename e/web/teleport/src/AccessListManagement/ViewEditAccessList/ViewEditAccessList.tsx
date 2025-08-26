@@ -30,6 +30,7 @@ import {
   AccessListMemberKind,
   AccessListOrigin,
   accessManagementService,
+  isReviewable,
   type AccessList,
   type AccessListMember,
 } from 'e-teleport/services/accessmanagement';
@@ -37,9 +38,9 @@ import useTeleport from 'e-teleport/useTeleportE';
 import { FeatureBox } from 'teleport/components/Layout';
 
 import { TypeBadge } from '../Shared/TypeBadge';
+import { Action, getActionForbiddenInfo, isActionForbidden } from './access';
 import { AuditAndReviews } from './AuditAndReviews/AuditAndReviews';
 import { DeleteAccessListConfirmDialog } from './DeleteAccessListConfirmDialog';
-import { noEditAcessMsg } from './errors';
 import { Members } from './Members/Members';
 import { Owners } from './Owners/Owners';
 import { ReviewAccessList } from './ReviewAccessList';
@@ -59,13 +60,6 @@ enum Tab {
   ListOwners = 'tab-owners',
   Audits = 'tab-audits',
 }
-
-const noAccessDeleteMsg =
-  'You do not have permission to delete this Access List';
-const oktaTitleMsg =
-  "Editing this Access List's title is disabled; it is managed by Okta";
-const readOnlyOktaDeleteMsg =
-  'Deleting this Access List is disabled; it is managed by Okta and is read-only in Teleport';
 
 export function ViewEditAccessList() {
   const ctx = useTeleport();
@@ -274,7 +268,6 @@ export function ViewEditAccessList() {
           </ButtonIcon>
           <FeatureTitle
             perms={perms}
-            isOktaList={isOktaList}
             attempt={fetchViewingAccessListAttempt}
             accessList={accessList}
             setShowEditTitle={setShowEditTitle}
@@ -282,21 +275,24 @@ export function ViewEditAccessList() {
         </Flex>
         {accessList && (
           <HoverTooltip
-            tipContent={
-              !perms.adminWhoCanDelete
-                ? noAccessDeleteMsg
-                : isReadOnlyOktaList
-                  ? readOnlyOktaDeleteMsg
-                  : undefined
-            }
+            tipContent={getActionForbiddenInfo({
+              accessList: accessList,
+              isReadOnlyOktaList: isReadOnlyOktaList,
+              action: Action.Delete,
+              perms: perms,
+            })}
             placement="left"
           >
             <ButtonSecondary
               onClick={() => setDeleteConfirm(true)}
               disabled={
                 fetchViewingAccessListAttempt.status === 'processing' ||
-                !perms.adminWhoCanDelete ||
-                isReadOnlyOktaList
+                isActionForbidden({
+                  accessList,
+                  isReadOnlyOktaList,
+                  action: Action.Delete,
+                  perms,
+                })
               }
             >
               Delete
@@ -349,13 +345,11 @@ const FeatureTitle = ({
   attempt,
   accessList,
   setShowEditTitle,
-  isOktaList,
 }: {
   accessList: AccessListModified;
   attempt: ReturnType<typeof useAttempt>['attempt'];
   perms: Perms;
   setShowEditTitle: (value: boolean) => void;
-  isOktaList: boolean;
 }) => {
   switch (attempt.status) {
     case 'failed':
@@ -369,18 +363,20 @@ const FeatureTitle = ({
               <TypeBadge type={accessList.origin} />
             )}
             <HoverTooltip
-              tipContent={
-                !perms.adminWhoCanEdit
-                  ? noEditAcessMsg
-                  : isOktaList
-                    ? oktaTitleMsg
-                    : undefined
-              }
+              tipContent={getActionForbiddenInfo({
+                accessList,
+                action: Action.EditTitle,
+                perms,
+              })}
               placement="right"
             >
               <ButtonPencil
                 onClick={() => setShowEditTitle(true)}
-                disabled={!perms.adminWhoCanEdit || isOktaList}
+                disabled={isActionForbidden({
+                  accessList,
+                  action: Action.EditTitle,
+                  perms,
+                })}
                 dataTestId="btn-title"
               />
             </HoverTooltip>
@@ -447,48 +443,46 @@ const MainContent = ({
         >
           Owners {ownerCount > 0 ? `(${ownerCount})` : ''}
         </TabContainer>
-        <TabContainer
-          data-tab-id={Tab.Audits}
-          selected={activeTab === Tab.Audits}
-          onClick={() => setActiveTab(Tab.Audits)}
-        >
-          Audits
-        </TabContainer>
+        {isReviewable(accessList.type) && (
+          <TabContainer
+            data-tab-id={Tab.Audits}
+            selected={activeTab === Tab.Audits}
+            onClick={() => setActiveTab(Tab.Audits)}
+          >
+            Audits
+          </TabContainer>
+        )}
         <TabBorder ref={borderRef} />
       </TabsContainer>
 
       {activeTab === Tab.ListOwners && (
         <Owners
-          canEditOwners={perms.adminWhoCanEdit}
           userOptions={userOptions}
           accessList={accessList}
           updateAccessList={updateAccessList}
           accessLists={accessLists}
           isReadOnlyOktaList={isReadOnlyOktaList}
-          canEditSpecs={perms.adminWhoCanEdit}
+          perms={perms}
           fetchRoleOptions={fetchRoleOptions}
         />
       )}
 
       {activeTab === Tab.ListMembers && (
         <Members
-          canEditMembers={perms.isOwner || perms.adminWhoCanEdit}
-          canReadMembers={perms.isOwner || perms.adminWhoCanRead}
           userOptions={userOptions}
           accessList={accessList}
           updateAccessList={updateAccessList}
           accessLists={accessLists}
           isReadOnlyOktaList={isReadOnlyOktaList}
-          canEditSpecs={perms.adminWhoCanEdit}
+          perms={perms}
           fetchRoleOptions={fetchRoleOptions}
         />
       )}
 
       {activeTab === Tab.Audits && (
         <AuditAndReviews
-          canListReviews={perms.isOwner || perms.adminWhoCanEdit}
           accessList={accessList}
-          canEditSpecs={perms.adminWhoCanEdit}
+          perms={perms}
           updateAccessList={updateAccessList}
         />
       )}

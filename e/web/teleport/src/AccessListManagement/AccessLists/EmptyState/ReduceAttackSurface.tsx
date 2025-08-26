@@ -2,7 +2,10 @@ import { Box } from 'design';
 
 import { AccessListMemberTable } from 'e-teleport/AccessListManagement/ViewEditAccessList/Members/Members';
 import type { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
-import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
+import {
+  AccessListMemberKind,
+  AccessListType,
+} from 'e-teleport/services/accessmanagement';
 
 import { mockMembers } from './fixtures';
 import { Description, Feature, FeatureProps, Title } from './Shared';
@@ -35,8 +38,14 @@ export const ReduceAttackSurfacePreview = () => {
   return (
     <Box css={{ transform: 'var(--feature-preview-scale)' }}>
       <AccessListMemberTable
+        accessList={{ type: AccessListType.Default }}
         members={mockedMembers}
-        canEditMembers={true}
+        perms={{
+          adminWhoCanRead: false,
+          adminWhoCanDelete: false,
+          adminWhoCanEdit: false,
+          isOwner: true,
+        }}
         onDeleteMember={() => null}
       />
     </Box>

@@ -17,20 +17,18 @@ import {
 } from 'e-teleport/services/accessmanagement';
 import { useServerSidePagination } from 'teleport/components/hooks';
 
-import { noEditAcessMsg } from '../errors';
-import { AccessListModified, ButtonPencil } from '../Shared';
+import { Action, getActionForbiddenInfo, isActionForbidden } from '../access';
+import { AccessListModified, ButtonPencil, Perms } from '../Shared';
 import { EditAudit } from './EditAudit';
 import { ViewReview } from './ViewReview';
 
 export function AuditAndReviews({
   updateAccessList,
   accessList,
-  canEditSpecs,
-  canListReviews,
+  perms,
 }: {
-  canListReviews: boolean;
-  canEditSpecs: boolean;
   accessList: AccessListModified;
+  perms: Perms;
   updateAccessList: (
     newAccessList: AccessList,
     members?: AccessListMember[]
@@ -59,6 +57,8 @@ export function AuditAndReviews({
     params: {},
   });
 
+  const canListReviews = perms.isOwner || perms.adminWhoCanEdit;
+
   useEffect(() => {
     // init fetch
     if (canListReviews) {
@@ -71,10 +71,20 @@ export function AuditAndReviews({
       <Box mb={2}>
         <Flex gap={2} alignItems="center">
           <Text bold>Review Frequency:</Text> {frequency}, {dayOfMonth}
-          <HoverTooltip tipContent={!canEditSpecs ? noEditAcessMsg : undefined}>
+          <HoverTooltip
+            tipContent={getActionForbiddenInfo({
+              accessList,
+              action: Action.EditAudit,
+              perms,
+            })}
+          >
             <ButtonPencil
               onClick={() => setShowEditAudit(true)}
-              disabled={!canEditSpecs}
+              disabled={isActionForbidden({
+                accessList,
+                action: Action.EditAudit,
+                perms,
+              })}
               dataTestId="btn-audit"
             />
           </HoverTooltip>
