@@ -19,10 +19,11 @@ Teleport Kubernetes Access.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - Argo CD [installed](https://argo-cd.readthedocs.io/en/latest/#quick-start)
-  in a Kubernetes cluster. This cluster does not need to be enrolled into
-  Teleport.
+  in a Kubernetes cluster. This cluster will be referred to as the **source
+  cluster** throughout this guide, it does not need to be enrolled into Teleport.
 - The Kubernetes cluster to which you'd like Argo CD to deploy applications.
-  This cluster must be enrolled into Teleport, if you have not already done this,
+  This cluster will be referred to as the **target cluster** throughout this
+  guide, it must be enrolled into Teleport, if you have not already done this,
   follow the [Enroll a Kubernetes Cluster](../../../enroll-resources/kubernetes-access/getting-started.mdx)
   guide.
 - (!docs/pages/includes/tctl.mdx!)
@@ -55,7 +56,8 @@ When configuring this in a production environment, you should consider:
 - If a Role should be created that grants the bot the least privileges necessary
   rather than using a pre-existing general Role such as `edit`.
 
-To bind the `editor` group to the `edit` Cluster Role, run:
+To bind the `editor` group to the `edit` Cluster Role, run the following command
+against both the source and target clusters:
 
 ```code
 $ kubectl create clusterrolebinding teleport-editor-edit \
@@ -150,7 +152,8 @@ Service (EKS), Google Kubernetes Engine (GKE), and Azure Kubernetes Service
 instead.
 </Admonition>
 
-First, run the following commands to determine the JWKS-formatted public key:
+First, run the following command against the source cluster, to determine the
+JWKS-formatted public key:
 
 ```code
 $ kubectl get --raw /openid/v1/jwks
@@ -217,8 +220,8 @@ argocd:
 Please refer to the [Helm chart reference](../../../reference/helm-reference/tbot.mdx#argocd)
 for all of the supported configuration options.
 
-Install the Helm chart by running the following commands, ensuring you specify
-the namespace in which Argo CD is running:
+Install the Helm chart by running the following commands against the source
+cluster, ensuring you specify the namespace in which Argo CD is running:
 
 ```code
 $ helm repo add teleport (=teleport.helm_repo_url=)
@@ -295,7 +298,7 @@ impersonate many users, it's ambiguous which one Teleport should use by default.
 When `kubernetes_users` contains a wildcard, and no specific user is being
 impersonated, Kubernetes Access will fall back to sending your bot's Teleport
 username by default. You should therefore create a RoleBinding or
-ClusterRoleBinding, in your target cluster, granting your bot user the broader
+ClusterRoleBinding, in the target cluster, granting your bot user the broader
 permissions needed by the Argo CD control plane.
 
 ```code
