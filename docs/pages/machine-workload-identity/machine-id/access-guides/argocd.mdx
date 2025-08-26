@@ -252,7 +252,8 @@ clusters!
 
 If new matching clusters are added in Teleport, `tbot` will register them with
 Argo CD on the bot's next certificate renewal. If needed, the `tbot` process can
-be restarted or signalled (`pkill -USR1 tbot`) to trigger an immediate reload.
+be restarted by deleting the pod or signalled (`pkill -USR1 tbot`) to trigger an
+immediate reload.
 
 Please note that, for safety, if a cluster is deleted in Teleport or no longer
 matches your `clusterSelectors`, it will **not** be automatically removed from
