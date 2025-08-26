@@ -458,7 +458,13 @@ secret_labels:
   department: engineering
 
 # secret_annotations is a set of annotations that will be applied to the cluster
-# secrets in addition to `tbot`'s own annotations (e.g. "teleport.dev/updated").
+# secrets in addition to `tbot`'s own annotations:
+#
+#   - "teleport.dev/bot-name"                - Name of the Bot
+#   - "teleport.dev/kubernetes-cluster-name" - Name of the Kubernetes cluster
+#   - "teleport.dev/updated"                 - RFC3339-formatted timestamp
+#   - "teleport.dev/tbot-version"            - Version of tbot running
+#   - "teleport.dev/teleport-cluster-name"   - Name of the Teleport cluster
 secret_annotations:
   creator: bob
 
