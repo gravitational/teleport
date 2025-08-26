@@ -40,6 +40,9 @@ import (
 type ConnectionContext struct {
 	sessionParams *tracessh.SessionParams
 
+	// sessionID is the Teleport session ID that all child ServerContexts will inherit.
+	sessionID session.ID
+
 	// NetConn is the base connection object.
 	NetConn net.Conn
 
@@ -138,6 +141,20 @@ func (a *AgentChannel) Close() error {
 	return trace.NewAggregate(
 		a.ch.CloseWrite(),
 		a.ch.Close())
+}
+
+// GetSessionID returns the Teleport session ID that all child ServerContexts will inherit.
+func (c *ConnectionContext) GetSessionID() session.ID {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.sessionID
+}
+
+// SetSessionID sets the Teleport session ID that all child ServerContexts will inherit.
+func (c *ConnectionContext) SetSessionID(sessionID session.ID) {
+	c.mu.Lock()
+	c.sessionID = sessionID
+	c.mu.Unlock()
 }
 
 // SetSessionParams sets session parameters.

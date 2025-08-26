@@ -475,6 +475,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child := &ServerContext{
 		ConnectionContext:      parent,
 		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
+		newSessionID:           rsession.NewID(),
 		env:                    make(map[string]string),
 		srv:                    srv,
 		ExecResultCh:           make(chan ExecResult, 10),
@@ -691,16 +692,6 @@ func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Ch
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.session = sess
-
-	// inform the client of the session ID that is being used in a new
-	// goroutine to reduce latency
-	go func() {
-		c.Logger.DebugContext(ctx, "Sending current session ID")
-		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sess.ID()))
-		if err != nil {
-			c.Logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
-		}
-	}()
 }
 
 // getSession returns the context's session
@@ -711,11 +702,10 @@ func (c *ServerContext) getSession() *session {
 }
 
 // SessionID returns the ID of the session in the context.
+//
+// Note: the session ID is subject to change depending on when this is called.
 func (c *ServerContext) SessionID() rsession.ID {
-	if sess := c.getSession(); sess != nil {
-		return sess.id
-	}
-	return ""
+	return c.Parent().GetSessionID()
 }
 
 func (c *ServerContext) SetAllowFileCopying(allow bool) {

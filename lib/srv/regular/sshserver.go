@@ -1461,7 +1461,6 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
-
 			ccx.SetSessionParams(sessionParams)
 		}
 
@@ -1636,6 +1635,19 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	defer scx.Close()
 
 	trackingChan := scx.TrackActivity(ch)
+
+	// If we are creating a new session (not joining a session), inform the
+	// client of the session ID that is being used. Do this in a new goroutine
+	// to reduce latency
+	if scx.GetSessionParams().JoinSessionID == "" {
+		go func() {
+			s.logger.DebugContext(ctx, "Sending current session ID")
+			_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(scx.SessionID()))
+			if err != nil {
+				s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
+			}
+		}()
+	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
