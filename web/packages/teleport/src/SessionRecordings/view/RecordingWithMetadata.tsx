@@ -139,7 +139,7 @@ export function RecordingWithMetadata({
   }, []);
 
   const summary = useMemo(
-    () => (summarySlot ? summarySlot(sessionId) : null),
+    () => summarySlot?.(sessionId),
     [summarySlot, sessionId]
   );
 
