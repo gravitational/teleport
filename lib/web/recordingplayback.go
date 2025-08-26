@@ -19,6 +19,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -676,18 +677,18 @@ func (s *recordingPlayback) sendCurrentScreen(requestID int, timeOffset time.Dur
 
 // encodeScreenEvent encodes the current terminal screen state into a byte slice.
 func encodeScreenEvent(state vt10x.TerminalState, cols, rows int, cursor vt10x.Cursor) []byte {
-	data := terminal.VtStateToANSI(state)
+	var buf bytes.Buffer
+	buf.Write(make([]byte, requestHeaderSize))
 
-	eventData := make([]byte, requestHeaderSize+len(data))
+	terminal.VtStateToANSI(&buf, state)
+
+	eventData := buf.Bytes()
 	eventData[0] = byte(eventTypeScreen)
-
 	binary.BigEndian.PutUint32(eventData[1:5], uint32(cols))
 	binary.BigEndian.PutUint32(eventData[5:9], uint32(rows))
 	binary.BigEndian.PutUint32(eventData[9:13], uint32(cursor.X))
 	binary.BigEndian.PutUint32(eventData[13:17], uint32(cursor.Y))
-	binary.BigEndian.PutUint32(eventData[17:21], uint32(len(data)))
-
-	copy(eventData[requestHeaderSize:], data)
+	binary.BigEndian.PutUint32(eventData[17:21], uint32(len(eventData)-requestHeaderSize))
 
 	return eventData
 }
