@@ -58,9 +58,9 @@ type responseType byte
 
 // Response types send back to the client
 const (
-	// eventTypeStart indicates stream start
+	// eventTypeStart indicates the start of a response of events
 	eventTypeStart responseType = 1
-	// eventTypeStop indicates stream stop
+	// eventTypeStop indicates the stop of a response of events
 	eventTypeStop responseType = 2
 	// eventTypeError indicates an error
 	eventTypeError responseType = 3
