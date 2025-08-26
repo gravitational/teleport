@@ -14101,7 +14101,13 @@ type EntraIDGroupsProvider struct {
 	// GroupType is a user group type filter. Defaults to "security-groups".
 	// Value can be "security-groups", "directory-roles", "all-groups".
 	GroupType string `protobuf:"bytes,2,opt,name=group_type,json=groupType,proto3" json:"group_type,omitempty"`
-	// Microsoft Graph API endpoint. Defaults to "https://graph.microsoft.com".
+	// GraphEndpoint is a Microsoft Graph API endpoint.
+	// The groups claim source endpoint provided by Entra ID points to the
+	// now-retired Azure AD Graph endpoint ("https://graph.windows.net").
+	// To convert it to the newer Microsoft Graph API endpoint,
+	// Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com").
+	// Update GraphEndpoint to point to a different Microsoft Graph national
+	// cloud deployment endpoint.
 	GraphEndpoint        string   `protobuf:"bytes,3,opt,name=graph_endpoint,json=graphEndpoint,proto3" json:"graph_endpoint,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

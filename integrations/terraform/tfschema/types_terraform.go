@@ -4132,7 +4132,7 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 						"graph_endpoint": {
-							Description: "Microsoft Graph API endpoint. Defaults to \"https://graph.microsoft.com\".",
+							Description: "GraphEndpoint is a Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint (\"https://graph.windows.net\"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint (\"https://graph.microsoft.com\"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
