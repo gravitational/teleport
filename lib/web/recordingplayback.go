@@ -107,7 +107,7 @@ type recordingPlayback struct {
 	}
 
 	terminal struct {
-		sync.RWMutex
+		sync.Mutex
 		vt          vt10x.Terminal
 		currentTime int64
 	}
@@ -546,11 +546,11 @@ func (s *recordingPlayback) sendError(err error, requestID int) {
 
 // sendCurrentScreen sends the current terminal screen state to the client.
 func (s *recordingPlayback) sendCurrentScreen(requestID int, timestamp int64) {
-	s.terminal.RLock()
+	s.terminal.Lock()
 	state := s.terminal.vt.DumpState()
 	cols, rows := s.terminal.vt.Size()
 	cursor := s.terminal.vt.Cursor()
-	s.terminal.RUnlock()
+	s.terminal.Unlock()
 
 	data := encodeScreenEvent(state, cols, rows, cursor)
 
