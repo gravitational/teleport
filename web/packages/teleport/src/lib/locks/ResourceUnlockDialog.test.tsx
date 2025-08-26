@@ -18,7 +18,11 @@
 
 import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
-import { ComponentPropsWithoutRef, PropsWithChildren } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  MouseEventHandler,
+  PropsWithChildren,
+} from 'react';
 import { Router } from 'react-router';
 
 import {
@@ -160,10 +164,12 @@ describe('ResourceUnlockDialog', () => {
     });
 
     const onCancel = jest.fn();
-    const history = createMemoryHistory();
-    history.push = jest.fn();
+    const onGoToLocksForTesting = jest.fn((event => {
+      // Prevent errors related to window.location not being implemented.
+      event.preventDefault();
+    }) satisfies MouseEventHandler<HTMLAnchorElement>);
 
-    const { user } = renderComponent({ onCancel, history });
+    const { user } = renderComponent({ onCancel, onGoToLocksForTesting });
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
@@ -180,20 +186,23 @@ describe('ResourceUnlockDialog', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
 
     await user.click(
-      screen.getByRole('button', { name: 'Go to Session and Identity Locks' })
+      screen.getByRole('link', { name: 'Go to Session and Identity Locks' })
     );
-    expect(history.push).toHaveBeenCalledTimes(1);
-    expect(history.push).toHaveBeenLastCalledWith('/web/locks');
+    expect(onGoToLocksForTesting).toHaveBeenCalledTimes(1);
   });
 });
 
 function renderComponent(
   options?: { history?: ReturnType<typeof createMemoryHistory> } & Pick<
     Partial<ComponentPropsWithoutRef<typeof ResourceUnlockDialog>>,
-    'onCancel' | 'onComplete'
+    'onCancel' | 'onComplete' | 'onGoToLocksForTesting'
   >
 ) {
-  const { onCancel = jest.fn(), onComplete = jest.fn() } = options ?? {};
+  const {
+    onCancel = jest.fn(),
+    onComplete = jest.fn(),
+    onGoToLocksForTesting,
+  } = options ?? {};
   const user = userEvent.setup();
   return {
     ...render(
@@ -202,6 +211,7 @@ function renderComponent(
         targetName="test-user"
         onCancel={onCancel}
         onComplete={onComplete}
+        onGoToLocksForTesting={onGoToLocksForTesting}
       />,
       { wrapper: makeWrapper(options) }
     ),

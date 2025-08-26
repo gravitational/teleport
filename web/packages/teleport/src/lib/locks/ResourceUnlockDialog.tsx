@@ -18,7 +18,8 @@
 
 import format from 'date-fns/format';
 import parseISO from 'date-fns/parseISO';
-import { Link, useHistory } from 'react-router-dom';
+import { MouseEventHandler } from 'react';
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -76,10 +77,18 @@ export function ResourceUnlockDialog(props: {
    * Called when the user completes the unlock operation.
    */
   onComplete: () => void;
+  /**
+   * For testing only: called when the user wants to go to locks.
+   */
+  onGoToLocksForTesting?: MouseEventHandler<HTMLAnchorElement>;
 }) {
-  const { targetKind, targetName, onCancel, onComplete } = props;
-
-  const history = useHistory();
+  const {
+    targetKind,
+    targetName,
+    onCancel,
+    onComplete,
+    onGoToLocksForTesting,
+  } = props;
 
   const { isLoading, locks, canUnlock, unlock, unlockPending, unlockError } =
     useResourceLock({
@@ -109,7 +118,9 @@ export function ResourceUnlockDialog(props: {
           <div>
             Multiple locks exist on <strong>{targetName}</strong> and they can
             only be removed from the{' '}
-            <Link to={cfg.getLocksRoute()}>Session &amp; Identity Locks</Link>{' '}
+            <Link to={cfg.getLocksRoute()} onClick={onGoToLocksForTesting}>
+              Session and Identity Locks
+            </Link>{' '}
             page.
           </div>
         ) : (
@@ -157,7 +168,9 @@ export function ResourceUnlockDialog(props: {
         <Flex gap={3}>
           {multipleLocksExist ? (
             <ButtonPrimaryBorder
-              onClick={() => history.push(cfg.getLocksRoute())}
+              as="a"
+              href={cfg.getLocksRoute()}
+              onClick={onGoToLocksForTesting}
             >
               Go to Session and Identity Locks
             </ButtonPrimaryBorder>
