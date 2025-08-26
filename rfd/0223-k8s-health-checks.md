@@ -496,7 +496,7 @@ message KubernetesServerV3 {
 message KubernetesServerStatusV3 {
   // TargetHealth is the health status of network connectivity between
   // the agent and the Kubernetes cluster.
-  TargetHealth TargetHealth = 7 [(gogoproto.jsontag) = "target_health,omitempty"];
+  TargetHealth TargetHealth = 1 [(gogoproto.jsontag) = "target_health,omitempty"];
 }
 ```
 
