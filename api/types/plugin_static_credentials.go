@@ -82,7 +82,11 @@ func (p *PluginStaticCredentialsV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	switch credentials := p.Spec.Credentials.(type) {
+	return trace.Wrap(p.Spec.CheckAndSetDefaults())
+}
+
+func (ps *PluginStaticCredentialsSpecV1) CheckAndSetDefaults() error {
+	switch credentials := ps.Credentials.(type) {
 	case *PluginStaticCredentialsSpecV1_APIToken:
 		if credentials.APIToken == "" {
 			return trace.BadParameter("api token object is missing")
