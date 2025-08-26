@@ -1552,6 +1552,11 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 	kubeClusterLabels := map[string]string{
 		"label": "value",
 	}
+	baseAuthCtx := authz.Context{
+		User: &types.UserV2{
+			Metadata: types.Metadata{Name: "ted-lasso"},
+		},
+	}
 	type args struct {
 		req *http.Request
 		ctx *authContext
@@ -1568,6 +1573,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
+					Context:           baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}},
@@ -1591,6 +1597,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					},
 				},
 				ctx: &authContext{
+					Context:           baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
@@ -1611,6 +1618,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
+					Context:           baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
