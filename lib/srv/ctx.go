@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -475,7 +474,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child := &ServerContext{
 		ConnectionContext:      parent,
 		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
-		newSessionID:           rsession.NewID(),
 		env:                    make(map[string]string),
 		srv:                    srv,
 		ExecResultCh:           make(chan ExecResult, 10),
@@ -699,13 +697,6 @@ func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.session
-}
-
-// SessionID returns the ID of the session in the context.
-//
-// Note: the session ID is subject to change depending on when this is called.
-func (c *ServerContext) SessionID() rsession.ID {
-	return c.Parent().GetSessionID()
 }
 
 func (c *ServerContext) SetAllowFileCopying(allow bool) {

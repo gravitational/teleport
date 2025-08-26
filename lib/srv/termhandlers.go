@@ -125,6 +125,13 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	}
 
 	if joinSid := scx.GetSessionParams().JoinSessionID; joinSid != "" {
+		// TODO: set join session ID in env var request instead?
+		sid, err := rsession.ParseID(joinSid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		scx.SetSessionID(*sid)
+
 		return t.SessionRegistry.JoinSession(ctx, ch, scx, joinSid, scx.GetSessionParams().JoinMode)
 	}
 

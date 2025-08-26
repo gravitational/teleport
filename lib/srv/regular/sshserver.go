@@ -1639,6 +1639,9 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	// If we are creating a new session (not joining a session), inform the
 	// client of the session ID that is being used. Do this in a new goroutine
 	// to reduce latency
+	//
+	// Note: If this is an old client, the join sid may not have propagated from
+	// env vars yet. There is no harm in sending the ephemeral session ID anyways.
 	if scx.GetSessionParams().JoinSessionID == "" {
 		go func() {
 			s.logger.DebugContext(ctx, "Sending current session ID")

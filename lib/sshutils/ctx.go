@@ -41,6 +41,17 @@ type ConnectionContext struct {
 	sessionParams *tracessh.SessionParams
 
 	// sessionID is the Teleport session ID that all child ServerContexts will inherit.
+	//
+	// Note: If all components are v19.0.0+, this ID will be accurate immediately after
+	// the session channel request. Before v19, this value may not be accurate until after
+	// the shell request is accepted, due to the following:
+	//  - Before v19, nodes do not send the "current-session-id" request until during the
+	//    shell request.
+	//  - Before v19, join sessions were initialized with the ssh ID env var, which is not
+	//    set until the out-of-band env request is sent by the client.
+	//
+	// For backwards compatibility with older nodes and client, no features should be
+	// functionally dependent on this session ID until after the shell request is handled.
 	sessionID session.ID
 
 	// NetConn is the base connection object.
@@ -102,6 +113,7 @@ func SetConnectionContextClock(clock clockwork.Clock) ConnectionContextOption {
 func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn, opts ...ConnectionContextOption) (context.Context, *ConnectionContext) {
 	ctx, cancel := context.WithCancel(ctx)
 	ccx := &ConnectionContext{
+		sessionID:  session.NewID(),
 		NetConn:    nconn,
 		ServerConn: sconn,
 		env:        make(map[string]string),
@@ -143,8 +155,8 @@ func (a *AgentChannel) Close() error {
 		a.ch.Close())
 }
 
-// GetSessionID returns the Teleport session ID that all child ServerContexts will inherit.
-func (c *ConnectionContext) GetSessionID() session.ID {
+// SessionID returns the Teleport session ID that all child ServerContexts will inherit.
+func (c *ConnectionContext) SessionID() session.ID {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.sessionID
