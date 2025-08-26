@@ -268,6 +268,10 @@ loop:
 
 	thumbnails := sampler.result()
 
+	return s.upload(ctx, sessionID, metadata, thumbnails)
+}
+
+func (s *RecordingMetadataService) upload(ctx context.Context, sessionID session.ID, metadata *pb.SessionRecordingMetadata, thumbnails []*thumbnailEntry) error {
 	metadataBuf := &bytes.Buffer{}
 
 	if _, err := protodelim.MarshalTo(metadataBuf, metadata); err != nil {
