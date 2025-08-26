@@ -462,6 +462,10 @@ The existing `HealthCheckConfig` supports Terraform operations, and will be exte
 
 User documentation will be updated with Kubernetes health checks, similar to database health checks.
 
+Explicitly point out that Prometheus metrics only track configured health checks. It's possible to omit Kubernetes clusters from monitoring and alerting.
+
+Use existing [Database Health Checks documentation](https://goteleport.com/docs/enroll-resources/database-access/guides/health-checks/) as a model for Kubernetes documentation.
+
 
 ### Security
 
@@ -497,18 +501,18 @@ message KubernetesServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "metadata"
   ];
-+  // Status is the Kubernetes cluster status.
-+  KubernetesServerStatusV3 Status = 5 [
-+    (gogoproto.nullable) = false,
-+    (gogoproto.jsontag) = "status"
-+  ];
++ // Status is the Kubernetes cluster status.
++ KubernetesServerStatusV3 Status = 5 [
++   (gogoproto.nullable) = false,
++   (gogoproto.jsontag) = "status"
++ ];
 }
 
 + // KubernetesServerStatusV3 is the Kubernetes cluster status.
 + message KubernetesServerStatusV3 {
-+  // TargetHealth is the health status of network connectivity between
-+  // the agent and the Kubernetes cluster.
-+  TargetHealth TargetHealth = 1 [(gogoproto.jsontag) = "target_health,omitempty"];
++   // TargetHealth is the health status of network connectivity between
++   // the agent and the Kubernetes cluster.
++   TargetHealth TargetHealth = 1 [(gogoproto.jsontag) = "target_health,omitempty"];
 + }
 ```
 
@@ -524,13 +528,13 @@ message Matcher {
   // empty value is ignored. The match result is logically ANDed with DBLabels,
   // if both are non-empty.
   string db_labels_expression = 2;
-+  // KubernetesLabels matches kubernetes labels. An empty value is ignored. The match
-+  // result is logically ANDed with KubernetesLabelsExpression, if both are non-empty.
-+  repeated teleport.label.v1.Label kubernetes_labels = 3;
-+  // KubernetesLabelsExpression is a label predicate expression to match kubernetes. An
-+  // empty value is ignored. The match result is logically ANDed with KubernetesLabels,
-+  // if both are non-empty.
-+  string kubernetes_labels_expression = 4;
++ // KubernetesLabels matches kubernetes labels. An empty value is ignored. The match
++ // result is logically ANDed with KubernetesLabelsExpression, if both are non-empty.
++ repeated teleport.label.v1.Label kubernetes_labels = 3;
++ // KubernetesLabelsExpression is a label predicate expression to match kubernetes. An
++ // empty value is ignored. The match result is logically ANDed with KubernetesLabels,
++ // if both are non-empty.
++ string kubernetes_labels_expression = 4;
 }
 ```
 
@@ -544,8 +548,8 @@ message Kube {
   string name = 2;
   // labels is the kube labels
   repeated Label labels = 3;
-+  // target_health is the health of the kube cluster
-+  TargetHealth target_health = 4;
++ // target_health is the health of the kube cluster
++ TargetHealth target_health = 4;
 }
 ```
 
@@ -590,6 +594,14 @@ The following steps are added:
     - [ ] Without restarting the Kubernetes agent, make the Kubernetes cluster endpoint reachable. Observe that the warning indicator disappears after some time.
 ```
 
+Manual tests:
+- Exercise the new kubernetes matchers with agents/proxies running an older version of Teleport (mixed fleet)
+- Allow label matchers to be completely blank, but currently at least one of db_labels or db_labels_expression has to be specified. Allow all matchers to be unset and then test a scenario where you have a health check config with all fields unset and agents/proxies running an older version of Teleport.
+
+Questions to be answered:
+- Are there compatibility concerns with adding the new kubernetes matchers in a mixed fleet? For example if some Auth and Proxies differ in version, and not all understand the new matchers, are health checks rejected or are the new fields ignored?
+
+
 ### Implementation Phases
 
 #### Phase 1: Core Health Checks
@@ -602,11 +614,11 @@ Health checks are reported to the Teleport auth server.
 
 Kubernetes health checks are configured and viewable from `tctl`.
 
-#### Phase 2: Web/Teleterm UI Health Checks
+#### Phase 2: UI Health Checks
 
 Kubernetes health checks are displayed and updated in the Web UI.
 
-Kubernetes health checks are displayed and updated in the Teleterm UI.
+Kubernetes health checks are displayed and updated in the Teleport Connect UI.
 
 #### Phase 3: Prometheus Health Checks
 
