@@ -16,41 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo } from 'react';
-import styled from 'styled-components';
-
-import { Box, Flex } from 'design';
-import * as Icons from 'design/Icon';
-
 import {
   BotIntegration,
   integrations as botIntegrations,
   BotTile,
 } from 'teleport/Bots/Add/AddBotsPicker';
 import { useUrlFiltering } from 'teleport/components/hooks';
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
+import { FeatureBox } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
-import { TextIcon } from 'teleport/Discover/Shared';
-import { type IntegrationTag } from 'teleport/Integrations/Enroll/IntegrationTiles/integrations';
-import { IntegrationCardWithSpec } from 'teleport/Integrations/Enroll/IntegrationTiles/IntegrationTiles';
-import {
-  filterIntegrations,
-  titleOrName,
-} from 'teleport/Integrations/Enroll/utils/filters';
+import { useNoMinWidth } from 'teleport/Main';
 import useTeleport from 'teleport/useTeleport';
 
 import { getRoutesToEnrollIntegrations } from './IntegrationRoute';
 import {
   installableIntegrations,
-  integrationTagOptions,
   IntegrationTileSpec,
 } from './IntegrationTiles/integrations';
-import { Container, FilterPanel } from './Shared';
+import {
+  IntegrationTileWithSpec,
+  IntegrationPicker as SharedIntegrationPicker,
+  titleOrName,
+} from './Shared';
 
 export function IntegrationEnroll() {
   return (
@@ -98,80 +85,39 @@ export function IntegrationPicker() {
   const { params, setParams } = useUrlFiltering({});
 
   const integrations = [...installableIntegrations(), ...botIntegrations];
+  useNoMinWidth();
 
-  const sortedIntegrations = useMemo(() => {
-    const sorted = integrations.toSorted((a, b) => {
-      // Prioritize guided tiles if no sort params
-      if (!params.sort) {
-        return initialSort(a, b);
-      }
-
-      // Otherwise sort by name
-      return sortByName(a, b);
-    });
-
-    if (params.sort?.dir === 'DESC') {
-      sorted.reverse();
+  const renderIntegration = (i: Integration) => {
+    if (i.type === 'integration') {
+      return (
+        <IntegrationTileWithSpec
+          key={i.kind}
+          spec={i}
+          hasIntegrationAccess={hasIntegrationAccess}
+          hasExternalAuditStorage={hasExternalAuditStorage}
+        />
+      );
     }
 
-    return sorted;
-  }, [integrations, params.sort]);
-
-  const filteredIntegrations = useMemo(
-    () =>
-      filterIntegrations(
-        sortedIntegrations,
-        (params.kinds as IntegrationTag[]) || [],
-        params.search || ''
-      ),
-    [params.kinds, sortedIntegrations, params.search]
-  );
+    if (i.type === 'bot') {
+      return (
+        <BotTile
+          key={i.kind}
+          integration={i}
+          hasCreateBotPermission={hasCreateBotPermission}
+        />
+      );
+    }
+  };
 
   return (
-    <>
-      <Box my={3}>
-        <FeatureHeader>
-          <FeatureHeaderTitle>Enroll a New Integration</FeatureHeaderTitle>
-        </FeatureHeader>
-      </Box>
-      <Flex flexDirection="column" gap={4}>
-        <FilterPanel
-          params={params}
-          setParams={setParams}
-          integrationTagOptions={integrationTagOptions}
-        />
-        {!filteredIntegrations.length && (
-          <TextIcon>
-            <Icons.Magnifier size="small" /> No results found
-          </TextIcon>
-        )}
-        <Box mb={4}>
-          <Container role="grid">
-            {filteredIntegrations.map(i => {
-              if (i.type === 'integration') {
-                return (
-                  <IntegrationCardWithSpec
-                    key={i.kind}
-                    spec={i}
-                    hasIntegrationAccess={hasIntegrationAccess}
-                    hasExternalAuditStorage={hasExternalAuditStorage}
-                  />
-                );
-              }
-
-              if (i.type === 'bot') {
-                return (
-                  <BotTile
-                    key={i.kind}
-                    integration={i}
-                    hasCreateBotPermission={hasCreateBotPermission}
-                  />
-                );
-              }
-            })}
-          </Container>
-        </Box>
-      </Flex>
-    </>
+    <SharedIntegrationPicker
+      integrations={integrations}
+      params={params}
+      setParams={setParams}
+      renderIntegration={renderIntegration}
+      initialSort={initialSort}
+      canCreate={true}
+    />
   );
 }
