@@ -300,7 +300,8 @@ func (s *recordingPlayback) readLoop() {
 				messageType: websocket.CloseMessage,
 				data:        websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "only binary messages are supported"),
 			}:
-			default:
+			case <-time.After(1 * time.Second):
+				s.logger.ErrorContext(s.ctx, "timeout sending close message", "session_id", s.sessionID)
 			}
 
 			return
