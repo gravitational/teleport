@@ -147,24 +147,15 @@ func (h *Handler) recordingPlaybackWs(
 ) (interface{}, error) {
 	sessionID := p.ByName("session_id")
 	if sessionID == "" {
-		return nil, trace.BadParameter("missing session ID in request URL")
+		h.handleWebsocketError(r.Context(), ws, sessionID, h.logger, trace.BadParameter("missing session ID in request URL"))
+
+		return nil, nil
 	}
 
 	ctx := r.Context()
 	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
-		data := []byte(err.Error())
-
-		totalSize := responseHeaderSize + len(data)
-		buf := make([]byte, totalSize)
-
-		encodeEvent(buf, 0, eventTypeError, 0, data, 0)
-
-		if err := ws.WriteMessage(websocket.BinaryMessage, buf); err != nil {
-			h.logger.ErrorContext(ctx, "failed to send event", "session_id", sessionID, "error", err)
-		}
-
-		gracefulWebSocketClose(ws, websocketCloseTimeout)
+		h.handleWebsocketError(ctx, ws, sessionID, h.logger, trace.Wrap(err, "failed to get user client"))
 
 		return nil, nil
 	}
@@ -174,6 +165,21 @@ func (h *Handler) recordingPlaybackWs(
 	playback.run()
 
 	return nil, nil
+}
+
+func (h *Handler) handleWebsocketError(ctx context.Context, ws *websocket.Conn, sessionID string, logger *slog.Logger, err error) {
+	data := []byte(err.Error())
+
+	totalSize := responseHeaderSize + len(data)
+	buf := make([]byte, totalSize)
+
+	encodeEvent(buf, 0, eventTypeError, 0, data, 0)
+
+	if err := ws.WriteMessage(websocket.BinaryMessage, buf); err != nil {
+		h.logger.ErrorContext(ctx, "failed to send event", "session_id", sessionID, "error", err)
+	}
+
+	gracefulWebSocketClose(ws, websocketCloseTimeout)
 }
 
 // newRecordingPlayback creates a new session recording playback handler.
