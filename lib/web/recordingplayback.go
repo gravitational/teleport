@@ -701,7 +701,7 @@ func encodeScreenEvent(state vt10x.TerminalState, cols, rows int, cursor vt10x.C
 func encodeEvent(buf []byte, offset int, eventType responseType, timeOffset time.Duration, data []byte, requestID int) {
 	buf[offset] = byte(eventType)
 
-	binary.BigEndian.PutUint64(buf[offset+1:offset+9], uint64(timeOffset))
+	binary.BigEndian.PutUint64(buf[offset+1:offset+9], uint64(timeOffset/time.Millisecond))
 	binary.BigEndian.PutUint32(buf[offset+9:offset+13], uint32(len(data)))
 	binary.BigEndian.PutUint32(buf[offset+13:offset+17], uint32(requestID))
 
@@ -712,8 +712,8 @@ func encodeEvent(buf []byte, offset int, eventType responseType, timeOffset time
 func encodeTime(startTime, endTime time.Duration) []byte {
 	buf := make([]byte, 16)
 
-	binary.BigEndian.PutUint64(buf, uint64(startTime))
-	binary.BigEndian.PutUint64(buf[8:], uint64(endTime))
+	binary.BigEndian.PutUint64(buf, uint64(startTime/time.Millisecond))
+	binary.BigEndian.PutUint64(buf[8:], uint64(endTime/time.Millisecond))
 
 	return buf
 }
@@ -726,8 +726,8 @@ func decodeBinaryRequest(data []byte) (*fetchRequest, error) {
 
 	req := &fetchRequest{
 		requestType:          requestType(data[0]),
-		startOffset:          time.Duration(binary.BigEndian.Uint64(data[1:9])),
-		endOffset:            time.Duration(binary.BigEndian.Uint64(data[9:17])),
+		startOffset:          time.Duration(binary.BigEndian.Uint64(data[1:9])) * time.Millisecond,
+		endOffset:            time.Duration(binary.BigEndian.Uint64(data[9:17])) * time.Millisecond,
 		requestID:            int(binary.BigEndian.Uint32(data[17:21])),
 		requestCurrentScreen: data[21] == 1,
 	}
@@ -739,7 +739,7 @@ func decodeBinaryRequest(data []byte) (*fetchRequest, error) {
 func getEventTime(evt apievents.AuditEvent) time.Duration {
 	switch evt := evt.(type) {
 	case *apievents.SessionPrint:
-		return time.Duration(evt.DelayMilliseconds)
+		return time.Duration(evt.DelayMilliseconds) * time.Millisecond
 	case *apievents.SessionEnd:
 		return evt.EndTime.Sub(evt.StartTime)
 	default:
@@ -768,13 +768,10 @@ func gracefulWebSocketClose(ws *websocket.Conn, timeout time.Duration) {
 // validateRequest validates the fetch request parameters.
 func validateRequest(req *fetchRequest) error {
 	if req.startOffset < 0 || req.endOffset < 0 || req.endOffset < req.startOffset {
-		return fmt.Errorf("invalid time range (%d, %d)", req.startOffset, req.endOffset)
+		return fmt.Errorf("invalid time range (%v, %v)", req.startOffset, req.endOffset)
 	}
 
-	rangeMillis := req.endOffset - req.startOffset
-	maxRangeMillis := time.Duration(maxRequestRange / time.Millisecond)
-
-	if rangeMillis > maxRangeMillis {
+	if req.endOffset - req.startOffset > maxRequestRange {
 		return trace.LimitExceeded("time range too large, max is %s", maxRequestRange)
 	}
 
