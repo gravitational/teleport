@@ -214,20 +214,20 @@ func (s *recordingPlayback) writeLoop() {
 			}
 
 			if err := s.ws.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-				s.handleWebsocketError(err)
+				s.logWebsocketError(err)
 				return
 			}
 
 			if err := s.ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
-				s.handleWebsocketError(err)
+				s.logWebsocketError(err)
 				return
 			}
 		}
 	}
 }
 
-// handleWebsocketError handles errors that occur during websocket writes.
-func (s *recordingPlayback) handleWebsocketError(err error) {
+// logWebsocketError handles errors that occur during websocket writes.
+func (s *recordingPlayback) logWebsocketError(err error) {
 	if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
 		!utils.IsOKNetworkError(err) {
 		s.logger.ErrorContext(s.ctx, "websocket write error", "error", err)
@@ -239,7 +239,7 @@ func (s *recordingPlayback) readLoop() {
 	for {
 		msgType, data, err := s.ws.ReadMessage()
 		if err != nil {
-			s.handleWebsocketError(err)
+			s.logWebsocketError(err)
 			return
 		}
 
