@@ -50,8 +50,6 @@ import (
 const (
 	// requestTypeFetch requests event data
 	requestTypeFetch byte = 1
-	// requestTypeClose closes the connection
-	requestTypeClose byte = 2
 )
 
 // Response types send back to the client
@@ -230,8 +228,8 @@ func (s *recordingPlayback) readLoop() {
 		switch req.requestType {
 		case requestTypeFetch:
 			s.handleFetchRequest(req)
-		case requestTypeClose:
-			return
+		default:
+			s.logger.ErrorContext(s.ctx, "received unknown request type", "session_id", s.sessionID, "type", req.requestType)
 		}
 	}
 }
