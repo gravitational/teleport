@@ -275,7 +275,7 @@ export interface LoginSsoParams {
 }
 
 async function loginSso(
-  { tshd, clustersService, usageService }: IAppContext,
+  { tshd, clustersService, usageService, mainProcessClient }: IAppContext,
   params: LoginSsoParams,
   abortSignal: CloneableAbortSignal
 ) {
@@ -292,6 +292,11 @@ async function loginSso(
     },
     { abort: abortSignal }
   );
+
+  // Force once login finishes but before we await the cluster sync. This way the focus will go back
+  // to the app ASAP. The login modal will be shown until the cluster sync finishes.
+  void mainProcessClient.forceFocusWindow();
+
   await clustersService.syncAndWatchRootClusterWithErrorHandling(
     params.clusterUri
   );
