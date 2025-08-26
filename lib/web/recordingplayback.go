@@ -209,6 +209,10 @@ func (s *recordingPlayback) readLoop() {
 	for {
 		msgType, data, err := s.websocket.ReadMessage()
 		if err != nil {
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				// Expected closure, don't log as error
+				return
+			}
 			if !utils.IsOKNetworkError(err) {
 				s.logger.ErrorContext(s.ctx, "websocket read error", "session_id", s.sessionID, "error", err)
 			}
