@@ -843,7 +843,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		writeSessionCtx, writeSessionCancel := context.WithCancel(ctx)
 		defer writeSessionCancel()
 
-		waitForSessionID := libsshutils.PrepareToReceiveSessionID(writeSessionCtx, t.logger, nc.Client)
+		waitForSessionID := libsshutils.PrepareToReceiveSessionID(writeSessionCtx, t.logger, nc.Client, false)
 
 		// wait in a new goroutine because the server won't set a
 		// session ID until we start the session.

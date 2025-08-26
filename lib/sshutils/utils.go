@@ -90,7 +90,7 @@ const (
 // the server to send the session ID it's using. The returned function
 // will return the current session ID from the server or a reason why
 // one wasn't received.
-func PrepareToReceiveSessionID(ctx context.Context, log *slog.Logger, client *tracessh.Client) func() (session.ID, SessionIDStatus) {
+func PrepareToReceiveSessionID(ctx context.Context, log *slog.Logger, client *tracessh.Client, useV2 bool) func() (session.ID, SessionIDStatus) {
 	// send the session ID received from the server
 	var gotSessionID atomic.Bool
 	sessionIDFromServer := make(chan session.ID, 1)
@@ -118,7 +118,12 @@ func PrepareToReceiveSessionID(ctx context.Context, log *slog.Logger, client *tr
 	// blocked on making this request
 	serverWillSetSessionID := make(chan bool, 1)
 	go func() {
-		resp, _, err := client.SendRequest(ctx, teleport.SessionIDQueryRequest, true, nil)
+		reqName := teleport.SessionIDQueryRequest
+		if useV2 {
+			reqName = teleport.SessionIDQueryRequestV2
+		}
+
+		resp, _, err := client.SendRequest(ctx, reqName, true, nil)
 		if err != nil {
 			log.WarnContext(ctx, "Failed to send session ID query request", "error", err)
 			serverWillSetSessionID <- false
