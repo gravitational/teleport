@@ -102,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -492,7 +493,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
@@ -508,6 +508,9 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			metadata.StreamClientInterceptor,
 			interceptors.GRPCClientStreamErrorInterceptor,
 			breaker.StreamClientInterceptor(cb),
+		),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(grpcutils.MaxClientRecvMsgSize()),
 		),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
@@ -3443,6 +3446,30 @@ func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 		apps[i] = items.Apps[i]
 	}
 	return apps, nil
+}
+
+// ListApps returns a page of application resources.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+//
+// For a page of registered applications that are served by an application
+// service, use ListResources instead.
+func (c *Client) ListApps(ctx context.Context, limit int, start string) ([]types.Application, string, error) {
+	resp, err := c.grpc.ListApps(ctx, &proto.ListAppsRequest{
+		Limit:    int32(limit),
+		StartKey: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	apps := make([]types.Application, 0, len(resp.Applications))
+	for _, app := range resp.Applications {
+		apps = append(apps, app)
+	}
+	return apps, resp.NextKey, nil
 }
 
 // DeleteApp deletes specified application resource.

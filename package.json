@@ -55,7 +55,7 @@
     "jsdom-testing-mocks": "^1.13.0",
     "msw": "^0.47.4",
     "msw-storybook-addon": "^1.8.0",
-    "node-gyp": "^11.2.0",
+    "node-gyp": "^11.3.0",
     "prettier": "^3.3.2",
     "typescript": "^5.5.2",
     "vite": "^5.3.2"
@@ -92,7 +92,7 @@
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },
-  "packageManager": "pnpm@10.12.4+sha512.5ea8b0deed94ed68691c9bad4c955492705c5eeb8a87ef86bc62c74a26b037b08ff9570f108b2e4dbd1dd1a9186fea925e527f141c648e85af45631074680184",
+  "packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748",
   "engines": {
     "node": "^22"
   }

@@ -23,6 +23,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -34,7 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -396,6 +400,18 @@ type testClient struct {
 	services.UserGetter
 }
 
+type fakeCloudClientProvider struct{}
+
+// GetAWSSTSClient returns AWS STS client for the specified region.
+func (fakeCloudClientProvider) GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (stsiface.STSAPI, error) {
+	return nil, trace.NotImplemented("")
+}
+
+// GetAWSKMSClient returns AWS KMS client for the specified region.
+func (fakeCloudClientProvider) GetAWSKMSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (kmsiface.KMSAPI, error) {
+	return nil, trace.NotImplemented("")
+}
+
 func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPublicAddr string) (context.Context, localClient, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
@@ -458,11 +474,17 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		IntegrationsService: *cacheResourceService,
 	}
 
+	keystoreManager, err := keystore.NewManager(ctx, &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:  &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
+		CloudClients: fakeCloudClientProvider{},
+	})
+	require.NoError(t, err)
+
 	resourceSvc, err := NewService(&ServiceConfig{
 		Backend:         localResourceService,
 		Authorizer:      authorizer,
 		Cache:           cache,
-		KeyStoreManager: keystore.NewSoftwareKeystoreForTests(t),
+		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
 	})
 	require.NoError(t, err)

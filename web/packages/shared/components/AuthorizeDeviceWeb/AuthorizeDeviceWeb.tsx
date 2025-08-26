@@ -59,7 +59,11 @@ export const PassthroughPage = () => {
   const downloadLinks = getConnectDownloadLinks(platform, cluster.proxyVersion);
 
   useEffect(() => {
-    window.open(deviceTrustAuthorize);
+    // Use _self as the target to avoid opening a new blank tab to launch the deep link.
+    // On Chrome the blank tab would disappear after approving a deep link launch, but in Firefox
+    // and Safari it'd stay open. With _self, even if the user cancels the launch there will be no
+    // tab to close.
+    window.open(deviceTrustAuthorize, '_self');
 
     // the deviceWebToken is only valid for 5 minutes, so we can forward
     // to the dashboard

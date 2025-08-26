@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -521,7 +522,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 			}
 
 			if tt.isEnterprise {
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					TestBuildType: modules.BuildEnterprise,
 				})
 			}

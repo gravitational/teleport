@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/tpm"
 )
 
@@ -327,9 +328,9 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockValidator.setup(tt.validateReturnTPM, tt.validateReturnErr)
 			if !tt.setOSS {
-				modules.SetTestModules(
+				modulestest.SetTestModules(
 					t,
-					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				)
 			}
 

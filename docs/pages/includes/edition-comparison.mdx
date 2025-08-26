@@ -2,11 +2,11 @@
 
 ||Community Edition|Enterprise|Cloud|
 |---|---|---|---|
-|[Dual Authorization](../admin-guides/access-controls/guides/dual-authz.mdx)|✖|✔|✔|
-|[Hardware Key Support](../admin-guides/access-controls/guides/hardware-key-support.mdx)|✖|✔|✔|
-|[Moderated Sessions](../admin-guides/access-controls/guides/joining-sessions.mdx)|✖|✔|✔|
-|[Role-Based Access Control](../admin-guides/access-controls/guides/role-templates.mdx)|✔|✔|✔|
-|[Single Sign-On](../admin-guides/access-controls/sso/sso.mdx)|GitHub|GitHub, Google Workspace, OIDC, SAML, Teleport|GitHub, Google Workspace, OIDC, SAML, Teleport|
+|[Dual Authorization](../zero-trust-access/access-controls/guides/dual-authz.mdx)|✖|✔|✔|
+|[Hardware Key Support](../zero-trust-access/access-controls/guides/hardware-key-support.mdx)|✖|✔|✔|
+|[Moderated Sessions](../zero-trust-access/access-controls/guides/joining-sessions.mdx)|✖|✔|✔|
+|[Role-Based Access Control](../zero-trust-access/access-controls/guides/role-templates.mdx)|✔|✔|✔|
+|[Single Sign-On](../zero-trust-access/sso/sso.mdx)|GitHub|GitHub, Google Workspace, OIDC, SAML, Teleport|GitHub, Google Workspace, OIDC, SAML, Teleport|
 
 ### Audit logging and session recording
 
@@ -21,7 +21,7 @@
 
 ||Community Edition|Enterprise|Cloud|
 |---|---|---|---|
-|[FedRAMP Control](../admin-guides/access-controls/compliance-frameworks/fedramp.mdx)|✖|✔|✖|
+|[FedRAMP Control](../zero-trust-access/compliance-frameworks/fedramp.mdx)|✖|✔|✖|
 |FIPS-compliant binaries available for FedRAMP High|✖|✔|✖|
 |IP-Based Restrictions|✖|✔|✔|
 |PCI DSS Features|Limited|✔|✔|
@@ -37,7 +37,7 @@ _Available as an add-on to Teleport Enterprise_
 |[Access Lists & Access Reviews](../identity-governance/access-lists/access-lists.mdx)|✖|✔|✔|
 |[Device Trust](../identity-governance/device-trust/guide.mdx)|✖|✔|✔|
 |[Endpoint Management: Jamf](../identity-governance/device-trust/jamf-integration.mdx)|✖|✔|✔|
-|[JIT Access Requests](../admin-guides/access-controls/guides/dual-authz.mdx)|Limited|✔|✔|
+|[JIT Access Requests](../zero-trust-access/access-controls/guides/dual-authz.mdx)|Limited|✔|✔|
 |[Session & Identity Locks](../identity-governance/locking.mdx)|✖|✔|✔|
 
 ### Infrastructure access
@@ -67,7 +67,7 @@ _Available as an add-on to Teleport Enterprise_
 |Auth Service and Proxy Service Management|Self-hosted|Self-hosted|Fully managed|
 |[Backend support](../reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption.|
 |Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends|Data is stored in Teleport's AWS infrastructure with audit logs/sessions optionally in customer AWS accounts. Proxy Service instances are deployed across the world for low-latency access.|
-|[Hardware Security Module support](../admin-guides/deploy-a-cluster/hsm.mdx) for encryption at rest|✖|✔|✖|
+|[Hardware Security Module support](../zero-trust-access/deploy-a-cluster/hsm.mdx) for encryption at rest|✖|✔|✖|
 |Proxy Service domain name|Custom|Custom|A subdomain of `teleport.sh`|
 |Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|
 

@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -65,8 +66,7 @@ func startDummyHTTPServer(t *testing.T, name string) string {
 func TestHardwareKeyLogin(t *testing.T) {
 	ctx := context.Background()
 
-	testModules := &modules.TestModules{TestBuildType: modules.BuildEnterprise}
-	modules.SetTestModules(t, testModules)
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	connector := mockConnector(t)
 
@@ -97,13 +97,12 @@ func TestHardwareKeyLogin(t *testing.T) {
 		lastLoginCount++
 
 		// Set MockAttestationData to attest the expected key policy and reset it after login.
-		testModules.MockAttestationData = &keys.AttestationData{
-			PrivateKeyPolicy: priv.GetPrivateKeyPolicy(),
-		}
-		defer func() {
-			testModules.MockAttestationData = nil
-		}()
-
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			MockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: priv.GetPrivateKeyPolicy(),
+			},
+		})
 		return mockSSOLogin(ctx, connectorID, priv, protocol)
 	}
 	setMockSSOLogin := setMockSSOLoginCustom(mockSSOLoginWithCountAndAttestation, connector.GetName())
@@ -197,12 +196,6 @@ func TestHardwareKeyLogin(t *testing.T) {
 // TestHardwareKeySSH tests Hardware Key SSH flows.
 func TestHardwareKeySSH(t *testing.T) {
 	ctx := context.Background()
-
-	testModules := &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-	}
-	modules.SetTestModules(t, testModules)
-
 	connector := mockConnector(t)
 
 	user, err := user.Current()
@@ -268,7 +261,10 @@ func TestHardwareKeySSH(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			testModules.MockAttestationData = nil
+			modulestest.SetTestModules(t, modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+			})
+
 			tmpHomePath = t.TempDir()
 			// SSH fails without an attested hardware key login.
 			err = Run(ctx, []string{
@@ -280,9 +276,12 @@ func TestHardwareKeySSH(t *testing.T) {
 			require.Error(t, err)
 
 			// Set MockAttestationData to attest the expected key policy and try again.
-			testModules.MockAttestationData = &keys.AttestationData{
-				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-			}
+			modulestest.SetTestModules(t, modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				MockAttestationData: &keys.AttestationData{
+					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				},
+			})
 
 			err = Run(ctx, []string{
 				"login",
@@ -306,15 +305,14 @@ func TestHardwareKeySSH(t *testing.T) {
 func TestHardwareKeyApp(t *testing.T) {
 	ctx := context.Background()
 
-	testModules := &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.App: {Enabled: true},
 			},
 		},
-	}
-	modules.SetTestModules(t, testModules)
+	})
 
 	testserver.WithResyncInterval(t, 0)
 
@@ -417,8 +415,6 @@ func TestHardwareKeyApp(t *testing.T) {
 	_, err = authServer.UpsertRole(ctx, accessRole)
 	require.NoError(t, err)
 
-	testModules.MockAttestationData = nil
-
 	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -435,9 +431,17 @@ func TestHardwareKeyApp(t *testing.T) {
 	require.Error(t, err)
 
 	// Set MockAttestationData to attest the expected key policy and try again.
-	testModules.MockAttestationData = &keys.AttestationData{
-		PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-	}
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+		MockAttestationData: &keys.AttestationData{
+			PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+		},
+	})
 
 	// App Login will still fail without MFA, since the app sessions will
 	// only be attested as "web_session".

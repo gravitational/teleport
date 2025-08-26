@@ -29,6 +29,7 @@ import (
 	"text/template"
 
 	"github.com/ghodss/yaml"
+	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -98,7 +99,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printAppCommand(cf, tc, app, appInfo.RouteToApp); err != nil {
+	if err := printAppCommand(cf, tc, app, appInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -127,7 +128,8 @@ func localProxyRequiredForApp(tc *client.TeleportClient) bool {
 	return tc.TLSRoutingConnUpgradeRequired
 }
 
-func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Application, routeToApp proto.RouteToApp) error {
+func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Application, appInfo *appInfo) error {
+	routeToApp := appInfo.RouteToApp
 	output := cf.Stdout()
 	if cf.Quiet {
 		output = io.Discard
@@ -136,9 +138,10 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 	switch {
 	case app.IsAWSConsole():
 		return awsLoginTemplate.Execute(output, map[string]string{
-			"awsAppName": app.GetName(),
-			"awsCmd":     "s3 ls",
-			"awsRoleARN": routeToApp.AWSRoleARN,
+			"awsAppName":        app.GetName(),
+			"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
+			"awsCmd":            "s3 ls",
+			"awsRoleARN":        routeToApp.AWSRoleARN,
 		})
 
 	case app.IsAzureCloud():
@@ -146,11 +149,24 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 			return trace.BadParameter("app is Azure Cloud but Azure identity is missing")
 		}
 
-		var args []string
+		azureApp, err := newAzureApp(tc, cf, appInfo)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		resourceArgumentName := "--username"
+		// After the CLI started relying in MSAL by default, the param for the
+		// managed identity changed.
+		//
+		// https://learn.microsoft.com/en-us/cli/azure/release-notes-azure-cli?view=azure-cli-latest#profile
+		if azureApp.usingMSAL() {
+			resourceArgumentName = "--resource-id"
+		}
+
+		args := []string{"az", "login", "--identity", resourceArgumentName, routeToApp.AzureIdentity}
 		if cf.Debug {
 			args = append(args, "--debug")
 		}
-		args = append(args, "az", "login", "--identity", "-u", routeToApp.AzureIdentity)
 
 		// automatically login with right identity.
 		cmd := exec.Command(cf.executablePath, args...)
@@ -159,8 +175,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		cmd.Stdout = output
 
 		log.Debugf("Running automatic az login: %v", cmd.String())
-		err := cf.RunCommand(cmd)
-		if err != nil {
+		if err := cf.RunCommand(cmd); err != nil {
 			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", routeToApp.AzureIdentity)
 		}
 
@@ -177,12 +192,13 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 
 	case app.IsTCP():
 		return tcpAppLoginTemplate.Execute(output, map[string]string{
-			"appName": app.GetName(),
+			"appName": shsprintf.EscapeDefaultContext(app.GetName()),
 		})
 
 	case localProxyRequiredForApp(tc):
-		return webAppLoginProxyTemplate.Execute(output, map[string]interface{}{
-			"appName": app.GetName(),
+		return webAppLoginProxyTemplate.Execute(output, map[string]any{
+			"appName":        app.GetName(),
+			"escapedAppName": shsprintf.EscapeDefaultContext(app.GetName()),
 		})
 
 	default:
@@ -228,7 +244,7 @@ WARNING: tsh was called with --insecure, so this curl command will be unable to 
 var webAppLoginProxyTemplate = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Start the local proxy for it:
 
-  tsh proxy app {{.appName}} -p 8080
+  tsh proxy app {{.escapedAppName}} -p 8080
 
 Then connect to the application through this proxy:
 
@@ -257,7 +273,7 @@ Example AWS CLI command:
   tsh aws {{.awsCmd}}
 
 Or start a local proxy:
-  tsh proxy aws --app {{.awsAppName}}
+  tsh proxy aws --app {{.escapedAWSAppName}}
 `))
 
 // azureLoginTemplate is the message that gets printed to a user upon successful login
@@ -406,7 +422,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		curlInsecureFlag,
 		profile.AppCertPath(tc.SiteName, routeToApp.Name),
 		profile.KeyPath(),
-		uri)
+		shsprintf.EscapeDefaultContext(uri))
+
 	format = strings.ToLower(format)
 	switch format {
 	case appFormatURI:

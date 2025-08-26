@@ -30,7 +30,8 @@ class JoinTokenService {
   // TODO (avatus) refactor this code to eventually use `createJoinToken`
   fetchJoinToken(
     req: JoinTokenRequest,
-    signal: AbortSignal = null
+    signal: AbortSignal = null,
+    mfaResponse?: WebauthnAssertionResponse
   ): Promise<JoinToken> {
     return api
       .post(
@@ -43,7 +44,8 @@ class JoinTokenService {
             req.suggestedAgentMatcherLabels
           ),
         },
-        signal
+        signal,
+        mfaResponse
       )
       .then(makeJoinToken);
   }

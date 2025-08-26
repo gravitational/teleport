@@ -1,6 +1,9 @@
 ---
 title: Managed Updates for Teleport Agents (v1)
 description: Describes how to set up Managed Updates for Teleport Agents (v1)
+labels:
+ - how-to
+ - platform-wide
 ---
 <Admonition type="warning">
 This document describes Managed Updates for Agents (v1), which
@@ -119,7 +122,7 @@ Teleport cluster that agents use to determine when to check for upgrades.
 
 1. Add the role to your Teleport user:
 
-  (!docs/pages/includes/add-role-to-user.mdx role="cmc-editor"!)
+   (!docs/pages/includes/add-role-to-user.mdx role="cmc-editor"!)
 
 1. Create a cluster maintenance config in a file called `cmc.yaml`. The
    following example allows maintenance on Monday, Wednesday and Friday between
@@ -224,7 +227,7 @@ Server ID                            Hostname      Services Version Upgrader
    <TabItem label="Self-Hosted Teleport Enterprise">
 
    1. Follow the instructions in the Teleport [installation
-      guide](../installation.mdx#package-repositories) to install the `teleport`
+      guide](../installation/linux.mdx#package-repositories) to install the `teleport`
       binary on your Linux server for your package manager.
 
    1. Using your package manager, install `teleport-ent-updater` on the
@@ -240,7 +243,7 @@ Server ID                            Hostname      Services Version Upgrader
    The installation script detects the package manager on your Linux server and
    uses it to install Teleport binaries. To customize your installation, learn
    about the Teleport package repositories in the [installation
-   guide](../installation.mdx#linux).
+   guide](../installation/linux.mdx).
 
 1. Confirm that the version of the `teleport` binary is the one you expect:
 
@@ -248,19 +251,19 @@ Server ID                            Hostname      Services Version Upgrader
    $ teleport version
    ```
 
-<details>
-<summary>Running the agent as a non-root user</summary>
+   <details>
+   <summary>Running the agent as a non-root user</summary>
 
-If you changed the agent user to run as non-root, create
-`/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user:
+   If you changed the agent user to run as non-root, create
+   `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user:
 
-```code
-$ sudo mkdir -p /etc/teleport-upgrade.d/
-$ sudo touch /etc/teleport-upgrade.d/schedule
-$ sudo chown your-teleport-user /etc/teleport-upgrade.d/schedule
-```
+   ```code
+   $ sudo mkdir -p /etc/teleport-upgrade.d/
+   $ sudo touch /etc/teleport-upgrade.d/schedule
+   $ sudo chown your-teleport-user /etc/teleport-upgrade.d/schedule
+   ```
 
-</details>
+   </details>
 
 1. Verify that the upgrader can see your version endpoint by checking for
    upgrades:
@@ -408,4 +411,3 @@ until the next reconciliation, you can trigger an event.
    ```code
    $ sudo systemctl enable --now teleport-upgrade.timer
    ```
-

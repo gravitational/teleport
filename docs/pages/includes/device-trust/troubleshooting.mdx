@@ -1,7 +1,7 @@
 ### "binary missing signature or entitlements" on `tsh device enroll`
 
 A signed and notarized `tsh` binary is necessary to enroll and use a a trusted
-device. [Download the macOS tsh installer](../../installation.mdx#macos) to fix
+device. [Download the macOS tsh installer](../../installation/macos.mdx) to fix
 the problem.
 
 ### "unauthorized device" errors using a trusted device
@@ -94,7 +94,7 @@ end-user IPs are not propagated correctly to your Teleport deployment.
 * L7 load balancer: make sure it propagates the [X-Forwarded-For header](
   ../../reference/config.mdx#proxy-service)
 * L4 load balancer: enable [PROXY protocol](
-  ../../admin-guides/management/security/proxy-protocol.mdx)
+  ../../zero-trust-access/management/security/proxy-protocol.mdx)
 
 ### Checking Device Trust authorization status in the web UI
 

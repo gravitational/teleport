@@ -1,5 +1,19 @@
 # Changelog
 
+## 16.5.14 (07/25/25)
+
+* Fixed fallback for web login when second factor is set to `on` but only OTP is configured. [#57160](https://github.com/gravitational/teleport/pull/57160)
+* Removed unnecessary macOS entitlements from Teleport Connect subprocesses. [#57068](https://github.com/gravitational/teleport/pull/57068)
+* Added `--listen` flag to `tsh proxy db` for setting local listener address. [#57032](https://github.com/gravitational/teleport/pull/57032)
+* `tctl top` now supports the local unix sock debug endpoint. [#57026](https://github.com/gravitational/teleport/pull/57026)
+* Updated Application APIs to use pagination to avoid exceeding message size limitations. [#56954](https://github.com/gravitational/teleport/pull/56954)
+* Added support to `tsh` App Access commands for Azure CLI (`az`) version `2.73.0` and newer. [#56950](https://github.com/gravitational/teleport/pull/56950)
+* Fixed a bug in the Teleport install scripts when running on MacOS. The install scripts now error instead of trying to install non existing MacOS FIPS binaries. [#56943](https://github.com/gravitational/teleport/pull/56943)
+* Update pyroscope's default client timeout and upload rate. [#56733](https://github.com/gravitational/teleport/pull/56733)
+* Updated Go to 1.23.11. [#56681](https://github.com/gravitational/teleport/pull/56681)
+* Fix tbot SPIFFE Workload API failing to renew SPIFFE SVIDs. [#56664](https://github.com/gravitational/teleport/pull/56664)
+* Fixed error on setting up Teleport Discovery Service step of the EC2 SSM web UI flow when admin action is enabled (webauthn). [#56571](https://github.com/gravitational/teleport/pull/56571)
+
 ## 16.5.13 (07/02/25)
 
 ### Security fixes
@@ -151,7 +165,8 @@ existing 17.3+ agents by running `teleport-update enable`.
 edition (Community vs Enterprise), the cluster's desired version, and the correct Teleport variant (e.g. FIPS-compliant
 cryptography).
 
-You can find more information about the feature in [our documentation]().
+You can find more information about the feature in [our
+documentation](https://goteleport.com/docs/upgrading/agent-managed-updates/).
 
 ### Package layout changes
 
@@ -1062,7 +1077,7 @@ customers running **Teleport Enterprise Self-Hosted**. No action is required for
 customers running Teleport Enterprise (Cloud) or Teleport Community Edition.
 
 If, after updating to Teleport 16, you receive an error message regarding an
-outdated license file, follow our step-by-step [guide](docs/pages/admin-guides/deploy-a-cluster/license.mdx)
+outdated license file, follow our step-by-step [guide](docs/pages/zero-trust-access/deploy-a-cluster/license.mdx)
 to update your license file.
 
 #### Multi-factor authentication is now required for local users
@@ -1943,7 +1958,7 @@ access start time up to a week in advance.
 
 The Teleport Terraform provider and Kubernetes operator now support declaring
 agentless OpenSSH and OpenSSH EC2 ICE servers. You can follow [this
-guide](docs/pages/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx)
+guide](docs/pages/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx)
 to register OpenSSH agents with infrastructure as code.
 
 Setting up EC2 ICE automatic discovery with IaC will come in a future update.
@@ -2323,7 +2338,7 @@ When deployed with the `teleport-cluster` chart, the operator now runs in a
 separate pod. This ensures that Teleport's availability won't be impacted if the
 operator becomes unready.
 
-See [the Standalone Operator guide](docs/pages/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
+See [the Standalone Operator guide](docs/pages/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
 for installation instructions.
 
 #### Roles v6 and v7 support for Kubernetes Operator
@@ -2414,7 +2429,7 @@ published to these repos for the remainder of those releases' lifecycle.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation.mdx).
+[instructions](docs/pages/installation/installation.mdx).
 
 The legacy package repos will be shut off in mid 2025 after Teleport 14 has been
 out of support for many months.
@@ -3424,7 +3439,7 @@ By default, Teleport will accept the PROXY line but will prevent connections
 with IP pinning enabled. IP pinning users will need to explicitly enable/disable
 proxy protocol like explained above.
 
-See more details in our [documentation](docs/pages/admin-guides/management/security/proxy-protocol.mdx).
+See more details in our [documentation](docs/pages/zero-trust-access/management/security/proxy-protocol.mdx).
 
 #### Legacy deb/rpm package repositories are deprecated
 
@@ -3435,7 +3450,7 @@ repositories at `apt.releases.teleport.dev` and `yum.releases.teleport.dev`.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation.mdx).
+[instructions](docs/pages/installation/installation.mdx).
 
 #### `Cf-Access-Token` header no longer included with requests to Teleport-protected applications
 
@@ -4737,7 +4752,7 @@ deployments and the new “scratch” chart mode makes it easier to provide a cu
 Teleport config.
 
 “Custom” mode users should follow the [migration
-guide](docs/pages/admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx).
+guide](docs/pages/zero-trust-access/deploy-a-cluster/helm-deployments/migration-v12.mdx).
 
 ### Dropped support for SHA1 in Teleport-protected servers
 
@@ -4764,7 +4779,7 @@ Teleport 12 before upgrading.
 The teleport-cluster Helm chart underwent significant changes in Teleport 12. To
 upgrade from an older version of the Helm chart deployed in “custom” mode,
 follow
-the [migration guide](docs/pages/admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx).
+the [migration guide](docs/pages/zero-trust-access/deploy-a-cluster/helm-deployments/migration-v12.mdx).
 
 Additionally, PSPs are removed from the chart when installing on Kubernetes 1.23
 and higher to account for the deprecation/removal of PSPs by Kubernetes.
@@ -5136,7 +5151,7 @@ material on Yubikey devices instead of filesystem which helps prevent
 credentials exfiltration attacks.
 
 See how to enable it in the
-[documentation](docs/pages/admin-guides/access-controls/guides/hardware-key-support.mdx):
+[documentation](docs/pages/zero-trust-access/access-controls/guides/hardware-key-support.mdx):
 
 Hardware-backed private keys is an enterprise only feature, and is currently
 supported for server access only.
@@ -5243,7 +5258,7 @@ redirect_url = [ "http://example.com" ]
 
 Starting with Teleport 11, Quay.io as a container registry has been deprecated.
 Customers should use the new AWS ECR registry to pull [Teleport Docker
-images](./docs/pages/installation.mdx#docker).
+images](./docs/pages/installation/docker.mdx).
 
 Quay.io registry support will be removed in a future release.
 
@@ -5252,7 +5267,7 @@ Quay.io registry support will be removed in a future release.
 In Teleport 11, old deb/rpm repositories (deb.releases.teleport.dev and
 rpm.releases.teleport.dev) have been deprecated. Customers should use the new
 repositories (apt.releases.teleport.dev and yum.releases.teleport.dev) to
-[install Teleport](docs/pages/installation.mdx#linux).
+[install Teleport](docs/pages/installation/linux.mdx).
 
 Support for our old deb/rpm repositories will be removed in a future release.
 
@@ -5316,7 +5331,7 @@ Teleport 10 introduces passwordless support to your clusters. To use passwordles
 users may register a security key with resident credentials or use a built-in
 authenticator, like Touch ID.
 
-See the [documentation](docs/pages/admin-guides/access-controls/guides/passwordless.mdx).
+See the [documentation](docs/pages/zero-trust-access/access-controls/guides/passwordless.mdx).
 
 ### Resource Access Requests (Preview)
 
@@ -5471,7 +5486,7 @@ sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the [Moderated Sessions
-guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx) for more
+guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx) for more
 details.
 
 #### GitHub connectors
@@ -5930,7 +5945,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-[Moderated Sessions guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx)
+[Moderated Sessions guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx)
 
 ### Breaking Changes
 
@@ -6270,7 +6285,7 @@ Teleport 6.1 contains multiple new features, improvements, and bug fixes.
 Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 For more details see [Per-Session
-MFA](docs/pages/admin-guides/access-controls/guides/per-session-mfa.mdx) documentation or
+MFA](docs/pages/zero-trust-access/access-controls/guides/per-session-mfa.mdx) documentation or
 [RFD
 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md)
 and [RFD
@@ -6422,7 +6437,7 @@ if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
 
 ### Upgrade Notes
 
-Please follow our [standard upgrade procedure](docs/pages/admin-guides/management/admin/admin.mdx) to upgrade your cluster.
+Please follow our [standard upgrade procedure](docs/pages/zero-trust-access/management/admin/admin.mdx) to upgrade your cluster.
 
 Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
 
@@ -6642,11 +6657,11 @@ We've added two new RBAC resources; these provide the ability to limit token cre
   verbs: [list,create,read,update,delete]
 ```
 
-Learn more about [Teleport's RBAC Resources](docs/pages/admin-guides/access-controls/access-controls.mdx)
+Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/access-controls/access-controls.mdx)
 
 ##### Cluster Labels
 
-Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/admin-guides/management/admin/trustedclusters.mdx)
+Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx)
 
 Creating a trusted cluster join token for a production environment:
 
@@ -6703,7 +6718,7 @@ Enterprise Only:
 
 ### Documentation
 
-We've added an [API Guide](docs/pages/admin-guides/api/api.mdx) to simply developing applications against Teleport.
+We've added an [API Guide](docs/pages/zero-trust-access/api/api.mdx) to simply developing applications against Teleport.
 
 ### Upgrade Notes
 
@@ -6984,7 +6999,7 @@ teleport:
 ```
 
 Rotate the cluster CA, following [these
-docs](docs/pages/admin-guides/management/operations/ca-rotation.mdx).
+docs](docs/pages/zero-trust-access/management/operations/ca-rotation.mdx).
 
 ##### Web UI
 
@@ -7015,7 +7030,7 @@ the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
 [upgrade guidance](docs/pages/upgrading/upgrading.mdx).
 
-**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/admin-guides/management/operations/backup-restore.mdx) into the downgraded cluster.**
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/management/operations/backup-restore.mdx) into the downgraded cluster.**
 
 ## 4.2.12 
 
@@ -7137,7 +7152,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
 * Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/identity-governance/access-requests/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
-* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/admin-guides/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/zero-trust-access/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
 * Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
@@ -7146,8 +7161,8 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/admin-guides/management/admin/trustedclusters.mdx).
-* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx).
+* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.13 
 
@@ -7378,7 +7393,7 @@ With this release of Teleport, we have built out the foundation to help Teleport
 
 ### Improvements
 
-* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/admin-guides/management/operations/scaling.mdx)
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/zero-trust-access/management/operations/scaling.mdx)
 * Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
 * Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 
@@ -7862,7 +7877,7 @@ available Teleport clusters with ease.
 #### Configuration Changes
 
 * Role templates (depreciated in Teleport 2.3) were fully removed. We recommend
-  migrating to role variables which are documented [here](docs/pages/admin-guides/access-controls/guides/role-templates.mdx)
+  migrating to role variables which are documented [here](docs/pages/zero-trust-access/access-controls/guides/role-templates.mdx)
 
 * Resource names (like roles, connectors, trusted clusters) can no longer
   contain unicode or other special characters. Update the names of all user

@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -436,6 +437,29 @@ func TestNoEnvVars(t *testing.T) {
 	// exceeded" if the command doesn't complete within the timeout. Otherwise the error would be just
 	// "signal: killed".
 	require.NoError(t, trace.NewAggregate(err, ctx.Err()))
+}
+
+// TestDefaultPrintUsage verifies that the main `kingpin.Application` parser has not been
+// previously terminated, and that it correctly prints the usage message when using the
+// global `--help` flag or the `help` command, and both are identical.
+func TestDefaultPrintUsage(t *testing.T) {
+	t.Parallel()
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	cmd := exec.CommandContext(ctx, testExecutable, "version", "--help")
+	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv), "TELEPORT_TOOLS_VERSION=off"}
+	flagOutput, err := cmd.CombinedOutput()
+	require.NoError(t, err)
+	require.Contains(t, string(flagOutput), "Print the tsh client and Proxy server versions for the current context")
+
+	cmd = exec.CommandContext(ctx, testExecutable, "help", "version")
+	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv), "TELEPORT_TOOLS_VERSION=off"}
+	commandOutput, err := cmd.CombinedOutput()
+	require.NoError(t, err)
+	require.Equal(t, string(flagOutput), string(commandOutput))
 }
 
 func TestFailedLogin(t *testing.T) {
@@ -1913,7 +1937,7 @@ func TestNoRelogin(t *testing.T) {
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2352,7 +2376,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 
 // TestSSHCommand tests that a user can access a single SSH node and run commands.
 func TestSSHCommands(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2866,7 +2890,7 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 }
 
 func TestSSHHeadless(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -2996,7 +3020,7 @@ func TestSSHHeadless(t *testing.T) {
 }
 
 func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	agentKeyring, _ := createAgent(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -6565,7 +6589,7 @@ func TestRolesToString(t *testing.T) {
 // TestResolve tests that host resolution works for various inputs and
 // that proxy templates are respected.
 func TestResolve(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -6857,7 +6881,7 @@ func TestVersionCompatibilityFlags(t *testing.T) {
 // TestSCP validates that tsh scp correctly copy file content while also
 // ensuring that proxy templates are respected.
 func TestSCP(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

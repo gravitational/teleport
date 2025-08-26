@@ -43,6 +43,7 @@ import (
 	mssql "github.com/microsoft/go-mssqldb"
 	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -51,6 +52,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
@@ -66,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -1103,7 +1106,7 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DB: {Enabled: false},
@@ -2583,9 +2586,23 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	})
 	require.NoError(t, err)
 
+	dbNames := make([]string, 0, len(p.Databases))
+	for _, db := range p.Databases {
+		dbNames = append(dbNames, db.GetName())
+	}
 	if !p.NoStart {
 		require.NoError(t, server.Start(ctx))
-		require.NoError(t, server.ForceHeartbeat())
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			dbServers, err := c.proxyServer.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			if !assert.NoError(t, err) {
+				return
+			}
+			srvNames := make([]string, 0, len(dbServers))
+			for _, srv := range dbServers {
+				srvNames = append(srvNames, srv.GetName())
+			}
+			assert.Subset(t, srvNames, dbNames)
+		}, 20*time.Second, 100*time.Millisecond, "waiting for database servers to become available")
 	}
 
 	return server

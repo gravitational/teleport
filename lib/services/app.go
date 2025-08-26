@@ -39,12 +39,14 @@ import (
 type AppGetter interface {
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
 
-// Apps defines an interface for managing application resources.
-type Apps interface {
+// Applications defines an interface for managing application resources.
+type Applications interface {
 	// AppGetter provides methods for fetching application resources.
 	AppGetter
 	// CreateApp creates a new application resource.
@@ -92,7 +94,7 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 	case types.V3:
 		var app types.AppV3
 		if err := utils.FastUnmarshal(data, &app); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -144,7 +146,7 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 	case types.V3:
 		var s types.AppServerV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

@@ -36,7 +36,8 @@ test('fetchJoinToken with an empty request properly sets defaults', () => {
       allow: [],
       suggested_agent_matcher_labels: {},
     },
-    null
+    null,
+    undefined
   );
 });
 
@@ -59,6 +60,7 @@ test('fetchJoinToken request fields are set as requested', () => {
       allow: [{ aws_account: '1234', aws_arn: 'xxxx' }],
       suggested_agent_matcher_labels: { env: ['dev'] },
     },
-    null
+    null,
+    undefined
   );
 });

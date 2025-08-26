@@ -22,7 +22,7 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -84,7 +84,7 @@ func UnmarshalPlugin(data []byte, opts ...MarshalOption) (types.Plugin, error) {
 		var plugin types.PluginV1
 		m := jsonpb.Unmarshaler{AllowUnknownFields: true}
 		if err := m.Unmarshal(bytes.NewReader(data), &plugin); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := plugin.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

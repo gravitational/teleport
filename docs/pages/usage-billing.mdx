@@ -2,6 +2,9 @@
 title: Usage Reporting and Billing
 description: Provides a detailed breakdown of Teleport usage reporting and billing.
 tocDepth: 3
+labels:
+ - conceptual
+ - platform-wide
 ---
 
 Commercial editions of Teleport send anonymized usage data to Teleport so we can
@@ -59,7 +62,7 @@ The code that aggregates and anonymizes this data can be found in our [GitHub
 repository](https://github.com/gravitational/teleport/tree/master/lib/usagereporter/teleport/aggregating).
 
 For a restricted network environment you can configure Teleport Auth Service instances
-to send usage data through a proxy for version 16.0.4/15.4.7/14.3.21 or later.
+to send usage data through a proxy for version 16.0.4/15.4.7 or later.
 Set the `TELEPORT_REPORTING_HTTPS_PROXY` and `TELEPORT_REPORTING_HTTP_PROXY`
 environment variables to your proxy address. That will apply as the HTTP connect
 proxy setting overriding `HTTPS_PROXY` and `HTTP_PROXY` just for outbound usage reporting.
@@ -225,7 +228,7 @@ In Teleport, single sign-on (SSO) users are
 when its session expires. To count the number of SSO users in your cluster, you
 can examine Teleport audit events for unique SSO users that have authenticated
 to Teleport during a given time period. The Teleport documentation includes
-[how-to guides](./admin-guides/management/export-audit-events/export-audit-events.mdx) for
+[how-to guides](zero-trust-access/export-audit-events/export-audit-events.mdx) for
 exporting audit events to common log management solutions so you can identify
 users that have authenticated using an SSO provider.
 

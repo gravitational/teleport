@@ -98,7 +98,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	_ "github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
-	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	_ "github.com/gravitational/teleport/lib/backend/lite"
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -132,6 +131,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -158,7 +158,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/cert"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
@@ -876,9 +875,7 @@ func waitAndReload(ctx context.Context, sigC <-chan os.Signal, cfg servicecfg.Co
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
-	var err error
-
+func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// auth and proxy benefit from precomputing keys since they can experience spikes in key
 	// generation due to web session creation and recorded session creation respectively.
 	// for all other agents precomputing keys consumes excess resources.
@@ -904,6 +901,12 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		"pid", fmt.Sprintf("%v.%v", os.Getpid(), processID),
 	)
 
+	defer func() {
+		if err != nil {
+			cfg.Logger.ErrorContext(context.Background(), "Failed to start Teleport instance", "error", err)
+		}
+	}()
+
 	// Use the custom metrics registry if specified, else create a new one.
 	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
 	// because some tests are running multiple Teleport instances from the same
@@ -928,6 +931,24 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
+	// If PAM is enabled, make sure that Teleport was built with PAM support
+	// and the PAM library was found at runtime.
+	if cfg.SSH.PAM != nil && cfg.SSH.PAM.Enabled {
+		if !pam.BuildHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"Teleport binary was built without PAM support. To continue either download a \n" +
+				"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
+				"or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
+		if !pam.SystemHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"system does not have the needed PAM library installed. To continue either \n" +
+				"install libpam or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
+	}
+
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
@@ -948,18 +969,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	supervisor := NewSupervisor(processID, cfg.Log)
-	storage, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	store, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	var kubeBackend kubernetesBackend
-	// If running in a Kubernetes Pod we must init the backend storage for `host_uuid` storage/retrieval.
-	if kubernetes.InKubeCluster() {
-		kubeBackend, err = kubernetes.New()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
@@ -967,12 +979,12 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// key is empty or if not running in a Kubernetes Cluster, it will read the
 	// `host_uuid` from local data directory.
 	// If no host id is available, it will generate a new host id and persist it to available storages.
-	if err := readOrGenerateHostID(supervisor.ExitContext(), cfg, kubeBackend); err != nil {
+	// If we fail with an already exists failure, retry.
+	if err := store.ReadOrGenerateHostID(supervisor.ExitContext(), cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = uuid.Parse(cfg.HostUUID)
-	if err != nil && !aws.IsEC2NodeID(cfg.HostUUID) {
+	if _, err := uuid.Parse(cfg.HostUUID); err != nil && !aws.IsEC2NodeID(cfg.HostUUID) {
 		cfg.Logger.WarnContext(supervisor.ExitContext(), "Host UUID is not a true UUID (not eligible for UUID-based proxying)", "host_uuid", cfg.HostUUID)
 	}
 
@@ -1085,7 +1097,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Identities:             make(map[types.SystemRole]*state.Identity),
 		connectors:             make(map[types.SystemRole]*Connector),
 		importedDescriptors:    cfg.FileDescriptors,
-		storage:                storage,
+		storage:                store,
 		rotationCache:          rotationCache,
 		id:                     processID,
 		log:                    cfg.Log,
@@ -1448,7 +1460,7 @@ func (process *TeleportProcess) detectUpgrader() (kind, externalName, version st
 
 // configureUpgraderExporter configures the window exporter for upgraders that export windows.
 func (process *TeleportProcess) configureUpgraderExporter(kind string) error {
-	driver, err := uw.NewDriver(kind)
+	driver, err := uw.NewDriver(process.ExitContext(), kind)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2486,7 +2498,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AccessLists = services.AccessLists
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
-	cfg.Apps = services.Apps
+	cfg.Applications = services.Applications
 	cfg.ClusterConfig = services.ClusterConfiguration
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
@@ -2533,7 +2545,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AccessLists = client.AccessListClient()
 	cfg.AccessMonitoringRules = client.AccessMonitoringRuleClient()
 	cfg.AppSession = client
-	cfg.Apps = client
+	cfg.Applications = client
 	cfg.ClusterConfig = client
 	cfg.CrownJewels = client.CrownJewelServiceClient()
 	cfg.DatabaseObjects = client.DatabaseObjectsClient()
@@ -2927,12 +2939,6 @@ func (process *TeleportProcess) initSSH() error {
 
 		storagePresence := local.NewPresenceService(process.storage.BackendStorage)
 
-		// read the host UUID:
-		serverID, err := hostid.ReadOrCreateFile(cfg.DataDir)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
 			Semaphores:     authClient,
 			AccessPoint:    authClient,
@@ -2941,7 +2947,7 @@ func (process *TeleportProcess) initSSH() error {
 			Component:      teleport.ComponentNode,
 			Logger:         process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id)).WithField(teleport.ComponentKey, "sessionctrl"),
 			TracerProvider: process.TracingProvider,
-			ServerID:       serverID,
+			ServerID:       cfg.HostUUID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2957,6 +2963,7 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.AdvertiseIP,
 			process.proxyPublicAddr(),
 			conn.Client,
+			regular.SetUUID(cfg.HostUUID),
 			regular.SetLimiter(limiter),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),
@@ -3008,7 +3015,7 @@ func (process *TeleportProcess) initSSH() error {
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
 			resumableServer = resumption.NewSSHServerWrapper(resumption.SSHServerWrapperConfig{
 				SSHServer: s.HandleConnection,
-				HostID:    serverID,
+				HostID:    cfg.HostUUID,
 				DataDir:   cfg.DataDir,
 			})
 
@@ -4417,12 +4424,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		proxyRouter = router
 	}
 
-	// read the host UUID:
-	serverID, err := hostid.ReadOrCreateFile(cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
 		Semaphores:     accessPoint,
 		AccessPoint:    accessPoint,
@@ -4431,7 +4432,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Component:      teleport.ComponentProxy,
 		Logger:         process.log.WithField(teleport.ComponentKey, "sessionctrl"),
 		TracerProvider: process.TracingProvider,
-		ServerID:       serverID,
+		ServerID:       cfg.HostUUID,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4742,6 +4743,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		"",
 		process.proxyPublicAddr(),
 		conn.Client,
+		regular.SetUUID(cfg.HostUUID),
 		regular.SetLimiter(proxyLimiter),
 		regular.SetProxyMode(peerAddrString, tsrv, accessPoint, proxyRouter),
 		regular.SetCiphers(cfg.Ciphers),
@@ -4840,7 +4842,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:    accessPoint,
 		LockWatcher:    lockWatcher,
 		Clock:          process.Clock,
-		ServerID:       serverID,
+		ServerID:       cfg.HostUUID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
 		Logger:         process.log,
@@ -6336,7 +6338,6 @@ func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) 
 		select {
 		case <-ticker.C:
 			publicAddr, err := app.FindPublicAddr(authClient, a.PublicAddr, a.Name)
-
 			if err == nil {
 				return publicAddr, nil
 			}
@@ -6354,144 +6355,6 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 		return nil, trace.Wrap(err)
 	}
 	return fs, nil
-}
-
-// readOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.
-// If the read operation returns no `host_uuid`, this function tries to pick it from the first static identity provided.
-// If no static identities were defined for the process, a new id is generated depending on the joining process:
-// - types.JoinMethodEC2: we will use the EC2 NodeID: {accountID}-{nodeID}
-// - Any other valid Joining method: a new UUID is generated.
-// Finally, if a new id is generated, this function writes it into local storage and Kubernetes storage (if available).
-// If kubeBackend is nil, the agent is not running in a Kubernetes Cluster.
-func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) (err error) {
-	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
-	// readHostUUIDFromStorages will try to read the `host_uuid` from the Kubernetes Secret. If the
-	// key is empty or if not running in a Kubernetes Cluster, it will read the
-	// `host_uuid` from local data directory.
-	cfg.HostUUID, err = readHostIDFromStorages(ctx, cfg.DataDir, kubeBackend)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			if errors.Is(err, fs.ErrPermission) {
-				cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
-			}
-			return trace.Wrap(err)
-		}
-		// if there's no host uuid initialized yet, try to read one from the
-		// one of the identities
-		if len(cfg.Identities) != 0 {
-			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
-			cfg.Logger.InfoContext(ctx, "Taking host UUID from first identity.", "host_uuid", cfg.HostUUID)
-		} else {
-			switch cfg.JoinMethod {
-			case types.JoinMethodToken,
-				types.JoinMethodUnspecified,
-				types.JoinMethodIAM,
-				types.JoinMethodCircleCI,
-				types.JoinMethodKubernetes,
-				types.JoinMethodGitHub,
-				types.JoinMethodGitLab,
-				types.JoinMethodAzure,
-				types.JoinMethodGCP,
-				types.JoinMethodTPM,
-				types.JoinMethodTerraformCloud:
-				// Checking error instead of the usual uuid.New() in case uuid generation
-				// fails due to not enough randomness. It's been known to happen happen when
-				// Teleport starts very early in the node initialization cycle and /dev/urandom
-				// isn't ready yet.
-				rawID, err := uuid.NewRandom()
-				if err != nil {
-					return trace.BadParameter("" +
-						"Teleport failed to generate host UUID. " +
-						"This may happen if randomness source is not fully initialized when the node is starting up. " +
-						"Please try restarting Teleport again.")
-				}
-				cfg.HostUUID = rawID.String()
-			case types.JoinMethodEC2:
-				cfg.HostUUID, err = utils.GetEC2NodeID(ctx)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			default:
-				return trace.BadParameter("unknown join method %q", cfg.JoinMethod)
-			}
-			cfg.Logger.InfoContext(ctx, "Generating new host UUID", "host_uuid", cfg.HostUUID)
-		}
-		// persistHostUUIDToStorages will persist the host_uuid to the local storage
-		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
-		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-// kubernetesBackend interface for kube storage backend.
-type kubernetesBackend interface {
-	// Put puts value into backend (creates if it does not
-	// exists, updates it otherwise)
-	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
-	// Get returns a single item or not found error
-	Get(ctx context.Context, key backend.Key) (*backend.Item, error)
-}
-
-// readHostIDFromStorages tries to read the `host_uuid` value from different storages,
-// depending on where the process is running.
-// If the process is running in a Kubernetes Cluster, this function will attempt
-// to read the `host_uuid` from the Kubernetes Secret. If it does not exist or
-// if it is not running on a Kubernetes cluster the read is done from the local
-// storage: `dataDir/host_uuid`.
-func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kubernetesBackend) (string, error) {
-	if kubeBackend != nil {
-		if hostID, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err == nil && len(hostID) > 0 {
-			return hostID, nil
-		}
-	}
-	// Even if running in Kubernetes fallback to local storage if `host_uuid` was
-	// not found in secret.
-	hostID, err := hostid.ReadFile(dataDir)
-	return hostID, trace.Wrap(err)
-}
-
-// persistHostIDToStorages writes the cfg.HostUUID to local data and to
-// Kubernetes Secret if this process is running on a Kubernetes Cluster.
-func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) error {
-	if err := hostid.WriteFile(cfg.DataDir, cfg.HostUUID); err != nil {
-		if errors.Is(err, fs.ErrPermission) {
-			cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
-		}
-		return trace.Wrap(err)
-	}
-
-	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
-	// This is required because `host_uuid` is part of the client secret
-	// and Auth connection will fail if we present a different `host_uuid`.
-	if kubeBackend != nil {
-		return trace.Wrap(writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID))
-	}
-	return nil
-}
-
-// loadHostIDFromKubeSecret reads the host_uuid from the Kubernetes secret with
-// the expected key: `/host_uuid`.
-func loadHostIDFromKubeSecret(ctx context.Context, kubeBackend kubernetesBackend) (string, error) {
-	item, err := kubeBackend.Get(ctx, backend.NewKey(hostid.FileName))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(item.Value), nil
-}
-
-// writeHostIDToKubeSecret writes the `host_uuid` into the Kubernetes secret under
-// the key `/host_uuid`.
-func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend, id string) error {
-	_, err := kubeBackend.Put(
-		ctx,
-		backend.Item{
-			Key:   backend.NewKey(hostid.FileName),
-			Value: []byte(id),
-		},
-	)
-	return trace.Wrap(err)
 }
 
 // initPublicGRPCServer creates and registers a gRPC server that does not use client

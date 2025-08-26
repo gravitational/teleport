@@ -2,6 +2,9 @@
 title: Run the PagerDuty Access Request Plugin
 sidebar_label: PagerDuty
 description: How to set up Teleport's PagerDuty plugin for privilege elevation approvals.
+labels:
+ - how-to
+ - identity-governance
 ---
 
 With Teleport's PagerDuty integration, engineers can access the infrastructure
@@ -567,7 +570,7 @@ Request](../../../img/enterprise/plugins/pagerduty/new-access-req-incident.png)
 
 (!docs/pages/includes/plugins/resolve-request.mdx!)
 
-<Admonition title="Auditing Access Requests">
+<Admonition type="warning" title="Auditing Access Requests">
 
 When the PagerDuty plugin sends a notification, anyone who receives the
 notification can follow the enclosed link to an Access Request URL. While users

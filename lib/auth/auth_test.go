@@ -37,6 +37,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -72,11 +74,14 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -420,7 +425,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 
 func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 	// Can't t.Parallel because of modules.SetTestModules.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -2369,7 +2374,7 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 }
 
 func TestGenerateUserCertIPPinning(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newAuthSuite(t)
 
@@ -3007,7 +3012,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				MockAttestationData: tt.mockAttestationData,
 			})
 
@@ -4020,6 +4025,18 @@ func TestFilterResources(t *testing.T) {
 	}
 }
 
+type fakeCloudClientProvider struct{}
+
+// GetAWSSTSClient returns AWS STS client for the specified region.
+func (fakeCloudClientProvider) GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (stsiface.STSAPI, error) {
+	return nil, trace.NotImplemented("")
+}
+
+// GetAWSKMSClient returns AWS KMS client for the specified region.
+func (fakeCloudClientProvider) GetAWSKMSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (kmsiface.KMSAPI, error) {
+	return nil, trace.NotImplemented("")
+}
+
 func TestCAGeneration(t *testing.T) {
 	ctx := context.Background()
 	const (
@@ -4030,16 +4047,20 @@ func TestCAGeneration(t *testing.T) {
 	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	keyStore := keystore.NewSoftwareKeystoreForTests(t,
-		keystore.WithRSAKeyPairSource(func() (priv []byte, pub []byte, err error) {
+	keyStoreManager, err := keystore.NewManager(ctx, &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:  &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
+		CloudClients: fakeCloudClientProvider{},
+		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
 			return privKey, pubKey, nil
-		}),
-	)
+		},
+	})
+	require.NoError(t, err)
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
 			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
-			keySet, err := newKeySet(ctx, keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
+
+			keySet, err := newKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
 			// Don't compare values as those are different. Only check if the key is set/not set in both cases.
@@ -4321,14 +4342,14 @@ func TestAccessRequestNotifications(t *testing.T) {
 func TestServer_GetAnonymizationKey(t *testing.T) {
 	tests := []struct {
 		name        string
-		testModules *modules.TestModules
+		testModules modulestest.Modules
 		license     *license.License
 		want        string
 		errCheck    require.ErrorAssertionFunc
 	}{
 		{
 			name: "returns CloudAnonymizationKey if present",
-			testModules: &modules.TestModules{
+			testModules: modulestest.Modules{
 				TestFeatures: modules.Features{CloudAnonymizationKey: []byte("cloud-key")},
 			},
 			license: &license.License{
@@ -4339,7 +4360,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 		},
 		{
 			name:        "Returns license AnonymizationKey if no Cloud Key is present",
-			testModules: &modules.TestModules{},
+			testModules: modulestest.Modules{},
 			license: &license.License{
 				AnonymizationKey: []byte("license-key"),
 			},
@@ -4348,7 +4369,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 		},
 		{
 			name:        "Returns clusterID if no cloud key nor license key is present",
-			testModules: &modules.TestModules{},
+			testModules: modulestest.Modules{},
 			license:     &license.License{},
 			want:        "cluster-id",
 			errCheck:    require.NoError,
@@ -4369,7 +4390,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
 
-			modules.SetTestModules(t, tt.testModules)
+			modulestest.SetTestModules(t, tt.testModules)
 
 			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
 
@@ -4383,7 +4404,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 func TestCreateAuthPreference(t *testing.T) {
 	cases := []struct {
 		name       string
-		modules    modules.Modules
+		modules    *modulestest.Modules
 		preference func(p types.AuthPreference)
 		assertion  func(t *testing.T, created types.AuthPreference, err error)
 	}{
@@ -4400,7 +4421,7 @@ func TestCreateAuthPreference(t *testing.T) {
 		},
 		{
 			name:    "creation allowed when hardware key policy is set in enterprise",
-			modules: &modules.TestModules{TestBuildType: modules.BuildEnterprise},
+			modules: &modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 			preference: func(p types.AuthPreference) {
 				pp := p.(*types.AuthPreferenceV2)
 				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
@@ -4427,7 +4448,7 @@ func TestCreateAuthPreference(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			if test.modules != nil {
-				modules.SetTestModules(t, test.modules)
+				modulestest.SetTestModules(t, *test.modules)
 			}
 
 			bk, err := memory.New(memory.Config{})

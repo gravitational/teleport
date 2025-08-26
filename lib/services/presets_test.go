@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestAddRoleDefaults(t *testing.T) {
@@ -672,7 +673,7 @@ func TestAddRoleDefaults(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.enterprise {
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					TestBuildType: modules.BuildEnterprise,
 				})
 			}

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestMain(m *testing.M) {
@@ -51,7 +52,7 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -98,7 +99,7 @@ func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,

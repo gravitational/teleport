@@ -751,7 +751,7 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 	}
 
 	if _, err := user.Lookup(c.Login); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
+		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound("%s", err)
 	}
 
 	// build forwarder from first extra file that was passed to command

@@ -60,9 +60,7 @@ const (
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
-	reservedFreeDisk = 10_000_000
-	// debugSocketFileName is the name of Teleport's debug socket in the data dir.
-	debugSocketFileName = "debug.sock" // 10 MB
+	reservedFreeDisk = 10_000_000 // 10 MB
 	// requiredUmask must be set before this package can be used.
 	// Use syscall.Umask to set when no other goroutines are running.
 	requiredUmask = 0o022
@@ -119,7 +117,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		cfg.SystemDir = packageSystemDir
 	}
 	validator := Validator{Log: cfg.Log}
-	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
+	debugClient := debug.NewClient(ns.dataDir)
 	return &Updater{
 		Log:                 cfg.Log,
 		Pool:                certPool,

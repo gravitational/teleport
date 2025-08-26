@@ -53,6 +53,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1119,7 +1120,7 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 	// Allow resource access requests to be created.
 	currentModules := modules.GetModules()
 	t.Cleanup(func() { modules.SetModules(currentModules) })
-	modules.SetModules(&modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)

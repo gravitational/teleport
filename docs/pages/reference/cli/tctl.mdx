@@ -1,6 +1,9 @@
 ---
 title: tctl CLI reference
 description: Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
+labels:
+ - reference
+ - platform-wide
 ---
 
 `tctl` is a CLI tool that allows a cluster administrator to manage all resources
@@ -46,7 +49,7 @@ file, then the configuration file is ignored.
 
   To provide an accurate audit trail, it is important to limit direct SSH access
   to the Auth Service with
-  [Access Controls](../../admin-guides/access-controls/access-controls.mdx) and ensure that
+  [Access Controls](../../zero-trust-access/access-controls/access-controls.mdx) and ensure that
   admins use `tctl` remotely instead.
 
 </Admonition>
@@ -1263,7 +1266,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../admin-guides/access-controls/sso/google-workspace.mdx) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../zero-trust-access/sso/google-workspace.mdx) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 ### Global flags
@@ -1575,11 +1578,17 @@ $ tctl tokens rm [<token>]
 
 Reports diagnostic information.
 
-The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr=<bind-addr>` for `tctl top` to work.
+`tctl top` can consume metrics from a HTTP diagnostic endpoint.
 
 ```code
 $ tctl top [<diag-addr>] [<refresh>]
 ```
+
+When a specific endpoint is provided, `tctl top` will always attempt to connect to it.
+The endpoint should be a valid HTTP URL, corresponding to a matching
+diagnostic metrics service configuration such as `teleport start --diag-addr=<bind-addr>`.
+
+When no endpoint is specified, `tctl top` will attempt to connect via the debug UNIX socket endpoint, falling back to localhost.
 
 ### Argument
 
@@ -1592,6 +1601,8 @@ $ tctl top [<diag-addr>] [<refresh>]
 $ sudo teleport start --diag-addr=127.0.0.1:3000
 # View stats with a refresh period of 5 seconds
 $ tctl top http://127.0.0.1:3000 5s
+# Use configured defaults
+$ tctl top
 ```
 
 ## tctl users add

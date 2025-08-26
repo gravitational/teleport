@@ -270,12 +270,14 @@ func (p *AgentPool) run() error {
 		if err != nil {
 			if p.ctx.Err() != nil {
 				return nil
-			} else if isProxyAlreadyClaimed(err) {
+			}
+
+			if isProxyAlreadyClaimed(err) && !p.IsRemoteCluster {
 				// "proxy already claimed" is a fairly benign error, we should not
 				// spam the log with stack traces for it
-				p.log.Debugf("Failed to connect agent: %v.", err)
+				p.log.Debugf("Failed to establish reverse tunnel: %v.", trace.Unwrap(err))
 			} else {
-				p.log.WithError(err).Debugf("Failed to connect agent.")
+				p.log.WithError(err).Warn("Failed to establish reverse tunnel")
 			}
 		} else {
 			p.wg.Add(1)

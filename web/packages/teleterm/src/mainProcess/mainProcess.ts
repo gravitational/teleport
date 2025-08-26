@@ -133,6 +133,13 @@ export default class MainProcess {
     );
   }
 
+  /**
+   * create starts necessary child processes such as tsh daemon and the shared process. It also sets
+   * up IPC handlers and resolves the network addresses under which the child processes set up gRPC
+   * servers.
+   *
+   * create might throw an error if spawning a child process fails, see initTshd for more details.
+   */
   static create(opts: Options) {
     const instance = new MainProcess(opts);
     instance.init();
@@ -158,15 +165,10 @@ export default class MainProcess {
   private init() {
     this.updateAboutPanelIfNeeded();
     this.setAppMenu();
-    try {
-      this.initTshd();
-      this.initSharedProcess();
-      this.initResolvingChildProcessAddresses();
-      this.initIpc();
-    } catch (err) {
-      this.logger.error('Failed to start main process: ', err.message);
-      app.exit(1);
-    }
+    this.initTshd();
+    this.initSharedProcess();
+    this.initResolvingChildProcessAddresses();
+    this.initIpc();
   }
 
   async initTshdClient(): Promise<TshdClient> {
@@ -181,6 +183,15 @@ export default class MainProcess {
     const { binaryPath, homeDir } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
+    // spawn might either fail immediately by throwing an error or cause the error event to be emitted
+    // on the process value returned by spawn.
+    //
+    // Some spawn failures result in an error being thrown immediately such as EPERM on Windows [1].
+    // This might be related to the fact that in Node.js, an error event causes an error to be
+    // thrown if there are no listeners for the error event itself [2].
+    //
+    // [1] https://stackoverflow.com/a/42262771
+    // [2] https://nodejs.org/docs/latest-v22.x/api/errors.html#error-propagation-and-interception
     this.tshdProcess = spawn(
       binaryPath,
       ['daemon', 'start', ...this.getTshdFlags()],
@@ -607,13 +618,17 @@ export default class MainProcess {
       {
         windowsHide: true,
         timeout: 2_000,
+        env: {
+          ...process.env,
+          [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+        },
       }
     );
     daemonStop.on('error', error => {
       logger.error('daemon stop process failed to start', error);
     });
     daemonStop.stderr.setEncoding('utf-8');
-    daemonStop.stderr.on('data', logger.error);
+    daemonStop.stderr.on('data', data => logger.error(data));
   }
 
   private logProcessExitAndError(

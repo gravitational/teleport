@@ -300,8 +300,11 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 	if err != nil {
 		return trace.Wrap(err, "fetching CRL set from cache")
 	}
+	renewalInterval := s.botCfg.RenewalInterval
 
 	var svids []*workloadpb.X509SVID
+	renewalTimer := time.NewTimer(renewalInterval)
+	defer renewalTimer.Stop()
 	for {
 		log.InfoContext(ctx, "Starting to issue X509 SVIDs to workload")
 
@@ -311,6 +314,10 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			// Reset our renewal timer to renew these freshly fetched SVIDs
+			// renewal_interval from now.
+			renewalTimer.Reset(renewalInterval)
+
 			// The SPIFFE Workload API (5.2.1):
 			//
 			//   If the client is not entitled to receive any X509-SVIDs, then the
@@ -325,7 +332,6 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 					"workload did not pass attestation for any SVIDs",
 				)
 			}
-
 		}
 
 		resp := &workloadpb.X509SVIDResponse{
@@ -369,7 +375,7 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			log.DebugContext(ctx, "CRL set has been updated, distributing to client")
 			crlSet = newCRLSet
 			continue
-		case <-time.After(s.botCfg.RenewalInterval):
+		case <-renewalTimer.C:
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue

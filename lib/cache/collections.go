@@ -45,6 +45,8 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -1439,7 +1441,27 @@ var _ executor[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter]
 type userExecutor struct{}
 
 func (userExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.User, error) {
-	return cache.Users.GetUsers(ctx, loadSecrets)
+	fn := func(ctx context.Context, pageSize int, token string) ([]types.User, string, error) {
+		rsp, err := cache.Users.ListUsers(ctx, &userspb.ListUsersRequest{
+			WithSecrets: loadSecrets,
+			PageSize:    int32(pageSize),
+			PageToken:   token,
+		})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		out := make([]types.User, 0, len(rsp.Users))
+		for _, user := range rsp.Users {
+			out = append(out, user)
+		}
+
+		return out, rsp.NextPageToken, nil
+	}
+
+	// Use clientutils for auto pagesize backoff.
+	out, err := stream.Collect(clientutils.Resources(ctx, fn))
+	return out, trace.Wrap(err)
 }
 
 func (userExecutor) upsert(ctx context.Context, cache *Cache, resource types.User) error {
@@ -1670,7 +1692,13 @@ var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = dat
 type appExecutor struct{}
 
 func (appExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Application, error) {
-	return cache.Apps.GetApps(ctx)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Apps.ListApps))
+	// TODO(tross): DELETE IN v21.0.0
+	if trace.IsNotImplemented(err) {
+		apps, err := cache.Apps.GetApps(ctx)
+		return apps, trace.Wrap(err)
+	}
+	return out, trace.Wrap(err)
 }
 
 func (appExecutor) upsert(ctx context.Context, cache *Cache, resource types.Application) error {

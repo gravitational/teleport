@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"net/url"
 	"os"
@@ -6409,6 +6410,64 @@ func (a *ServerWithRoles) GetApps(ctx context.Context) (result []types.Applicati
 	return result, nil
 }
 
+// ListApps returns a page of application resources.
+func (a *ServerWithRoles) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var nextKey string
+	var count int
+	var done bool
+	results, err := stream.Collect(
+		stream.FilterMap(
+			stream.PageFunc(func() ([]types.Application, error) {
+				if done {
+					return nil, io.EOF
+				}
+				apps, next, err := a.authServer.ListApps(ctx, limit, startKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				startKey = next
+				if next == "" {
+					done = true
+				}
+				return apps, nil
+			}),
+			func(app types.Application) (types.Application, bool) {
+				// Checking done here could cause loss of applications
+				// if there is only one page.
+				if nextKey != "" {
+					return nil, false
+				}
+
+				if err := a.checkAccessToApp(app); err != nil {
+					return nil, false
+				}
+
+				if count >= limit {
+					done = true
+					nextKey = app.GetName()
+					return nil, false
+				}
+
+				count++
+				return app, true
+			}),
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return results, nextKey, nil
+}
+
 // DeleteApp removes the specified application resource.
 func (a *ServerWithRoles) DeleteApp(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbDelete); err != nil {
@@ -7855,22 +7914,22 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 	target := lock.Target()
 	switch {
 	case !target.Equals(types.LockTarget{User: target.User}):
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 
 	case target.User == "":
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 	}
 
 	targetUser, err := users.GetUser(ctx, target.User, false /* withSecrets */)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.AccessDenied(errorMsg)
+			return trace.AccessDenied("%s", errorMsg)
 		}
 		return trace.Wrap(err)
 	}
 
 	if targetUser.Origin() != types.OriginOkta {
-		return trace.AccessDenied(errorMsg)
+		return trace.AccessDenied("%s", errorMsg)
 	}
 
 	return nil

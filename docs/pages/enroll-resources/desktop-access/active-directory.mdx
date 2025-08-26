@@ -3,6 +3,9 @@ title: Configure access for Active Directory manually
 description: Explains how to manually connect Teleport to an Active Directory domain.
 videoBanner: YvMqgcq0MTQ
 tocDepth: 3
+labels:
+ - how-to
+ - zero-trust
 ---
 
 This guide demonstrates how to connect an Active Directory domain and how to log
@@ -31,7 +34,7 @@ To complete the steps in this guide, verify your environment meets the following
   ```
 
   You can download these tools by following the appropriate [Installation
-  instructions](../../installation.mdx#linux) for the Teleport
+  instructions](../../installation/linux.mdx) for the Teleport
   edition you use.
 
 - A Linux server to run the Teleport Windows Desktop Service.
@@ -838,6 +841,8 @@ on any hosts running the Teleport's `windows_desktop_service`. Note that NLA is
 only supported when connecting to hosts that are part of an Active Directory
 domain. Teleport will not perform NLA when connecting to hosts as a local
 Windows user.
+
+NLA is not supported when Teleport runs in FIPS mode.
 
 ### Computer Name
 

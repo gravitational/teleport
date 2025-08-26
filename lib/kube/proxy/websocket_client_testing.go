@@ -37,6 +37,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/portforward"
 	clientremotecommand "k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
 
@@ -132,6 +133,15 @@ func newWebSocketClient(config *rest.Config, method string, u *url.URL, opts ...
 //	CLOSE
 func (e *wsStreamClient) StreamWithContext(_ context.Context, options clientremotecommand.StreamOptions) error {
 	return trace.Wrap(e.Stream(options))
+}
+
+func (e *wsStreamClient) GetPorts() ([]portforward.ForwardedPort, error) {
+	return []portforward.ForwardedPort{
+		{
+			Local:  uint16(e.listener.Addr().(*net.TCPAddr).Port),
+			Remote: 8080,
+		},
+	}, nil
 }
 
 // Stream copies the contents from stdin into the connection and respective stdout and stderr
@@ -463,7 +473,7 @@ func (e *wsStreamClient) handlePortForwardRequest(conn net.Conn, remoteConn *gwe
 						return
 					}
 				case portforwardErrChan:
-					err := trace.Errorf(string(buf[1:]))
+					err := trace.Errorf("%s", string(buf[1:]))
 					errChan <- trace.Wrap(err)
 					// Once we receive an error from streamErr, we must stop processing.
 					// The server also stops the execution and closes the connection.

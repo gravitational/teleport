@@ -37,6 +37,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
@@ -390,7 +391,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("Cloud prohibits adding leaf clusters", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{Cloud: true},
 		})
 
@@ -583,7 +584,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("Cloud prohibits being a leaf cluster", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{Cloud: true},
 		})
 

@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
@@ -55,7 +56,7 @@ import (
 
 func TestIsApprovedFileTransfer(t *testing.T) {
 	// set enterprise for tests
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -661,7 +662,7 @@ func TestNonInteractiveSession(t *testing.T) {
 
 // TestStopUnstarted tests that a session may be stopped before it launches.
 func TestStopUnstarted(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -1642,12 +1643,12 @@ func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.Hos
 
 func (f *fakeHostUsersBackend) UserExists(name string) error {
 	if f.users == nil {
-		return trace.NotFound(name)
+		return trace.NotFound("%s", name)
 	}
 
 	_, exists := f.users[name]
 	if !exists {
-		return trace.NotFound(name)
+		return trace.NotFound("%s", name)
 	}
 
 	return nil

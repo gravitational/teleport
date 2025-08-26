@@ -16,576 +16,310 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import activemq from './assets/activemq.svg';
-import adobe from './assets/adobe.svg';
-import adobecreativecloudDark from './assets/adobecreativecloud-dark.svg';
-import adobecreativecloudLight from './assets/adobecreativecloud-light.svg';
-import adobemarketo from './assets/adobemarketo.svg';
-import airbase from './assets/airbase.svg';
-import airtable from './assets/airtable.svg';
-import algoliaDark from './assets/algolia-dark.svg';
-import algoliaLight from './assets/algolia-light.svg';
-import altisalesDark from './assets/altisales-dark.svg';
-import altisalesLight from './assets/altisales-light.svg';
-import ansibleDark from './assets/ansible-dark.svg';
-import ansibleLight from './assets/ansible-light.svg';
-import anthem from './assets/anthem.svg';
-import apolloIoDark from './assets/apollo.io-dark.svg';
-import apolloIoLight from './assets/apollo.io-light.svg';
-import appleDark from './assets/apple-dark.svg';
-import appleLight from './assets/apple-light.svg';
-import application from './assets/application.svg';
-import argocd from './assets/argocd.svg';
-import asana from './assets/asana.svg';
-import assembleDark from './assets/assemble-dark.svg';
-import assembleLight from './assets/assemble-light.svg';
-import atlassian from './assets/atlassian.svg';
-import atlassianbitbucket from './assets/atlassianbitbucket.svg';
-import atlassianjiraservicemanagement from './assets/atlassianjiraservicemanagement.svg';
-import atlassianstatuspage from './assets/atlassianstatuspage.svg';
-import auth0Dark from './assets/auth0-dark.svg';
-import auth0Light from './assets/auth0-light.svg';
-import avalara from './assets/avalara.svg';
-import awsDark from './assets/aws-dark.svg';
-import awsLight from './assets/aws-light.svg';
-import azure from './assets/azure.svg';
-import bill from './assets/bill.svg';
-import bonusly from './assets/bonusly.svg';
-import box from './assets/box.svg';
-import browserstack from './assets/browserstack.svg';
-import calendly from './assets/calendly.svg';
-import calm from './assets/calm.svg';
-import captivateiqDark from './assets/captivateiq-dark.svg';
-import captivateiqLight from './assets/captivateiq-light.svg';
-import careermindsDark from './assets/careerminds-dark.svg';
-import careermindsLight from './assets/careerminds-light.svg';
-import cartaDark from './assets/carta-dark.svg';
-import cartaLight from './assets/carta-light.svg';
-import checkly from './assets/checkly.svg';
-import checkr from './assets/checkr.svg';
-import ciliumDark from './assets/cilium-dark.svg';
-import ciliumLight from './assets/cilium-light.svg';
-import circleciDark from './assets/circleci-dark.svg';
-import circleciLight from './assets/circleci-light.svg';
-import clari from './assets/clari.svg';
-import clearbit from './assets/clearbit.svg';
-import clearfeed from './assets/clearfeed.svg';
-import clickhouseDark from './assets/clickhouse-dark.svg';
-import clickhouseLight from './assets/clickhouse-light.svg';
-import cloudflare from './assets/cloudflare.svg';
-import cloudzero from './assets/cloudzero.svg';
-import cockroachDark from './assets/cockroach-dark.svg';
-import cockroachLight from './assets/cockroach-light.svg';
-import coefficientDark from './assets/coefficient-dark.svg';
-import coefficientLight from './assets/coefficient-light.svg';
-import conveyor from './assets/conveyor.svg';
-import cronitor from './assets/cronitor.svg';
-import cultureampDark from './assets/cultureamp-dark.svg';
-import cultureampLight from './assets/cultureamp-light.svg';
-import database from './assets/database.svg';
-import datadogDark from './assets/datadog-dark.svg';
-import datadogLight from './assets/datadog-light.svg';
-import dealhub from './assets/dealhub.svg';
-import deelDark from './assets/deel-dark.svg';
-import deelLight from './assets/deel-light.svg';
-import desktop from './assets/desktop.svg';
-import digicertDark from './assets/digicert-dark.svg';
-import digicertLight from './assets/digicert-light.svg';
-import digitalocean from './assets/digitalocean.svg';
-import discord from './assets/discord.svg';
-import dmarcian from './assets/dmarcian.svg';
-import dockerDark from './assets/docker-dark.svg';
-import dockerLight from './assets/docker-light.svg';
-import docusignDark from './assets/docusign-dark.svg';
-import docusignLight from './assets/docusign-light.svg';
-import donut from './assets/donut.svg';
-import drataDark from './assets/drata-dark.svg';
-import drataLight from './assets/drata-light.svg';
-import driftDark from './assets/drift-dark.svg';
-import driftLight from './assets/drift-light.svg';
-import dropbox from './assets/dropbox.svg';
-import duoDark from './assets/duo-dark.svg';
-import duoLight from './assets/duo-light.svg';
-import dynamo from './assets/dynamo.svg';
-import ec2 from './assets/ec2.svg';
-import eks from './assets/eks.svg';
-import elastic from './assets/elastic.svg';
-import emailDark from './assets/email-dark.svg';
-import emailLight from './assets/email-light.svg';
-import entraid from './assets/entra-id.svg';
-import eventbrite from './assets/eventbrite.svg';
-import excalidraw from './assets/excalidraw.svg';
-import figma from './assets/figma.svg';
-import fontawesome from './assets/fontawesome.svg';
-import foqal from './assets/foqal.svg';
-import fossa from './assets/fossa.svg';
-import frameIoDark from './assets/frame.io-dark.svg';
-import frameIoLight from './assets/frame.io-light.svg';
-import g2 from './assets/g2.svg';
-import gable from './assets/gable.svg';
-import gemDark from './assets/gem-dark.svg';
-import gemLight from './assets/gem-light.svg';
-import githubDark from './assets/github-dark.svg';
-import githubLight from './assets/github-light.svg';
-import gitlab from './assets/gitlab.svg';
-import gmail from './assets/gmail.svg';
-import go1Dark from './assets/go1-dark.svg';
-import go1Light from './assets/go1-light.svg';
-import goldcast from './assets/goldcast.svg';
-import google from './assets/google.svg';
-import googleanalytics from './assets/googleanalytics.svg';
-import googlecalendar from './assets/googlecalendar.svg';
-import googlecloud from './assets/googlecloudprovider.svg';
-import googledrive from './assets/googledrive.svg';
-import googletag from './assets/googletagmanager.svg';
-import googlevoice from './assets/googlevoice.svg';
-import grafana from './assets/grafana.svg';
-import grammarly from './assets/grammarly.svg';
-import grubhub from './assets/grubhub.svg';
-import guidelineDark from './assets/guideline-dark.svg';
-import guidelineLight from './assets/guideline-light.svg';
-import hackeroneDark from './assets/hackerone-dark.svg';
-import hackeroneLight from './assets/hackerone-light.svg';
-import headliner from './assets/headliner.svg';
-import hootsuite from './assets/hootsuite.svg';
-import ibmDark from './assets/ibm-dark.svg';
-import ibmLight from './assets/ibm-light.svg';
-import inkeep from './assets/inkeep.svg';
-import instruqtDark from './assets/instruqt-dark.svg';
-import instruqtLight from './assets/instruqt-light.svg';
-import intellimize from './assets/intellimize.svg';
-import ipstack from './assets/ipstack.svg';
-import jamf from './assets/jamf.svg';
-import jenkins from './assets/jenkins.svg';
-import jetbrains from './assets/jetbrains.svg';
-import jira from './assets/jira.svg';
-import kaiserDark from './assets/kaiser-dark.svg';
-import kaiserLight from './assets/kaiser-light.svg';
-import kisiDark from './assets/kisi-dark.svg';
-import kisiLight from './assets/kisi-light.svg';
-import kollide from './assets/kollide.svg';
-import kube from './assets/kube.svg';
-import kubeserver from './assets/kubeserver.svg';
-import laptop from './assets/laptop.svg';
-import leadiq from './assets/leadiq.svg';
-import leandata from './assets/leandata.svg';
-import lever from './assets/lever.svg';
-import linkedinDark from './assets/linkedin-dark.svg';
-import linkedinLight from './assets/linkedin-light.svg';
-import linuxDark from './assets/linux-dark.svg';
-import linuxLight from './assets/linux-light.svg';
-import loom from './assets/loom.svg';
-import lucidCoDark from './assets/lucid.co-dark.svg';
-import lucidCoLight from './assets/lucid.co-light.svg';
-import lushaDark from './assets/lusha-dark.svg';
-import lushaLight from './assets/lusha-light.svg';
-import mailgun from './assets/mailgun.svg';
-import mariadbDark from './assets/mariadb-dark.svg';
-import mariadbLight from './assets/mariadb-light.svg';
-import mattermostDark from './assets/mattermost-dark.svg';
-import mattermostLight from './assets/mattermost-light.svg';
-import maxioDark from './assets/maxio-dark.svg';
-import maxioLight from './assets/maxio-light.svg';
-import metabase from './assets/metabase.svg';
-import microsoft from './assets/microsoft.svg';
-import microsoftexcel from './assets/microsoftexcel.svg';
-import microsoftonedrive from './assets/microsoftonedrive.svg';
-import microsoftonenote from './assets/microsoftonenote.svg';
-import microsoftoutlook from './assets/microsoftoutlook.svg';
-import microsoftpowerpoint from './assets/microsoftpowerpoint.svg';
-import microsoftteams from './assets/microsoftteams.svg';
-import microsoftword from './assets/microsoftword.svg';
-import mongoDark from './assets/mongo-dark.svg';
-import mongoLight from './assets/mongo-light.svg';
-import mysqlLargeDark from './assets/mysql-large-dark.svg';
-import mysqlLargeLight from './assets/mysql-large-light.svg';
-import mysqlSmallDark from './assets/mysql-small-dark.svg';
-import mysqlSmallLight from './assets/mysql-small-light.svg';
-import namecheap from './assets/namecheap.svg';
-import navanDark from './assets/navan-dark.svg';
-import navanLight from './assets/navan-light.svg';
-import neverbounceDark from './assets/neverbounce-dark.svg';
-import neverbounceLight from './assets/neverbounce-light.svg';
-import notion from './assets/notion.svg';
-import oasisopen from './assets/oasisopen.svg';
-import oktaDark from './assets/okta-dark.svg';
-import oktaLight from './assets/okta-light.svg';
-import onehundredonedomain from './assets/onehundredonedomain.svg';
-import oneloginDark from './assets/onelogin-dark.svg';
-import oneloginLight from './assets/onelogin-light.svg';
-import onepasswordDark from './assets/onepassword-dark.svg';
-import onepasswordLight from './assets/onepassword-light.svg';
-import opencomp from './assets/opencomp.svg';
-import openid from './assets/openid.svg';
-import opsgenie from './assets/opsgenie.svg';
-import orbitLove from './assets/orbit.love.svg';
-import orcasecurityDark from './assets/orcasecurity-dark.svg';
-import orcasecurityLight from './assets/orcasecurity-light.svg';
-import outreachIo from './assets/outreach.io.svg';
-import pagerduty from './assets/pagerduty.svg';
-import pantherDark from './assets/panther-dark.svg';
-import pantherLight from './assets/panther-light.svg';
-import parallels from './assets/parallels.svg';
-import pingdom from './assets/pingdom.svg';
-import podigee from './assets/podigee.svg';
-import polleverywhere from './assets/polleverywhere.svg';
-import portswigger from './assets/portswigger.svg';
-import postgres from './assets/postgres.svg';
-import posthogDark from './assets/posthog-dark.svg';
-import posthogLight from './assets/posthog-light.svg';
-import productboard from './assets/productboard.svg';
-import prometheus from './assets/prometheus.svg';
-import qualified from './assets/qualified.svg';
-import quickbooks from './assets/quickbooks.svg';
-import rabbitmq from './assets/rabbitmq.svg';
-import rds from './assets/rds.svg';
-import redhat from './assets/redhat.svg';
-import redshift from './assets/redshift.svg';
-import ringlead from './assets/ringlead.svg';
-import ripplingDark from './assets/rippling-dark.svg';
-import ripplingLight from './assets/rippling-light.svg';
-import salesforce from './assets/salesforce.svg';
-import sanity from './assets/sanity.svg';
-import scimDark from './assets/scim-dark.svg';
-import scimLight from './assets/scim-light.svg';
-import securecodewarriorDark from './assets/securecodewarrior-dark.svg';
-import securecodewarriorLight from './assets/securecodewarrior-light.svg';
-import semrush from './assets/semrush.svg';
-import sendgrid from './assets/sendgrid.svg';
-import sentryDark from './assets/sentry-dark.svg';
-import sentryLight from './assets/sentry-light.svg';
-import sequoiaDark from './assets/sequoia-dark.svg';
-import sequoiaLight from './assets/sequoia-light.svg';
-import server from './assets/server.svg';
-import servicenow from './assets/servicenow.svg';
-import shopify from './assets/shopify.svg';
-import sixsenseDark from './assets/sixsense-dark.svg';
-import sixsenseLight from './assets/sixsense-light.svg';
-import skype from './assets/skype.svg';
-import slab from './assets/slab.svg';
-import slack from './assets/slack.svg';
-import snowflake from './assets/snowflake.svg';
-import spaceliftDark from './assets/spacelift-dark.svg';
-import spaceliftLight from './assets/spacelift-light.svg';
-import sparrow from './assets/sparrow.svg';
-import stripeDark from './assets/stripe-dark.svg';
-import stripeLight from './assets/stripe-light.svg';
-import tableau from './assets/tableau.svg';
-import terraform from './assets/terraform.svg';
-import torqDark from './assets/torq-dark.svg';
-import torqLight from './assets/torq-light.svg';
-import troopsAiDark from './assets/troops.ai-dark.svg';
-import troopsAiLight from './assets/troops.ai-light.svg';
-import twilio from './assets/twilio.svg';
-import twitterDark from './assets/twitter-dark.svg';
-import twitterLight from './assets/twitter-light.svg';
-import userorbitDark from './assets/userorbit-dark.svg';
-import userorbitLight from './assets/userorbit-light.svg';
-import validity from './assets/validity.svg';
-import valimail from './assets/valimail.svg';
-import varicentDark from './assets/varicent-dark.svg';
-import varicentLight from './assets/varicent-light.svg';
-import vendr from './assets/vendr.svg';
-import vercelDark from './assets/vercel-dark.svg';
-import vercelLight from './assets/vercel-light.svg';
-import weavegitops from './assets/weavegitops.svg';
-import windowsDark from './assets/windows-dark.svg';
-import windowsLight from './assets/windows-light.svg';
-import wizDark from './assets/wiz-dark.svg';
-import wizLight from './assets/wiz-light.svg';
-import workshopDark from './assets/workshop-dark.svg';
-import workshopLight from './assets/workshop-light.svg';
-import youtube from './assets/youtube.svg';
-import zapier from './assets/zapier.svg';
-import zendeskDark from './assets/zendesk-dark.svg';
-import zendeskLight from './assets/zendesk-light.svg';
-import zoom from './assets/zoom.svg';
-import zoominfo from './assets/zoominfo.svg';
-
-export {
-  activemq,
-  adobecreativecloudDark,
-  adobecreativecloudLight,
-  adobemarketo,
-  adobe,
-  airbase,
-  airtable,
-  algoliaDark,
-  algoliaLight,
-  altisalesDark,
-  altisalesLight,
-  ansibleDark,
-  ansibleLight,
-  anthem,
-  apolloIoDark,
-  apolloIoLight,
-  appleDark,
-  appleLight,
-  application,
-  argocd,
-  asana,
-  assembleDark,
-  assembleLight,
-  atlassianbitbucket,
-  atlassianjiraservicemanagement,
-  atlassianstatuspage,
-  atlassian,
-  auth0Dark,
-  auth0Light,
-  avalara,
-  awsDark,
-  awsLight,
-  azure,
-  bill,
-  bonusly,
-  box,
-  browserstack,
-  calendly,
-  calm,
-  captivateiqDark,
-  captivateiqLight,
-  careermindsDark,
-  careermindsLight,
-  cartaDark,
-  cartaLight,
-  checkly,
-  checkr,
-  circleciDark,
-  circleciLight,
-  clari,
-  clearbit,
-  clearfeed,
-  clickhouseDark,
-  clickhouseLight,
-  cloudflare,
-  cloudzero,
-  cockroachDark,
-  cockroachLight,
-  coefficientDark,
-  coefficientLight,
-  conveyor,
-  cronitor,
-  cultureampDark,
-  cultureampLight,
-  database,
-  datadogDark,
-  datadogLight,
-  dealhub,
-  deelDark,
-  deelLight,
-  desktop,
-  digicertDark,
-  digicertLight,
-  digitalocean,
-  discord,
-  dmarcian,
-  dockerDark,
-  dockerLight,
-  docusignDark,
-  docusignLight,
-  donut,
-  drataDark,
-  drataLight,
-  driftDark,
-  driftLight,
-  dropbox,
-  duoDark,
-  duoLight,
-  dynamo,
-  ec2,
-  eks,
-  elastic,
-  emailDark,
-  emailLight,
-  entraid,
-  eventbrite,
-  excalidraw,
-  figma,
-  fontawesome,
-  foqal,
-  fossa,
-  frameIoDark,
-  frameIoLight,
-  g2,
-  gable,
-  gemDark,
-  gemLight,
-  githubDark,
-  githubLight,
-  gitlab,
-  gmail,
-  go1Dark,
-  go1Light,
-  goldcast,
-  google,
-  googleanalytics,
-  googlecalendar,
-  googlecloud,
-  googledrive,
-  googletag,
-  googlevoice,
-  grafana,
-  grammarly,
-  grubhub,
-  guidelineDark,
-  guidelineLight,
-  hackeroneDark,
-  hackeroneLight,
-  headliner,
-  hootsuite,
-  ciliumDark,
-  ciliumLight,
-  ibmDark,
-  ibmLight,
-  inkeep,
-  instruqtDark,
-  instruqtLight,
-  intellimize,
-  ipstack,
-  jamf,
-  jenkins,
-  jetbrains,
-  jira,
-  kaiserDark,
-  kaiserLight,
-  kisiDark,
-  kisiLight,
-  kollide,
-  kube,
-  kubeserver,
-  laptop,
-  leadiq,
-  leandata,
-  lever,
-  linkedinDark,
-  linkedinLight,
-  linuxDark,
-  linuxLight,
-  loom,
-  lucidCoDark,
-  lucidCoLight,
-  lushaDark,
-  lushaLight,
-  mailgun,
-  mariadbDark,
-  mariadbLight,
-  mattermostDark,
-  mattermostLight,
-  maxioDark,
-  maxioLight,
-  metabase,
-  microsoft,
-  microsoftexcel,
-  microsoftonedrive,
-  microsoftonenote,
-  microsoftoutlook,
-  microsoftpowerpoint,
-  microsoftteams,
-  microsoftword,
-  mongoDark,
-  mongoLight,
-  mysqlLargeDark,
-  mysqlLargeLight,
-  mysqlSmallDark,
-  mysqlSmallLight,
-  namecheap,
-  navanDark,
-  navanLight,
-  neverbounceDark,
-  neverbounceLight,
-  notion,
-  oasisopen,
-  oktaDark,
-  oktaLight,
-  onehundredonedomain,
-  oneloginDark,
-  oneloginLight,
-  onepasswordDark,
-  onepasswordLight,
-  opencomp,
-  openid,
-  opsgenie,
-  orbitLove,
-  orcasecurityDark,
-  orcasecurityLight,
-  outreachIo,
-  pagerduty,
-  pantherDark,
-  pantherLight,
-  parallels,
-  pingdom,
-  podigee,
-  polleverywhere,
-  portswigger,
-  postgres,
-  posthogDark,
-  posthogLight,
-  productboard,
-  prometheus,
-  qualified,
-  quickbooks,
-  rabbitmq,
-  rds,
-  redhat,
-  redshift,
-  ringlead,
-  ripplingDark,
-  ripplingLight,
-  salesforce,
-  sanity,
-  scimDark,
-  scimLight,
-  securecodewarriorDark,
-  securecodewarriorLight,
-  semrush,
-  sendgrid,
-  sentryDark,
-  sentryLight,
-  sequoiaDark,
-  sequoiaLight,
-  server,
-  servicenow,
-  shopify,
-  sixsenseDark,
-  sixsenseLight,
-  skype,
-  slab,
-  slack,
-  snowflake,
-  spaceliftDark,
-  spaceliftLight,
-  sparrow,
-  stripeDark,
-  stripeLight,
-  tableau,
-  terraform,
-  torqDark,
-  torqLight,
-  troopsAiDark,
-  troopsAiLight,
-  twilio,
-  twitterDark,
-  twitterLight,
-  userorbitDark,
-  userorbitLight,
-  validity,
-  valimail,
-  varicentDark,
-  varicentLight,
-  vendr,
-  vercelDark,
-  vercelLight,
-  weavegitops,
-  windowsDark,
-  windowsLight,
-  wizDark,
-  wizLight,
-  workshopDark,
-  workshopLight,
-  youtube,
-  zapier,
-  zendeskDark,
-  zendeskLight,
-  zoom,
-  zoominfo,
-};
+// TODO(ravicious): Pass a function to assetsInlineLimit so that we don't have to remember about
+// adding the ?no-inline suffix.
+// https://vite.dev/config/build-options.html#build-assetsinlinelimit
+export { default as activemq } from './assets/activemq.svg';
+export { default as adobe } from './assets/adobe.svg';
+export { default as adobecreativecloudDark } from './assets/adobecreativecloud-dark.svg';
+export { default as adobecreativecloudLight } from './assets/adobecreativecloud-light.svg';
+export { default as adobemarketo } from './assets/adobemarketo.svg';
+export { default as airbase } from './assets/airbase.svg';
+export { default as airtable } from './assets/airtable.svg';
+export { default as algoliaDark } from './assets/algolia-dark.svg';
+export { default as algoliaLight } from './assets/algolia-light.svg';
+export { default as altisalesDark } from './assets/altisales-dark.svg';
+export { default as altisalesLight } from './assets/altisales-light.svg';
+export { default as ansibleDark } from './assets/ansible-dark.svg';
+export { default as ansibleLight } from './assets/ansible-light.svg';
+export { default as anthem } from './assets/anthem.svg';
+export { default as apolloIoDark } from './assets/apollo.io-dark.svg';
+export { default as apolloIoLight } from './assets/apollo.io-light.svg';
+export { default as appleDark } from './assets/apple-dark.svg';
+export { default as appleLight } from './assets/apple-light.svg';
+export { default as application } from './assets/application.svg';
+export { default as argocd } from './assets/argocd.svg';
+export { default as asana } from './assets/asana.svg';
+export { default as assembleDark } from './assets/assemble-dark.svg';
+export { default as assembleLight } from './assets/assemble-light.svg';
+export { default as atlassian } from './assets/atlassian.svg';
+export { default as atlassianbitbucket } from './assets/atlassianbitbucket.svg';
+export { default as atlassianjiraservicemanagement } from './assets/atlassianjiraservicemanagement.svg';
+export { default as atlassianstatuspage } from './assets/atlassianstatuspage.svg';
+export { default as auth0Dark } from './assets/auth0-dark.svg';
+export { default as auth0Light } from './assets/auth0-light.svg';
+export { default as avalara } from './assets/avalara.svg';
+export { default as awsDark } from './assets/aws-dark.svg';
+export { default as awsLight } from './assets/aws-light.svg';
+export { default as awsaurora } from './assets/awsaurora.svg';
+export { default as awscommandlineinterface } from './assets/awscommandlineinterface.svg';
+export { default as awsdynamodb } from './assets/awsdynamodb.svg';
+export { default as awsec2 } from './assets/awsec2.svg';
+export { default as awselasticache } from './assets/awselasticache.svg';
+export { default as awselasticblockstore } from './assets/awselasticblockstore.svg';
+export { default as awselasticcontainerservice } from './assets/awselasticcontainerservice.svg';
+export { default as awselasticsearchservice } from './assets/awselasticsearchservice.svg';
+export { default as awsfargate } from './assets/awsfargate.svg';
+export { default as awsiamidentitycenter } from './assets/awsiamidentitycenter.svg';
+export { default as awsidentityandaccessmanagementiam } from './assets/awsidentityandaccessmanagementiam.svg';
+export { default as awskeyspaces } from './assets/awskeyspaces.svg';
+export { default as awsmanagementconsole } from './assets/awsmanagementconsole.svg';
+export { default as awsmemorydb } from './assets/awsmemorydb.svg';
+export { default as awsrds } from './assets/awsrds.svg';
+export { default as awsredshift } from './assets/awsredshift.svg';
+export { default as awsredshift2 } from './assets/awsredshift2.svg';
+export { default as awssimplestorageservices3 } from './assets/awssimplestorageservices3.svg';
+export { default as awssinglesignon } from './assets/awssinglesignon.svg';
+export { default as azure } from './assets/azure.svg';
+export { default as bill } from './assets/bill.svg';
+export { default as bonusly } from './assets/bonusly.svg';
+export { default as box } from './assets/box.svg';
+export { default as browserstack } from './assets/browserstack.svg';
+export { default as calendly } from './assets/calendly.svg';
+export { default as calm } from './assets/calm.svg';
+export { default as captivateiqDark } from './assets/captivateiq-dark.svg';
+export { default as captivateiqLight } from './assets/captivateiq-light.svg';
+export { default as careermindsDark } from './assets/careerminds-dark.svg';
+export { default as careermindsLight } from './assets/careerminds-light.svg';
+export { default as cartaDark } from './assets/carta-dark.svg';
+export { default as cartaLight } from './assets/carta-light.svg';
+export { default as checkly } from './assets/checkly.svg';
+export { default as checkr } from './assets/checkr.svg';
+export { default as ciliumDark } from './assets/cilium-dark.svg';
+export { default as ciliumLight } from './assets/cilium-light.svg';
+export { default as circleciDark } from './assets/circleci-dark.svg';
+export { default as circleciLight } from './assets/circleci-light.svg';
+export { default as clari } from './assets/clari.svg';
+export { default as clearbit } from './assets/clearbit.svg';
+export { default as clearfeed } from './assets/clearfeed.svg';
+export { default as clickhouseDark } from './assets/clickhouse-dark.svg';
+export { default as clickhouseLight } from './assets/clickhouse-light.svg';
+export { default as cloudflare } from './assets/cloudflare.svg';
+export { default as cloudzero } from './assets/cloudzero.svg';
+export { default as cockroachDark } from './assets/cockroach-dark.svg';
+export { default as cockroachLight } from './assets/cockroach-light.svg';
+export { default as coefficientDark } from './assets/coefficient-dark.svg';
+export { default as coefficientLight } from './assets/coefficient-light.svg';
+export { default as conveyor } from './assets/conveyor.svg';
+export { default as cronitor } from './assets/cronitor.svg';
+export { default as cultureampDark } from './assets/cultureamp-dark.svg';
+export { default as cultureampLight } from './assets/cultureamp-light.svg';
+export { default as database } from './assets/database.svg';
+export { default as datadogDark } from './assets/datadog-dark.svg';
+export { default as datadogLight } from './assets/datadog-light.svg';
+export { default as dealhub } from './assets/dealhub.svg';
+export { default as deelDark } from './assets/deel-dark.svg';
+export { default as deelLight } from './assets/deel-light.svg';
+export { default as desktop } from './assets/desktop.svg';
+export { default as digicertDark } from './assets/digicert-dark.svg';
+export { default as digicertLight } from './assets/digicert-light.svg';
+export { default as digitalocean } from './assets/digitalocean.svg';
+export { default as discord } from './assets/discord.svg';
+export { default as dmarcian } from './assets/dmarcian.svg';
+export { default as dockerDark } from './assets/docker-dark.svg';
+export { default as dockerLight } from './assets/docker-light.svg';
+export { default as docusignDark } from './assets/docusign-dark.svg';
+export { default as docusignLight } from './assets/docusign-light.svg';
+export { default as donut } from './assets/donut.svg';
+export { default as drataDark } from './assets/drata-dark.svg';
+export { default as drataLight } from './assets/drata-light.svg';
+export { default as driftDark } from './assets/drift-dark.svg';
+export { default as driftLight } from './assets/drift-light.svg';
+export { default as dropbox } from './assets/dropbox.svg';
+export { default as duoDark } from './assets/duo-dark.svg';
+export { default as duoLight } from './assets/duo-light.svg';
+export { default as dynamo } from './assets/dynamo.svg';
+export { default as ec2 } from './assets/ec2.svg';
+export { default as eks } from './assets/eks.svg';
+export { default as elastic } from './assets/elastic.svg';
+export { default as emailDark } from './assets/email-dark.svg';
+export { default as emailLight } from './assets/email-light.svg';
+export { default as entraid } from './assets/entra-id.svg';
+export { default as eventbrite } from './assets/eventbrite.svg';
+export { default as excalidraw } from './assets/excalidraw.svg';
+export { default as figma } from './assets/figma.svg';
+export { default as fontawesome } from './assets/fontawesome.svg';
+export { default as foqal } from './assets/foqal.svg';
+export { default as fossa } from './assets/fossa.svg';
+export { default as frameIoDark } from './assets/frame.io-dark.svg';
+export { default as frameIoLight } from './assets/frame.io-light.svg';
+export { default as g2 } from './assets/g2.svg';
+export { default as gable } from './assets/gable.svg';
+export { default as gemDark } from './assets/gem-dark.svg';
+export { default as gemLight } from './assets/gem-light.svg';
+export { default as githubDark } from './assets/github-dark.svg';
+export { default as githubLight } from './assets/github-light.svg';
+export { default as gitlab } from './assets/gitlab.svg';
+export { default as gmail } from './assets/gmail.svg';
+export { default as go1Dark } from './assets/go1-dark.svg';
+export { default as go1Light } from './assets/go1-light.svg';
+export { default as goldcast } from './assets/goldcast.svg';
+export { default as google } from './assets/google.svg';
+export { default as googleanalytics } from './assets/googleanalytics.svg';
+export { default as googlecalendar } from './assets/googlecalendar.svg';
+export { default as googlecloud } from './assets/googlecloudprovider.svg';
+export { default as googledrive } from './assets/googledrive.svg';
+export { default as googletag } from './assets/googletagmanager.svg';
+export { default as googlevoice } from './assets/googlevoice.svg';
+export { default as grafana } from './assets/grafana.svg';
+export { default as grammarly } from './assets/grammarly.svg';
+export { default as grubhub } from './assets/grubhub.svg';
+export { default as guidelineDark } from './assets/guideline-dark.svg';
+export { default as guidelineLight } from './assets/guideline-light.svg';
+export { default as hackeroneDark } from './assets/hackerone-dark.svg';
+export { default as hackeroneLight } from './assets/hackerone-light.svg';
+export { default as headliner } from './assets/headliner.svg';
+export { default as hootsuite } from './assets/hootsuite.svg';
+export { default as ibmDark } from './assets/ibm-dark.svg';
+export { default as ibmLight } from './assets/ibm-light.svg';
+export { default as inkeep } from './assets/inkeep.svg';
+export { default as instruqtDark } from './assets/instruqt-dark.svg';
+export { default as instruqtLight } from './assets/instruqt-light.svg';
+export { default as intellimize } from './assets/intellimize.svg';
+export { default as ipstack } from './assets/ipstack.svg';
+export { default as jamf } from './assets/jamf.svg';
+export { default as jenkins } from './assets/jenkins.svg';
+export { default as jetbrains } from './assets/jetbrains.svg';
+export { default as jira } from './assets/jira.svg';
+export { default as kaiserDark } from './assets/kaiser-dark.svg';
+export { default as kaiserLight } from './assets/kaiser-light.svg';
+export { default as kisiDark } from './assets/kisi-dark.svg';
+export { default as kisiLight } from './assets/kisi-light.svg';
+export { default as kollide } from './assets/kollide.svg';
+export { default as kube } from './assets/kube.svg';
+export { default as kubeserver } from './assets/kubeserver.svg';
+export { default as laptop } from './assets/laptop.svg';
+export { default as leadiq } from './assets/leadiq.svg';
+export { default as leandata } from './assets/leandata.svg';
+export { default as lever } from './assets/lever.svg';
+export { default as linkedinDark } from './assets/linkedin-dark.svg';
+export { default as linkedinLight } from './assets/linkedin-light.svg';
+export { default as linuxDark } from './assets/linux-dark.svg';
+export { default as linuxLight } from './assets/linux-light.svg';
+export { default as loom } from './assets/loom.svg';
+export { default as lucidCoDark } from './assets/lucid.co-dark.svg';
+export { default as lucidCoLight } from './assets/lucid.co-light.svg';
+export { default as lushaDark } from './assets/lusha-dark.svg';
+export { default as lushaLight } from './assets/lusha-light.svg';
+export { default as mailgun } from './assets/mailgun.svg';
+export { default as mariadbDark } from './assets/mariadb-dark.svg';
+export { default as mariadbLight } from './assets/mariadb-light.svg';
+export { default as mattermostDark } from './assets/mattermost-dark.svg';
+export { default as mattermostLight } from './assets/mattermost-light.svg';
+export { default as maxioDark } from './assets/maxio-dark.svg';
+export { default as maxioLight } from './assets/maxio-light.svg';
+export { default as metabase } from './assets/metabase.svg';
+export { default as microsoft } from './assets/microsoft.svg';
+export { default as microsoftexcel } from './assets/microsoftexcel.svg';
+export { default as microsoftonedrive } from './assets/microsoftonedrive.svg';
+export { default as microsoftonenote } from './assets/microsoftonenote.svg';
+export { default as microsoftoutlook } from './assets/microsoftoutlook.svg';
+export { default as microsoftpowerpoint } from './assets/microsoftpowerpoint.svg';
+export { default as microsoftteams } from './assets/microsoftteams.svg';
+export { default as microsoftword } from './assets/microsoftword.svg';
+export { default as mongoDark } from './assets/mongo-dark.svg';
+export { default as mongoLight } from './assets/mongo-light.svg';
+export { default as mysqlLargeDark } from './assets/mysql-large-dark.svg';
+export { default as mysqlLargeLight } from './assets/mysql-large-light.svg';
+export { default as mysqlSmallDark } from './assets/mysql-small-dark.svg';
+export { default as mysqlSmallLight } from './assets/mysql-small-light.svg';
+export { default as namecheap } from './assets/namecheap.svg';
+export { default as navanDark } from './assets/navan-dark.svg';
+export { default as navanLight } from './assets/navan-light.svg';
+export { default as neverbounceDark } from './assets/neverbounce-dark.svg';
+export { default as neverbounceLight } from './assets/neverbounce-light.svg';
+export { default as notion } from './assets/notion.svg';
+export { default as oasisopen } from './assets/oasisopen.svg';
+export { default as oktaDark } from './assets/okta-dark.svg';
+export { default as oktaLight } from './assets/okta-light.svg';
+export { default as onehundredonedomain } from './assets/onehundredonedomain.svg';
+export { default as oneloginDark } from './assets/onelogin-dark.svg';
+export { default as oneloginLight } from './assets/onelogin-light.svg';
+export { default as onepasswordDark } from './assets/onepassword-dark.svg';
+export { default as onepasswordLight } from './assets/onepassword-light.svg';
+export { default as opencomp } from './assets/opencomp.svg';
+export { default as openid } from './assets/openid.svg';
+export { default as opsgenie } from './assets/opsgenie.svg';
+export { default as orbitLove } from './assets/orbit.love.svg';
+export { default as orcasecurityDark } from './assets/orcasecurity-dark.svg';
+export { default as orcasecurityLight } from './assets/orcasecurity-light.svg';
+export { default as outreachIo } from './assets/outreach.io.svg';
+export { default as pagerduty } from './assets/pagerduty.svg';
+export { default as pantherDark } from './assets/panther-dark.svg';
+export { default as pantherLight } from './assets/panther-light.svg';
+export { default as parallels } from './assets/parallels.svg';
+export { default as pingdom } from './assets/pingdom.svg';
+export { default as podigee } from './assets/podigee.svg';
+export { default as polleverywhere } from './assets/polleverywhere.svg';
+export { default as portswigger } from './assets/portswigger.svg';
+export { default as postgres } from './assets/postgres.svg';
+export { default as posthogDark } from './assets/posthog-dark.svg';
+export { default as posthogLight } from './assets/posthog-light.svg';
+export { default as productboard } from './assets/productboard.svg';
+export { default as prometheus } from './assets/prometheus.svg';
+export { default as qualified } from './assets/qualified.svg';
+export { default as quickbooks } from './assets/quickbooks.svg';
+export { default as rabbitmq } from './assets/rabbitmq.svg';
+export { default as rds } from './assets/rds.svg';
+export { default as redhat } from './assets/redhat.svg';
+export { default as redshift } from './assets/redshift.svg';
+export { default as ringlead } from './assets/ringlead.svg';
+export { default as ripplingDark } from './assets/rippling-dark.svg';
+export { default as ripplingLight } from './assets/rippling-light.svg';
+export { default as salesforce } from './assets/salesforce.svg';
+export { default as sanity } from './assets/sanity.svg';
+export { default as scimDark } from './assets/scim-dark.svg';
+export { default as scimLight } from './assets/scim-light.svg';
+export { default as securecodewarriorDark } from './assets/securecodewarrior-dark.svg';
+export { default as securecodewarriorLight } from './assets/securecodewarrior-light.svg';
+export { default as semrush } from './assets/semrush.svg';
+export { default as sendgrid } from './assets/sendgrid.svg';
+export { default as sentryDark } from './assets/sentry-dark.svg';
+export { default as sentryLight } from './assets/sentry-light.svg';
+export { default as sequoiaDark } from './assets/sequoia-dark.svg';
+export { default as sequoiaLight } from './assets/sequoia-light.svg';
+export { default as server } from './assets/server.svg';
+export { default as servicenow } from './assets/servicenow.svg';
+export { default as shopify } from './assets/shopify.svg';
+export { default as sixsenseDark } from './assets/sixsense-dark.svg';
+export { default as sixsenseLight } from './assets/sixsense-light.svg';
+export { default as skype } from './assets/skype.svg';
+export { default as slab } from './assets/slab.svg';
+export { default as slack } from './assets/slack.svg';
+export { default as snowflake } from './assets/snowflake.svg';
+export { default as spaceliftDark } from './assets/spacelift-dark.svg';
+export { default as spaceliftLight } from './assets/spacelift-light.svg';
+export { default as sparrow } from './assets/sparrow.svg';
+export { default as stripeDark } from './assets/stripe-dark.svg';
+export { default as stripeLight } from './assets/stripe-light.svg';
+export { default as tableau } from './assets/tableau.svg';
+export { default as terraform } from './assets/terraform.svg';
+export { default as torqDark } from './assets/torq-dark.svg';
+export { default as torqLight } from './assets/torq-light.svg';
+export { default as troopsAiDark } from './assets/troops.ai-dark.svg';
+export { default as troopsAiLight } from './assets/troops.ai-light.svg';
+export { default as twilio } from './assets/twilio.svg';
+export { default as twitterDark } from './assets/twitter-dark.svg';
+export { default as twitterLight } from './assets/twitter-light.svg';
+export { default as userorbitDark } from './assets/userorbit-dark.svg';
+export { default as userorbitLight } from './assets/userorbit-light.svg';
+export { default as validity } from './assets/validity.svg';
+export { default as valimail } from './assets/valimail.svg';
+export { default as varicentDark } from './assets/varicent-dark.svg';
+export { default as varicentLight } from './assets/varicent-light.svg';
+export { default as vendr } from './assets/vendr.svg';
+export { default as vercelDark } from './assets/vercel-dark.svg';
+export { default as vercelLight } from './assets/vercel-light.svg';
+export { default as weavegitops } from './assets/weavegitops.svg';
+export { default as windowsDark } from './assets/windows-dark.svg';
+export { default as windowsLight } from './assets/windows-light.svg';
+export { default as wizDark } from './assets/wiz-dark.svg';
+export { default as wizLight } from './assets/wiz-light.svg';
+export { default as workshopDark } from './assets/workshop-dark.svg';
+export { default as workshopLight } from './assets/workshop-light.svg';
+export { default as youtube } from './assets/youtube.svg';
+export { default as zapier } from './assets/zapier.svg';
+export { default as zendeskDark } from './assets/zendesk-dark.svg';
+export { default as zendeskLight } from './assets/zendesk-light.svg';
+export { default as zoom } from './assets/zoom.svg';
+export { default as zoominfo } from './assets/zoominfo.svg';

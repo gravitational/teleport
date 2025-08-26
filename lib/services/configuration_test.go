@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestAuthPreferenceValidate(t *testing.T) {
@@ -92,7 +93,7 @@ func TestAuthPreferenceValidate(t *testing.T) {
 					t.Setenv(teleport.EnvVarAllowNoSecondFactor, "true")
 				}
 
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					TestFeatures: tc.features,
 				})
 
