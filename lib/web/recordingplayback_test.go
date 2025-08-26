@@ -683,9 +683,6 @@ func TestNonBinaryMessageClosesWebSocket(t *testing.T) {
 
 func TestGracefulWebSocketClose(t *testing.T) {
 	// Test the gracefulWebSocketClose function directly
-	mockClient := newMockStreamClient()
-	defer mockClient.close()
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{}
 		ws, _ := upgrader.Upgrade(w, r, nil)
@@ -849,9 +846,4 @@ func (m *mockStreamClient) sendEvent(evt apievents.AuditEvent) {
 
 func (m *mockStreamClient) sendError(err error) {
 	m.errors <- err
-}
-
-func (m *mockStreamClient) close() {
-	close(m.events)
-	close(m.errors)
 }
