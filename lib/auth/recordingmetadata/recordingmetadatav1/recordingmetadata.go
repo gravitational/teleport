@@ -115,10 +115,6 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	metadata := &pb.SessionRecordingMetadata{}
 
 	addInactivityEvent := func(start, end time.Time) {
-		if end.IsZero() {
-			return
-		}
-
 		inactivityStart := durationpb.New(start.Sub(startTime))
 		inactivityEnd := durationpb.New(end.Sub(startTime))
 
