@@ -144,8 +144,7 @@ guides for more in-depth information.
 First, run the following commands to determine the JWKS-formatted public key:
 
 ```code
-$ kubectl proxy -p 8080
-$ curl http://localhost:8080/openid/v1/jwks
+$ kubectl get --raw /openid/v1/jwks
 {"keys":[--snip--]}%
 ```
 
