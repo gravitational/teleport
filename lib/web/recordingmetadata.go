@@ -186,26 +186,36 @@ type resizeEvent struct {
 	Rows int32 `json:"rows"`
 }
 
+func (resizeEvent) isSessionRecordingEvent() {}
+
 type joinEvent struct {
 	baseEvent
 	User string `json:"user"`
 }
 
+func (joinEvent) isSessionRecordingEvent() {}
+
 type inactivityEvent struct {
 	baseEvent
 }
 
+func (inactivityEvent) isSessionRecordingEvent() {}
+
+type sessionRecordingEvent interface {
+	isSessionRecordingEvent()
+}
+
 type sessionRecordingMetadata struct {
-	Duration     int64         `json:"duration"`
-	Events       []interface{} `json:"events"`
-	StartCols    int32         `json:"startCols"`
-	StartRows    int32         `json:"startRows"`
-	StartTime    int64         `json:"startTime"`
-	EndTime      int64         `json:"endTime"`
-	ClusterName  string        `json:"clusterName"`
-	ResourceName string        `json:"resourceName,omitempty"`
-	User         string        `json:"user,omitempty"`
-	Type         string        `json:"type,omitempty"`
+	Duration     int64                   `json:"duration"`
+	Events       []sessionRecordingEvent `json:"events"`
+	StartCols    int32                   `json:"startCols"`
+	StartRows    int32                   `json:"startRows"`
+	StartTime    int64                   `json:"startTime"`
+	EndTime      int64                   `json:"endTime"`
+	ClusterName  string                  `json:"clusterName"`
+	ResourceName string                  `json:"resourceName,omitempty"`
+	User         string                  `json:"user,omitempty"`
+	Type         string                  `json:"type,omitempty"`
 }
 
 func pbTypeToString(t recordingmetadatav1.SessionRecordingType) string {
@@ -224,7 +234,7 @@ func encodeSessionRecordingMetadata(metadata *recordingmetadatav1.SessionRecordi
 		Duration:     convertDurationToMs(metadata.Duration),
 		StartCols:    metadata.StartCols,
 		StartRows:    metadata.StartRows,
-		Events:       make([]interface{}, 0, len(metadata.Events)),
+		Events:       make([]sessionRecordingEvent, 0, len(metadata.Events)),
 		StartTime:    metadata.StartTime.AsTime().Unix(),
 		EndTime:      metadata.EndTime.AsTime().Unix(),
 		ClusterName:  metadata.ClusterName,
