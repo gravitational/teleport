@@ -404,15 +404,11 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 	wg := s.taskWg
 	s.mu.Unlock()
 
-	if wg != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			s.streamEvents(ctx, req, eventsChan, errorsChan)
-		}()
-	} else {
-		go s.streamEvents(ctx, req, eventsChan, errorsChan)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s.streamEvents(ctx, req, eventsChan, errorsChan)
+	}()
 }
 
 // streamEvents streams session events to the client.
