@@ -92,6 +92,8 @@ type recordingPlayback struct {
 	logger           *slog.Logger
 	mu               sync.Mutex
 	cancelActiveTask context.CancelFunc
+	ws               *websocket.Conn
+	writeChan        chan []byte
 
 	stream struct {
 		sync.Mutex
@@ -99,11 +101,6 @@ type recordingPlayback struct {
 		errorsChan    <-chan error
 		lastEndTime   int64
 		bufferedEvent apievents.AuditEvent
-	}
-
-	websocket struct {
-		sync.Mutex
-		*websocket.Conn
 	}
 
 	terminal struct {
@@ -181,9 +178,9 @@ func newRecordingPlayback(ctx context.Context, ws *websocket.Conn, clt events.Se
 		clt:       clt,
 		sessionID: sessionID,
 		logger:    logger,
+		ws:        ws,
+		writeChan: make(chan []byte),
 	}
-
-	s.websocket.Conn = ws
 
 	return s
 }
@@ -191,6 +188,9 @@ func newRecordingPlayback(ctx context.Context, ws *websocket.Conn, clt events.Se
 // run starts the recording playback handler.
 func (s *recordingPlayback) run() {
 	defer s.cleanup()
+
+	go s.writeLoop()
+
 	s.readLoop()
 }
 
@@ -198,24 +198,47 @@ func (s *recordingPlayback) run() {
 func (s *recordingPlayback) cleanup() {
 	s.cancel()
 
-	s.websocket.Lock()
-	_ = s.writeMessage(websocket.CloseMessage, nil)
-	_ = s.websocket.Close()
-	s.websocket.Unlock()
+	_ = s.ws.Close()
+}
+
+// writeLoop handles all websocket writes from a dedicated goroutine.
+func (s *recordingPlayback) writeLoop() {
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case msg, ok := <-s.writeChan:
+			if !ok {
+				return
+			}
+
+			if err := s.ws.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				s.handleWebsocketError(err)
+				return
+			}
+
+			if err := s.ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+				s.handleWebsocketError(err)
+				return
+			}
+		}
+	}
+}
+
+// handleWebsocketError handles errors that occur during websocket writes.
+func (s *recordingPlayback) handleWebsocketError(err error) {
+	if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
+		!utils.IsOKNetworkError(err) {
+		s.logger.ErrorContext(s.ctx, "websocket write error", "error", err)
+	}
 }
 
 // readLoop reads messages from the websocket connection and processes them.
 func (s *recordingPlayback) readLoop() {
 	for {
-		msgType, data, err := s.websocket.ReadMessage()
+		msgType, data, err := s.ws.ReadMessage()
 		if err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				// Expected closure, don't log as error
-				return
-			}
-			if !utils.IsOKNetworkError(err) {
-				s.logger.ErrorContext(s.ctx, "websocket read error", "session_id", s.sessionID, "error", err)
-			}
+			s.handleWebsocketError(err)
 			return
 		}
 
@@ -316,8 +339,7 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 		s.mu.Unlock()
 	}()
 
-	s.sendEvent(eventTypeStart, req.startOffset, nil, req.requestID)
-
+	startSent := false
 	screenSent := false
 	inTimeRange := false
 	var streamStartTime time.Time
@@ -326,6 +348,12 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 	eventBatch := make([]sessionEvent, 0, maxBatchSize)
 
 	flushBatch := func() {
+		// Send start event if not already sent
+		if !startSent {
+			s.sendEvent(eventTypeStart, req.startOffset, nil, req.requestID)
+			startSent = true
+		}
+
 		if len(eventBatch) == 0 {
 			return
 		}
@@ -343,6 +371,12 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 	}
 
 	sendStop := func() {
+		// Send start event if not already sent
+		if !startSent {
+			s.sendEvent(eventTypeStart, req.startOffset, nil, req.requestID)
+			startSent = true
+		}
+
 		s.sendEvent(eventTypeStop, 0, encodeTime(req.startOffset, req.endOffset), req.requestID)
 	}
 
@@ -366,6 +400,17 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 			}
 		}
 
+		if eventTime > req.endOffset {
+			s.stream.Lock()
+			// store the event for the next request as it is outside the current time range
+			// and won't be returned by the stream on the next request
+			// this will only store print or end events as they are the only ones with a timestamp
+			s.stream.bufferedEvent = evt
+			s.stream.Unlock()
+
+			return false
+		}
+
 		switch evt := evt.(type) {
 		case *apievents.SessionStart:
 			if err := s.resizeTerminal(evt.TerminalSize); err != nil {
@@ -379,35 +424,22 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 			}
 
 		case *apievents.SessionPrint:
-			if evt.DelayMilliseconds > req.endOffset {
-				s.stream.Lock()
-				// store the event for the next request as it is outside the current time range
-				// and won't be returned by the stream on the next request
-				s.stream.bufferedEvent = evt
-				s.stream.Unlock()
-
-				return false
-			}
-
 			s.terminal.Lock()
 			if _, err := s.terminal.vt.Write(evt.Data); err != nil {
 				s.logger.ErrorContext(s.ctx, "failed to write to terminal", "session_id", s.sessionID, "error", err)
 			}
 			s.terminal.Unlock()
 
-			if evt.DelayMilliseconds >= req.startOffset {
+			if inTimeRange {
 				addToBatch(eventTypeSessionPrint, evt.DelayMilliseconds, evt.Data)
 			}
 
 		case *apievents.SessionEnd:
 			endTime := int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond)
 
-			if endTime >= req.startOffset && endTime <= req.endOffset {
+			if inTimeRange {
 				addToBatch(eventTypeSessionEnd, endTime, []byte(evt.EndTime.Format(time.RFC3339)))
 			}
-
-			flushBatch()
-			sendStop()
 
 			return false
 
@@ -418,9 +450,8 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 				// continue returning events even if resize fails
 			}
 
-			if inTimeRange {
-				addToBatch(eventTypeResize, 0, []byte(evt.TerminalSize))
-			}
+			// always add resize events as they do not have a timestamp
+			addToBatch(eventTypeResize, 0, []byte(evt.TerminalSize))
 		}
 
 		return true
@@ -434,20 +465,15 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 	s.stream.Unlock()
 
 	if buffered != nil {
-		if !processEvent(buffered) {
-			flushBatch()
-			sendStop()
-
-			return
-		}
+		// process any buffered event from a previous request first
+		// the processEvent will ignore it if it's outside the requested time range
+		_ = processEvent(buffered)
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			flushBatch()
-			sendStop()
-
+			// Don't send any more events after context cancellation
 			return
 
 		case err := <-errorsChan:
@@ -495,16 +521,16 @@ func (s *recordingPlayback) resizeTerminal(size string) error {
 	return nil
 }
 
-// writeMessage writes a message to the websocket connection with a timeout.
-func (s *recordingPlayback) writeMessage(msgType int, data []byte) error {
-	s.websocket.Lock()
-	defer s.websocket.Unlock()
-
-	if err := s.websocket.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return trace.Wrap(err)
+// writeMessage sends a message through the write channel.
+func (s *recordingPlayback) writeMessage(data []byte) error {
+	select {
+	case <-s.ctx.Done():
+		return s.ctx.Err()
+	case s.writeChan <- data:
+		return nil
+	case <-time.After(10 * time.Second):
+		return fmt.Errorf("timeout sending message")
 	}
-
-	return s.websocket.WriteMessage(msgType, data)
 }
 
 // sendEvent sends a single event to the client.
@@ -514,7 +540,7 @@ func (s *recordingPlayback) sendEvent(eventType responseType, timestamp int64, d
 
 	encodeEvent(buf, 0, eventType, timestamp, data, requestID)
 
-	if err := s.writeMessage(websocket.BinaryMessage, buf); err != nil {
+	if err := s.writeMessage(buf); err != nil {
 		s.logger.ErrorContext(s.ctx, "failed to send event", "session_id", s.sessionID, "error", err)
 	}
 }
@@ -539,7 +565,7 @@ func (s *recordingPlayback) sendEventBatch(batch []sessionEvent, requestID int) 
 		offset += responseHeaderSize + len(evt.data)
 	}
 
-	if err := s.writeMessage(websocket.BinaryMessage, buf); err != nil {
+	if err := s.writeMessage(buf); err != nil {
 		s.logger.ErrorContext(s.ctx, "failed to send event batch",
 			"session_id", s.sessionID,
 			"error", err,

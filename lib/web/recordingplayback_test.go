@@ -308,7 +308,7 @@ func TestFetchOverWebSocket(t *testing.T) {
 		})
 	})
 
-	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
+	responses := fetchAndCollectResponses(t, ws, 0, 1000, false, 1)
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, print, stop")
 
@@ -326,7 +326,7 @@ func TestErrorOverWebSocket(t *testing.T) {
 		mockClient.sendError(errors.New("test error"))
 	})
 
-	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
+	responses := fetchAndCollectResponses(t, ws, 0, 1000, false, 1)
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, error, stop")
 
@@ -404,7 +404,7 @@ func TestRequestScreen(t *testing.T) {
 		})
 	})
 
-	responses := fetchAndCollectResponses(t, ws, 1200, 2200, true)
+	responses := fetchAndCollectResponses(t, ws, 1200, 2200, true, 1)
 
 	require.Len(t, responses, 4, "Should receive 4 messages: start, screen, batch, stop")
 
@@ -450,7 +450,7 @@ func TestResizeEvent(t *testing.T) {
 		})
 	})
 
-	responses := fetchAndCollectResponses(t, ws, 0, 1000, true)
+	responses := fetchAndCollectResponses(t, ws, 0, 1000, true, 1)
 
 	require.Len(t, responses, 4, "Should receive 4 messages: start, screen, batch, stop")
 
@@ -459,7 +459,7 @@ func TestResizeEvent(t *testing.T) {
 
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "[8;24;80t", "Initial screen event should have 24 rows and 80 columns")
 
-	responses = fetchAndCollectResponses(t, ws, 1000, 2000, true)
+	responses = fetchAndCollectResponses(t, ws, 1000, 2000, true, 2)
 
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "[8;30;100", "Initial screen event should have 30 rows and 100 columns")
 }
@@ -489,7 +489,7 @@ func TestBufferedEvents(t *testing.T) {
 		})
 	})
 
-	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
+	responses := fetchAndCollectResponses(t, ws, 0, 1000, false, 1)
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, batch, stop")
 
@@ -501,7 +501,7 @@ func TestBufferedEvents(t *testing.T) {
 
 	require.Equal(t, byte(eventTypeStop), responses[2][0], "Third message should be stop event")
 
-	responses = fetchAndCollectResponses(t, ws, 1000, 2000, false)
+	responses = fetchAndCollectResponses(t, ws, 1000, 2000, false, 2)
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, batch, stop")
 
@@ -560,7 +560,7 @@ func TestBufferedEvents_LargeGap(t *testing.T) {
 		})
 	})
 
-	responses := fetchAndCollectResponses(t, ws, 0, 1000, false)
+	responses := fetchAndCollectResponses(t, ws, 0, 1000, false, 1)
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, batch, stop")
 
@@ -572,7 +572,7 @@ func TestBufferedEvents_LargeGap(t *testing.T) {
 
 	require.Equal(t, byte(eventTypeStop), responses[2][0], "Third message should be stop event")
 
-	responses = fetchAndCollectResponses(t, ws, 9000, 10000, true)
+	responses = fetchAndCollectResponses(t, ws, 9000, 10000, true, 2)
 
 	require.Len(t, responses, 4, "Should receive 4 messages: start, screen, batch, stop")
 
@@ -608,10 +608,10 @@ func createFetchRequest(start, end int64, requestID uint32, currentScreen bool) 
 }
 
 // fetchAndCollectResponses sends a fetch request over the WebSocket connection and collects all responses.
-func fetchAndCollectResponses(t *testing.T, ws *websocket.Conn, start, end int64, requestCurrentScreen bool) [][]byte {
+func fetchAndCollectResponses(t *testing.T, ws *websocket.Conn, start, end int64, requestCurrentScreen bool, requestID uint32) [][]byte {
 	testTimeout := 5 * time.Second
 
-	req := createFetchRequest(start, end, 1, requestCurrentScreen)
+	req := createFetchRequest(start, end, requestID, requestCurrentScreen)
 
 	err := ws.WriteMessage(websocket.BinaryMessage, req)
 	require.NoError(t, err)
@@ -636,8 +636,10 @@ func fetchAndCollectResponses(t *testing.T, ws *websocket.Conn, start, end int64
 	}()
 
 	select {
-	case <-done:
-		break
+	case success := <-done:
+		if !success {
+			t.Fatal("Connection closed before receiving stop event")
+		}
 	case <-time.After(testTimeout):
 		t.Fatal("Timeout waiting for responses")
 	}
@@ -673,14 +675,13 @@ func createWebSocket(t *testing.T, setupEvents func(mockClient *mockStreamClient
 	}
 
 	t.Cleanup(func() {
-		server.Close()
-
 		deadline := time.Now().Add(time.Second)
 		ws.WriteControl(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
 			deadline)
 
 		ws.Close()
+		server.Close()
 	})
 
 	return ws, mockClient
