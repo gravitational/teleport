@@ -72,6 +72,7 @@ export interface SessionRecordingThumbnail {
   rows: number;
   cursorX: number;
   cursorY: number;
+  cursorVisible: boolean;
   startTime: number;
   endTime: number;
 }
