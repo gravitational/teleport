@@ -103,16 +103,16 @@ export function useResourceLock(opts: {
       true
     );
 
-  const unlock = useCallback(() => {
-    if (!canUnlock) return;
+  const unlock = useCallback(async () => {
+    if (!canUnlock) throw new Error('missing permission to remove locks');
     return removeLock({ uuid: data[0].name });
   }, [canUnlock, data, removeLock]);
 
   const canLock = hasAddPermission;
 
   const lock = useCallback(
-    (message: string, ttl: string) => {
-      if (!canLock) return;
+    async (message: string, ttl: string) => {
+      if (!canLock) throw new Error('missing permission to create locks');
       return addLock({
         message,
         ttl,

@@ -35,12 +35,13 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// baseURL is the default value for [client.baseURL]. It is the address of MS Graph API v1.0.
-const baseURL = "https://graph.microsoft.com/v1.0"
+// graphVersion is the default version of the MS Graph API endpoint.
+const graphVersion = "v1.0"
 
 // defaultPageSize is the page size used when [Config.PageSize] is not specified.
 const defaultPageSize = 500
@@ -85,6 +86,8 @@ type Config struct {
 	RetryConfig *retryutils.RetryV2Config
 	// PageSize limits the number of objects to return in one batch when using paginated requests (via the `$top` parameter).
 	PageSize int
+	// GraphEndpoint specifies root domain of the Graph API.
+	GraphEndpoint string
 }
 
 // SetDefaults sets the default values for optional fields.
@@ -101,6 +104,9 @@ func (cfg *Config) SetDefaults() {
 	if cfg.PageSize <= 0 {
 		cfg.PageSize = defaultPageSize
 	}
+	if cfg.GraphEndpoint == "" {
+		cfg.GraphEndpoint = types.MSGraphDefaultEndpoint
+	}
 }
 
 // Validate checks that required fields are set.
@@ -110,6 +116,9 @@ func (cfg *Config) Validate() error {
 	}
 	if cfg.HTTPClient == nil {
 		return trace.BadParameter("HTTPClient must be set")
+	}
+	if err := types.ValidateMSGraphEndpoints("", cfg.GraphEndpoint); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -129,7 +138,7 @@ func NewClient(cfg Config) (*Client, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	uri, err := url.Parse(baseURL)
+	base, err := url.Parse(cfg.GraphEndpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,14 +147,14 @@ func NewClient(cfg Config) (*Client, error) {
 		tokenProvider: cfg.TokenProvider,
 		clock:         cfg.Clock,
 		retryConfig:   *cfg.RetryConfig,
-		baseURL:       uri,
+		baseURL:       base.JoinPath(graphVersion),
 		pageSize:      cfg.PageSize,
 	}, nil
 }
 
 // request is the base function for HTTP API calls.
 // It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
-func (c *Client) request(ctx context.Context, method string, uri string, payload []byte) (*http.Response, error) {
+func (c *Client) request(ctx context.Context, method string, uri string, header map[string]string, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
 	if len(payload) > 0 {
 		body = bytes.NewReader(payload)
@@ -166,6 +175,9 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 		return nil, trace.Wrap(err, "failed to get azure authentication token")
 	}
 	req.Header.Add("Authorization", "Bearer "+token.Token)
+	for i := range header {
+		req.Header.Add(i, header[i])
+	}
 
 	const maxRetries = 5
 	var retryAfter time.Duration
@@ -255,7 +267,7 @@ func roundtrip[T any](ctx context.Context, c *Client, method string, uri string,
 			return zero, trace.Wrap(err)
 		}
 	}
-	resp, err := c.request(ctx, method, uri, body)
+	resp, err := c.request(ctx, method, uri, nil /* extra headers */, body)
 	if err != nil {
 		return zero, trace.Wrap(err)
 	}
@@ -275,7 +287,7 @@ func (c *Client) patch(ctx context.Context, uri string, in any) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	resp, err := c.request(ctx, http.MethodPatch, uri, body)
+	resp, err := c.request(ctx, http.MethodPatch, uri, nil /* extra headers */, body)
 	if err != nil {
 		return trace.Wrap(err)
 	}

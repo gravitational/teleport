@@ -615,14 +615,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 
-	var moduleSourceCmd, fileContextsCmd, selinuxDirsCmd *kingpin.CmdClause
-	if runtime.GOOS == "linux" {
-		selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
-		selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
-		moduleSourceCmd = selinuxCmd.Command("module-source", "Export SSH SELinux module source to stdout.").Hidden()
-		fileContextsCmd = selinuxCmd.Command("file-contexts", "Export SSH SELinux file contexts to stdout.").Hidden()
-		selinuxDirsCmd = selinuxCmd.Command("dirs", "Export directories that may need to be labeled for SSH SELinux module to work correctly.").Hidden()
-	}
+	selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
+	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
+	moduleSourceCmd := selinuxCmd.Command("module-source", "Export SSH SELinux module source to stdout.").Hidden()
+	fileContextsCmd := selinuxCmd.Command("file-contexts", "Export SSH SELinux file contexts to stdout.").Hidden()
+	selinuxDirsCmd := selinuxCmd.Command("dirs", "Export directories that may need to be labeled for SSH SELinux module to work correctly.").Hidden()
 
 	backendCmd := app.Command("backend", "Commands for managing backend data.")
 	backendCmd.Hidden()
@@ -797,11 +794,20 @@ Examples:
 	case collectProfilesCmd.FullCommand():
 		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
 	case moduleSourceCmd.FullCommand():
+		if runtime.GOOS != "linux" {
+			break
+		}
 		moduleSrc := selinux.ModuleSource()
 		fmt.Printf("%s", moduleSrc)
 	case fileContextsCmd.FullCommand():
+		if runtime.GOOS != "linux" {
+			break
+		}
 		err = onSELinuxFileContexts(ccf.ConfigFile)
 	case selinuxDirsCmd.FullCommand():
+		if runtime.GOOS != "linux" {
+			break
+		}
 		err = onSELinuxDirs(ccf.ConfigFile)
 	case backendCloneCmd.FullCommand():
 		err = onClone(context.Background(), ccf.ConfigFile)
