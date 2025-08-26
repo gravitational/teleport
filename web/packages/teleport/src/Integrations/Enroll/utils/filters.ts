@@ -16,26 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { type IntegrationTag } from 'teleport/Integrations/Enroll';
+import {
+  titleOrName,
+  type BaseIntegration,
+  type IntegrationTag,
+} from 'teleport/Integrations/Enroll/Shared';
 
-export type FilterableIntegration<T> = T &
-  ({ name: string; title?: never } | { title: string; name?: never }) & {
-    tags: IntegrationTag[];
-  };
-
-export const titleOrName = <T>(i: FilterableIntegration<T>) => {
-  if ('title' in i) {
-    return i.title;
-  } else if ('name' in i) {
-    return i.name;
-  }
-};
-
-export function filterIntegrations<T>(
-  integrations: FilterableIntegration<T>[],
+export function filterIntegrations<T extends BaseIntegration>(
+  integrations: T[],
   tags: IntegrationTag[],
   search: string
-): FilterableIntegration<T>[] {
+): T[] {
   if (!integrations.length && !tags && search === '') {
     return integrations;
   }
@@ -43,7 +34,11 @@ export function filterIntegrations<T>(
   const searches = search.split(' ').map(s => s.toLowerCase());
 
   const found = integrations.filter(i =>
-    searches.every(s => titleOrName(i).toLowerCase().includes(s))
+    searches.every(
+      s =>
+        titleOrName(i).toLowerCase().includes(s) ||
+        i.tags.some(tag => tag.includes(s))
+    )
   );
 
   let filtered = [...found];

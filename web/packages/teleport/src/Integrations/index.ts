@@ -18,4 +18,4 @@
 
 export { Integrations } from './Integrations';
 export { IntegrationList } from './IntegrationList';
-export { IntegrationTile, Tile } from './Enroll/common';
+export { IntegrationTile } from './Enroll/common';

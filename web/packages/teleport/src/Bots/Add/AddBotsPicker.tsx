@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ReactNode } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex, ResourceIcon, Text } from 'design';
+import { Box, Flex, Text } from 'design';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { P } from 'design/Text/Text';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -26,8 +27,8 @@ import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';
-import { IntegrationTile, Tile } from 'teleport/Integrations';
-import { IntegrationTag } from 'teleport/Integrations/Enroll';
+import { IntegrationTile } from 'teleport/Integrations';
+import { IntegrationTag, Tile } from 'teleport/Integrations/Enroll/Shared';
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollKind,
@@ -48,13 +49,6 @@ export type BotIntegration = {
   kind: IntegrationEnrollKind;
   tags: IntegrationTag[];
 };
-
-const StyledResourceIcon = styled(ResourceIcon)`
-  margin: 0 auto;
-  height: 100%;
-  min-width: 0;
-  max-width: 72px;
-`;
 
 export const integrations: BotIntegration[] = [
   {
@@ -306,28 +300,26 @@ function GuidedTile({
   );
 }
 
-function TileContent({ icon, title }) {
-  return (
-    <>
-      <Flex flexBasis={100}>
-        <StyledResourceIcon name={icon} />
-      </Flex>
-      <Text>{title}</Text>
-    </>
-  );
-}
-
 export function DisplayTile({
   icon,
   title,
 }: {
   title: string;
-  icon: ResourceIconName;
+  icon: ReactNode;
 }) {
   return (
     <HoverIntegrationTile>
       <TileContent icon={icon} title={title} />
     </HoverIntegrationTile>
+  );
+}
+
+function TileContent({ icon, title }) {
+  return (
+    <>
+      <Flex flexBasis={100}>{icon}</Flex>
+      <Text>{title}</Text>
+    </>
   );
 }
 
