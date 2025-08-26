@@ -157,7 +157,7 @@ loop:
 			case *apievents.Resize:
 				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
 				if err != nil {
-					return trace.Wrap(err, "failed to parse terminal size %q for session %v", e.TerminalSize, sessionID)
+					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
 
 				metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
