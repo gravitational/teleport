@@ -97,6 +97,7 @@ export const MOCK_THUMBNAIL: SessionRecordingThumbnail = {
   svg: '<svg><rect width="100" height="100" fill="blue"/></svg>',
   cursorX: 50,
   cursorY: 50,
+  cursorVisible: true,
   cols: 100,
   rows: 100,
   startTime: 0,

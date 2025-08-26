@@ -36,7 +36,7 @@ afterAll(() => server.close());
 
 function setupTest(clusterId = 'localhost', sessionId = 'test-session') {
   return render(
-    <RecordingThumbnail clusterId={clusterId} sessionId={sessionId} />
+    <RecordingThumbnail clusterId={clusterId} sessionId={sessionId} styles="" />
   );
 }
 
@@ -47,8 +47,8 @@ test('renders thumbnail with correct background position for centered cursor', a
   const thumbnail = await screen.findByTestId('recording-thumbnail');
 
   expect(thumbnail).toHaveStyle({
-    backgroundPosition: '40% 40%',
-    backgroundSize: '400%',
+    backgroundPosition: '50% 50%',
+    backgroundSize: '200%',
   });
 });
 
@@ -66,7 +66,7 @@ test('renders thumbnail with correct background position for top-left cursor', a
 
   expect(thumbnail).toHaveStyle({
     backgroundPosition: '0% 0%',
-    backgroundSize: '400%',
+    backgroundSize: '200%',
   });
 });
 
@@ -83,8 +83,8 @@ test('renders thumbnail with correct background position for bottom-right cursor
   const thumbnail = await screen.findByTestId('recording-thumbnail');
 
   expect(thumbnail).toHaveStyle({
-    backgroundPosition: '80% 80%',
-    backgroundSize: '400%',
+    backgroundPosition: '100% 100%',
+    backgroundSize: '200%',
   });
 });
 
@@ -103,8 +103,8 @@ test('renders thumbnail with different aspect ratio', async () => {
   const thumbnail = await screen.findByTestId('recording-thumbnail');
 
   expect(thumbnail).toHaveStyle({
-    backgroundPosition: '40% 40%',
-    backgroundSize: '400%',
+    backgroundPosition: '50% 50%',
+    backgroundSize: '200%',
   });
 });
 
@@ -121,7 +121,24 @@ test('clamps background position when cursor is near edges', async () => {
   const thumbnail = await screen.findByTestId('recording-thumbnail');
 
   expect(thumbnail).toHaveStyle({
-    backgroundPosition: '80% 0%',
-    backgroundSize: '400%',
+    backgroundPosition: '100% 0%',
+    backgroundSize: '200%',
+  });
+});
+
+test('centers the thumbnail when cursor is not visible', async () => {
+  server.use(
+    getThumbnail({
+      ...MOCK_THUMBNAIL,
+      cursorVisible: false,
+    })
+  );
+  setupTest();
+
+  const thumbnail = await screen.findByTestId('recording-thumbnail');
+
+  expect(thumbnail).toHaveStyle({
+    backgroundPosition: '50% 50%',
+    backgroundSize: '200%',
   });
 });
