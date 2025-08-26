@@ -234,9 +234,6 @@ export default function createMainProcessClient(): MainProcessClient {
     },
     subscribeToAppUpdateEvents: listener => {
       const ipcListener = (_, updateEvent: AppUpdateEvent) => {
-        if (updateEvent.kind === 'error') {
-          updateEvent.error = deserializeError(updateEvent.error);
-        }
         listener(updateEvent);
       };
 
