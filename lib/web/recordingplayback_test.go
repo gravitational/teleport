@@ -673,6 +673,12 @@ func createWebSocket(t *testing.T, setupEvents func(mockClient *mockStreamClient
 
 	t.Cleanup(func() {
 		server.Close()
+
+		deadline := time.Now().Add(time.Second)
+		ws.WriteControl(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+			deadline)
+
 		ws.Close()
 	})
 
