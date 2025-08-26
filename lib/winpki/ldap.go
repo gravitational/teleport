@@ -128,6 +128,8 @@ func DomainDN(domain string) string {
 const (
 	// AttrObjectSid is the Security Identifier of an LDAP object
 	AttrObjectSid = "objectSid"
+	// AttrDistinguishedName is the Distinguished Name of an LDAP object
+	AttrDistinguishedName = "distinguishedName"
 	// AttrObjectClass is the object class of an LDAP object
 	AttrObjectClass = "objectClass"
 
@@ -140,6 +142,9 @@ const (
 
 	// AttrSAMAccountName is the SAM Account name of an LDAP object.
 	AttrSAMAccountName = "sAMAccountName"
+
+	// AttrUserPrincipalName is the User Principal Name of an LDAP object.
+	AttrUserPrincipalName = "userPrincipalName"
 )
 
 // searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
@@ -186,9 +191,12 @@ func (l *LDAPClient) GetActiveDirectorySID(ctx context.Context, username string)
 		username = parts[0]
 		domain = parts[1]
 	}
-	filter := CombineLDAPFilters([]string{
+	filter := CombineLDAPFilters("&", []string{
 		fmt.Sprintf("(%s=%s)", AttrSAMAccountType, AccountTypeUser),
-		fmt.Sprintf("(%s=%s)", AttrSAMAccountName, ldap.EscapeFilter(username)),
+		CombineLDAPFilters("|", []string{
+			fmt.Sprintf("(%s=%s)", AttrSAMAccountName, ldap.EscapeFilter(username)),
+			fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain)),
+		}),
 	})
 
 	entries, err := l.ReadWithFilter(ctx, DomainDN(domain), filter, []string{AttrObjectSid})
@@ -384,9 +392,9 @@ func (l *LDAPClient) Update(ctx context.Context, dn string, replaceAttrs map[str
 	return nil
 }
 
-// CombineLDAPFilters joins the slice of filters
-func CombineLDAPFilters(filters []string) string {
-	return "(&" + strings.Join(filters, "") + ")"
+// CombineLDAPFilters joins the slice of filters using given operator (e.g. &, |)
+func CombineLDAPFilters(operator string, filters []string) string {
+	return "(" + operator + strings.Join(filters, "") + ")"
 }
 
 func crlContainerDN(domain string, caType types.CertAuthType) string {

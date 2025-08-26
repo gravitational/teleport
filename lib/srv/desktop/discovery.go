@@ -137,7 +137,7 @@ func (s *WindowsService) ldapSearchFilter(additionalFilters []string) string {
 		fmt.Sprintf("(!(%s=%s))", winpki.AttrObjectClass, ClassGMSA),
 	}
 	filters = append(filters, additionalFilters...)
-	return winpki.CombineLDAPFilters(filters)
+	return winpki.CombineLDAPFilters("&", filters)
 }
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
