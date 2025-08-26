@@ -1646,6 +1646,18 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 
 	trackingChan := scx.TrackActivity(ch)
 
+	// If we are creating a new session (not joining a session), inform the
+	// client of the session ID that is being used. Do this in a new goroutine
+	// to reduce latency.
+	//
+	// TODO(Joerger): DELETE IN v20.0.0 - the nil conditional is only necessary
+	// for old clients which don't provide session params upfront and instead send
+	// them in env var requests later. Setting the new session ID late causes
+	// seession ID sync issues between the node and proxy in proxy recording mode.
+	if sessionParams != nil && sessionParams.JoinSessionID == "" {
+		scx.SetNewSessionID(ctx, ch)
+	}
+
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
 	// closeContext which signals the server to shutdown.

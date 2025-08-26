@@ -1153,6 +1153,26 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	scx.SetAllowFileCopying(true)
 	defer scx.Close()
 
+	// If this is a Teleport node server, it should send the session ID
+	// right after the session channel is accepted. We should reuse this
+	// session ID in order to track the node session from the proxy rather
+	// than creating duplicate session trackers, events, etc.
+	if s.targetServer.GetSubKind() == types.SubKindTeleportNode {
+		waitForSessionID := sshutils.PrepareToReceiveSessionID(ctx, s.logger, s.remoteClient)
+
+		// Wait for the session ID in a goroutine.
+		go func() {
+			sid, status := waitForSessionID()
+			switch status {
+			case sshutils.SessionIDReceived:
+				scx.ConnectionContext.SetSessionID(sid)
+				fallthrough
+			default:
+				s.logger.WarnContext(ctx, "Unexpected session ID status in proxy recording mode. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events.", "status", status)
+			}
+		}()
+	}
+
 	// Create a "session" channel on the remote host. Note that we
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
