@@ -1,6 +1,6 @@
 ---
-title: AWS Console and CLI access via AWS IAM Roles Anywhere
-description: How to access AWS with Teleport via AWS IAM Roles Anywhere.
+title: AWS Console and CLI access
+description: How to access AWS with Teleport.
 labels:
  - how-to
  - zero-trust
@@ -99,7 +99,7 @@ First, you will create an IAM Roles Anywhere Trust Anchor which trusts the Telep
 Next, you will create the required AWS resources to enable the Profile Sync.
 
 1. Navigate to [Create Role](https://console.aws.amazon.com/iam/home?#/roles/create) and create a new IAM Role called `TeleportRolesAnywhereProfileSync`.
-   Trust policy must include the Roles Anywhere service principal:
+  Trust policy must include the Roles Anywhere service principal:
   ```json
   {
       "Version": "2012-10-17",
@@ -118,7 +118,6 @@ Next, you will create the required AWS resources to enable the Profile Sync.
       ]
   }
   ```
-
 1. Copy the IAM Role ARN <Var name="Role ARN" />
 1. Navigate to the [TeleportRolesAnywhereProfileSync Role](https://console.aws.amazon.com/iam/home?#/roles/details/TeleportRolesAnywhereProfileSync) and create a new inline policy:
   ```json
@@ -143,7 +142,7 @@ Next, you will create the required AWS resources to enable the Profile Sync.
   ```
 
 1. Now, navigate to the [Create a Profile](https://console.aws.amazon.com/rolesanywhere/home/profiles/create) page and name it `TeleportRolesAnywhereProfileSync`.
-Add the role created in the last step (`TeleportRolesAnywhereProfileSync`) and create the Profile.
+  Add the role created in the last step (`TeleportRolesAnywhereProfileSync`) and create the Profile.
 1. Copy the Profile ARN <Var name="Profile ARN" />
 
 ### Create a Teleport AWS IAM Roles Anywhere integration
@@ -179,7 +178,7 @@ Now, you will create an example Profile and Role so that you can test the integr
 If you are already leveraging AWS IAM Roles Anywhere Profiles, you can skip this step.
 
 1. Navigate to [Create Role](https://console.aws.amazon.com/iam/home?#/roles/create) and create a new IAM Role called `ExampleReadOnlyAccess`.
-Trust policy must include the Roles Anywhere service principal:
+  Trust policy must include the Roles Anywhere service principal:
   ```json
   {
       "Version": "2012-10-17",
@@ -199,14 +198,13 @@ Trust policy must include the Roles Anywhere service principal:
   }
   ```
 
-Add the AWS-managed `ReadOnlyAccess` policy to the role.
-Copy the Role ARN <Var name="Read Only Role ARN" />.
+  Add the AWS-managed `ReadOnlyAccess` policy to the role.
+  Copy the Role ARN <Var name="Read Only Role ARN" />.
 
 1. Now, navigate to [Create a Profile](https://console.aws.amazon.com/rolesanywhere/home/profiles/create) page and name it `ExampleReadOnlyAccess`.
-Add the role created in the last step (`ExampleReadOnlyAccess`) and create the Profile.
-
-Copy the Profile ARN <Var name="Read Only Profile ARN" />.
-
+  Add the role created in the last step (`ExampleReadOnlyAccess`) and create the Profile.
+  
+  Copy the Profile ARN <Var name="Read Only Profile ARN" />.
 1. You should now see the `ExampleReadOnlyAccess` profile listed in your Teleport Web UI in the Resources page.
 
 ## Step 3/4. Set up access
@@ -246,7 +244,7 @@ You will create a Teleport Role which will grant access to the `ExampleReadOnlyA
     </TabItem>
   </Tabs>
 
-Assign the Role to the users you want to allow access. You can also assign it to an [Access List](../../../identity-governance/access-lists/guide/) or use it in conjunction with [Access Requests](../../../identity-governance/access-requests/).
+Assign the Role to the users you want to allow access. You can also assign it to an [Access List](../../../identity-governance/access-lists/guide.mdx) or use it in conjunction with [Access Requests](../../../identity-governance/access-requests/).
 
 ## Step 4/4. Access AWS resources
 
