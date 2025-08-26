@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"slices"
 	"sync"
 	"time"
 
@@ -96,10 +95,10 @@ type recordingPlayback struct {
 
 	stream struct {
 		sync.Mutex
-		eventsChan     <-chan apievents.AuditEvent
-		errorsChan     <-chan error
-		lastEndTime    int64
-		bufferedEvents []apievents.AuditEvent
+		eventsChan    <-chan apievents.AuditEvent
+		errorsChan    <-chan error
+		lastEndTime   int64
+		bufferedEvent apievents.AuditEvent
 	}
 
 	websocket struct {
@@ -384,7 +383,9 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 		case *apievents.SessionPrint:
 			if evt.DelayMilliseconds > req.endOffset {
 				s.stream.Lock()
-				s.stream.bufferedEvents = append(s.stream.bufferedEvents, evt)
+				// store the event for the next request as it is outside the current time range
+				// and won't be returned by the stream on the next request
+				s.stream.bufferedEvent = evt
 				s.stream.Unlock()
 
 				return false
@@ -429,13 +430,13 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 
 	s.stream.Lock()
 
-	buffered := slices.Clone(s.stream.bufferedEvents)
-	s.stream.bufferedEvents = nil
+	buffered := s.stream.bufferedEvent
+	s.stream.bufferedEvent = nil
 
 	s.stream.Unlock()
 
-	for _, evt := range buffered {
-		if !processEvent(evt) {
+	if buffered != nil {
+		if !processEvent(buffered) {
 			flushBatch()
 			sendStop()
 
