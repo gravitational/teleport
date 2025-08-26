@@ -109,5 +109,5 @@ func (awsicPluginHandler) updatePlugin(newPlugin, oldPlugin *types.PluginV1) err
 }
 
 func icFiltersEq(a, b *types.AWSICResourceFilter) bool {
-	return a.Include.Equal(b.Include)
+	return a.Equal(b)
 }

@@ -323,3 +323,33 @@ func newIdentityCenterPluginResource() *types.PluginV1 {
 		},
 	}
 }
+
+func TestFilterEquality(t *testing.T) {
+	testCases := []struct {
+		name   string
+		a      *types.AWSICResourceFilter
+		b      *types.AWSICResourceFilter
+		expect require.BoolAssertionFunc
+	}{
+		{
+			name: "exclusion",
+			a: &types.AWSICResourceFilter{
+				Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{
+					ExcludeNameRegex: "*",
+				},
+			},
+			b: &types.AWSICResourceFilter{
+				Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{
+					ExcludeNameRegex: "*",
+				},
+			},
+			expect: require.True,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			test.expect(t, icFiltersEq(test.a, test.b))
+		})
+	}
+}
