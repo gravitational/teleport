@@ -109,7 +109,7 @@ type recordingPlayback struct {
 		sync.Mutex
 		eventsChan    <-chan apievents.AuditEvent
 		errorsChan    <-chan error
-		lastEndTime   int64
+		lastEndTime   time.Duration
 		bufferedEvent apievents.AuditEvent
 	}
 
@@ -123,17 +123,17 @@ type recordingPlayback struct {
 // fetchRequest represents a request for session events.
 type fetchRequest struct {
 	requestType          requestType
-	startOffset          int64
-	endOffset            int64
+	startOffset          time.Duration
+	endOffset            time.Duration
 	requestID            int
 	requestCurrentScreen bool
 }
 
 // sessionEvent represents a single session event with its type, timestamp, and data.
 type sessionEvent struct {
-	eventType responseType
-	timestamp int64
-	data      []byte
+	eventType  responseType
+	timeOffset time.Duration
+	data       []byte
 }
 
 func (h *Handler) recordingPlaybackWs(
@@ -440,8 +440,8 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 		eventBatch = eventBatch[:0]
 	}
 
-	addToBatch := func(eventType responseType, timestamp int64, data []byte) {
-		eventBatch = append(eventBatch, sessionEvent{eventType, timestamp, data})
+	addToBatch := func(eventType responseType, timeOffset time.Duration, data []byte) {
+		eventBatch = append(eventBatch, sessionEvent{eventType, timeOffset, data})
 
 		if len(eventBatch) >= maxBatchSize {
 			flushBatch()
@@ -509,11 +509,11 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 			s.terminal.Unlock()
 
 			if inTimeRange {
-				addToBatch(eventTypeSessionPrint, evt.DelayMilliseconds, evt.Data)
+				addToBatch(eventTypeSessionPrint, eventTime, evt.Data)
 			}
 
 		case *apievents.SessionEnd:
-			endTime := int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond)
+			endTime := evt.EndTime.Sub(evt.StartTime)
 
 			if inTimeRange {
 				addToBatch(eventTypeSessionEnd, endTime, []byte(evt.EndTime.Format(time.RFC3339)))
@@ -612,11 +612,11 @@ func (s *recordingPlayback) writeMessage(data []byte) error {
 }
 
 // sendEvent sends a single event to the client.
-func (s *recordingPlayback) sendEvent(eventType responseType, timestamp int64, data []byte, requestID int) {
+func (s *recordingPlayback) sendEvent(eventType responseType, timeOffset time.Duration, data []byte, requestID int) {
 	totalSize := responseHeaderSize + len(data)
 	buf := make([]byte, totalSize)
 
-	encodeEvent(buf, 0, eventType, timestamp, data, requestID)
+	encodeEvent(buf, 0, eventType, timeOffset, data, requestID)
 
 	if err := s.writeMessage(buf); err != nil {
 		s.logger.ErrorContext(s.ctx, "failed to send event", "session_id", s.sessionID, "error", err)
@@ -638,7 +638,7 @@ func (s *recordingPlayback) sendEventBatch(batch []sessionEvent, requestID int) 
 
 	offset := responseHeaderSize
 	for _, evt := range batch {
-		encodeEvent(buf, offset, evt.eventType, evt.timestamp, evt.data, requestID)
+		encodeEvent(buf, offset, evt.eventType, evt.timeOffset, evt.data, requestID)
 
 		offset += responseHeaderSize + len(evt.data)
 	}
@@ -658,7 +658,7 @@ func (s *recordingPlayback) sendError(err error, requestID int) {
 }
 
 // sendCurrentScreen sends the current terminal screen state to the client.
-func (s *recordingPlayback) sendCurrentScreen(requestID int, timestamp int64) {
+func (s *recordingPlayback) sendCurrentScreen(requestID int, timeOffset time.Duration) {
 	s.terminal.Lock()
 	state := s.terminal.vt.DumpState()
 	cols, rows := s.terminal.vt.Size()
@@ -667,7 +667,7 @@ func (s *recordingPlayback) sendCurrentScreen(requestID int, timestamp int64) {
 
 	data := encodeScreenEvent(state, cols, rows, cursor)
 
-	s.sendEvent(eventTypeScreen, timestamp, data, requestID)
+	s.sendEvent(eventTypeScreen, timeOffset, data, requestID)
 }
 
 // encodeScreenEvent encodes the current terminal screen state into a byte slice.
@@ -689,10 +689,10 @@ func encodeScreenEvent(state vt10x.TerminalState, cols, rows int, cursor vt10x.C
 }
 
 // encodeEvent encodes a session event into a byte slice.
-func encodeEvent(buf []byte, offset int, eventType responseType, timestamp int64, data []byte, requestID int) {
+func encodeEvent(buf []byte, offset int, eventType responseType, timeOffset time.Duration, data []byte, requestID int) {
 	buf[offset] = byte(eventType)
 
-	binary.BigEndian.PutUint64(buf[offset+1:offset+9], uint64(timestamp))
+	binary.BigEndian.PutUint64(buf[offset+1:offset+9], uint64(timeOffset))
 	binary.BigEndian.PutUint32(buf[offset+9:offset+13], uint32(len(data)))
 	binary.BigEndian.PutUint32(buf[offset+13:offset+17], uint32(requestID))
 
@@ -700,7 +700,7 @@ func encodeEvent(buf []byte, offset int, eventType responseType, timestamp int64
 }
 
 // encodeTime encodes the start and end times into a byte slice.
-func encodeTime(startTime, endTime int64) []byte {
+func encodeTime(startTime, endTime time.Duration) []byte {
 	buf := make([]byte, 16)
 
 	binary.BigEndian.PutUint64(buf, uint64(startTime))
@@ -717,8 +717,8 @@ func decodeBinaryRequest(data []byte) (*fetchRequest, error) {
 
 	req := &fetchRequest{
 		requestType:          requestType(data[0]),
-		startOffset:          int64(binary.BigEndian.Uint64(data[1:9])),
-		endOffset:            int64(binary.BigEndian.Uint64(data[9:17])),
+		startOffset:          time.Duration(binary.BigEndian.Uint64(data[1:9])),
+		endOffset:            time.Duration(binary.BigEndian.Uint64(data[9:17])),
 		requestID:            int(binary.BigEndian.Uint32(data[17:21])),
 		requestCurrentScreen: data[21] == 1,
 	}
@@ -727,12 +727,12 @@ func decodeBinaryRequest(data []byte) (*fetchRequest, error) {
 }
 
 // getEventTime extracts the event time from an AuditEvent.
-func getEventTime(evt apievents.AuditEvent) int64 {
+func getEventTime(evt apievents.AuditEvent) time.Duration {
 	switch evt := evt.(type) {
 	case *apievents.SessionPrint:
-		return evt.DelayMilliseconds
+		return time.Duration(evt.DelayMilliseconds)
 	case *apievents.SessionEnd:
-		return int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond)
+		return evt.EndTime.Sub(evt.StartTime)
 	default:
 		return 0
 	}
@@ -763,7 +763,7 @@ func validateRequest(req *fetchRequest) error {
 	}
 
 	rangeMillis := req.endOffset - req.startOffset
-	maxRangeMillis := int64(maxRequestRange / time.Millisecond)
+	maxRangeMillis := time.Duration(maxRequestRange / time.Millisecond)
 
 	if rangeMillis > maxRangeMillis {
 		return trace.LimitExceeded("time range too large, max is %s", maxRequestRange)
