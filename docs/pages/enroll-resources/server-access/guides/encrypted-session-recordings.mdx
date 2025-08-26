@@ -73,6 +73,14 @@ are the default, but other backends can also be configured:
 It is important that all Teleport Auth Services have access to the same keys
 and key storage backend to ensure all recorded sessions are always replayable.
 
+<Admonition type="note">
+Before enabling encrypted recordings with an HSM backend, make sure OAEP
+decryption is permitted for generated keys. For YubiHSM2, the authkey used
+should have `decrypt-oaep` included in both its capabilities and delegated
+capabilities. For other PKCS#11 HSMs, the `CKM_DECRYPT` mechanism must be
+enabled.
+</Admonition>
+
 ## Step 2/2. Confirm new recordings are encrypted
 
 It is possible to confirm that session recordings are now encrypted by
@@ -83,7 +91,7 @@ using the session ID should succeed.
 
 ## Manual Encryption Key Management
 
-<Admonition type="note">
+<Admonition type="warning">
 Manual encryption key management places all responsibility and complexity of
 managing keys on the administrator. This comes with much more risk of a
 misconfiguration impacting Teleport's ability to record or replay sessions.
