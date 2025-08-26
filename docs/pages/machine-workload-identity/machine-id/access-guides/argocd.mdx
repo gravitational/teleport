@@ -135,11 +135,20 @@ Use `tctl create -f ./bot.yaml` to create the bot.
 In order for `tbot` to be able to authenticate and join the Teleport cluster,
 we need to configure a join token. There are a number of different available
 [methods](../../../reference/join-methods.mdx), but for this guide we will use
-the `kubernetes` method with a static JWKS.
+the `kubernetes` method with a static JWKS. Please refer to the
+[Deploying tbot on Kubernetes](../deployment/kubernetes.mdx) guide for more
+in-depth information.
 
-Please refer to the [Deploying tbot on Kubernetes](../deployment/kubernetes.mdx)
-and [Deploying tbot on Kubernetes with OIDC](../deployment/kubernetes-oidc.mdx)
-guides for more in-depth information.
+<Admonition type="warning" title="OIDC Joining">
+Certain cloud providers like Amazon EKS regularly rotate their OIDC signing
+keys, which will cause the `static_jwks` configuration you create in this guide
+to become invalid after a short period of time.
+
+On Kubernetes providers with OIDC support, like Amazon's Elastic Kubernetes
+Service (EKS), Google Kubernetes Engine (GKE), and Azure Kubernetes Service
+(AKS), consider using [Kubernetes OIDC joining](../deployment/kubernetes-oidc.mdx)
+instead.
+</Admonition>
 
 First, run the following commands to determine the JWKS-formatted public key:
 
