@@ -83,6 +83,8 @@ const (
 	responseHeaderSize = 17
 )
 
+const websocketCloseTimeout = 5 * time.Second
+
 // recordingPlayback manages session event streaming
 type recordingPlayback struct {
 	ctx              context.Context
@@ -140,8 +142,6 @@ func (h *Handler) recordingPlaybackWs(
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
-	defer ws.Close()
-
 	ctx := r.Context()
 	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
@@ -155,6 +155,8 @@ func (h *Handler) recordingPlaybackWs(
 		if err := ws.WriteMessage(websocket.BinaryMessage, buf); err != nil {
 			h.logger.ErrorContext(ctx, "failed to send event", "session_id", sessionID, "error", err)
 		}
+
+		gracefulWebSocketClose(ws, websocketCloseTimeout)
 
 		return nil, nil
 	}
@@ -199,7 +201,7 @@ func (s *recordingPlayback) run() {
 func (s *recordingPlayback) cleanup() {
 	s.cancel()
 
-	_ = s.ws.Close()
+	gracefulWebSocketClose(s.ws, websocketCloseTimeout)
 }
 
 // writeLoop handles all websocket writes from a dedicated goroutine.
@@ -248,8 +250,9 @@ func (s *recordingPlayback) readLoop() {
 
 			if err := s.ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "only binary messages are supported")); err != nil {
 				s.logWebsocketError(err)
-				return
 			}
+
+			return
 		}
 
 		req, err := decodeBinaryRequest(data)
@@ -671,6 +674,24 @@ func getEventTime(evt apievents.AuditEvent) int64 {
 	default:
 		return 0
 	}
+}
+
+// gracefulWebSocketClose performs the proper WebSocket close handshake (RFC 6455).
+// This ensures all frames are delivered before connection termination and prevents data
+// loss in fast WebSocket connections.
+func gracefulWebSocketClose(ws *websocket.Conn, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+
+	// Send close frame to initiate graceful shutdown
+	_ = ws.SetWriteDeadline(deadline)
+	_ = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+
+	// Wait for peer's close frame response (or timeout)
+	_ = ws.SetReadDeadline(deadline)
+	_, _, _ = ws.ReadMessage()
+
+	// Finally close the underlying connection
+	ws.Close()
 }
 
 // validateRequest validates the fetch request parameters.
