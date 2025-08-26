@@ -51,9 +51,9 @@ jobs:
           - {image: "ubuntu:20.04", package-manager: "apt"}
           # ubuntu:18.04 disabled for checkout@v3/node20/glibc compatibility failures
           #- {image: "ubuntu:18.04", package-manager: "apt"}
-          - {image: "debian:10", package-manager: "apt"}
           - {image: "debian:11", package-manager: "apt"}
           - {image: "debian:12", package-manager: "apt"}
+          - {image: "debian:13", package-manager: "apt"}
     container:
       image: ${{ matrix.container.image }}
     defaults:
