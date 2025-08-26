@@ -2008,27 +2008,6 @@ func copyImpersonationHeaders(dst, src http.Header) {
 // allowed values. If the user didn't specify any user and groups to impersonate,
 // Teleport will use every group the user is allowed to impersonate.
 func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, username string, headers http.Header) (string, []string, error) {
-	// Having a wildcard ("*") in a role's `kubernetes_users` allows you to
-	// impersonate any user, but it also has a couple of subtle implications:
-	//
-	// 	1. If no `Impersonate-User` header is given, rather than returning an
-	// 	   error we will send the user's Teleport username. This is to support
-	// 	   users of Argo CD's impersonation feature which only sends the header
-	// 	   in application/project-specific requests (and omits it completely in
-	// 	   cluster-scoped requests). Returning an error is clearer and still the
-	// 	   better choice in the general case.
-	//
-	// 	2. If no `Impersonate-Group` headers are given, we will *not* set them
-	// 	   to the values of `kubernetes_groups`. This is because allowing a user
-	// 	   to impersonate all other users probably means impersonation is being
-	// 	   used to *restrict* permissions, and group impersonation is additive.
-	//
-	// 	   For example: if `kubernetes_groups` contains `"system:masters"` and
-	// 	   we were to automatically add it to all requests, there would be no
-	// 	   point in impersonating a low-privilege user — you'd always have admin
-	// 	   level permissions.
-	//
-	// See: https://github.com/gravitational/teleport/issues/58274.
 	_, hasUserWildcard := kubeUsers[types.Wildcard]
 
 	var impersonateUser string
@@ -2110,7 +2089,7 @@ func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, us
 		}
 	}
 
-	if len(impersonateGroups) == 0 && !hasUserWildcard {
+	if len(impersonateGroups) == 0 {
 		for group := range kubeGroups {
 			impersonateGroups = append(impersonateGroups, group)
 		}

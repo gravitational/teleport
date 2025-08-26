@@ -935,18 +935,19 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 		{
 			desc:       "kubernetes_users wildcard, no impersonation headers",
 			username:   "ted-lasso",
-			kubeUsers:  []string{"*"},
+			kubeUsers:  []string{types.Wildcard},
 			kubeGroups: []string{"kube-group-a"},
 			inHeaders:  http.Header{},
 			wantHeaders: http.Header{
-				ImpersonateUserHeader: []string{"ted-lasso"},
+				ImpersonateUserHeader:  []string{"ted-lasso"},
+				ImpersonateGroupHeader: []string{"kube-group-a"},
 			},
 			errAssertion: require.NoError,
 		},
 		{
 			desc:       "kubernetes_users wildcard, impersonation headers given",
 			username:   "ted-lasso",
-			kubeUsers:  []string{"*"},
+			kubeUsers:  []string{types.Wildcard},
 			kubeGroups: []string{"kube-group-a"},
 			inHeaders: http.Header{
 				ImpersonateUserHeader:  []string{"kube-user-a"},

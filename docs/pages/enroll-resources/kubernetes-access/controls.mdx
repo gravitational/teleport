@@ -327,8 +327,17 @@ The Kubernetes Service will deny a request if a user has multiple
 (i.e., using the `--as` flag described in the previous section).
 
 If the user has not specified a Kubernetes group to impersonate, the Kubernetes
-Service uses all values within `kubernetes_groups`, unless there is a
-[wildcard](#specifying-a-wildcard-in-kubernetes_users) in `kubernetes_users`.
+Service uses all values within `kubernetes_groups`.
+
+<Admonition type="warning">
+    When impersonating a less privileged user, remember that unless you're
+    also manually impersonating specific groups (e.g. using `--as-groups` flag),
+    the Kubernetes Service will automatically impersonate any groups within
+    `kubernetes_groups`.
+
+    This can be confusing because you will have the combined permissions of both
+    the user and any automatically-impersonated groups.
+</Admonition>
 
 With the `kube-access` role above, after you authenticate to Teleport, the
 Kubernetes Service uses impersonation headers to forward requests to the API
@@ -505,23 +514,6 @@ will be accessible to the user if the principals in the `kubernetes_users` and
 Requesting access to a Kubernetes Namespace allows you to access all resources
 in that namespace but you won't be able to access any other supported resources
 in the cluster.
-
-#### Specifying a wildcard in `kubernetes_users`
-
-You can specify a wildcard (`*`) in `kubernetes_users` to allow impersonation of
-any user. This is useful if you have a component such as the Argo CD control
-plane that needs a broad set standing privileges for cluster-level operations,
-but uses impersonation to scope privileges down when acting on their user's
-behalf.
-
-When a wildcard is present, if no user is manually being impersonated (e.g.
-by passing the `--as` flag to `tsh kube login`), the Kubernetes Service uses the
-user's Teleport username.
-
-While you can still manually impersonate groups using the `--as-groups` flag,
-the Kubernetes Service will not automatically impersonate `kubernetes_groups`
-when the wildcard is present, because this would make it ineffective to
-impersonate a low-privileged user.
 
 ### `kubernetes_resources`
 
