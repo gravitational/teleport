@@ -47,6 +47,9 @@ const (
 	PackageNameEnt = "teleport-ent"
 	// PackageNameEntFIPS is the teleport package name for the Enterprise with FIPS enabled version.
 	PackageNameEntFIPS = "teleport-ent-fips"
+	// PackageNameUpdate is the Teleport package containing only the `teleport-update`
+	// binary, which is used as the entrypoint for installation.
+	PackageNameUpdate = "teleport-update"
 
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
@@ -702,7 +705,7 @@ const (
 )
 
 // PackageNameKinds is the list of valid teleport package names.
-var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS, PackageNameUpdate}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}

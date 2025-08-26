@@ -25,6 +25,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
@@ -90,7 +91,14 @@ type OneOffScriptParams struct {
 	// Possible values:
 	// - teleport
 	// - teleport-ent
+	// - teleport-update
 	TeleportFlavor string
+
+	// TeleportPackage is the teleport package name.
+	// Possible values:
+	// - teleport
+	// - teleport-ent
+	TeleportPackage string
 
 	// TeleportFIPS represents if the script should install a FIPS build of Teleport.
 	TeleportFIPS bool
@@ -130,12 +138,31 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	}
 	p.CDNBaseURL = strings.TrimRight(p.CDNBaseURL, "/")
 
+	if p.TeleportPackage == "" {
+		p.TeleportPackage = types.PackageNameOSS
+		if modules.GetModules().BuildType() == modules.BuildEnterprise {
+			p.TeleportPackage = types.PackageNameEnt
+		}
+	}
 	if p.TeleportFlavor == "" {
 		p.TeleportFlavor = types.PackageNameOSS
 		if modules.GetModules().BuildType() == modules.BuildEnterprise {
 			p.TeleportFlavor = types.PackageNameEnt
 		}
 	}
+	// TODO(vapopov): DELETE IN v21.0.0, `teleport-update` must be already added to all supported
+	// releases and version check must be omitted.
+	version, err := semver.NewVersion(strings.TrimPrefix(p.TeleportVersion, "v"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if version.Major == 17 && version.Compare(*semver.New("17.7.2")) >= 0 ||
+		version.Major == 18 && version.Compare(*semver.New("18.1.5")) >= 0 ||
+		version.Major > 18 {
+		p.TeleportPackage = types.PackageNameOSS
+		p.TeleportFlavor = types.PackageNameUpdate
+	}
+
 	if !slices.Contains(types.PackageNameKinds, p.TeleportFlavor) {
 		return trace.BadParameter("invalid teleport flavor, only %v are supported", types.PackageNameKinds)
 	}

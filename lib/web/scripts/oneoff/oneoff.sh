@@ -3,7 +3,8 @@ set -eu
 
 cdnBaseURL='{{.CDNBaseURL}}'
 teleportVersion='{{.TeleportVersion}}'
-teleportFlavor='{{.TeleportFlavor}}' # teleport or teleport-ent
+teleportFlavor='{{.TeleportFlavor}}' # teleport, teleport-ent or teleport-update
+teleportPackage='{{.TeleportPackage}}'
 successMessage='{{.SuccessMessage}}'
 entrypointArgs='{{.EntrypointArgs}}'
 entrypoint='{{.Entrypoint}}'
@@ -20,17 +21,9 @@ ARCH=$({{.BinUname}} -m)
 trap 'rm -rf -- "$tempDir"' EXIT
 
 teleportTarballName() {
-    if [ "${OS}" = "Darwin" ]; then
-        if [ "$fips" = "true" ]; then
-            echo "FIPS version of Teleport is not compatible with MacOS. Please run this script in a Linux machine."
-            return 1
-        fi
-        echo "${teleportFlavor}-${teleportVersion}-darwin-universal-${packageSuffix}"
-        return 0
-    fi;
-
     if [ "${OS}" != "Linux" ]; then
-        echo "Only MacOS and Linux are supported." >&2
+        echo "ERROR: This script works only for Linux. Please go to the downloads page to find the proper installation method for your operating system:" >&2
+        echo "https://goteleport.com/download/" >&2
         return 1
     fi;
 
@@ -47,10 +40,10 @@ teleportTarballName() {
 main() {
     tarballName=$(teleportTarballName)
     echo "Downloading from ${cdnBaseURL}/${tarballName} and extracting teleport to ${tempDir} ..."
-    curl --show-error --fail --location "${cdnBaseURL}/${tarballName}" | tar xzf - -C "${tempDir}" "${teleportFlavor}/${entrypoint}"
+    curl --show-error --fail --location "${cdnBaseURL}/${tarballName}" | tar xzf - -C "${tempDir}" "${teleportPackage}/${entrypoint}"
 
     mkdir -p "${tempDir}/bin"
-    mv "${tempDir}/${teleportFlavor}/${entrypoint}" "${tempDir}/bin/${entrypoint}"
+    mv "${tempDir}/${teleportPackage}/${entrypoint}" "${tempDir}/bin/${entrypoint}"
     echo "> ${tempDir}/bin/${entrypoint} ${entrypointArgs} $@"
     {{.TeleportCommandPrefix}} "${tempDir}/bin/${entrypoint}" ${entrypointArgs} $@ && echo "$successMessage"
 }
