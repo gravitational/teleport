@@ -700,6 +700,7 @@ func newMockStreamClient() *mockStreamClient {
 func (m *mockStreamClient) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	m.streamCount += 1
 
+	// Notify that a new stream has been requested so that the test can send events to the channels.
 	select {
 	case m.eventRequested <- struct{}{}:
 	default:
