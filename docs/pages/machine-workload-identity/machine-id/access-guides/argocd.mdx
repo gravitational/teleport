@@ -295,8 +295,8 @@ impersonate many users, it's ambiguous which one Teleport should use by default.
 When `kubernetes_users` contains a wildcard, and no specific user is being
 impersonated, Kubernetes Access will fall back to sending your bot's Teleport
 username by default. You should therefore create a RoleBinding or
-ClusterRoleBinding granting your bot user the broader permissions needed by the
-Argo CD control plane.
+ClusterRoleBinding, in your target cluster, granting your bot user the broader
+permissions needed by the Argo CD control plane.
 
 ```code
 $ kubectl create clusterrolebinding example-bot-edit \
