@@ -11,6 +11,15 @@ BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
 # CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
 
+# On Windows, CGO is required to link against a C wrapper for the windows console API, which provides
+# interactive terminal support. Disabling it causes the build to fail with  "undefined" linker errors
+ifeq ($(OS),Windows_NT)
+CGOFLAG := CGO_ENABLED=1
+endif
+
+# Add .exe suffix for Windows builds
+EXE := $(if $(filter Windows_NT,$(OS)),.exe,)
+
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
 
 .PHONY: tfclean
@@ -24,13 +33,18 @@ tfclean:
 clean: tfclean
 	rm -rf $(PROVIDER_PATH)*
 	rm -rf $(BUILDDIR)/*
-	rm -rf $(RELEASE).tar.gz
+ifeq ($(OS),Windows_NT)
+	rm -f $(RELEASE)$(EXE)
+else
+	rm -f $(RELEASE).tar.gz
+endif
 	go clean
 
 .PHONY: build
 build: clean
 # Turning off GOWORK to prevent missing package errors.
-	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "kustomize_disable_go_plugin_support" -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
+# The unified build command handles GOOS, GOARCH, CGO flags, and the output file extension.
+	GOWORK=off GOOS=$(if $(filter Windows_NT,$(OS)),windows,$(OS)) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "kustomize_disable_go_plugin_support" -o $(BUILDDIR)/terraform-provider-teleport$(EXE) $(BUILDFLAGS)
 
 build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm64 amd64)
 	lipo -create -output $(BUILDDIR)/terraform-provider-teleport $^
@@ -148,16 +162,33 @@ darwin-signed-build: build
 endif
 	$(NOTARIZE_BINARIES)
 
+# Map Make’s OS (Windows_NT) to Go’s GOOS (“windows”), otherwise use Go’s own value
+GOOS := $(if $(filter Windows_NT,$(OS)),windows,$(shell go env GOOS))
+
 .PHONY: release
+release:
 ifeq ($(OS),darwin)
-release: darwin-signed-build
+	$(MAKE) darwin-signed-build
+else ifeq ($(OS),Windows_NT)
+	$(MAKE) windows-build
 else
-release: build
+	$(MAKE) build
 endif
+
+ifeq ($(OS),Windows_NT)
+	@echo "Creating final release executable..."
+	cp $(BUILDDIR)/terraform-provider-teleport$(EXE) $(RELEASE)$(EXE)
+else
 	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
+endif
+
+# windows-build is a wrapper around the main build target for Windows systems.
+.PHONY: windows-build
+windows-build: BINARIES=$(BUILDDIR)/terraform-provider-teleport$(EXE)
+windows-build: build
+	@echo "Windows build complete: $(BINARIES)"
 
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
-CURRENT_ULIMIT := $(shell ulimit -n)
 
 TEST_ARGS?=
 
@@ -169,11 +200,18 @@ ifndef TERRAFORM_EXISTS
 	@exit -1
 endif
 # NOTE: This is related to an old bug in Terraform and will be fixed in future releases (possibly, by a workaround on our side)
-ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024), 1)
-	@echo "ulimit -n is too low ($(CURRENT_ULIMIT)), please set ulimit -n 1024"
-	@exit -1
+# Run unit tests—but enforce ulimit ≥ 1024 on Unix-like systems
+ifeq ($(OS),Windows_NT)
+	@echo "Skipping ulimit check on Windows"
+else
+	@ULIMIT=$$(ulimit -n); \
+	if [ "$$ULIMIT" -lt 1024 ]; then \
+		echo "ulimit -n is too low ($$ULIMIT); please set ulimit -n 1024"; \
+		exit -1; \
+	fi
 endif
-	go test ./testlib -v $(TEST_ARGS)
+
+	@go test ./testlib -v $(TEST_ARGS)
 
 .PHONY: test-full
 test-full: TEST_ARGS=--tags enterprisetests
