@@ -19,31 +19,8 @@
 import { ResourceIconName } from 'design/ResourceIcon';
 
 import cfg from 'teleport/config';
+import { type IntegrationTag } from 'teleport/Integrations/Enroll/Shared';
 import { IntegrationKind } from 'teleport/services/integrations';
-
-export const integrationTagOptions = [
-  { value: 'ai', label: 'AI / MCP' },
-  { value: 'bot', label: 'Bot' },
-  { value: 'cicd', label: 'CI/CD' },
-  { value: 'devicetrust', label: 'Device Trust' },
-  { value: 'idp', label: 'IdP' },
-  { value: 'jit', label: 'JIT Review' },
-  { value: 'multicloud', label: 'Multi-Cloud' },
-  { value: 'notifications', label: 'Notifications' },
-  { value: 'resourceaccess', label: 'Resource Access' },
-] as const satisfies { value: string; label: string }[];
-
-export type IntegrationTag = Extract<
-  (typeof integrationTagOptions)[number],
-  { value: string }
->['value'];
-
-export function isIntegrationTag(tag: unknown): tag is IntegrationTag {
-  return (
-    typeof tag === 'string' &&
-    integrationTagOptions.some(option => option.value === tag)
-  );
-}
 
 export type IntegrationTileSpec = {
   /**

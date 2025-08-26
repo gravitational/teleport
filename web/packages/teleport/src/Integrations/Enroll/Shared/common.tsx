@@ -16,10 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+export type BaseIntegration = (
+  | { name: string; title?: never }
+  | { title: string; name?: never }
+) & {
+  tags: IntegrationTag[];
+};
 
-export const Container = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 16px;
-`;
+export const integrationTagOptions = [
+  { value: 'ai', label: 'AI / MCP' },
+  { value: 'bot', label: 'Bot' },
+  { value: 'cicd', label: 'CI/CD' },
+  { value: 'devicetrust', label: 'Device Trust' },
+  { value: 'idp', label: 'IdP' },
+  { value: 'jit', label: 'JIT Review' },
+  { value: 'multicloud', label: 'Multi-Cloud' },
+  { value: 'notifications', label: 'Notifications' },
+  { value: 'resourceaccess', label: 'Resource Access' },
+] as const satisfies { value: string; label: string }[];
+
+export type IntegrationTag = Extract<
+  (typeof integrationTagOptions)[number],
+  { value: string }
+>['value'];
+
+export function isIntegrationTag(tag: unknown): tag is IntegrationTag {
+  return (
+    typeof tag === 'string' &&
+    integrationTagOptions.some(option => option.value === tag)
+  );
+}
