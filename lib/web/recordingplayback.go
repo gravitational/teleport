@@ -19,15 +19,12 @@
 package web
 
 import (
-	"cmp"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -374,7 +371,11 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 
 		switch evt := evt.(type) {
 		case *apievents.SessionStart:
-			s.resizeTerminal(evt.TerminalSize)
+			if err := s.resizeTerminal(evt.TerminalSize); err != nil {
+				s.logger.ErrorContext(s.ctx, "failed to resize terminal", "session_id", s.sessionID, "error", err)
+
+				// continue returning events even if resize fails
+			}
 
 			if inTimeRange {
 				addToBatch(eventTypeSessionStart, 0, []byte(evt.TerminalSize))
@@ -390,7 +391,9 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 			}
 
 			s.terminal.Lock()
-			_, _ = s.terminal.vt.Write(evt.Data)
+			if _, err := s.terminal.vt.Write(evt.Data); err != nil {
+				s.logger.ErrorContext(s.ctx, "failed to write to terminal", "session_id", s.sessionID, "error", err)
+			}
 			s.terminal.Unlock()
 
 			if evt.DelayMilliseconds >= req.startOffset {
@@ -410,7 +413,11 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 			return false
 
 		case *apievents.Resize:
-			s.resizeTerminal(evt.TerminalSize)
+			if err := s.resizeTerminal(evt.TerminalSize); err != nil {
+				s.logger.ErrorContext(s.ctx, "failed to resize terminal", "session_id", s.sessionID, "error", err)
+
+				// continue returning events even if resize fails
+			}
 
 			if inTimeRange {
 				addToBatch(eventTypeResize, 0, []byte(evt.TerminalSize))
@@ -475,23 +482,18 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 }
 
 // resizeTerminal resizes the terminal based on the provided size string.
-func (s *recordingPlayback) resizeTerminal(size string) {
-	parts := strings.Split(size, ":")
-	if len(parts) != 2 {
-		return
-	}
-
-	cols, cErr := strconv.Atoi(parts[0])
-	rows, rErr := strconv.Atoi(parts[1])
-
-	if cmp.Or(cErr, rErr) != nil {
-		return
+func (s *recordingPlayback) resizeTerminal(size string) error {
+	params, err := session.UnmarshalTerminalParams(size)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	s.terminal.Lock()
 	defer s.terminal.Unlock()
 
-	s.terminal.vt.Resize(cols, rows)
+	s.terminal.vt.Resize(params.W, params.H)
+
+	return nil
 }
 
 // writeMessage writes a message to the websocket connection with a timeout.
