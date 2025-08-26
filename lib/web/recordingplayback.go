@@ -292,6 +292,11 @@ func (s *recordingPlayback) writeLoop() {
 
 			// If we just sent a close message, exit the loop
 			if msg.messageType == websocket.CloseMessage {
+				// Mark that we're sending a close message
+				s.mu.Lock()
+				s.closeSent = true
+				s.mu.Unlock()
+
 				return
 			}
 		}
@@ -317,11 +322,6 @@ func (s *recordingPlayback) readLoop() {
 
 		if msgType != websocket.BinaryMessage {
 			s.logger.ErrorContext(s.ctx, "ignoring non-binary websocket message", "session_id", s.sessionID, "type", msgType)
-
-			// Mark that we're sending a close message
-			s.mu.Lock()
-			s.closeSent = true
-			s.mu.Unlock()
 
 			// Send close message through the write channel
 			select {
