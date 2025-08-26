@@ -31,7 +31,7 @@ interface RecordingThumbnailProps {
 
 // zoomLevel determines how far the thumbnail is zoomed in.
 // A higher zoom level means the thumbnail is more zoomed in, showing a smaller area of the recording.
-const zoomLevel = 5;
+const zoomLevel = 2;
 
 export function RecordingThumbnail({
   clusterId,
@@ -51,29 +51,30 @@ export function RecordingThumbnail({
 
   // calculate the background position based on the cursor position and zoom level
   const { bgPosX, bgPosY } = useMemo(() => {
-    const visibleWidthPercent = 100 / zoomLevel;
-    const visibleHeightPercent = 100 / zoomLevel;
+    let bgPosX: number;
+    let bgPosY: number;
 
-    const cursorPercentX = (data.cursorX / data.cols) * 100;
-    const cursorPercentY = (data.cursorY / data.rows) * 100;
+    if (data.cursorVisible) {
+      const cursorPercentX = (data.cursorX / data.cols) * 100;
+      const cursorPercentY = (data.cursorY / data.rows) * 100;
 
-    const bgPosX = Math.max(
-      0,
-      Math.min(
-        100 - visibleWidthPercent,
-        cursorPercentX - visibleWidthPercent / 2
-      )
-    );
-    const bgPosY = Math.max(
-      0,
-      Math.min(
-        100 - visibleHeightPercent,
-        cursorPercentY - visibleHeightPercent / 2
-      )
-    );
+      const viewportStartX = cursorPercentX - 50 / zoomLevel;
+      const viewportStartY = cursorPercentY - 50 / zoomLevel;
+
+      const viewportSize = 100 / zoomLevel;
+
+      bgPosX = (viewportStartX / (100 - viewportSize)) * 100;
+      bgPosY = (viewportStartY / (100 - viewportSize)) * 100;
+
+      bgPosX = Math.max(0, Math.min(100, bgPosX));
+      bgPosY = Math.max(0, Math.min(100, bgPosY));
+    } else {
+      bgPosX = 50;
+      bgPosY = 50;
+    }
 
     return { bgPosX, bgPosY };
-  }, [data.cols, data.cursorX, data.cursorY, data.rows]);
+  }, [data.cols, data.cursorX, data.cursorY, data.rows, data.cursorVisible]);
 
   const dataUri = useThumbnailSvg(data.svg, styles);
 
@@ -82,7 +83,7 @@ export function RecordingThumbnail({
       data-testid="recording-thumbnail"
       background={`url("${dataUri}")`}
       backgroundPosition={`${bgPosX}% ${bgPosY}%`}
-      backgroundSize="400%"
+      backgroundSize={`${zoomLevel * 100}%`}
       height="100%"
       width="100%"
     />
