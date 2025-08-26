@@ -931,25 +931,6 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 	}
 }
 
-// fillDefaultKubePrincipalDetails fills the default details in order to keep
-// the correct behavior when forwarding the request to the Kubernetes API.
-// By default, if no kubernetes_users are set (which will be a majority), a
-// user will impersonate himself, which is the backwards-compatible behavior.
-// We also append teleport.KubeSystemAuthenticated to kubernetes_groups, which is
-// a builtin group that allows any user to access common API methods,
-// e.g. discovery methods required for initial client usage, without it,
-// restricted user's kubectl clients will not work.
-func fillDefaultKubePrincipalDetails(kubeUsers []string, kubeGroups []string, username string) ([]string, []string) {
-	if len(kubeUsers) == 0 {
-		kubeUsers = append(kubeUsers, username)
-	}
-
-	if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
-		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
-	}
-	return kubeUsers, kubeGroups
-}
-
 // kubeAccessDetails holds the allowed kube groups/users names and the cluster labels for a local kube cluster.
 type kubeAccessDetails struct {
 	// list of allowed kube users
@@ -2003,13 +1984,78 @@ func copyImpersonationHeaders(dst, src http.Header) {
 	}
 }
 
+type computeImpersonatedPrincipalsConfig struct {
+	allowedKubeUsers  set.Set[string]
+	allowedKubeGroups set.Set[string]
+	requestHeaders    http.Header
+	defaultUser       string
+}
+
 // computeImpersonatedPrincipals computes the intersection between the information
 // received in the `Impersonate-User` and `Impersonate-Groups` headers and the
 // allowed values. If the user didn't specify any user and groups to impersonate,
 // Teleport will use every group the user is allowed to impersonate.
-func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
+func computeImpersonatedPrincipals(cfg computeImpersonatedPrincipalsConfig) (string, []string, error) {
+	requestImpersonateUser, requestImpersonateGroups, err := extractImpersonatedPrincipals(headers)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+
+	hasKubeUsersWildcard := cfg.allowedKubeUsers.Contains(types.Wildcard)
+
+	switch {
+	case requestImpersonateUser == "" && (hasKubeUsersWildcard || cfg.allowedKubeUsers.Len() == 0):
+		// If no user was requested and the role allows any user or no users are set,
+		// default to the Teleport username.
+		requestImpersonateUser = cfg.defaultUser
+	case requestImpersonateUser == "":
+		if len(cfg.allowedKubeUsers) > 1 {
+			return "", nil, trace.AccessDenied("%v, please select a user to impersonate, refusing to select a user due to several kubernetes_users in roles", ImpersonationRequestDeniedMessage)
+		}
+		for user := range cfg.allowedKubeUsers {
+			requestImpersonateUser = user
+			break
+		}
+	case requestImpersonateUser != "" && !cfg.allowedKubeUsers.Contains(requestImpersonateUser):
+		// If a user was requested, but the role doesn't allow any user or
+		// the requested user is not allowed, deny the request.
+		return "", nil, trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, requestImpersonateUser)
+	}
+
+	switch {
+	case len(requestImpersonateGroups) == 0:
+		{
+			// If no groups were requested, default to all allowed groups except wildcard.
+			for group := range cfg.allowedKubeGroups {
+				if group != types.Wildcard {
+					requestImpersonateGroups = append(requestImpersonateGroups, group)
+				}
+			}
+		}
+
+	default:
+		// If groups were requested, but the role doesn't allow any group or
+		// any of the requested groups are not allowed, deny the request.
+		for _, group := range requestImpersonateGroups {
+			if !cfg.allowedKubeGroups.Contains(group) && group != teleport.KubeSystemAuthenticated {
+				return "", nil, trace.AccessDenied("%v, group header %q value is not allowed in roles", ImpersonationRequestDeniedMessage, group)
+			}
+		}
+	}
+
+	// Deduplicate groups.
+	impersonateGroups := apiutils.Deduplicate(requestImpersonateGroups)
+	if !slices.Contains(impersonateGroups, teleport.KubeSystemAuthenticated) {
+		impersonateGroups = append(impersonateGroups, teleport.KubeSystemAuthenticated)
+	}
+
+	return requestImpersonateUser, impersonateGroups, nil
+}
+
+func extractImpersonatedPrincipals(headers http.Header) (string, []string, error) {
 	var impersonateUser string
 	var impersonateGroups []string
+
 	for header, values := range headers {
 		if !strings.HasPrefix(header, "Impersonate-") {
 			continue
@@ -2031,15 +2077,8 @@ func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, he
 				continue
 			}
 			impersonateUser = values[0]
-
-			if _, ok := kubeUsers[impersonateUser]; !ok {
-				return "", nil, trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
-			}
 		case ImpersonateGroupHeader:
 			for _, group := range values {
-				if _, ok := kubeGroups[group]; !ok {
-					return "", nil, trace.AccessDenied("%v, group header %q value is not allowed in roles", ImpersonationRequestDeniedMessage, group)
-				}
 				impersonateGroups = append(impersonateGroups, group)
 			}
 		default:
@@ -2048,48 +2087,6 @@ func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, he
 	}
 
 	impersonateGroups = apiutils.Deduplicate(impersonateGroups)
-
-	// By default, if no kubernetes_users is set (which will be a majority),
-	// user will impersonate themselves, which is the backwards-compatible behavior.
-	//
-	// As long as at least one `kubernetes_users` is set, the forwarder will start
-	// limiting the list of users allowed by the client to impersonate.
-	//
-	// If the users' role set does not include actual user name, it will be rejected,
-	// otherwise there will be no way to exclude the user from the list).
-	//
-	// If the `kubernetes_users` role set includes only one user
-	// (quite frequently that's the real intent), teleport will default to it,
-	// otherwise it will refuse to select.
-	//
-	// This will enable the use case when `kubernetes_users` has just one field to
-	// link the user identity with the IAM role, for example `IAM#{{external.email}}`
-	//
-	if impersonateUser == "" {
-		switch len(kubeUsers) {
-		// this is currently not possible as kube users have at least one
-		// user (user name), but in case if someone breaks it, catch here
-		case 0:
-			return "", nil, trace.AccessDenied("assumed at least one user to be present")
-		// if there is deterministic choice, make it to improve user experience
-		case 1:
-			for user := range kubeUsers {
-				impersonateUser = user
-				break
-			}
-		default:
-			return "", nil, trace.AccessDenied(
-				"please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
-		}
-	}
-
-	if len(impersonateGroups) == 0 {
-		for group := range kubeGroups {
-			impersonateGroups = append(impersonateGroups, group)
-		}
-	}
-
-	return impersonateUser, impersonateGroups, nil
 }
 
 // catchAll forwards all HTTP requests to the target k8s API server
