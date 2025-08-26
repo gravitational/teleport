@@ -472,8 +472,9 @@ secret_annotations:
 # associated.
 project: edge-services
 
-# namespaces are the namespaces within the target Kubernetes clusters to which
-# Argo CD will be allowed to deploy.
+# namespaces optionally restricts which namespaces within the target Kubernetes
+# clusters applications may be deployed into. By default, all namespaces are
+# allowed.
 namespaces:
   - dev
   - qa
