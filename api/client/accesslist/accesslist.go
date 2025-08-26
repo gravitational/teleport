@@ -91,7 +91,6 @@ func (c *Client) ListAccessListsWithFilter(ctx context.Context, req *accesslistv
 
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
-		var err error
 		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, "", trace.Wrap(err)

@@ -50,7 +50,7 @@ func accessListAuditNextDateIndexFn(al *accesslist.AccessList) string {
 		// last lexical char make sure that if ACL don't have aduit date it will be at the end.
 		// Otherwise we will compare against `0001-01-01 00:00:00` which is the first element
 		// but means that the access list is not eligible for review.
-		return "z" + "/" + al.GetName()
+		return "z/" + al.GetName()
 	}
 	return al.Spec.Audit.NextAuditDate.Format(time.DateOnly) + "/" + al.GetName()
 }

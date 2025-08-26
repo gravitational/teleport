@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -290,7 +291,7 @@ func MatchAccessList(al *accesslist.AccessList, search string) bool {
 	if search == "" {
 		return true
 	}
-	searchTerms := strings.Split(search, " ")
+	searchTerms := strings.Fields(search)
 
 	// collect all searchable text
 	var allFields []string
@@ -311,14 +312,9 @@ func MatchAccessList(al *accesslist.AccessList, search string) bool {
 
 func matchesAllTerms(terms []string, targets []string) bool {
 	for _, term := range terms {
-		found := false
-		for _, target := range targets {
-			if strcase.Contains(target, term) {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !slices.ContainsFunc(targets, func(target string) bool {
+			return strcase.Contains(target, term)
+		}) {
 			return false
 		}
 	}

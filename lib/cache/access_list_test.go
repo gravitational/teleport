@@ -357,7 +357,7 @@ func TestListAccessListsWithFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				results, nextToken, err := p.cache.ListAccessListsWithFilter(ctx, &accesslistv1.ListAccessListsWithFilterRequest{
 					PageSize:  int32(tc.pageSize),
 					PageToken: tc.startKey,
@@ -366,16 +366,16 @@ func TestListAccessListsWithFilter(t *testing.T) {
 					},
 					SortBy: tc.sortBy,
 				})
-				assert.NoError(collect, err)
+				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedNextKey, nextToken)
 
-				assert.Len(collect, results, len(tc.expectedNames))
+				assert.Len(t, results, len(tc.expectedNames))
 				actualNames := make([]string, len(results))
 				for i, al := range results {
 					actualNames[i] = al.GetName()
 				}
 
-				assert.Equal(collect, tc.expectedNames, actualNames)
+				assert.Equal(t, tc.expectedNames, actualNames)
 			}, 5*time.Second, 100*time.Millisecond)
 		})
 	}
