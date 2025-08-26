@@ -29,6 +29,8 @@ service AccessListService {
   rpc GetAccessLists(GetAccessListsRequest) returns (GetAccessListsResponse);
   // ListAccessLists returns a paginated list of all access lists.
   rpc ListAccessLists(ListAccessListsRequest) returns (ListAccessListsResponse);
+  // ListAccessListsWithFilter returns a paginated, filtered, and sorted list of all access lists.
+  rpc ListAccessListsWithFilter(ListAccessListsWithFilterRequest) returns (ListAccessListsWithFilterResponse);
   // GetAccessList returns the specified access list resource.
   rpc GetAccessList(GetAccessListRequest) returns (AccessList);
   // UpsertAccessList creates or updates an access list resource.
@@ -122,13 +124,8 @@ message GetAccessListsResponse {
 message ListAccessListsRequest {
   // page_size is the size of the page to request.
   int32 page_size = 1;
-
   // next_token is the page token.
   string next_token = 2;
-  // search is a search term to filter access lists by name.
-  string search = 3;
-  // sort_by specifies the sort order for the results.
-  types.SortBy sort_by = 4;
 }
 
 // ListAccessListsResponse is the response for getting paginated access lists.
@@ -137,6 +134,32 @@ message ListAccessListsResponse {
   repeated AccessList access_lists = 1;
   // next_token is the next page token.
   string next_token = 2;
+}
+
+// ListAccessListsRequest is the request for getting filtered and sorted paginated access lists.
+message ListAccessListsWithFilterRequest {
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+  // page_token is the token to begin the next page with.
+  string page_token = 2;
+  // sort_by specifies the sort order for the results.
+  types.SortBy sort_by = 3;
+  // filter is a collection of fields to filter access lists.
+  ListAccessListsFilter filter = 4;
+}
+
+// ListAccessListsFilter is used to collect filter options for listing access lists
+message ListAccessListsFilter {
+  // search is a search term to filter access lists by name.
+  string search = 1;
+}
+
+// ListAccessListsWithFilterResponse is the response for getting paginated access lists.
+message ListAccessListsWithFilterResponse {
+  // access_lists is the list of access lists.
+  repeated AccessList access_lists = 1;
+  // next_page_token is the next page token.
+  string next_page_token = 2;
 }
 
 // GetInheritedGrantsRequest is the request for getting inherited grants.

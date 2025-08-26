@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -112,7 +113,7 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 }
 
 // ListAccessListsWithFilter returns a filtered and sorted paginated list of access lists.
-func (c *Cache) ListAccessListsWithFilter(ctx context.Context, pageSize int, pageToken string, search string, sortBy *types.SortBy) ([]*accesslist.AccessList, string, error) {
+func (c *Cache) ListAccessListsWithFilter(ctx context.Context, req *accesslistv1.ListAccessListsWithFilterRequest) ([]*accesslist.AccessList, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListsWithFilter")
 	defer span.End()
 
@@ -120,8 +121,9 @@ func (c *Cache) ListAccessListsWithFilter(ctx context.Context, pageSize int, pag
 	keyFn := accessListNameIndexFn
 
 	var isDesc bool
+	sortBy := req.GetSortBy()
 	if sortBy != nil {
-		isDesc = sortBy.IsDesc
+		isDesc = req.GetSortBy().IsDesc
 
 		switch sortBy.Field {
 		case "name":
@@ -141,16 +143,16 @@ func (c *Cache) ListAccessListsWithFilter(ctx context.Context, pageSize int, pag
 		index:           index,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*accesslist.AccessList, string, error) {
-			return c.Config.AccessLists.ListAccessListsWithFilter(ctx, limit, start, search, sortBy)
+			return c.Config.AccessLists.ListAccessListsWithFilter(ctx, req)
 		},
 		filter: func(al *accesslist.AccessList) bool {
-			return services.MatchAccessList(al, search)
+			return services.MatchAccessList(al, req.GetFilter().Search)
 		},
 		nextToken: func(al *accesslist.AccessList) string {
 			return keyFn(al)
 		},
 	}
-	out, next, err := lister.list(ctx, pageSize, pageToken)
+	out, next, err := lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
 	return out, next, trace.Wrap(err)
 }
 

@@ -173,20 +173,20 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 }
 
 // ListAccessListsWithFilter returns a filtered and sorted paginated list of access lists.
-func (a *AccessListService) ListAccessListsWithFilter(ctx context.Context, pageSize int, nextToken string, search string, sortBy *types.SortBy) ([]*accesslist.AccessList, string, error) {
+func (a *AccessListService) ListAccessListsWithFilter(ctx context.Context, req *accesslistv1.ListAccessListsWithFilterRequest) ([]*accesslist.AccessList, string, error) {
 	// Currently, the backend only sorts on lexicographical keys and not
 	// based on fields within a resource
-	if sortBy != nil && (sortBy.Field != "name" || sortBy.IsDesc != false) {
-		return nil, "", trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", sortBy.Field, sortBy.IsDesc)
+	if req.SortBy != nil && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc != false) {
+		return nil, "", trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
 	}
 
-	if search == "" {
-		r, nextToken, err := a.service.ListResources(ctx, pageSize, nextToken)
+	if req.GetFilter().Search == "" {
+		r, nextToken, err := a.service.ListResources(ctx, int(req.GetPageSize()), req.GetPageToken())
 		return r, nextToken, trace.Wrap(err)
 	}
 
-	return a.service.ListResourcesWithFilter(ctx, pageSize, nextToken, func(item *accesslist.AccessList) bool {
-		return services.MatchAccessList(item, search)
+	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
+		return services.MatchAccessList(item, req.GetFilter().GetSearch())
 	})
 }
 

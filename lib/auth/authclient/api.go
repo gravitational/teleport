@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -1217,7 +1218,7 @@ type Cache interface {
 	// ListAccessLists returns a paginated list of access lists.
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	// ListAccessListsWithFilter returns a paginated list of access lists.
-	ListAccessListsWithFilter(context.Context, int, string, string, *types.SortBy) ([]*accesslist.AccessList, string, error)
+	ListAccessListsWithFilter(context.Context, *accesslistv1.ListAccessListsWithFilterRequest) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 

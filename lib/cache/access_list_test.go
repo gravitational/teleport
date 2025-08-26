@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -357,7 +358,14 @@ func TestListAccessListsWithFilter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				results, nextToken, err := p.cache.ListAccessListsWithFilter(ctx, tc.pageSize, tc.startKey, tc.search, tc.sortBy)
+				results, nextToken, err := p.cache.ListAccessListsWithFilter(ctx, &accesslistv1.ListAccessListsWithFilterRequest{
+					PageSize:  int32(tc.pageSize),
+					PageToken: tc.startKey,
+					Filter: &accesslistv1.ListAccessListsFilter{
+						Search: tc.search,
+					},
+					SortBy: tc.sortBy,
+				})
 				assert.NoError(collect, err)
 				assert.Equal(t, tc.expectedNextKey, nextToken)
 

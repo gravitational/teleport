@@ -63,6 +63,8 @@ import { UpdateAccessListRequest } from "./accesslist_service_pb";
 import { UpsertAccessListRequest } from "./accesslist_service_pb";
 import { AccessList } from "./accesslist_pb";
 import { GetAccessListRequest } from "./accesslist_service_pb";
+import { ListAccessListsWithFilterResponse } from "./accesslist_service_pb";
+import { ListAccessListsWithFilterRequest } from "./accesslist_service_pb";
 import { ListAccessListsResponse } from "./accesslist_service_pb";
 import { ListAccessListsRequest } from "./accesslist_service_pb";
 import { GetAccessListsResponse } from "./accesslist_service_pb";
@@ -86,6 +88,12 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: ListAccessLists(teleport.accesslist.v1.ListAccessListsRequest) returns (teleport.accesslist.v1.ListAccessListsResponse);
      */
     listAccessLists: grpc.handleUnaryCall<ListAccessListsRequest, ListAccessListsResponse>;
+    /**
+     * ListAccessListsWithFilter returns a paginated, filtered, and sorted list of all access lists.
+     *
+     * @generated from protobuf rpc: ListAccessListsWithFilter(teleport.accesslist.v1.ListAccessListsWithFilterRequest) returns (teleport.accesslist.v1.ListAccessListsWithFilterResponse);
+     */
+    listAccessListsWithFilter: grpc.handleUnaryCall<ListAccessListsWithFilterRequest, ListAccessListsWithFilterResponse>;
     /**
      * GetAccessList returns the specified access list resource.
      *
@@ -298,6 +306,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         requestDeserialize: bytes => ListAccessListsRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ListAccessListsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListAccessListsRequest.toBinary(value))
+    },
+    listAccessListsWithFilter: {
+        path: "/teleport.accesslist.v1.AccessListService/ListAccessListsWithFilter",
+        originalName: "ListAccessListsWithFilter",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ListAccessListsWithFilterResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ListAccessListsWithFilterRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ListAccessListsWithFilterResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ListAccessListsWithFilterRequest.toBinary(value))
     },
     getAccessList: {
         path: "/teleport.accesslist.v1.AccessListService/GetAccessList",

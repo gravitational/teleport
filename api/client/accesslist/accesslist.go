@@ -21,7 +21,6 @@ import (
 	"github.com/gravitational/trace"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
@@ -84,13 +83,8 @@ func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken st
 }
 
 // ListAccessListsWithFilter returns a filtered and sorted paginated list of access lists.
-func (c *Client) ListAccessListsWithFilter(ctx context.Context, pageSize int, nextToken string, search string, sortBy *types.SortBy) ([]*accesslist.AccessList, string, error) {
-	resp, err := c.grpcClient.ListAccessLists(ctx, &accesslistv1.ListAccessListsRequest{
-		PageSize:  int32(pageSize),
-		NextToken: nextToken,
-		SortBy:    sortBy,
-		Search:    search,
-	})
+func (c *Client) ListAccessListsWithFilter(ctx context.Context, req *accesslistv1.ListAccessListsWithFilterRequest) ([]*accesslist.AccessList, string, error) {
+	resp, err := c.grpcClient.ListAccessListsWithFilter(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -104,7 +98,7 @@ func (c *Client) ListAccessListsWithFilter(ctx context.Context, pageSize int, ne
 		}
 	}
 
-	return accessLists, resp.GetNextToken(), nil
+	return accessLists, resp.GetNextPageToken(), nil
 }
 
 // GetAccessList returns the specified access list resource.

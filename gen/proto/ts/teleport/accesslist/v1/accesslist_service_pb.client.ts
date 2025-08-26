@@ -66,6 +66,8 @@ import type { UpdateAccessListRequest } from "./accesslist_service_pb";
 import type { UpsertAccessListRequest } from "./accesslist_service_pb";
 import type { AccessList } from "./accesslist_pb";
 import type { GetAccessListRequest } from "./accesslist_service_pb";
+import type { ListAccessListsWithFilterResponse } from "./accesslist_service_pb";
+import type { ListAccessListsWithFilterRequest } from "./accesslist_service_pb";
 import type { ListAccessListsResponse } from "./accesslist_service_pb";
 import type { ListAccessListsRequest } from "./accesslist_service_pb";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
@@ -91,6 +93,12 @@ export interface IAccessListServiceClient {
      * @generated from protobuf rpc: ListAccessLists(teleport.accesslist.v1.ListAccessListsRequest) returns (teleport.accesslist.v1.ListAccessListsResponse);
      */
     listAccessLists(input: ListAccessListsRequest, options?: RpcOptions): UnaryCall<ListAccessListsRequest, ListAccessListsResponse>;
+    /**
+     * ListAccessListsWithFilter returns a paginated, filtered, and sorted list of all access lists.
+     *
+     * @generated from protobuf rpc: ListAccessListsWithFilter(teleport.accesslist.v1.ListAccessListsWithFilterRequest) returns (teleport.accesslist.v1.ListAccessListsWithFilterResponse);
+     */
+    listAccessListsWithFilter(input: ListAccessListsWithFilterRequest, options?: RpcOptions): UnaryCall<ListAccessListsWithFilterRequest, ListAccessListsWithFilterResponse>;
     /**
      * GetAccessList returns the specified access list resource.
      *
@@ -302,12 +310,21 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
         return stackIntercept<ListAccessListsRequest, ListAccessListsResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * ListAccessListsWithFilter returns a paginated, filtered, and sorted list of all access lists.
+     *
+     * @generated from protobuf rpc: ListAccessListsWithFilter(teleport.accesslist.v1.ListAccessListsWithFilterRequest) returns (teleport.accesslist.v1.ListAccessListsWithFilterResponse);
+     */
+    listAccessListsWithFilter(input: ListAccessListsWithFilterRequest, options?: RpcOptions): UnaryCall<ListAccessListsWithFilterRequest, ListAccessListsWithFilterResponse> {
+        const method = this.methods[2], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ListAccessListsWithFilterRequest, ListAccessListsWithFilterResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * GetAccessList returns the specified access list resource.
      *
      * @generated from protobuf rpc: GetAccessList(teleport.accesslist.v1.GetAccessListRequest) returns (teleport.accesslist.v1.AccessList);
      */
     getAccessList(input: GetAccessListRequest, options?: RpcOptions): UnaryCall<GetAccessListRequest, AccessList> {
-        const method = this.methods[2], opt = this._transport.mergeOptions(options);
+        const method = this.methods[3], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAccessListRequest, AccessList>("unary", this._transport, method, opt, input);
     }
     /**
@@ -316,7 +333,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: UpsertAccessList(teleport.accesslist.v1.UpsertAccessListRequest) returns (teleport.accesslist.v1.AccessList);
      */
     upsertAccessList(input: UpsertAccessListRequest, options?: RpcOptions): UnaryCall<UpsertAccessListRequest, AccessList> {
-        const method = this.methods[3], opt = this._transport.mergeOptions(options);
+        const method = this.methods[4], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertAccessListRequest, AccessList>("unary", this._transport, method, opt, input);
     }
     /**
@@ -325,7 +342,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: UpdateAccessList(teleport.accesslist.v1.UpdateAccessListRequest) returns (teleport.accesslist.v1.AccessList);
      */
     updateAccessList(input: UpdateAccessListRequest, options?: RpcOptions): UnaryCall<UpdateAccessListRequest, AccessList> {
-        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateAccessListRequest, AccessList>("unary", this._transport, method, opt, input);
     }
     /**
@@ -334,7 +351,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: DeleteAccessList(teleport.accesslist.v1.DeleteAccessListRequest) returns (google.protobuf.Empty);
      */
     deleteAccessList(input: DeleteAccessListRequest, options?: RpcOptions): UnaryCall<DeleteAccessListRequest, Empty> {
-        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        const method = this.methods[6], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteAccessListRequest, Empty>("unary", this._transport, method, opt, input);
     }
     /**
@@ -343,7 +360,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: DeleteAllAccessLists(teleport.accesslist.v1.DeleteAllAccessListsRequest) returns (google.protobuf.Empty);
      */
     deleteAllAccessLists(input: DeleteAllAccessListsRequest, options?: RpcOptions): UnaryCall<DeleteAllAccessListsRequest, Empty> {
-        const method = this.methods[6], opt = this._transport.mergeOptions(options);
+        const method = this.methods[7], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteAllAccessListsRequest, Empty>("unary", this._transport, method, opt, input);
     }
     /**
@@ -353,7 +370,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: GetAccessListsToReview(teleport.accesslist.v1.GetAccessListsToReviewRequest) returns (teleport.accesslist.v1.GetAccessListsToReviewResponse);
      */
     getAccessListsToReview(input: GetAccessListsToReviewRequest, options?: RpcOptions): UnaryCall<GetAccessListsToReviewRequest, GetAccessListsToReviewResponse> {
-        const method = this.methods[7], opt = this._transport.mergeOptions(options);
+        const method = this.methods[8], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAccessListsToReviewRequest, GetAccessListsToReviewResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -363,7 +380,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: CountAccessListMembers(teleport.accesslist.v1.CountAccessListMembersRequest) returns (teleport.accesslist.v1.CountAccessListMembersResponse);
      */
     countAccessListMembers(input: CountAccessListMembersRequest, options?: RpcOptions): UnaryCall<CountAccessListMembersRequest, CountAccessListMembersResponse> {
-        const method = this.methods[8], opt = this._transport.mergeOptions(options);
+        const method = this.methods[9], opt = this._transport.mergeOptions(options);
         return stackIntercept<CountAccessListMembersRequest, CountAccessListMembersResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -372,7 +389,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: ListAccessListMembers(teleport.accesslist.v1.ListAccessListMembersRequest) returns (teleport.accesslist.v1.ListAccessListMembersResponse);
      */
     listAccessListMembers(input: ListAccessListMembersRequest, options?: RpcOptions): UnaryCall<ListAccessListMembersRequest, ListAccessListMembersResponse> {
-        const method = this.methods[9], opt = this._transport.mergeOptions(options);
+        const method = this.methods[10], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListAccessListMembersRequest, ListAccessListMembersResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -382,7 +399,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: ListAllAccessListMembers(teleport.accesslist.v1.ListAllAccessListMembersRequest) returns (teleport.accesslist.v1.ListAllAccessListMembersResponse);
      */
     listAllAccessListMembers(input: ListAllAccessListMembersRequest, options?: RpcOptions): UnaryCall<ListAllAccessListMembersRequest, ListAllAccessListMembersResponse> {
-        const method = this.methods[10], opt = this._transport.mergeOptions(options);
+        const method = this.methods[11], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListAllAccessListMembersRequest, ListAllAccessListMembersResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -391,7 +408,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: GetAccessListMember(teleport.accesslist.v1.GetAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
      */
     getAccessListMember(input: GetAccessListMemberRequest, options?: RpcOptions): UnaryCall<GetAccessListMemberRequest, Member> {
-        const method = this.methods[11], opt = this._transport.mergeOptions(options);
+        const method = this.methods[12], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAccessListMemberRequest, Member>("unary", this._transport, method, opt, input);
     }
     /**
@@ -402,7 +419,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: GetStaticAccessListMember(teleport.accesslist.v1.GetStaticAccessListMemberRequest) returns (teleport.accesslist.v1.GetStaticAccessListMemberResponse);
      */
     getStaticAccessListMember(input: GetStaticAccessListMemberRequest, options?: RpcOptions): UnaryCall<GetStaticAccessListMemberRequest, GetStaticAccessListMemberResponse> {
-        const method = this.methods[12], opt = this._transport.mergeOptions(options);
+        const method = this.methods[13], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetStaticAccessListMemberRequest, GetStaticAccessListMemberResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -412,7 +429,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: GetAccessListOwners(teleport.accesslist.v1.GetAccessListOwnersRequest) returns (teleport.accesslist.v1.GetAccessListOwnersResponse);
      */
     getAccessListOwners(input: GetAccessListOwnersRequest, options?: RpcOptions): UnaryCall<GetAccessListOwnersRequest, GetAccessListOwnersResponse> {
-        const method = this.methods[13], opt = this._transport.mergeOptions(options);
+        const method = this.methods[14], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAccessListOwnersRequest, GetAccessListOwnersResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -421,7 +438,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: UpsertAccessListMember(teleport.accesslist.v1.UpsertAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
      */
     upsertAccessListMember(input: UpsertAccessListMemberRequest, options?: RpcOptions): UnaryCall<UpsertAccessListMemberRequest, Member> {
-        const method = this.methods[14], opt = this._transport.mergeOptions(options);
+        const method = this.methods[15], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertAccessListMemberRequest, Member>("unary", this._transport, method, opt, input);
     }
     /**
@@ -432,7 +449,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: UpsertStaticAccessListMember(teleport.accesslist.v1.UpsertStaticAccessListMemberRequest) returns (teleport.accesslist.v1.UpsertStaticAccessListMemberResponse);
      */
     upsertStaticAccessListMember(input: UpsertStaticAccessListMemberRequest, options?: RpcOptions): UnaryCall<UpsertStaticAccessListMemberRequest, UpsertStaticAccessListMemberResponse> {
-        const method = this.methods[15], opt = this._transport.mergeOptions(options);
+        const method = this.methods[16], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertStaticAccessListMemberRequest, UpsertStaticAccessListMemberResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -441,7 +458,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: UpdateAccessListMember(teleport.accesslist.v1.UpdateAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
      */
     updateAccessListMember(input: UpdateAccessListMemberRequest, options?: RpcOptions): UnaryCall<UpdateAccessListMemberRequest, Member> {
-        const method = this.methods[16], opt = this._transport.mergeOptions(options);
+        const method = this.methods[17], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateAccessListMemberRequest, Member>("unary", this._transport, method, opt, input);
     }
     /**
@@ -451,7 +468,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: DeleteAccessListMember(teleport.accesslist.v1.DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
      */
     deleteAccessListMember(input: DeleteAccessListMemberRequest, options?: RpcOptions): UnaryCall<DeleteAccessListMemberRequest, Empty> {
-        const method = this.methods[17], opt = this._transport.mergeOptions(options);
+        const method = this.methods[18], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteAccessListMemberRequest, Empty>("unary", this._transport, method, opt, input);
     }
     /**
@@ -462,7 +479,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: DeleteStaticAccessListMember(teleport.accesslist.v1.DeleteStaticAccessListMemberRequest) returns (teleport.accesslist.v1.DeleteStaticAccessListMemberResponse);
      */
     deleteStaticAccessListMember(input: DeleteStaticAccessListMemberRequest, options?: RpcOptions): UnaryCall<DeleteStaticAccessListMemberRequest, DeleteStaticAccessListMemberResponse> {
-        const method = this.methods[18], opt = this._transport.mergeOptions(options);
+        const method = this.methods[19], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteStaticAccessListMemberRequest, DeleteStaticAccessListMemberResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -472,7 +489,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: DeleteAllAccessListMembersForAccessList(teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest) returns (google.protobuf.Empty);
      */
     deleteAllAccessListMembersForAccessList(input: DeleteAllAccessListMembersForAccessListRequest, options?: RpcOptions): UnaryCall<DeleteAllAccessListMembersForAccessListRequest, Empty> {
-        const method = this.methods[19], opt = this._transport.mergeOptions(options);
+        const method = this.methods[20], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteAllAccessListMembersForAccessListRequest, Empty>("unary", this._transport, method, opt, input);
     }
     /**
@@ -482,7 +499,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: DeleteAllAccessListMembers(teleport.accesslist.v1.DeleteAllAccessListMembersRequest) returns (google.protobuf.Empty);
      */
     deleteAllAccessListMembers(input: DeleteAllAccessListMembersRequest, options?: RpcOptions): UnaryCall<DeleteAllAccessListMembersRequest, Empty> {
-        const method = this.methods[20], opt = this._transport.mergeOptions(options);
+        const method = this.methods[21], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteAllAccessListMembersRequest, Empty>("unary", this._transport, method, opt, input);
     }
     /**
@@ -491,7 +508,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: UpsertAccessListWithMembers(teleport.accesslist.v1.UpsertAccessListWithMembersRequest) returns (teleport.accesslist.v1.UpsertAccessListWithMembersResponse);
      */
     upsertAccessListWithMembers(input: UpsertAccessListWithMembersRequest, options?: RpcOptions): UnaryCall<UpsertAccessListWithMembersRequest, UpsertAccessListWithMembersResponse> {
-        const method = this.methods[21], opt = this._transport.mergeOptions(options);
+        const method = this.methods[22], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertAccessListWithMembersRequest, UpsertAccessListWithMembersResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -501,7 +518,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: ListAccessListReviews(teleport.accesslist.v1.ListAccessListReviewsRequest) returns (teleport.accesslist.v1.ListAccessListReviewsResponse);
      */
     listAccessListReviews(input: ListAccessListReviewsRequest, options?: RpcOptions): UnaryCall<ListAccessListReviewsRequest, ListAccessListReviewsResponse> {
-        const method = this.methods[22], opt = this._transport.mergeOptions(options);
+        const method = this.methods[23], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListAccessListReviewsRequest, ListAccessListReviewsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -511,7 +528,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: ListAllAccessListReviews(teleport.accesslist.v1.ListAllAccessListReviewsRequest) returns (teleport.accesslist.v1.ListAllAccessListReviewsResponse);
      */
     listAllAccessListReviews(input: ListAllAccessListReviewsRequest, options?: RpcOptions): UnaryCall<ListAllAccessListReviewsRequest, ListAllAccessListReviewsResponse> {
-        const method = this.methods[23], opt = this._transport.mergeOptions(options);
+        const method = this.methods[24], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListAllAccessListReviewsRequest, ListAllAccessListReviewsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -522,7 +539,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: CreateAccessListReview(teleport.accesslist.v1.CreateAccessListReviewRequest) returns (teleport.accesslist.v1.CreateAccessListReviewResponse);
      */
     createAccessListReview(input: CreateAccessListReviewRequest, options?: RpcOptions): UnaryCall<CreateAccessListReviewRequest, CreateAccessListReviewResponse> {
-        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        const method = this.methods[25], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateAccessListReviewRequest, CreateAccessListReviewResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -531,7 +548,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: DeleteAccessListReview(teleport.accesslist.v1.DeleteAccessListReviewRequest) returns (google.protobuf.Empty);
      */
     deleteAccessListReview(input: DeleteAccessListReviewRequest, options?: RpcOptions): UnaryCall<DeleteAccessListReviewRequest, Empty> {
-        const method = this.methods[25], opt = this._transport.mergeOptions(options);
+        const method = this.methods[26], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteAccessListReviewRequest, Empty>("unary", this._transport, method, opt, input);
     }
     /**
@@ -540,7 +557,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: AccessRequestPromote(teleport.accesslist.v1.AccessRequestPromoteRequest) returns (teleport.accesslist.v1.AccessRequestPromoteResponse);
      */
     accessRequestPromote(input: AccessRequestPromoteRequest, options?: RpcOptions): UnaryCall<AccessRequestPromoteRequest, AccessRequestPromoteResponse> {
-        const method = this.methods[26], opt = this._transport.mergeOptions(options);
+        const method = this.methods[27], opt = this._transport.mergeOptions(options);
         return stackIntercept<AccessRequestPromoteRequest, AccessRequestPromoteResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -550,7 +567,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.accesslist.v1.GetSuggestedAccessListsRequest) returns (teleport.accesslist.v1.GetSuggestedAccessListsResponse);
      */
     getSuggestedAccessLists(input: GetSuggestedAccessListsRequest, options?: RpcOptions): UnaryCall<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse> {
-        const method = this.methods[27], opt = this._transport.mergeOptions(options);
+        const method = this.methods[28], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -559,7 +576,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: GetInheritedGrants(teleport.accesslist.v1.GetInheritedGrantsRequest) returns (teleport.accesslist.v1.GetInheritedGrantsResponse);
      */
     getInheritedGrants(input: GetInheritedGrantsRequest, options?: RpcOptions): UnaryCall<GetInheritedGrantsRequest, GetInheritedGrantsResponse> {
-        const method = this.methods[28], opt = this._transport.mergeOptions(options);
+        const method = this.methods[29], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetInheritedGrantsRequest, GetInheritedGrantsResponse>("unary", this._transport, method, opt, input);
     }
 }

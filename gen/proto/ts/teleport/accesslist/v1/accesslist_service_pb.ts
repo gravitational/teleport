@@ -75,18 +75,6 @@ export interface ListAccessListsRequest {
      * @generated from protobuf field: string next_token = 2;
      */
     nextToken: string;
-    /**
-     * search is a search term to filter access lists by name.
-     *
-     * @generated from protobuf field: string search = 3;
-     */
-    search: string;
-    /**
-     * sort_by specifies the sort order for the results.
-     *
-     * @generated from protobuf field: types.SortBy sort_by = 4;
-     */
-    sortBy?: SortBy;
 }
 /**
  * ListAccessListsResponse is the response for getting paginated access lists.
@@ -106,6 +94,69 @@ export interface ListAccessListsResponse {
      * @generated from protobuf field: string next_token = 2;
      */
     nextToken: string;
+}
+/**
+ * ListAccessListsRequest is the request for getting filtered and sorted paginated access lists.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.ListAccessListsWithFilterRequest
+ */
+export interface ListAccessListsWithFilterRequest {
+    /**
+     * page_size is the size of the page to request.
+     *
+     * @generated from protobuf field: int32 page_size = 1;
+     */
+    pageSize: number;
+    /**
+     * page_token is the token to begin the next page with.
+     *
+     * @generated from protobuf field: string page_token = 2;
+     */
+    pageToken: string;
+    /**
+     * sort_by specifies the sort order for the results.
+     *
+     * @generated from protobuf field: types.SortBy sort_by = 3;
+     */
+    sortBy?: SortBy;
+    /**
+     * filter is a collection of fields to filter access lists.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.ListAccessListsFilter filter = 4;
+     */
+    filter?: ListAccessListsFilter;
+}
+/**
+ * ListAccessListsFilter is used to collect filter options for listing access lists
+ *
+ * @generated from protobuf message teleport.accesslist.v1.ListAccessListsFilter
+ */
+export interface ListAccessListsFilter {
+    /**
+     * search is a search term to filter access lists by name.
+     *
+     * @generated from protobuf field: string search = 1;
+     */
+    search: string;
+}
+/**
+ * ListAccessListsWithFilterResponse is the response for getting paginated access lists.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.ListAccessListsWithFilterResponse
+ */
+export interface ListAccessListsWithFilterResponse {
+    /**
+     * access_lists is the list of access lists.
+     *
+     * @generated from protobuf field: repeated teleport.accesslist.v1.AccessList access_lists = 1;
+     */
+    accessLists: AccessList[];
+    /**
+     * next_page_token is the next page token.
+     *
+     * @generated from protobuf field: string next_page_token = 2;
+     */
+    nextPageToken: string;
 }
 /**
  * GetInheritedGrantsRequest is the request for getting inherited grants.
@@ -865,16 +916,13 @@ class ListAccessListsRequest$Type extends MessageType<ListAccessListsRequest> {
     constructor() {
         super("teleport.accesslist.v1.ListAccessListsRequest", [
             { no: 1, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 2, name: "next_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "sort_by", kind: "message", T: () => SortBy }
+            { no: 2, name: "next_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ListAccessListsRequest>): ListAccessListsRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.pageSize = 0;
         message.nextToken = "";
-        message.search = "";
         if (value !== undefined)
             reflectionMergePartial<ListAccessListsRequest>(this, message, value);
         return message;
@@ -889,12 +937,6 @@ class ListAccessListsRequest$Type extends MessageType<ListAccessListsRequest> {
                     break;
                 case /* string next_token */ 2:
                     message.nextToken = reader.string();
-                    break;
-                case /* string search */ 3:
-                    message.search = reader.string();
-                    break;
-                case /* types.SortBy sort_by */ 4:
-                    message.sortBy = SortBy.internalBinaryRead(reader, reader.uint32(), options, message.sortBy);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -914,12 +956,6 @@ class ListAccessListsRequest$Type extends MessageType<ListAccessListsRequest> {
         /* string next_token = 2; */
         if (message.nextToken !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.nextToken);
-        /* string search = 3; */
-        if (message.search !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.search);
-        /* types.SortBy sort_by = 4; */
-        if (message.sortBy)
-            SortBy.internalBinaryWrite(message.sortBy, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -985,6 +1021,177 @@ class ListAccessListsResponse$Type extends MessageType<ListAccessListsResponse> 
  * @generated MessageType for protobuf message teleport.accesslist.v1.ListAccessListsResponse
  */
 export const ListAccessListsResponse = new ListAccessListsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListAccessListsWithFilterRequest$Type extends MessageType<ListAccessListsWithFilterRequest> {
+    constructor() {
+        super("teleport.accesslist.v1.ListAccessListsWithFilterRequest", [
+            { no: 1, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 2, name: "page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "sort_by", kind: "message", T: () => SortBy },
+            { no: 4, name: "filter", kind: "message", T: () => ListAccessListsFilter }
+        ]);
+    }
+    create(value?: PartialMessage<ListAccessListsWithFilterRequest>): ListAccessListsWithFilterRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.pageSize = 0;
+        message.pageToken = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListAccessListsWithFilterRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListAccessListsWithFilterRequest): ListAccessListsWithFilterRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int32 page_size */ 1:
+                    message.pageSize = reader.int32();
+                    break;
+                case /* string page_token */ 2:
+                    message.pageToken = reader.string();
+                    break;
+                case /* types.SortBy sort_by */ 3:
+                    message.sortBy = SortBy.internalBinaryRead(reader, reader.uint32(), options, message.sortBy);
+                    break;
+                case /* teleport.accesslist.v1.ListAccessListsFilter filter */ 4:
+                    message.filter = ListAccessListsFilter.internalBinaryRead(reader, reader.uint32(), options, message.filter);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListAccessListsWithFilterRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int32 page_size = 1; */
+        if (message.pageSize !== 0)
+            writer.tag(1, WireType.Varint).int32(message.pageSize);
+        /* string page_token = 2; */
+        if (message.pageToken !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.pageToken);
+        /* types.SortBy sort_by = 3; */
+        if (message.sortBy)
+            SortBy.internalBinaryWrite(message.sortBy, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.accesslist.v1.ListAccessListsFilter filter = 4; */
+        if (message.filter)
+            ListAccessListsFilter.internalBinaryWrite(message.filter, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.ListAccessListsWithFilterRequest
+ */
+export const ListAccessListsWithFilterRequest = new ListAccessListsWithFilterRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListAccessListsFilter$Type extends MessageType<ListAccessListsFilter> {
+    constructor() {
+        super("teleport.accesslist.v1.ListAccessListsFilter", [
+            { no: 1, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListAccessListsFilter>): ListAccessListsFilter {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.search = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListAccessListsFilter>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListAccessListsFilter): ListAccessListsFilter {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string search */ 1:
+                    message.search = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListAccessListsFilter, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string search = 1; */
+        if (message.search !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.search);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.ListAccessListsFilter
+ */
+export const ListAccessListsFilter = new ListAccessListsFilter$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListAccessListsWithFilterResponse$Type extends MessageType<ListAccessListsWithFilterResponse> {
+    constructor() {
+        super("teleport.accesslist.v1.ListAccessListsWithFilterResponse", [
+            { no: 1, name: "access_lists", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessList },
+            { no: 2, name: "next_page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListAccessListsWithFilterResponse>): ListAccessListsWithFilterResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.accessLists = [];
+        message.nextPageToken = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListAccessListsWithFilterResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListAccessListsWithFilterResponse): ListAccessListsWithFilterResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.accesslist.v1.AccessList access_lists */ 1:
+                    message.accessLists.push(AccessList.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string next_page_token */ 2:
+                    message.nextPageToken = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListAccessListsWithFilterResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.accesslist.v1.AccessList access_lists = 1; */
+        for (let i = 0; i < message.accessLists.length; i++)
+            AccessList.internalBinaryWrite(message.accessLists[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string next_page_token = 2; */
+        if (message.nextPageToken !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.nextPageToken);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.ListAccessListsWithFilterResponse
+ */
+export const ListAccessListsWithFilterResponse = new ListAccessListsWithFilterResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetInheritedGrantsRequest$Type extends MessageType<GetInheritedGrantsRequest> {
     constructor() {
@@ -3032,6 +3239,7 @@ export const GetSuggestedAccessListsResponse = new GetSuggestedAccessListsRespon
 export const AccessListService = new ServiceType("teleport.accesslist.v1.AccessListService", [
     { name: "GetAccessLists", options: {}, I: GetAccessListsRequest, O: GetAccessListsResponse },
     { name: "ListAccessLists", options: {}, I: ListAccessListsRequest, O: ListAccessListsResponse },
+    { name: "ListAccessListsWithFilter", options: {}, I: ListAccessListsWithFilterRequest, O: ListAccessListsWithFilterResponse },
     { name: "GetAccessList", options: {}, I: GetAccessListRequest, O: AccessList },
     { name: "UpsertAccessList", options: {}, I: UpsertAccessListRequest, O: AccessList },
     { name: "UpdateAccessList", options: {}, I: UpdateAccessListRequest, O: AccessList },
