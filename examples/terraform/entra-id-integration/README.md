@@ -1,4 +1,5 @@
 ## Teleport Entra ID integration
+
 This directory contains the Terraform module to configure Entra ID with attributes necessary for the Teleport Entra ID integration. 
 
 Entra ID configuration involves:
@@ -12,14 +13,32 @@ Entra ID configuration involves:
   - System credentials - Grant API permissions to the managed identity that is assigned to the Teleport Auth Service. 
     Use this option if you have a self-hosted Teleport cluster.
 
-  In both the cases, you will need to configure three API permissions: `Application.ReadWrite.OwnedBy, Group.Read.All, User.Read.All`
+  In both the cases, you will need to configure three API permissions: `Application.ReadWrite.OwnedBy, Group.Read.All, User.Read.All`.
+
+This example is best followed with the official [Teleport Entra ID integration](https://goteleport.com/docs/identity-governance/entra-id/terraform) guide. 
+
+### Set up Azure CLI
+
+This example expects an authenticated Azure CLI session available in your environment.
+You will also need tenant-level access and an appropriate subscription to run this example.
+E.g., To authenticate with Azure using a user login credential:
+```
+$ az login --allow-no-subscriptions
+```
 
 #### Example configuration to setup SAML SSO and Teleport as an OIDC IdP.
+> [!WARNING]
+> 
+> The `certificate_expiry_date` field is used to configure expiry date for the certificate 
+> which will be used to sign SAML assertion. To avoid access disruption, ensure to update the 
+> value before it expires. When you update the value, you also must update the Entra ID Auth 
+> Connector in Teleport with a new entity descriptor.
 ```
 cat > variables.auto.tfvars << EOF
+tenant_id               = "<tenant ID>"
 app_name                = "teleport-entraid-integration"
-proxy_service_address   = "example.teleport.sh"
-certificate_expiry_date = "2026-05-01T01:02:03Z" # Warning! An expired certificate will break user authentication.
+proxy_service_address   = "example.teleport.sh" # Teleport Proxy Service host
+certificate_expiry_date = "" # example format - "2028-05-01T01:02:03Z" 
 EOF
 ```
 
@@ -54,14 +73,22 @@ foreach ($appRole in $appRoles) {
 }
 ```
 
-Generate tfvars with `use_system_credentials=true`, `graph_permission_ids` with permission IDs you retrieved using PowerShell and `managed_id` with the principal ID of the managed identity.
+Generate tfvars with `use_system_credentials=true`, `graph_permission_ids` with permission IDs you retrieved using 
+PowerShell and `managed_id` with the principal ID of the managed identity.
+> [!WARNING]
+> 
+> The `certificate_expiry_date` field is used to configure expiry date for the certificate 
+> which will be used to sign SAML assertion. To avoid access disruption, ensure to update the 
+> value before it expires. When you update the value, you also must update the Entra ID Auth 
+> Connector in Teleport with a new entity descriptor.
 ```
 cat > variables.auto.tfvars << EOF
+tenant_id               = "<tenant ID>"
 app_name                = "teleport-entraid-integration"
-proxy_service_address   = "example.teleport.sh"
-certificate_expiry_date = "2026-05-01T01:02:03Z" # Warning! An expired certificate will break user authentication.
+proxy_service_address   = "example.teleport.sh" # Teleport Proxy Service host
+certificate_expiry_date = "" # example format - "2028-05-01T01:02:03Z" 
 
-use_system_credentials   = true
+use_system_credentials  = true
 graph_permission_ids    = [<permission IDs>]
 managed_id              = "<principal ID of the managed identity>"
 EOF

@@ -1,3 +1,17 @@
+# Configure Terraform
+terraform {
+  required_providers {
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.1.0"
+    }
+  }
+}
+
+provider "azuread" {
+  tenant_id = var.tenant_id
+}
+
 locals {
   teleport_saml_entity_id = "https://${var.proxy_service_address}/v1/webapi/saml/acs/entra-id"
   owners                  = [data.azuread_client_config.current.object_id]
