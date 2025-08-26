@@ -180,18 +180,22 @@ func (h *Handler) closeWebsocketWithError(ctx context.Context, ws *websocket.Con
 	deadline := time.Now().Add(websocketCloseTimeout)
 
 	// Send close frame to initiate graceful shutdown
-	_ = ws.SetWriteDeadline(deadline)
-	_ = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	if err := ws.SetWriteDeadline(deadline); err != nil {
+		h.logger.DebugContext(ctx, "failed to set write deadline", "session_id", sessionID, "error", err)
+	}
+	if err := ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")); err != nil {
+		h.logger.DebugContext(ctx, "failed to send close message", "session_id", sessionID, "error", err)
+	}
 
 	// Wait for peer's close frame response (or timeout)
-	_ = ws.SetReadDeadline(deadline)
-	msgType, _, _ := ws.ReadMessage()
+	if err := ws.SetReadDeadline(deadline); err != nil {
+		h.logger.DebugContext(ctx, "failed to set read deadline", "session_id", sessionID, "error", err)
+	}
 
 	// Log if we got something other than a close acknowledgement
-	if msgType != -1 {
+	if _, _, err := ws.ReadMessage(); err != nil && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 		h.logger.DebugContext(ctx, "received non-close message while waiting for close acknowledgement",
-			"session_id", sessionID,
-			"message_type", msgType)
+			"session_id", sessionID, "error", err)
 	}
 
 	// Finally close the underlying connection
@@ -253,14 +257,14 @@ func (s *recordingPlayback) cleanup() {
 
 	// Wait for peer's close frame response (or timeout)
 	deadline := time.Now().Add(websocketCloseTimeout)
-	_ = s.ws.SetReadDeadline(deadline)
-	msgType, _, _ := s.ws.ReadMessage()
+	if err := s.ws.SetReadDeadline(deadline); err != nil {
+		s.logger.DebugContext(s.ctx, "failed to set read deadline", "session_id", s.sessionID, "error", err)
+	}
 
 	// Log if we got something other than a close acknowledgement
-	if msgType != -1 {
+	if _, _, err := s.ws.ReadMessage(); err != nil && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 		s.logger.DebugContext(s.ctx, "received non-close message while waiting for close acknowledgement",
-			"session_id", s.sessionID,
-			"message_type", msgType)
+			"session_id", s.sessionID, "error", err)
 	}
 
 	// Finally close the underlying connection
