@@ -205,6 +205,9 @@ const ThumbnailContainer = styled.div<
   p => css`
     flex-shrink: 0;
     position: relative;
+    border-top-left-radius: ${p.theme.radii[3]}px;
+    border-top-right-radius: ${p.theme.radii[3]}px;
+    overflow: hidden;
 
     ${p.viewMode === ViewMode.List
       ? css`
