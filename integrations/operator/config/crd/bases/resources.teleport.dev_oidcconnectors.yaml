@@ -98,24 +98,25 @@ spec:
                 type: string
               entra_id_groups_provider:
                 description: EntraIDGroupsProvider configures out-of-band user groups
-                  provider.
+                  provider. It works by following through the groups claim source,
+                  which is sent for the "groups" claim when the user's group membership
+                  exceeds 200 max item limit.
                 nullable: true
                 properties:
-                  enabled:
-                    description: Enabled specifies groups provider enabled/disabled
-                      state. Defaults to false. If enabled, groups provider should
-                      honour groups claim source. User may choose to disable it if
-                      they are using integrations such as SCIM or similar groups importer
-                      as connector based role mapping may be not needed in such a
-                      scenario.
+                  force_disable:
+                    description: ForceDisable specifies groups provider should be
+                      disabled, even if Entra ID responds with a groups claim source.
+                      User may choose to disable it if they are using integrations
+                      such as SCIM or similar groups importer as connector based role
+                      mapping may be not needed in such a scenario.
                     type: boolean
                   graph_endpoint:
-                    description: Optional Microsoft Graph API endpoint. Defaults to
-                      "graph.microsoft.com".
+                    description: Microsoft Graph API endpoint. Defaults to "https://graph.microsoft.com".
                     type: string
                   group_type:
-                    description: GroupType configures group filter behavior. Value
-                      can be "security-groups", "directory-roles", "all-groups".
+                    description: GroupType is a user group type filter. Defaults to
+                      "security-groups". Value can be "security-groups", "directory-roles",
+                      "all-groups".
                     type: string
                 type: object
               google_admin_email:

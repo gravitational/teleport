@@ -4126,23 +4126,23 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 				},
 				"entra_id_groups_provider": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"enabled": {
-							Description: "Enabled specifies groups provider enabled/disabled state. Defaults to false. If enabled, groups provider should honour groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.",
+						"force_disable": {
+							Description: "ForceDisable specifies groups provider should be disabled, even if Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 						"graph_endpoint": {
-							Description: "Optional Microsoft Graph API endpoint. Defaults to \"graph.microsoft.com\".",
+							Description: "Microsoft Graph API endpoint. Defaults to \"https://graph.microsoft.com\".",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"group_type": {
-							Description: "GroupType configures group filter behavior. Value can be \"security-groups\", \"directory-roles\", \"all-groups\".",
+							Description: "GroupType is a user group type filter. Defaults to \"security-groups\". Value can be \"security-groups\", \"directory-roles\", \"all-groups\".",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "EntraIDGroupsProvider configures out-of-band user groups provider.",
+					Description: "EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for the \"groups\" claim when the user's group membership exceeds 200 max item limit.",
 					Optional:    true,
 				},
 				"google_admin_email": {
@@ -41929,19 +41929,19 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 									obj.EntraIdGroupsProvider = &github_com_gravitational_teleport_api_types.EntraIDGroupsProvider{}
 									obj := obj.EntraIdGroupsProvider
 									{
-										a, ok := tf.Attrs["enabled"]
+										a, ok := tf.Attrs["force_disable"]
 										if !ok {
-											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled"})
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable"})
 										} else {
 											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 											} else {
 												var t bool
 												if !v.Null && !v.Unknown {
 													t = bool(v.Value)
 												}
-												obj.Enabled = t
+												obj.ForceDisable = t
 											}
 										}
 									}
@@ -43236,25 +43236,25 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 									obj := obj.EntraIdGroupsProvider
 									tf := &v
 									{
-										t, ok := tf.AttrTypes["enabled"]
+										t, ok := tf.AttrTypes["force_disable"]
 										if !ok {
-											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled"})
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable"})
 										} else {
-											v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											v, ok := tf.Attrs["force_disable"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
-													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled", err})
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable", err})
 												}
 												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 												}
-												v.Null = bool(obj.Enabled) == false
+												v.Null = bool(obj.ForceDisable) == false
 											}
-											v.Value = bool(obj.Enabled)
+											v.Value = bool(obj.ForceDisable)
 											v.Unknown = false
-											tf.Attrs["enabled"] = v
+											tf.Attrs["force_disable"] = v
 										}
 									}
 									{
