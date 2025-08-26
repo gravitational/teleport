@@ -148,7 +148,6 @@ func (h *Handler) recordingPlaybackWs(
 	sessionID := p.ByName("session_id")
 	if sessionID == "" {
 		h.closeWebsocketWithError(r.Context(), ws, sessionID, trace.BadParameter("missing session ID in request URL"))
-
 		return nil, nil
 	}
 
@@ -156,7 +155,6 @@ func (h *Handler) recordingPlaybackWs(
 	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		h.closeWebsocketWithError(ctx, ws, sessionID, trace.Wrap(err, "failed to get user client"))
-
 		return nil, nil
 	}
 
