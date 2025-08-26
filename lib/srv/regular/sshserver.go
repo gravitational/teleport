@@ -66,6 +66,7 @@ import (
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
@@ -1297,7 +1298,16 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 	case teleport.SessionIDQueryRequest:
 		// Reply true to session ID query requests, we will set new
-		// session IDs for new sessions
+		// session IDs for new sessions during the shel/exec channel
+		// request.
+		if err := r.Reply(true, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
+		}
+		return
+	case teleport.SessionIDQueryRequestV2:
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions directly after accepting the
+		// session channel request.
 		if err := r.Reply(true, nil); err != nil {
 			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
 		}
@@ -1646,16 +1656,14 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 
 	trackingChan := scx.TrackActivity(ch)
 
-	// If we are creating a new session (not joining a session), inform the
-	// client of the session ID that is being used. Do this in a new goroutine
-	// to reduce latency.
+	// If we are creating a new session (not joining a session), prepare a new session
+	// ID and inform the client.
 	//
-	// TODO(Joerger): DELETE IN v20.0.0 - the nil conditional is only necessary
-	// for old clients which don't provide session params upfront and instead send
-	// them in env var requests later. Setting the new session ID late causes
-	// seession ID sync issues between the node and proxy in proxy recording mode.
-	if sessionParams != nil && sessionParams.JoinSessionID == "" {
-		scx.SetNewSessionID(ctx, ch)
+	// Note: If this is an old client (<v19), the join sid has not yet propagated
+	// from env vars. There is no harm in sending the ephemeral session ID anyways
+	// as clients should ignore the reported session ID when joining a session.
+	if scx.GetSessionParams().JoinSessionID == "" {
+		scx.SetNewSessionID(ctx, session.NewID(), ch)
 	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has

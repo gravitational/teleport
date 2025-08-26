@@ -824,11 +824,16 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		return nil, nil, trace.BadParameter("session creation only supported in context of ssh access or proxying permit")
 	}
 
+	sid := scx.GetNewSessionID(ctx)
+	if sid == "" {
+		return nil, nil, trace.BadParameter("newSessionID should be set prior to session creation")
+	}
+
 	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
 		Kind: types.SSHSessionKind,
-		ID:   scx.GetSetNewSessionID(ctx, ch),
+		ID:   sid,
 		TerminalParams: rsession.TerminalParams{
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,

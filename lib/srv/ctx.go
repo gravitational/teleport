@@ -321,10 +321,9 @@ type ServerContext struct {
 	sessionParams *tracessh.SessionParams
 
 	// newSessionID is set if this server context is going to create a new session.
-	// If this is a join session, or it is not known whether this will be a join session,
-	// then this field should not be set. Additionally, this field should only be set
-	// through [ServerContext.SetNewSessionID] to ensure it notifies the client of the
-	// session ID.
+	// This field must be set through [ServerContext.SetNewSessionID] for non-join
+	// sessions before as soon as a session channel is accepted in order to inform
+	// the client of the to-be session ID.
 	newSessionID rsession.ID
 
 	// session holds the active session (if there's an active one).
@@ -701,20 +700,14 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 }
 
 // SetNewSessionID sets the ID for a new session in this server context.
-// This is a noop if the session ID is already set.
-func (c *ServerContext) SetNewSessionID(ctx context.Context, ch ssh.Channel) {
+func (c *ServerContext) SetNewSessionID(ctx context.Context, sid rsession.ID, ch ssh.Channel) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// newSessionID only needs to be set once.
-	if c.newSessionID != "" {
-		return
-	}
-
-	c.newSessionID = rsession.NewID()
+	c.newSessionID = sid
 
 	// inform the client of the session ID that is going to be used in a new
-	// goroutine to reduce latency
+	// goroutine to reduce latency.
 	go func() {
 		c.Logger.DebugContext(ctx, "Sending current session ID")
 		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(c.newSessionID))
@@ -724,12 +717,10 @@ func (c *ServerContext) SetNewSessionID(ctx context.Context, ch ssh.Channel) {
 	}()
 }
 
-// GetSetNewSessionID gets or sets the ID for a new session in this server context.
-func (c *ServerContext) GetSetNewSessionID(ctx context.Context, ch ssh.Channel) rsession.ID {
+// GetNewSessionID gets the ID for a new session in this server context.
+func (c *ServerContext) GetNewSessionID(ctx context.Context) rsession.ID {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	c.SetNewSessionID(ctx, ch)
 	return c.newSessionID
 }
 

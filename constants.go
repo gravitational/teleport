@@ -831,8 +831,18 @@ const (
 	CurrentSessionIDRequest = "current-session-id@goteleport.com"
 
 	// SessionIDQueryRequest is sent by clients to ask servers if they
-	// will generate their own session ID when a new session is created.
+	// will generate and share their own session ID when a new session
+	// is started (session and exec/shell channels accepted).
+	//
+	// TODO(Joerger): DELETE IN v20.0.0 in favor of v2 below, which allows
+	// the client to know the session ID earlier, which is required for the
+	// proxy forwarding server to coordinate the session ID with target nodes.
 	SessionIDQueryRequest = "session-id-query@goteleport.com"
+
+	// SessionIDQueryRequestV2 is sent by clients to ask servers if they
+	// will generate and share their own session ID when a new session
+	// channel is accepted.
+	SessionIDQueryRequestV2 = "session-id-query-v2@goteleport.com"
 
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
