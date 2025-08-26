@@ -49,15 +49,15 @@ func TestValidateRequest(t *testing.T) {
 			name: "valid request",
 			req: &fetchRequest{
 				startOffset: 0,
-				endOffset:   1000,
+				endOffset:   1 * time.Second,
 			},
 			wantErr: false,
 		},
 		{
 			name: "negative start offset",
 			req: &fetchRequest{
-				startOffset: -1,
-				endOffset:   1000,
+				startOffset: -1 * time.Second,
+				endOffset:   1 * time.Second,
 			},
 			wantErr: true,
 			errMsg:  "invalid time range",
@@ -66,7 +66,7 @@ func TestValidateRequest(t *testing.T) {
 			name: "negative end offset",
 			req: &fetchRequest{
 				startOffset: 0,
-				endOffset:   -1,
+				endOffset:   -1 * time.Second,
 			},
 			wantErr: true,
 			errMsg:  "invalid time range",
@@ -74,17 +74,17 @@ func TestValidateRequest(t *testing.T) {
 		{
 			name: "end before start",
 			req: &fetchRequest{
-				startOffset: 1000,
-				endOffset:   500,
+				startOffset: 1 * time.Second,
+				endOffset:   500 * time.Millisecond,
 			},
 			wantErr: true,
-			errMsg:  "invalid time range (1000, 500)",
+			errMsg:  "invalid time range (1s, 500ms)",
 		},
 		{
 			name: "range too large",
 			req: &fetchRequest{
 				startOffset: 0,
-				endOffset:   11 * 60 * 1000, // 11 minutes
+				endOffset:   11 * time.Minute,
 			},
 			wantErr: true,
 			errMsg:  "time range too large",
@@ -93,7 +93,7 @@ func TestValidateRequest(t *testing.T) {
 			name: "max valid range",
 			req: &fetchRequest{
 				startOffset: 0,
-				endOffset:   10 * 60 * 1000, // 10 minutes
+				endOffset:   10 * time.Minute,
 			},
 			wantErr: false,
 		},
@@ -124,8 +124,8 @@ func TestDecodeBinaryRequest(t *testing.T) {
 			data: createFetchRequest(1000, 2000, 42, false),
 			want: &fetchRequest{
 				requestType:          requestTypeFetch,
-				startOffset:          1000,
-				endOffset:            2000,
+				startOffset:          time.Duration(1000) * time.Millisecond,
+				endOffset:            time.Duration(2000) * time.Millisecond,
 				requestID:            42,
 				requestCurrentScreen: false,
 			},
@@ -136,8 +136,8 @@ func TestDecodeBinaryRequest(t *testing.T) {
 			data: createFetchRequest(1000, 2000, 42, true),
 			want: &fetchRequest{
 				requestType:          requestTypeFetch,
-				startOffset:          1000,
-				endOffset:            2000,
+				startOffset:          time.Duration(1000) * time.Millisecond,
+				endOffset:            time.Duration(2000) * time.Millisecond,
 				requestID:            42,
 				requestCurrentScreen: true,
 			},
