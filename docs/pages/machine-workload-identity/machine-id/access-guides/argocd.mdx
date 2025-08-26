@@ -257,3 +257,60 @@ be restarted or signalled (`pkill -USR1 tbot`) to trigger an immediate reload.
 Please note that, for safety, if a cluster is deleted in Teleport or no longer
 matches your `clusterSelectors`, it will **not** be automatically removed from
 Argo CD - but `tbot` will stop refreshing its credentials.
+
+### Argo CD Impersonation
+
+Argo CD [supports using](https://argo-cd.readthedocs.io/en/latest/operator-manual/app-sync-using-impersonation/)
+Kubernetes' user impersonation feature to give the application sync process more
+restrictive privileges than the Argo control plane has generally. This can be
+used to create a permission boundary where applications deployed to the same
+cluster, but in different projects, cannot read or modify each other's resources.
+
+In order to use Argo CD impersonation with Teleport Kubernetes Access, your bot
+must have a role where `kubernetes_users` contains a wildcard. For example:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: kube-wildcard-access
+spec:
+  allow:
+    kubernetes_users:
+    - '*'
+```
+
+If you simply enumerate the users that Argo CD is allowed to impersonate in
+`kubernetes_users`, you will encounter the following error:
+
+```
+please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user
+```
+
+This happens because Argo CD *only* sets impersonation headers on requests that
+operate on application-scoped resources. Because your role has permission to
+impersonate many users, it's ambiguous which one Teleport should use by default.
+
+When `kubernetes_users` contains a wildcard, and no specific user is being
+impersonated, Kubernetes Access will fall back to sending your bot's Teleport
+username by default. You should therefore create a RoleBinding or
+ClusterRoleBinding granting your bot user the broader permissions needed by the
+Argo CD control plane.
+
+```code
+$ kubectl create clusterrolebinding example-bot-edit \
+  --clusterrole=edit \
+  --user=bot-example-bot
+```
+
+<Admonition type="warning">
+When using impersonation to create a permission boundary between Argo CD
+projects, remember that Kubernetes Access will automatically impersonate any
+groups listed in `kubernetes_groups` by default.
+
+You should ensure that your bot user does not have any roles which contain
+`kubernetes_groups`, otherwise the privilege isolation provided by impersonating
+different users is compromised, because the application sync process will have
+the combination of the impersonated user's privileges and those granted to the
+groups.
+</Admonition>
