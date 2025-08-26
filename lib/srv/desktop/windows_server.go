@@ -1322,6 +1322,7 @@ func timer() func() int64 {
 // optionally querying LDAP for the user's Security Identifier.
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
+	var distinguishedName string
 	if !desktop.NonAD() {
 		domain := s.cfg.LDAPConfig.Domain
 		username := username
@@ -1343,13 +1344,13 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
 
 		domainDN := windows.DomainDN(domain)
-		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid, windows.AttrDistinguishedName})
+		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
 		// in this case.
 		if trace.IsConnectionProblem(err) {
 			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid, windows.AttrDistinguishedName})
+			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
 		}
 
 		if err != nil {
@@ -1361,20 +1362,17 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			} else if len(entries) > 1 {
 				s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
 			}
-			if dn, err := windows.DistinguishedNameFromLDAPEntry(entries[0]); err == nil {
-				s.cfg.Logger.DebugContext(ctx, "found DN", "DN", dn)
-			} else {
-				s.cfg.Logger.DebugContext(ctx, "DN not found", "err", err)
-			}
 			activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
 			s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
+			distinguishedName = entries[0].DN
 		}
 	}
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
+		distinguishedName:  distinguishedName,
 		domain:             desktop.GetDomain(),
 		ttl:                ttl,
 		activeDirectorySID: activeDirectorySID,
@@ -1387,6 +1385,8 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 type generateCredentialsRequest struct {
 	// username is the Windows username
 	username string
+	// distinguishedName is the distinguished name of user in AD
+	distinguishedName string
 	// domain is the Windows domain
 	domain string
 	// ttl for the certificate
@@ -1411,6 +1411,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, request genera
 	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           request.username,
+		DistinguishedName:  request.distinguishedName,
 		Domain:             request.domain,
 		PKIDomain:          s.cfg.PKIDomain,
 		TTL:                request.ttl,

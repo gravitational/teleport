@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/go-ldap/ldap/v3"
 	"os"
 	"strings"
 	"time"
@@ -88,6 +89,52 @@ func ou(value string) pkix.AttributeTypeAndValue {
 	}
 }
 
+var oids = map[string]asn1.ObjectIdentifier{
+	"businesscategory":           {2, 5, 4, 15},
+	"c":                          {2, 5, 4, 6},
+	"cn":                         {2, 5, 4, 3},
+	"dc":                         {0, 9, 2342, 19200300, 100, 1, 25},
+	"description":                {2, 5, 4, 13},
+	"destinationindicator":       {2, 5, 4, 27},
+	"distinguishedName":          {2, 5, 4, 49},
+	"dnqualifier":                {2, 5, 4, 46},
+	"emailaddress":               {1, 2, 840, 113549, 1, 9, 1},
+	"enhancedsearchguide":        {2, 5, 4, 47},
+	"facsimiletelephonenumber":   {2, 5, 4, 23},
+	"generationqualifier":        {2, 5, 4, 44},
+	"givenname":                  {2, 5, 4, 42},
+	"houseidentifier":            {2, 5, 4, 51},
+	"initials":                   {2, 5, 4, 43},
+	"internationalisdnnumber":    {2, 5, 4, 25},
+	"l":                          {2, 5, 4, 7},
+	"member":                     {2, 5, 4, 31},
+	"name":                       {2, 5, 4, 41},
+	"o":                          {2, 5, 4, 10},
+	"ou":                         {2, 5, 4, 11},
+	"owner":                      {2, 5, 4, 32},
+	"physicaldeliveryofficename": {2, 5, 4, 19},
+	"postaladdress":              {2, 5, 4, 16},
+	"postalcode":                 {2, 5, 4, 17},
+	"postOfficebox":              {2, 5, 4, 18},
+	"preferreddeliverymethod":    {2, 5, 4, 28},
+	"registeredaddress":          {2, 5, 4, 26},
+	"roleoccupant":               {2, 5, 4, 33},
+	"searchguide":                {2, 5, 4, 14},
+	"seealso":                    {2, 5, 4, 34},
+	"serialnumber":               {2, 5, 4, 5},
+	"sn":                         {2, 5, 4, 4},
+	"st":                         {2, 5, 4, 8},
+	"street":                     {2, 5, 4, 9},
+	"telephonenumber":            {2, 5, 4, 20},
+	"teletexterminalidentifier":  {2, 5, 4, 22},
+	"telexnumber":                {2, 5, 4, 21},
+	"title":                      {2, 5, 4, 12},
+	"uid":                        {0, 9, 2342, 19200300, 100, 1, 1},
+	"uniquemember":               {2, 5, 4, 50},
+	"userpassword":               {2, 5, 4, 35},
+	"x121address":                {2, 5, 4, 24},
+}
+
 func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
@@ -112,6 +159,26 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 		return nil, trace.Wrap(err)
 	}
 	name := pkix.Name{CommonName: upn}
+
+	if req.DistinguishedName != "" {
+		dn, err := ldap.ParseDN(req.DistinguishedName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		name = pkix.Name{}
+		for _, rdn := range dn.RDNs {
+			for _, attr := range rdn.Attributes {
+				oid, ok := oids[strings.ToLower(attr.Type)]
+				if !ok {
+					continue
+				}
+				name.ExtraNames = append(name.ExtraNames, pkix.AttributeTypeAndValue{
+					Type:  oid,
+					Value: attr.Value,
+				})
+			}
+		}
+	}
 
 	if strings.Contains(upn, "charles") {
 		name = pkix.Name{
@@ -210,6 +277,9 @@ type AuthInterface interface {
 type GenerateCredentialsRequest struct {
 	// Username is the Windows username
 	Username string
+	// DistinguishedName is the distinguished name of the user.
+	// (Optional, defaults to CN=upn.)
+	DistinguishedName string
 	// Domain is the Active Directory domain of the user.
 	Domain string
 	// PKIDomain is the Active Directory domain where CRLs are published.

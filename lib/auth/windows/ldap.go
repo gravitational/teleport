@@ -88,8 +88,6 @@ const (
 	AttrObjectSid = "objectSid"
 	// AttrObjectClass is the object class of an LDAP object
 	AttrObjectClass = "objectClass"
-	// AttrDistinguishedName is distinguished name of an LDAP object
-	AttrDistinguishedName = "distinguishedName"
 )
 
 // classContainer is the object class for containers in Active Directory

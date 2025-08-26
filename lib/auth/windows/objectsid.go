@@ -106,11 +106,3 @@ func ADSIDStringFromLDAPEntry(entry *ldap.Entry) (string, error) {
 	}
 	return sid.String(), nil
 }
-
-func DistinguishedNameFromLDAPEntry(entry *ldap.Entry) (string, error) {
-	bytes := entry.GetRawAttributeValue(AttrDistinguishedName)
-	if len(bytes) == 0 {
-		return "", trace.Errorf("failed to find %v", AttrDistinguishedName)
-	}
-	return string(bytes), nil
-}
