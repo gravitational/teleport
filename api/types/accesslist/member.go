@@ -123,3 +123,8 @@ func (a *AccessListMember) Clone() *AccessListMember {
 	utils.StrictObjectToStruct(a, &copy)
 	return copy
 }
+
+// IsExpired checks if the access list member is expired based on the current time.
+func (a *AccessListMember) IsExpired(t time.Time) bool {
+	return !a.Spec.Expires.IsZero() && !t.Before(a.Spec.Expires)
+}
