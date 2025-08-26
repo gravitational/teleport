@@ -282,8 +282,8 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 
 // resolveAppByName will take an application name and cluster name and exactly resolves
 // the application and the server on which it is running.
-func (h *Handler) resolveAppByName(ctx context.Context, proxy reversetunnelclient.Tunnel, appName string, clusterName string) (types.AppServer, string, error) {
-	clusterClient, err := proxy.GetSite(clusterName)
+func (h *Handler) resolveAppByName(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, appName string, clusterName string) (types.AppServer, string, error) {
+	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -307,8 +307,8 @@ func (h *Handler) resolveAppByName(ctx context.Context, proxy reversetunnelclien
 
 // resolveDirect takes a public address and cluster name and exactly resolves
 // the application and the server on which it is running.
-func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.Tunnel, publicAddr string, clusterName string) (types.AppServer, string, error) {
-	clusterClient, err := proxy.GetSite(clusterName)
+func (h *Handler) resolveDirect(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, publicAddr string, clusterName string) (types.AppServer, string, error) {
+	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -332,8 +332,8 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.T
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running within a root or leaf cluster.
-func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnelclient.Tunnel, fqdn string) (types.AppServer, string, error) {
-	return app.ResolveFQDN(ctx, clt, proxy, h.proxyDNSNames(), fqdn)
+func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, clusterGetter reversetunnelclient.ClusterGetter, fqdn string) (types.AppServer, string, error) {
+	return app.ResolveFQDN(ctx, clt, clusterGetter, h.proxyDNSNames(), fqdn)
 }
 
 // proxyDNSName is a DNS name the HTTP proxy is available at, where
