@@ -303,9 +303,7 @@ func MatchAccessList(al *accesslist.AccessList, search string) bool {
 		allFields = append(allFields, owner.Name)
 	}
 
-	for _, role := range al.Spec.Grants.Roles {
-		allFields = append(allFields, role)
-	}
+	allFields = append(allFields, al.Spec.Grants.Roles...)
 
 	// check if all terms exist somewhere across all fields
 	return matchesAllTerms(searchTerms, allFields)
