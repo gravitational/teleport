@@ -101,7 +101,7 @@ type recordingPlayback struct {
 	logger           *slog.Logger
 	mu               sync.Mutex
 	cancelActiveTask context.CancelFunc
-	taskWg           *sync.WaitGroup
+	wg               sync.WaitGroup
 	ws               *websocket.Conn
 	writeChan        chan websocketMessage
 	closeSent        bool // tracks if a close message has been sent
@@ -235,13 +235,10 @@ func (s *recordingPlayback) cleanup() {
 
 	// Wait for any active task to complete
 	s.mu.Lock()
-	wg := s.taskWg
 	alreadySent := s.closeSent
 	s.mu.Unlock()
 
-	if wg != nil {
-		wg.Wait()
-	}
+	s.wg.Wait()
 
 	// Only send close message if we haven't already sent one
 	if !alreadySent {
@@ -364,20 +361,14 @@ func (s *recordingPlayback) createTaskContext() context.Context {
 	if s.cancelActiveTask != nil {
 		// Cancel the active task first
 		s.cancelActiveTask()
-		oldWg := s.taskWg
 		s.mu.Unlock()
 
 		// Wait for streamEvents to terminate before continuing
 		// We unlock the mutex while waiting to avoid deadlock
-		if oldWg != nil {
-			oldWg.Wait()
-		}
+		s.wg.Wait()
 
 		s.mu.Lock()
 	}
-
-	// Create a new WaitGroup for the new task
-	s.taskWg = &sync.WaitGroup{}
 
 	ctx, taskCancel := context.WithCancel(s.ctx)
 	s.cancelActiveTask = taskCancel
@@ -431,14 +422,9 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 
 	s.stream.Unlock()
 
-	// Get the current task's WaitGroup
-	s.mu.Lock()
-	wg := s.taskWg
-	s.mu.Unlock()
-
-	wg.Add(1)
+	s.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
 		s.streamEvents(ctx, req, eventsChan, errorsChan)
 	}()
 }
