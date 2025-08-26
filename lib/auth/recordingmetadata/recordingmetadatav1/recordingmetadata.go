@@ -204,7 +204,7 @@ loop:
 				}
 
 				if _, err := vt.Write(e.Data); err != nil {
-					return trace.Errorf("failed to write data to terminal: %w", err)
+					return trace.Errorf("writing data to terminal: %w", err)
 				}
 
 				if sampler.shouldCapture(e.Time) {
@@ -219,7 +219,7 @@ loop:
 
 				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
 				if err != nil {
-					return trace.Wrap(err, "failed to parse terminal size %q for session %v", e.TerminalSize, sessionID)
+					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
 
 				metadata.ClusterName = e.ClusterName
@@ -292,7 +292,6 @@ loop:
 	s.logger.DebugContext(ctx, "Uploaded session recording metadata", "path", path)
 
 	thumbnail := getRandomThumbnail(thumbnails)
-
 	if thumbnail != nil {
 		b, err := proto.Marshal(thumbnailEntryToProto(thumbnail))
 		if err != nil {
