@@ -74,12 +74,6 @@ export {
   /**
    * @deprecated Import directly from gen-proto-ts instead.
    */
-  AuthProvider,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
-export {
-  /**
-   * @deprecated Import directly from gen-proto-ts instead.
-   */
   AccessRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 export {

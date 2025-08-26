@@ -19,6 +19,7 @@
 import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import {
   Cluster,
+  LoggedInUser,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
@@ -40,19 +41,33 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import * as uri from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
-import type * as types from './types';
 
 const { routing } = uri;
 
-export function createClusterServiceState(): types.ClustersServiceState {
+type ClustersServiceState = {
+  clusters: Map<
+    uri.ClusterUri,
+    Cluster & {
+      // TODO(gzdunek): Remove assumedRequests from loggedInUser.
+      // The AssumedRequest objects are needed only in AssumedRolesBar.
+      // We should be able to move fetching them there.
+      loggedInUser?: LoggedInUser & {
+        assumedRequests?: Record<string, AccessRequest>;
+      };
+    }
+  >;
+  gateways: Map<uri.GatewayUri, Gateway>;
+};
+
+export function createClusterServiceState(): ClustersServiceState {
   return {
     clusters: new Map(),
     gateways: new Map(),
   };
 }
 
-export class ClustersService extends ImmutableStore<types.ClustersServiceState> {
-  state: types.ClustersServiceState = createClusterServiceState();
+export class ClustersService extends ImmutableStore<ClustersServiceState> {
+  state: ClustersServiceState = createClusterServiceState();
 
   constructor(
     public client: TshdClient,
@@ -637,7 +652,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 const EMPTY_ASSUMED_REQUESTS = {};
 
 export function getAssumedRequests(
-  state: types.ClustersServiceState,
+  state: ClustersServiceState,
   rootClusterUri: uri.RootClusterUri
 ): Record<string, AccessRequest> {
   const cluster = state.clusters.get(rootClusterUri);

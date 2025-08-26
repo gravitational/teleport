@@ -22,14 +22,16 @@ import styled from 'styled-components';
 import { Box, ButtonText, Flex } from 'design';
 import * as Alerts from 'design/Alert';
 import { StepSlider, type StepComponentProps } from 'design/StepSlider';
-import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
+import {
+  AuthProvider,
+  AuthSettings,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { Attempt } from 'shared/hooks/useAsync';
 import type { PrimaryAuthType } from 'shared/services';
 
 import { Platform } from 'teleterm/mainProcess/types';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { ClusterGetter, WidgetView } from 'teleterm/ui/AppUpdater';
-import * as types from 'teleterm/ui/services/clusters/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { outermostPadding } from '../../spacing';
@@ -333,7 +335,7 @@ export type Props = {
   primaryAuthType: PrimaryAuthType;
   loggedInUserName?: string;
   onAbort(): void;
-  onLoginWithSso(provider: types.AuthProvider): void;
+  onLoginWithSso(provider: AuthProvider): void;
   onLoginWithPasswordless(): void;
   onLogin(username: string, password: string): void;
   autoFocus?: boolean;
