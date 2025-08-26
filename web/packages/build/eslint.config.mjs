@@ -242,5 +242,36 @@ export default tseslint.config(
         },
       ],
     },
+  },
+
+  /*
+   * Restricted hook imports
+   *
+   * We already have our own, Electron and browser safe hooks, so we don't want any usage of the equivalent
+   * hooks from `usehooks-ts`
+   */
+  {
+    files: ['e/web/**/*.{ts,tsx,js,jsx}', 'web/packages/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'usehooks-ts',
+              importNames: ['useResizeObserver'],
+              message:
+                "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead.",
+            },
+            {
+              name: 'usehooks-ts',
+              importNames: ['useCopyToClipboard'],
+              message:
+                "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead.",
+            },
+          ],
+        },
+      ],
+    },
   }
 );
