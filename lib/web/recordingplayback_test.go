@@ -155,30 +155,6 @@ func TestDecodeBinaryRequest(t *testing.T) {
 			want:    nil,
 			wantErr: true,
 		},
-		{
-			name: "close request type",
-			data: func() []byte {
-				buf := make([]byte, requestHeaderSize)
-
-				buf[0] = requestTypeClose
-
-				binary.BigEndian.PutUint64(buf[1:9], 0)
-				binary.BigEndian.PutUint64(buf[9:17], 0)
-				binary.BigEndian.PutUint32(buf[17:21], 0)
-
-				buf[21] = 0
-
-				return buf
-			}(),
-			want: &fetchRequest{
-				requestType:          requestTypeClose,
-				startOffset:          0,
-				endOffset:            0,
-				requestID:            0,
-				requestCurrentScreen: false,
-			},
-			wantErr: false,
-		},
 	}
 
 	for _, tt := range tests {
@@ -697,19 +673,10 @@ func createWebSocket(t *testing.T, setupEvents func(mockClient *mockStreamClient
 
 	t.Cleanup(func() {
 		server.Close()
-		sendCloseMessage(t, ws)
+		ws.Close()
 	})
 
 	return ws, mockClient
-}
-
-// sendCloseMessage sends a close message to the websocket.
-func sendCloseMessage(t *testing.T, ws *websocket.Conn) {
-	closeRequest := make([]byte, requestHeaderSize)
-	closeRequest[0] = requestTypeClose
-
-	err := ws.WriteMessage(websocket.BinaryMessage, closeRequest)
-	require.NoError(t, err)
 }
 
 // mockStreamClient implements events.SessionStreamer interface for testing, counting the number of streams
