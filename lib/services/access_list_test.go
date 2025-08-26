@@ -238,6 +238,175 @@ func TestAccessListReviewUnmarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
+func TestMatchAccessList(t *testing.T) {
+	al := &accesslist.AccessList{
+		Spec: accesslist.Spec{
+			Title:       "Production Database Access",
+			Description: "Access to production MySQL and PostgreSQL databases",
+			Owners: []accesslist.Owner{
+				{Name: "john.doe"},
+				{Name: "jane.smith"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"db-admin", "db-readonly", "backup-operator"},
+			},
+		},
+	}
+	al.SetName("prod-db-access")
+
+	tests := []struct {
+		name     string
+		search   string
+		expected bool
+	}{
+		{
+			name:     "empty search matches all",
+			search:   "",
+			expected: true,
+		},
+		{
+			name:     "whitespace only search matches all",
+			search:   "   ",
+			expected: true,
+		},
+		{
+			name:     "exact title match",
+			search:   "Production Database Access",
+			expected: true,
+		},
+		{
+			name:     "partial title match",
+			search:   "Production",
+			expected: true,
+		},
+		{
+			name:     "case insensitive title match",
+			search:   "database",
+			expected: true,
+		},
+		{
+			name:     "multiple words in title",
+			search:   "Production Access",
+			expected: true,
+		},
+		{
+			name:     "exact name match",
+			search:   "prod-db-access",
+			expected: true,
+		},
+		{
+			name:     "partial name match",
+			search:   "prod-db",
+			expected: true,
+		},
+		{
+			name:     "case insensitive name match",
+			search:   "PROD",
+			expected: true,
+		},
+		{
+			name:     "first owner match",
+			search:   "john.doe",
+			expected: true,
+		},
+		{
+			name:     "second owner match",
+			search:   "jane.smith",
+			expected: true,
+		},
+		{
+			name:     "partial owner match",
+			search:   "john",
+			expected: true,
+		},
+		{
+			name:     "case insensitive owner match",
+			search:   "JANE",
+			expected: true,
+		},
+		{
+			name:     "description match",
+			search:   "MySQL",
+			expected: true,
+		},
+		{
+			name:     "case insensitive description match",
+			search:   "postgresql",
+			expected: true,
+		},
+		{
+			name:     "multiple words in description",
+			search:   "production databases",
+			expected: true,
+		},
+		{
+			name:     "exact role match",
+			search:   "db-admin",
+			expected: true,
+		},
+		{
+			name:     "partial role match",
+			search:   "readonly",
+			expected: true,
+		},
+		{
+			name:     "case insensitive role match",
+			search:   "BACKUP",
+			expected: true,
+		},
+		{
+			name:     "multiple terms all found",
+			search:   "Production db",
+			expected: true,
+		},
+		{
+			name:     "multiple terms across different fields",
+			search:   "john database",
+			expected: true,
+		},
+		{
+			name:     "no match found",
+			search:   "nonexistent",
+			expected: false,
+		},
+		{
+			name:     "partial match but not all terms",
+			search:   "Production nonexistent",
+			expected: false,
+		},
+		{
+			name:     "case sensitive mismatch with special characters",
+			search:   "prod_db_access",
+			expected: false,
+		},
+
+		{
+			name:     "single character match",
+			search:   "p",
+			expected: true,
+		},
+		{
+			name:     "special characters in search",
+			search:   "prod-db",
+			expected: true,
+		},
+		{
+			name:     "search with extra spaces",
+			search:   "  Production   Database  ",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := MatchAccessList(al, tt.search)
+			if result != tt.expected {
+				t.Errorf("MatchAccessList(%q) = %v, want %v", tt.search, result, tt.expected)
+			}
+		})
+	}
+}
+
 // TestAccessListReviewMarshal verifies a marshaled access list review resource can be unmarshaled back.
 func TestAccessListReviewMarshal(t *testing.T) {
 	expected, err := accesslist.NewAccessList(

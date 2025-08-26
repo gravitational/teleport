@@ -19,7 +19,7 @@ package cache
 import (
 	"cmp"
 	"context"
-	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -51,10 +51,7 @@ func accessListAuditNextDateIndexFn(al *accesslist.AccessList) string {
 		// but means that the access list is not eligible for review.
 		return "z" + "/" + al.GetName()
 	}
-	fmt.Println("888")
-	fmt.Printf("%+v\n", al.Spec.Audit.NextAuditDate.Format("20060102")+"/"+al.GetName())
-	fmt.Println("888")
-	return al.Spec.Audit.NextAuditDate.Format("20060102") + "/" + al.GetName()
+	return al.Spec.Audit.NextAuditDate.Format(time.DateOnly) + "/" + al.GetName()
 }
 
 func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex], error) {
@@ -67,8 +64,9 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 			types.KindAccessList,
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
+				// sorted by name
 				accessListNameIndex: accessListNameIndexFn,
-				// auditNextDate index is used in the web UI to sort by next audit date
+				// sorted by upcoming audit date. lists with no audit dates sorted to the back
 				accessListAuditNextDateIndex: accessListAuditNextDateIndexFn,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {

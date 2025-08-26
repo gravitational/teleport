@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
@@ -281,54 +282,46 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 	return &review, nil
 }
 
+// MatchAccessList returns true if the access list matches the given search string.
+// An empty search string matches all access lists. For non-empty searches, the
+// function performs case-insensitive matching against the access list's title,
+// name, owner names, description, granted roles, and origin. All space-separated
+// search terms must be found across these fields (each term can match any field).
 func MatchAccessList(al *accesslist.AccessList, search string) bool {
-	search = strings.ToLower(strings.TrimSpace(search))
 	if search == "" {
 		return true
 	}
-
 	searchTerms := strings.Split(search, " ")
 
-	// Title match
-	if matchesAllTerms(searchTerms, strings.ToLower(al.Spec.Title)) {
-		return true
-	}
+	// collect all searchable text
+	var allFields []string
+	allFields = append(allFields, al.Spec.Title)
+	allFields = append(allFields, al.GetName())
+	allFields = append(allFields, al.Spec.Description)
+	allFields = append(allFields, al.Origin())
 
-	// Name match
-	if matchesAllTerms(searchTerms, strings.ToLower(al.GetName())) {
-		return true
-	}
-
-	// Owner names match
 	for _, owner := range al.Spec.Owners {
-		if matchesAllTerms(searchTerms, strings.ToLower(owner.Name)) {
-			return true
-		}
+		allFields = append(allFields, owner.Name)
 	}
 
-	// Description match
-	if matchesAllTerms(searchTerms, strings.ToLower(al.Spec.Description)) {
-		return true
-	}
-
-	// Roles match
 	for _, role := range al.Spec.Grants.Roles {
-		if matchesAllTerms(searchTerms, strings.ToLower(role)) {
-			return true
-		}
+		allFields = append(allFields, role)
 	}
 
-	// Type-specific matches
-	if strings.Contains(strings.ToLower(al.Origin()), search) {
-		return true
-	}
-
-	return false
+	// check if all terms exist somewhere across all fields
+	return matchesAllTerms(searchTerms, allFields)
 }
 
-func matchesAllTerms(terms []string, target string) bool {
+func matchesAllTerms(terms []string, targets []string) bool {
 	for _, term := range terms {
-		if !strings.Contains(target, term) {
+		found := false
+		for _, target := range targets {
+			if strcase.Contains(target, term) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return false
 		}
 	}

@@ -174,8 +174,8 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 
 // ListAccessListsWithFilter returns a filtered and sorted paginated list of access lists.
 func (a *AccessListService) ListAccessListsWithFilter(ctx context.Context, pageSize int, nextToken string, search string, sortBy *types.SortBy) ([]*accesslist.AccessList, string, error) {
-	// this fallback happens if the cache is unhealthy. Currently, the backend does not support extra indexes or decending
-	// sort so we must punt if it gets here with special sorting requirements.
+	// Currently, the backend only sorts on lexicographical keys and not
+	// based on fields within a resource
 	if sortBy != nil && (sortBy.Field != "name" || sortBy.IsDesc != false) {
 		return nil, "", trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", sortBy.Field, sortBy.IsDesc)
 	}
