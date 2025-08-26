@@ -668,8 +668,11 @@ func createWebSocket(t *testing.T, setupEvents func(mockClient *mockStreamClient
 	}))
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
+	if resp != nil {
+		resp.Body.Close()
+	}
 
 	t.Cleanup(func() {
 		server.Close()
