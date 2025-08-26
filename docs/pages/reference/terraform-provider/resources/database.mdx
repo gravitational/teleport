@@ -115,6 +115,7 @@ Optional:
 - `assume_role_arn` (String) AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.
 - `docdb` (Attributes) DocumentDB contains Amazon DocumentDB-specific metadata. (see [below for nested schema](#nested-schema-for-specawsdocdb))
 - `elasticache` (Attributes) ElastiCache contains Amazon ElastiCache Redis-specific metadata. (see [below for nested schema](#nested-schema-for-specawselasticache))
+- `elasticache_serverless` (Attributes) ElastiCacheServerless contains Amazon ElastiCache Serverless metadata. (see [below for nested schema](#nested-schema-for-specawselasticache_serverless))
 - `external_id` (String) ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 - `iam_policy_status` (Number) IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.
 - `memorydb` (Attributes) MemoryDB contains AWS MemoryDB specific metadata. (see [below for nested schema](#nested-schema-for-specawsmemorydb))
@@ -144,6 +145,13 @@ Optional:
 - `replication_group_id` (String) ReplicationGroupID is the Redis replication group ID.
 - `transit_encryption_enabled` (Boolean) TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.
 - `user_group_ids` (List of String) UserGroupIDs is a list of user group IDs.
+
+
+### Nested Schema for `spec.aws.elasticache_serverless`
+
+Optional:
+
+- `cache_name` (String) CacheName is an ElastiCache Serverless cache name.
 
 
 ### Nested Schema for `spec.aws.memorydb`
@@ -242,8 +250,17 @@ Optional:
 
 Optional:
 
+- `alloydb` (Attributes) AlloyDB contains AlloyDB specific configuration elements. (see [below for nested schema](#nested-schema-for-specgcpalloydb))
 - `instance_id` (String) InstanceID is the Cloud SQL instance ID.
 - `project_id` (String) ProjectID is the GCP project ID the Cloud SQL instance resides in.
+
+### Nested Schema for `spec.gcp.alloydb`
+
+Optional:
+
+- `endpoint_override` (String) EndpointOverride is an override of endpoint address to use.
+- `endpoint_type` (String) EndpointType is the database endpoint type to use. Should be one of: "private", "public", "psc".
+
 
 
 ### Nested Schema for `spec.mongo_atlas`

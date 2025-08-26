@@ -116,6 +116,16 @@ export const editBotSuccess = (
     }
   );
 
+export const deleteBotSuccess = () =>
+  http.delete(cfg.api.bot.delete, () => {
+    return HttpResponse.json({});
+  });
+
+export const deleteBotError = (status: number, error: string | null = null) =>
+  http.delete(cfg.api.bot.delete, () => {
+    return HttpResponse.json({ error: { message: error } }, { status });
+  });
+
 export const getBotError = (status: number, error: string | null = null) =>
   http.get(cfg.api.bot.read, () => {
     return HttpResponse.json({ error: { message: error } }, { status });

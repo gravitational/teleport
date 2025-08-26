@@ -494,6 +494,43 @@ func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, ki
 	return nil
 }
 
+// GetInheritedMembershipRequires returns the combined Requires for an Access List's members,
+// inherited from any ancestor lists, and the Access List's own MembershipRequires.
+func GetInheritedMembershipRequires(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Requires, error) {
+	ownRequires := accessList.GetMembershipRequires()
+	ancestors, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g)
+	if err != nil {
+		return &ownRequires, trace.Wrap(err)
+	}
+
+	roles := ownRequires.Roles
+	traits := ownRequires.Traits
+
+	for _, ancestor := range ancestors {
+		requires := ancestor.GetMembershipRequires()
+		roles = append(roles, requires.Roles...)
+		for traitKey, traitValues := range requires.Traits {
+			if _, exists := traits[traitKey]; !exists {
+				traits[traitKey] = []string{}
+			}
+			traits[traitKey] = append(traits[traitKey], traitValues...)
+		}
+	}
+
+	slices.Sort(roles)
+	roles = slices.Compact(roles)
+
+	for k, v := range traits {
+		slices.Sort(v)
+		traits[k] = slices.Compact(v)
+	}
+
+	return &accesslist.Requires{
+		Roles:  roles,
+		Traits: traits,
+	}, nil
+}
+
 // GetInheritedGrants returns the combined Grants for an Access List's members, inherited from any ancestor lists.
 func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Grants, error) {
 	grants := accesslist.Grants{

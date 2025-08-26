@@ -19,3 +19,4 @@
 export * from './DetailsView';
 export * from './WidgetView';
 export * from './AppUpdaterContext';
+export { type ClusterGetter } from './common';

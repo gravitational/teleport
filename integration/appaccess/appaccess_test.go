@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mcptest"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -58,7 +59,17 @@ import (
 // It allows to make the entire cluster set up once, instead of per test,
 // which speeds things up significantly.
 func TestAppAccess(t *testing.T) {
-	pack := Setup(t)
+	// Enable MCP test servers.
+	sseServerURL := mcptest.MustStartSSETestServer(t)
+	extraApps := []servicecfg.App{{
+		Name: "test-sse",
+		URI:  "mcp+sse+" + sseServerURL,
+	}}
+
+	// Reusing the pack as much as we can.
+	pack := SetupWithOptions(t, AppTestOptions{
+		ExtraRootApps: extraApps,
+	})
 
 	t.Run("Forward", bind(pack, testForward))
 	t.Run("Websockets", bind(pack, testWebsockets))
@@ -72,6 +83,7 @@ func TestAppAccess(t *testing.T) {
 	t.Run("NoHeaderOverrides", bind(pack, testNoHeaderOverrides))
 	t.Run("AuditEvents", bind(pack, testAuditEvents))
 
+	// MCP access tests.
 	t.Run("MCP", bind(pack, testMCP))
 
 	// This test should go last because it stops/starts app servers.

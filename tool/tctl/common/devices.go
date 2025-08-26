@@ -19,6 +19,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -254,18 +255,43 @@ func (c *deviceListCommand) Run(ctx context.Context, authClient *authclient.Clie
 	})
 
 	// Print devices.
-	table := asciitable.MakeTable([]string{"Asset Tag", "OS", "Enroll Status", "Device ID"})
+	table := asciitable.MakeTable([]string{"Asset Tag", "OS", "Source", "Enroll Status", "Owner", "Device ID"})
 	for _, dev := range devs {
 		table.AddRow([]string{
 			dev.AssetTag,
 			devicetrust.FriendlyOSType(dev.OsType),
+			deviceSourceToString(dev.Source),
 			devicetrust.FriendlyDeviceEnrollStatus(dev.EnrollStatus),
+			dev.Owner,
 			dev.Id,
 		})
 	}
 	fmt.Println(table.AsBuffer().String())
 
 	return nil
+}
+
+var (
+	deviceOriginToDefaultName = map[devicepb.DeviceOrigin]string{
+		devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF:   "jamf",
+		devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE: "intune",
+	}
+	deviceOriginToPrettyName = map[devicepb.DeviceOrigin]string{
+		devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF:   "Jamf",
+		devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE: "Intune",
+	}
+)
+
+func deviceSourceToString(source *devicepb.DeviceSource) string {
+	if source == nil {
+		return ""
+	}
+
+	if defaultName, found := deviceOriginToDefaultName[source.Origin]; found && source.Name == defaultName {
+		return cmp.Or(deviceOriginToPrettyName[source.Origin], defaultName)
+	}
+
+	return source.Name
 }
 
 type deviceRemoveCommand struct {

@@ -11,7 +11,6 @@ mkdir -p "$STATE_DIR"
 cat > "$values_yaml" <<EOF
 chartMode: standalone
 clusterName: ${CLUSTER_NAME}.${ROUTE53_ZONE}      # Name of your cluster. Use the FQDN you intend to configure in DNS below.
-teleportVersionOverride: ${TELEPORT_VERSION}
 
 extraArgs: ['--debug']
 image: "public.ecr.aws/gravitational-staging/teleport-distroless-debug"

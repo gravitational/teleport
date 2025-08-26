@@ -436,6 +436,65 @@ This section assumes that the name of your `teleport-kube-agent` release is
    2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
    ```
 
+## GitOps tools
+
+Managed updates for Kubernetes agents requires workarounds when used with GitOps tools for
+continuous deployment.  The `teleport-kube-agent` Helm chart owns the version of the
+`teleport-agent` resource, so when the `teleport-agent-updater` modifies the
+image version of the `teleport-agent` resource, the GitOps tool will detect a
+drift or a diff in the `teleport-agent` resource.
+
+The sections below describe workarounds for various GitOps tools.
+
+### ArgoCD deployments
+
+After a managed update, ArgoCD reports the `teleport-agent` resource as `OutOfSync`.
+As a workaround to this problem use a [Diff Customization](https://argo-cd.readthedocs.io/en/stable/user-guide/diffing/#diffing-customization)
+to ignore the difference in image version. Here is an example deployment using the
+name `teleport-agent` and namespace `teleport`.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-agent
+  namespace: teleport
+spec:
+  ignoreDifferences:
+  - group: apps
+    kind: StatefulSet
+    name: teleport-agent
+    namespace: teleport
+    jqPathExpressions:
+    - .spec.template.spec.containers[] | select(.name == "teleport").image
+...
+```
+
+### FluxCD deployments
+
+After a managed update, FluxCD reports a `DriftDetected` event. As a workaround
+to this problem modify the [drift detection](https://fluxcd.io/flux/components/helm/helmreleases/#drift-detection)
+configuration to ignore the difference in image version. Here is an example deployment
+using the name `teleport-agent` and namespace `teleport`.
+
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: teleport-agent
+  namespace: teleport
+spec:
+  driftDetection:
+    mode: enabled
+    ignore:
+    - paths: ["/spec/template/spec/containers/0/image"]
+      target:
+        kind: StatefulSet
+        name: teleport-agent
+        namespace: teleport
+...
+```
+
 ## Troubleshooting
 
 You can inspect the current agent autoupdate status by running:

@@ -1009,6 +1009,10 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
 [Docs](https://goteleport.com/docs/enroll-resources/agents/gcp/)
 - [ ] Join a Teleport node running in a GCP VM.
 
+### Oracle Node Joining
+[Docs](https://goteleport.com/docs/enroll-resources/agents/oracle/)
+- [ ] Join a Teleport node running in an OCI VM.
+
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/admin-guides/management/guides/ec2-tags/)
 and with tag `foo`: `bar`. Verify that a node running on the instance has label
@@ -1493,8 +1497,9 @@ GODEBUG='inittrace=1' teleport version 2>&1 | rg '^init' | awk '{print $8 " byte
 - [ ] Verify [AWS console access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
   - [ ] Can interact with AWS using `tsh` commands.
-    - [ ] `tsh aws`
-    - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
+    - [ ] `tsh aws sts get-caller-identity`
+    - [ ] `tsh aws s3 ls`
+    - [ ] `tsh aws s3 cp ./file s3://<bucket>/test`
 - [ ] Verify [Azure CLI access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/azure/) with `tsh apps login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.

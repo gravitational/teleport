@@ -121,29 +121,29 @@ func (*GetMetadataResponseChunk_Metadata) isGetMetadataResponseChunk_Chunk() {}
 
 func (*GetMetadataResponseChunk_Frame) isGetMetadataResponseChunk_Chunk() {}
 
-// GetThumbnailsRequest is a request for retrieving multiple session's thumbnails.
-type GetThumbnailsRequest struct {
+// GetThumbnailRequest is a request for a session's thumbnail.
+type GetThumbnailRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// SessionIds are the ID of the sessions whose thumbnails are being requested.
-	SessionIds    []string `protobuf:"bytes,1,rep,name=session_ids,json=sessionIds,proto3" json:"session_ids,omitempty"`
+	// SessionId is the ID of the session whose thumbnail is being requested.
+	SessionId     string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetThumbnailsRequest) Reset() {
-	*x = GetThumbnailsRequest{}
+func (x *GetThumbnailRequest) Reset() {
+	*x = GetThumbnailRequest{}
 	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetThumbnailsRequest) String() string {
+func (x *GetThumbnailRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetThumbnailsRequest) ProtoMessage() {}
+func (*GetThumbnailRequest) ProtoMessage() {}
 
-func (x *GetThumbnailsRequest) ProtoReflect() protoreflect.Message {
+func (x *GetThumbnailRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -155,67 +155,58 @@ func (x *GetThumbnailsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetThumbnailsRequest.ProtoReflect.Descriptor instead.
-func (*GetThumbnailsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetThumbnailRequest.ProtoReflect.Descriptor instead.
+func (*GetThumbnailRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetThumbnailsRequest) GetSessionIds() []string {
-	if x != nil {
-		return x.SessionIds
-	}
-	return nil
-}
-
-// GetThumbnailsResponse is a response for retrieving multiple session's thumbnails.
-type GetThumbnailsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// SessionId is the ID of the session for which the thumbnail is being retrieved.
-	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	// Thumbnail is the thumbnail of the session.
-	Thumbnail     *SessionRecordingThumbnail `protobuf:"bytes,2,opt,name=thumbnail,proto3" json:"thumbnail,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetThumbnailsResponse) Reset() {
-	*x = GetThumbnailsResponse{}
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetThumbnailsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetThumbnailsResponse) ProtoMessage() {}
-
-func (x *GetThumbnailsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetThumbnailsResponse.ProtoReflect.Descriptor instead.
-func (*GetThumbnailsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *GetThumbnailsResponse) GetSessionId() string {
+func (x *GetThumbnailRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
 	}
 	return ""
 }
 
-func (x *GetThumbnailsResponse) GetThumbnail() *SessionRecordingThumbnail {
+// GetThumbnailResponse is a response for retrieving a session's thumbnail.
+type GetThumbnailResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Thumbnail is the thumbnail for the session.
+	Thumbnail     *SessionRecordingThumbnail `protobuf:"bytes,1,opt,name=thumbnail,proto3" json:"thumbnail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetThumbnailResponse) Reset() {
+	*x = GetThumbnailResponse{}
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetThumbnailResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetThumbnailResponse) ProtoMessage() {}
+
+func (x *GetThumbnailResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetThumbnailResponse.ProtoReflect.Descriptor instead.
+func (*GetThumbnailResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetThumbnailResponse) GetThumbnail() *SessionRecordingThumbnail {
 	if x != nil {
 		return x.Thumbnail
 	}
@@ -276,19 +267,17 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDesc
 	"\x18GetMetadataResponseChunk\x12U\n" +
 	"\bmetadata\x18\x01 \x01(\v27.teleport.recordingmetadata.v1.SessionRecordingMetadataH\x00R\bmetadata\x12P\n" +
 	"\x05frame\x18\x02 \x01(\v28.teleport.recordingmetadata.v1.SessionRecordingThumbnailH\x00R\x05frameB\a\n" +
-	"\x05chunk\"7\n" +
-	"\x14GetThumbnailsRequest\x12\x1f\n" +
-	"\vsession_ids\x18\x01 \x03(\tR\n" +
-	"sessionIds\"\x8e\x01\n" +
-	"\x15GetThumbnailsResponse\x12\x1d\n" +
+	"\x05chunk\"4\n" +
+	"\x13GetThumbnailRequest\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\x12V\n" +
-	"\tthumbnail\x18\x02 \x01(\v28.teleport.recordingmetadata.v1.SessionRecordingThumbnailR\tthumbnail\"3\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"n\n" +
+	"\x14GetThumbnailResponse\x12V\n" +
+	"\tthumbnail\x18\x01 \x01(\v28.teleport.recordingmetadata.v1.SessionRecordingThumbnailR\tthumbnail\"3\n" +
 	"\x12GetMetadataRequest\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId2\x95\x02\n" +
-	"\x18RecordingMetadataService\x12|\n" +
-	"\rGetThumbnails\x123.teleport.recordingmetadata.v1.GetThumbnailsRequest\x1a4.teleport.recordingmetadata.v1.GetThumbnailsResponse0\x01\x12{\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId2\x90\x02\n" +
+	"\x18RecordingMetadataService\x12w\n" +
+	"\fGetThumbnail\x122.teleport.recordingmetadata.v1.GetThumbnailRequest\x1a3.teleport.recordingmetadata.v1.GetThumbnailResponse\x12{\n" +
 	"\vGetMetadata\x121.teleport.recordingmetadata.v1.GetMetadataRequest\x1a7.teleport.recordingmetadata.v1.GetMetadataResponseChunk0\x01BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
 
 var (
@@ -306,8 +295,8 @@ func file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescG
 var file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_goTypes = []any{
 	(*GetMetadataResponseChunk)(nil),  // 0: teleport.recordingmetadata.v1.GetMetadataResponseChunk
-	(*GetThumbnailsRequest)(nil),      // 1: teleport.recordingmetadata.v1.GetThumbnailsRequest
-	(*GetThumbnailsResponse)(nil),     // 2: teleport.recordingmetadata.v1.GetThumbnailsResponse
+	(*GetThumbnailRequest)(nil),       // 1: teleport.recordingmetadata.v1.GetThumbnailRequest
+	(*GetThumbnailResponse)(nil),      // 2: teleport.recordingmetadata.v1.GetThumbnailResponse
 	(*GetMetadataRequest)(nil),        // 3: teleport.recordingmetadata.v1.GetMetadataRequest
 	(*SessionRecordingMetadata)(nil),  // 4: teleport.recordingmetadata.v1.SessionRecordingMetadata
 	(*SessionRecordingThumbnail)(nil), // 5: teleport.recordingmetadata.v1.SessionRecordingThumbnail
@@ -315,10 +304,10 @@ var file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_goTypes =
 var file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_depIdxs = []int32{
 	4, // 0: teleport.recordingmetadata.v1.GetMetadataResponseChunk.metadata:type_name -> teleport.recordingmetadata.v1.SessionRecordingMetadata
 	5, // 1: teleport.recordingmetadata.v1.GetMetadataResponseChunk.frame:type_name -> teleport.recordingmetadata.v1.SessionRecordingThumbnail
-	5, // 2: teleport.recordingmetadata.v1.GetThumbnailsResponse.thumbnail:type_name -> teleport.recordingmetadata.v1.SessionRecordingThumbnail
-	1, // 3: teleport.recordingmetadata.v1.RecordingMetadataService.GetThumbnails:input_type -> teleport.recordingmetadata.v1.GetThumbnailsRequest
+	5, // 2: teleport.recordingmetadata.v1.GetThumbnailResponse.thumbnail:type_name -> teleport.recordingmetadata.v1.SessionRecordingThumbnail
+	1, // 3: teleport.recordingmetadata.v1.RecordingMetadataService.GetThumbnail:input_type -> teleport.recordingmetadata.v1.GetThumbnailRequest
 	3, // 4: teleport.recordingmetadata.v1.RecordingMetadataService.GetMetadata:input_type -> teleport.recordingmetadata.v1.GetMetadataRequest
-	2, // 5: teleport.recordingmetadata.v1.RecordingMetadataService.GetThumbnails:output_type -> teleport.recordingmetadata.v1.GetThumbnailsResponse
+	2, // 5: teleport.recordingmetadata.v1.RecordingMetadataService.GetThumbnail:output_type -> teleport.recordingmetadata.v1.GetThumbnailResponse
 	0, // 6: teleport.recordingmetadata.v1.RecordingMetadataService.GetMetadata:output_type -> teleport.recordingmetadata.v1.GetMetadataResponseChunk
 	5, // [5:7] is the sub-list for method output_type
 	3, // [3:5] is the sub-list for method input_type

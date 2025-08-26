@@ -134,9 +134,7 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
         return status;
     }
     updwtmp(wtmp_file, &entry);
-    if (errno != 0) {
-        return status_from_errno();
-    }
+    // updwtmp doesn't report errors, per the c standard we can't trust errno here.
     return 0;
 }
 
@@ -197,9 +195,7 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
         return status;
     }
     updwtmp(wtmp_file, &log_entry);
-    if (errno != 0) {
-        return status_from_errno();
-    }
+    // updwtmp doesn't report errors, per the c standard we can't trust errno here.
     return 0;
 }
 
@@ -267,9 +263,7 @@ static int uacc_add_btmp_entry(const char *btmp_path, const char *username,
     memcpy(&entry.ut_addr_v6, remote_addr_v6, sizeof(int32_t) * 4);
 
     updwtmp(file, &entry);
-    if (errno != 0) {
-        return status_from_errno();
-    }
+    // updwtmp doesn't report errors, per the c standard we can't trust errno here.
     return 0;
 }
 

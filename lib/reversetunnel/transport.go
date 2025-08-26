@@ -396,7 +396,7 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
 	p.logger.DebugContext(p.closeContext, "Attempting to dial server through tunnel", "target_server_id", r.ServerID)
-	conn, err := p.tunnelDial(r)
+	conn, err := p.tunnelDial(p.closeContext, r)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, false, trace.Wrap(err)
@@ -444,14 +444,14 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 
 // tunnelDial looks up the search names in the local site for a matching tunnel
 // connection. If a connection exists, it's used to dial through the tunnel.
-func (p *transport) tunnelDial(r *sshutils.DialReq) (net.Conn, error) {
+func (p *transport) tunnelDial(ctx context.Context, r *sshutils.DialReq) (net.Conn, error) {
 	// Extract the local site from the tunnel server. If no tunnel server
 	// exists, then exit right away this code may be running outside of a
 	// remote site.
 	if p.reverseTunnelServer == nil {
 		return nil, trace.NotFound("not found")
 	}
-	cluster, err := p.reverseTunnelServer.GetSite(p.localClusterName)
+	cluster, err := p.reverseTunnelServer.Cluster(ctx, p.localClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

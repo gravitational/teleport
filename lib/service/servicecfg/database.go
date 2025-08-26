@@ -167,6 +167,10 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		GCP: types.GCPCloudSQL{
 			ProjectID:  d.GCP.ProjectID,
 			InstanceID: d.GCP.InstanceID,
+			AlloyDB: types.AlloyDB{
+				EndpointType:     d.GCP.AlloyDB.EndpointType,
+				EndpointOverride: d.GCP.AlloyDB.EndpointOverride,
+			},
 		},
 		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
 		AD: types.AD{
@@ -286,6 +290,16 @@ type DatabaseGCP struct {
 	ProjectID string
 	// InstanceID is the Cloud SQL instance ID.
 	InstanceID string
+	// AlloyDB contains AlloyDB specific settings.
+	AlloyDB DatabaseGCPAlloyDB
+}
+
+// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
+type DatabaseGCPAlloyDB struct {
+	// EndpointType is the database endpoint type to use.
+	EndpointType string
+	// EndpointOverride is an override of endpoint address to use.
+	EndpointOverride string
 }
 
 // DatabaseAD contains database Active Directory configuration.

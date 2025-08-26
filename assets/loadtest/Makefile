@@ -24,7 +24,7 @@ delete-gcp-cluster:
 destroy-deploy:
 	$(MAKE) -C control-plane destroy
 
-# deploys teleport auth and proxy
+# deploys teleport auth and proxy with assosciated pre-requisites (monitoring/storage/etc)
 .PHONY: deploy-control-plane
 deploy-control-plane:
 	$(MAKE) -C control-plane deploy

@@ -284,6 +284,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		HostID:           c.cfg.HostID,
 		AccessPoint:      c.cfg.AccessPoint,
 		EnableDemoServer: c.cfg.MCPDemoServer,
+		CipherSuites:     c.cfg.CipherSuites,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -561,10 +562,12 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 		app,
 		state,
 		matchers...); {
-	case errors.Is(err, services.ErrTrustedDeviceRequired):
-		// Let the trusted device error through for clarity.
-		return nil, nil, trace.Wrap(services.ErrTrustedDeviceRequired)
+	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
+		// When access is denied due to trusted device or session MFA requirements, these specific errors
+		// are returned directly to provide clarity to the client about the additional authentication steps needed.
+		return nil, nil, trace.Wrap(err)
 	case err != nil:
+		// Other access denial errors are wrapped and obfuscated to prevent leaking sensitive details.
 		c.log.WarnContext(c.closeContext, "Access denied to application.",
 			"app", app.GetName(),
 			"error", err,
@@ -642,7 +645,7 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 			AuthCtx:    authCtx,
 			App:        app,
 		}
-		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, sessionCtx))
+		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
 
 	default:
 		cleanup := func() {
@@ -719,18 +722,21 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		c.log.WarnContext(c.closeContext, "Failed to serve request", "error", err)
 
-		// Covert trace error type to HTTP and write response, make sure we close the
+		// Convert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
 
 		var text string
-		if errors.Is(err, services.ErrTrustedDeviceRequired) {
-			// Return a nicer error message for device trust errors.
-			text = `Access to this app requires a trusted device.
+		switch {
+		case errors.Is(err, services.ErrTrustedDeviceRequired):
+			text = `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
 
 See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
 `
-		} else {
+		case errors.Is(err, services.ErrSessionMFARequired):
+			text = authclient.ErrNoMFADevices.Error()
+
+		default:
 			text = http.StatusText(code)
 		}
 

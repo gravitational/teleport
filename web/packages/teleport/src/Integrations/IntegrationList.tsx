@@ -355,6 +355,13 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'SCIM';
         icon = <IconContainer name="scim" />;
         break;
+      case 'intune':
+        formattedText = 'Microsoft Intune';
+        icon = <IconContainer name="intune" />;
+        break;
+      default:
+        // TODO(ravicious): Remove openai exemption from here once a branch is added for it.
+        item.kind satisfies never | 'openai';
     }
   } else {
     // Default is integration.

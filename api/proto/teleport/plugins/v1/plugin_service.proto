@@ -143,6 +143,37 @@ message SearchPluginStaticCredentialsRequest {
   map<string, string> labels = 1;
 }
 
+// CredentialQuery is a set of values to match when searching for credentials
+message CredentialQuery {
+  map<string, string> labels = 1;
+}
+
+// UpdatePluginStaticCredentialsRequest holds information for updating a plugin
+// static credential. The service will attempt to find the credential to update
+// based on the supplied plugin name and labels.
+message UpdatePluginStaticCredentialsRequest {
+  oneof target {
+    // Name is the name of the plugin static credentials resource that we're
+    // targeting
+    string name = 1;
+
+    // Query is the search query that a credential must match in order to be
+    // updated. The update will only proceed if exactly one credential matches
+    // the search query.
+    CredentialQuery query = 2;
+  }
+
+  // Credential is the payload containing the updated credential. Only the spec
+  // is allowed to be updated via this interface.
+  types.PluginStaticCredentialsSpecV1 credential = 3;
+}
+
+// UpdatePluginStaticCredentialsResponse holds the updated credential returned
+// from UpdatePluginStaticCredentials
+message UpdatePluginStaticCredentialsResponse {
+  types.PluginStaticCredentialsV1 credential = 1;
+}
+
 // SearchPluginStaticCredentialsResponse is the response type for
 // SearchPluginStaticCredentials
 message SearchPluginStaticCredentialsResponse {
@@ -209,6 +240,9 @@ service PluginService {
   // for. Only accessible by RoleAdmin and, in the case of Teleport Assist,
   // RoleProxy.
   rpc SearchPluginStaticCredentials(SearchPluginStaticCredentialsRequest) returns (SearchPluginStaticCredentialsResponse);
+
+  // UpdatePluginStaticCredentials
+  rpc UpdatePluginStaticCredentials(UpdatePluginStaticCredentialsRequest) returns (UpdatePluginStaticCredentialsResponse);
 
   // NeedsCleanup will indicate whether a plugin of the given type needs cleanup
   // before it can be created.

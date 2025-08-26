@@ -4015,7 +4015,7 @@ func TestCAGeneration(t *testing.T) {
 	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
 		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{},
-		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
+		RSAKeyPairSource: func(alg cryptosuites.Algorithm) (priv []byte, pub []byte, err error) {
 			return privKey, pubKey, nil
 		},
 	})

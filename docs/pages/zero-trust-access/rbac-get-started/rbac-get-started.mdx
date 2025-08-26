@@ -1,0 +1,43 @@
+---
+title: Get Started with Role-Based Access Control
+description: Provides an introduction to the Teleport role-based access control system.
+---
+
+Teleport's role-based access control (RBAC) enables you to set fine-grained
+policies for who can perform certain actions against specific resources. For
+example, you can allow analytics team members to SSH into a MongoDB read
+replica, but not the main database.
+
+Teleport **roles** are [dynamic
+resources](../infrastructure-as-code/infrastructure-as-code.mdx) that allow or
+deny access to infrastructure resources, as well as to Teleport API operations
+like creating users or reviewing Access Requests.
+
+## Role demo
+
+You can follow the [Teleport Role Demo](role-demo.mdx) guide for a quick
+illustration of how Teleport roles work. 
+
+## Labels
+
+All infrastructure resources that are enrolled in your Teleport cluster have
+**labels**, which are key-value pairs such as `env: dev`. When a user attempts to
+connect to a resource, the Teleport Agent that proxies the resource checks the
+user's Teleport roles to ensure that the user has the appropriate permissions
+and, if not, denies the connection.
+
+Read more about labels in [Add Labels to Resources](labels.mdx).
+
+## Role templates
+
+Teleport roles include a templating syntax that allows you to specify a user's
+permissions based on data about the user, e.g., data from your organization's
+identity provider or stored on the Teleport Auth Service backend.
+
+Read more about [Teleport Role Templates](role-templates.mdx).
+
+## Role reference
+
+After getting familiar with the concepts we introduce in this section, you can
+read the [Access Controls Reference](../../reference/access-controls/roles.mdx)
+for descriptions of all fields you can configure in a Teleport role.

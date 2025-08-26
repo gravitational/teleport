@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
@@ -181,6 +182,8 @@ type CommandLineFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
+	// DatabaseGCPAlloyDBEndpointType is the AlloyDB database endpoint type to use.
+	DatabaseGCPAlloyDBEndpointType string
 	// DatabaseADKeytabFile is the path to Kerberos keytab file.
 	DatabaseADKeytabFile string
 	// DatabaseADKrb5File is the path to krb5.conf file.
@@ -1812,6 +1815,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
+		if err = gcputils.ValidateAlloyDBEndpointType(database.GCP.AlloyDB.EndpointType); err != nil {
+			return trace.Wrap(err)
+		}
+
 		db := servicecfg.Database{
 			Name:          database.Name,
 			Description:   database.Description,
@@ -1864,6 +1871,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			GCP: servicecfg.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
+				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+					EndpointType:     database.GCP.AlloyDB.EndpointType,
+					EndpointOverride: database.GCP.AlloyDB.EndpointOverride,
+				},
 			},
 			AD: servicecfg.DatabaseAD{
 				KeytabFile:             database.AD.KeytabFile,
@@ -2500,6 +2511,11 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.Wrap(err)
 			}
 		}
+
+		if err = gcputils.ValidateAlloyDBEndpointType(clf.DatabaseGCPAlloyDBEndpointType); err != nil {
+			return trace.Wrap(err)
+		}
+
 		db := servicecfg.Database{
 			Name:         clf.DatabaseName,
 			Description:  clf.DatabaseDescription,
@@ -2536,6 +2552,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			GCP: servicecfg.DatabaseGCP{
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
+				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+					EndpointType: clf.DatabaseGCPAlloyDBEndpointType,
+				},
 			},
 			AD: servicecfg.DatabaseAD{
 				KeytabFile: clf.DatabaseADKeytabFile,

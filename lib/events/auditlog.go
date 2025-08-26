@@ -266,7 +266,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ServerID")
 	}
 	if a.UploadHandler == nil {
-		return trace.BadParameter("missing parameter UploadHandler")
+		return trace.BadParameter("missing parameter DownloadHandler")
 	}
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()

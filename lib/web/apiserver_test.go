@@ -457,7 +457,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:      s.server.ClusterName(),
 		LocalAccessPoint: s.proxyClient,
-		SiteGetter:       revTunServer,
+		ClusterGetter:    revTunServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -3416,18 +3416,18 @@ func TestSearchClusterEvents(t *testing.T) {
 func TestGetClusterDetails(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
+	cluster, err := s.proxyTunnel.Cluster(t.Context(), s.server.ClusterName())
 	require.NoError(t, err)
-	require.NotNil(t, site)
+	require.NotNil(t, cluster)
 
-	cluster, err := webui.GetClusterDetails(s.ctx, site)
+	clusterDetails, err := webui.GetClusterDetails(s.ctx, cluster)
 	require.NoError(t, err)
-	require.Equal(t, s.server.ClusterName(), cluster.Name)
-	require.Equal(t, teleport.Version, cluster.ProxyVersion)
-	require.Equal(t, fmt.Sprintf("%v:%v", s.server.ClusterName(), defaults.HTTPListenPort), cluster.PublicURL)
-	require.Equal(t, teleport.RemoteClusterStatusOnline, cluster.Status)
-	require.NotNil(t, cluster.LastConnected)
-	require.Equal(t, teleport.Version, cluster.AuthVersion)
+	require.Equal(t, s.server.ClusterName(), clusterDetails.Name)
+	require.Equal(t, teleport.Version, clusterDetails.ProxyVersion)
+	require.Equal(t, fmt.Sprintf("%v:%v", s.server.ClusterName(), defaults.HTTPListenPort), clusterDetails.PublicURL)
+	require.Equal(t, teleport.RemoteClusterStatusOnline, clusterDetails.Status)
+	require.NotNil(t, clusterDetails.LastConnected)
+	require.Equal(t, teleport.Version, clusterDetails.AuthVersion)
 }
 
 func TestTokenGeneration(t *testing.T) {
@@ -8380,7 +8380,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:      clustername,
 		LocalAccessPoint: client,
-		SiteGetter:       revTunServer,
+		ClusterGetter:    revTunServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)

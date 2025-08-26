@@ -33,6 +33,7 @@ import Table, { Cell } from 'design/DataTable';
 import { TableColumn } from 'design/DataTable/types';
 import * as Icons from 'design/Icon';
 import { H3, P2, P3, Subtitle2 } from 'design/Text';
+import { Markdown } from 'shared/components/Markdown/Markdown';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
@@ -51,7 +52,6 @@ import {
 } from 'teleport/services/integrations';
 
 import { AwsResource } from '../Cards/StatCard';
-import { Markdown } from './Markdown';
 import { SidePanel } from './SidePanel';
 
 export function Task({

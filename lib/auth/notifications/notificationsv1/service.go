@@ -612,23 +612,23 @@ func (s *Service) DeleteUserNotification(ctx context.Context, req *notifications
 	return nil, trace.Wrap(err)
 }
 
-// listUserSpecificNotificationsForUser returns a paginated list of all user-specific notifications for a user. This should only be used by admins.
+// listUserSpecificNotificationsForUser returns a paginated list of all user-specific notifications for a user. This is a privileged operation requiring `list` access for `Notifications` and should only be used by cluster admins.
 func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, req *notificationsv1.ListNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
-	if req.GetFilters().GetUsername() == "" {
-		return nil, trace.BadParameter("missing username")
-	}
-
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
-		return nil, trace.AccessDenied("only RoleAdmin can list notifications for a specific user")
+	// If no username is provided, fetch notifications for the current user.
+	if req.GetFilters().GetUsername() == "" {
+		req.Filters.Username = authCtx.User.GetName()
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
+	// If the user is trying to fetch notifications for a different user, they need `list` permissions for `Notifications`.
+	if req.GetFilters().GetUsername() != authCtx.User.GetName() {
+		if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	stream := stream.FilterMap(
@@ -670,15 +670,15 @@ func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, req 
 	}, nil
 }
 
-// listGlobalNotifications returns a paginated list of all global notifications. This should only be used by admins.
+// listGlobalNotifications returns a paginated list of all global notifications. This is a privileged operation requiring `list` access for `Notifications` and should only be used by cluster admins.
 func (s *Service) listGlobalNotifications(ctx context.Context, req *notificationsv1.ListNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
-		return nil, trace.AccessDenied("only RoleAdmin can list all global notifications")
+	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	stream := stream.FilterMap(

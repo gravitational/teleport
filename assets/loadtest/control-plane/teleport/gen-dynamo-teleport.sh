@@ -11,7 +11,6 @@ mkdir -p "$STATE_DIR"
 cat > "$values_yaml" <<EOF
 chartMode: aws
 clusterName: ${CLUSTER_NAME}.${ROUTE53_ZONE}      # Name of your cluster. Use the FQDN you intend to configure in DNS below.
-teleportVersionOverride: ${TELEPORT_VERSION}
 proxyListenerMode: "multiplex"
 authentication:
   type: local

@@ -71,6 +71,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |assume_role_arn|string|AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.|
 |docdb|[object](#specawsdocdb)|DocumentDB contains Amazon DocumentDB-specific metadata.|
 |elasticache|[object](#specawselasticache)|ElastiCache contains Amazon ElastiCache Redis-specific metadata.|
+|elasticache_serverless|[object](#specawselasticache_serverless)|ElastiCacheServerless contains Amazon ElastiCache Serverless metadata.|
 |external_id|string|ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.|
 |iam_policy_status|string or integer|IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database. Can be either the string or the integer representation of each option.|
 |memorydb|[object](#specawsmemorydb)|MemoryDB contains AWS MemoryDB specific metadata.|
@@ -99,6 +100,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |replication_group_id|string|ReplicationGroupID is the Redis replication group ID.|
 |transit_encryption_enabled|boolean|TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.|
 |user_group_ids|[]string|UserGroupIDs is a list of user group IDs.|
+
+### spec.aws.elasticache_serverless
+
+|Field|Type|Description|
+|---|---|---|
+|cache_name|string|CacheName is an ElastiCache Serverless cache name.|
 
 ### spec.aws.memorydb
 
@@ -199,8 +206,16 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|alloydb|[object](#specgcpalloydb)|AlloyDB contains AlloyDB specific configuration elements.|
 |instance_id|string|InstanceID is the Cloud SQL instance ID.|
 |project_id|string|ProjectID is the GCP project ID the Cloud SQL instance resides in.|
+
+### spec.gcp.alloydb
+
+|Field|Type|Description|
+|---|---|---|
+|endpoint_override|string|EndpointOverride is an override of endpoint address to use.|
+|endpoint_type|string|EndpointType is the database endpoint type to use. Should be one of: "private", "public", "psc".|
 
 ### spec.mongo_atlas
 

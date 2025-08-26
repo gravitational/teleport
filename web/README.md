@@ -39,7 +39,12 @@ To build the Teleport open source version
 pnpm build-ui-oss
 ```
 
-The resulting output will be in the `webassets` folder.
+The resulting output will be in the `webassets` folder. By default, the webassets are compressed with Brotli. If you 
+want to disable this for faster local builds, set the environment variable `VITE_DISABLE_COMPRESSION` to any value:
+
+```
+VITE_DISABLE_COMPRESSION=1 pnpm build-ui-oss
+```
 
 ### Docker Build
 

@@ -17,16 +17,25 @@
 package cache
 
 import (
+	"cmp"
 	"context"
+	"slices"
+	"strconv"
 	"testing"
+	"time"
 
+	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestDatabaseServices tests that CRUD operations on DatabaseServices are
@@ -84,15 +93,112 @@ func TestDatabases(t *testing.T) {
 				URI:      "localhost:5432",
 			})
 		},
-		create:   p.databases.CreateDatabase,
-		list:     p.databases.GetDatabases,
+		create: p.databases.CreateDatabase,
+		list: func(ctx context.Context) ([]types.Database, error) {
+			return stream.Collect(p.databases.RangeDatabases(ctx, "", ""))
+		},
 		cacheGet: p.cache.GetDatabase,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.Database, error) {
-			return p.cache.GetDatabases(ctx)
+		cacheList: func(ctx context.Context, _ int) ([]types.Database, error) {
+			return stream.Collect(p.cache.RangeDatabases(ctx, "", ""))
 		},
 		update:    p.databases.UpdateDatabase,
 		deleteAll: p.databases.DeleteAllDatabases,
 	})
+}
+
+func TestDatabasesPagination(t *testing.T) {
+	// TODO(okraport): extract this into generic helper for other paginated resources.
+	t.Parallel()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-p.eventsC: // Drain events to prevent deadlocking.
+			}
+		}
+	}()
+
+	expected := make([]types.Database, 0, 50)
+	for i := range 50 {
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: "db" + strconv.Itoa(i+1),
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+		})
+
+		require.NoError(t, err)
+		require.NoError(t, p.databases.CreateDatabase(t.Context(), db))
+		expected = append(expected, db)
+	}
+	slices.SortFunc(expected, func(a, b types.Database) int {
+		return cmp.Compare(a.GetName(), b.GetName())
+	})
+
+	// Wait for all the Databases to be replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.Equal(t, len(expected), p.cache.collections.dbs.store.len())
+	}, 15*time.Second, 100*time.Millisecond)
+
+	out, err := p.cache.GetDatabases(t.Context())
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	page1, page2Start, err := p.cache.ListDatabases(t.Context(), 10, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, 10)
+	assert.NotEmpty(t, page2Start)
+
+	page2, next, err := p.cache.ListDatabases(t.Context(), 1000, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, len(expected)-10)
+	assert.Empty(t, next)
+
+	listed := append(page1, page2...)
+	assert.Empty(t, gocmp.Diff(expected, listed,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(p.cache.RangeDatabases(t.Context(), "", page2Start))
+	require.NoError(t, err)
+	assert.Len(t, out, len(page1))
+	assert.Empty(t, gocmp.Diff(page1, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(p.cache.RangeDatabases(t.Context(), "", ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(p.cache.RangeDatabases(t.Context(), page2Start, ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected)-10)
+	assert.Empty(t, gocmp.Diff(expected, append(page1, out...),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// invalidate the cache, cover upstream fallback
+	p.cache.ok = false
+	out, err = stream.Collect(p.cache.RangeDatabases(t.Context(), "", ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 }
 
 // TestDatabaseServers tests that CRUD operations on database servers are

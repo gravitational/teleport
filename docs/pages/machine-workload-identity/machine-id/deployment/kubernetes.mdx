@@ -1,13 +1,13 @@
 ---
 title: Deploying tbot on Kubernetes
-description: How to install and configure Machine ID on Kubernetes
+description: How to install and configure Machine ID on Kubernetes with Static JWKS Keys
 labels:
  - how-to
  - mwi
 ---
 
 This guide shows you how to deploy the Machine ID daemon `tbot`, on a Kubernetes
-cluster.
+cluster using a static set of JWKS keys.
 
 ## How it works
 
@@ -24,6 +24,16 @@ proves its identity to the Teleport Auth Service by presenting a JSON web token
 service account, the pod and the namespace in which `tbot` is running. The
 Teleport Auth Service checks the signature of the JWT against the Kubernetes
 cluster's public signing key.
+
+<Admonition type="warning" title="OIDC Joining">
+Certain cloud providers like Amazon EKS regularly rotate their OIDC signing
+keys, which will cause the `static_jwks` configuration you create in this guide
+to become invalid after a short period of time.
+
+On Kubernetes providers with OIDC support, like Amazon's Elastic Kubernetes
+Service (EKS), Google Kubernetes Engine (GKE), and Azure Kubernetes Service
+(AKS), consider using [Kubernetes OIDC joining](./kubernetes-oidc.mdx) instead.
+</Admonition>
 
 <details>
 <summary>Using another join method</summary>
@@ -247,7 +257,7 @@ spec:
             - -c
             - /config/tbot.yaml
           env:
-            # POD_NAMESPACE is required for the kubernetes_secret` destination
+            # POD_NAMESPACE is required for the `kubernetes_secret` destination
             # type to work correctly.
             - name: POD_NAMESPACE
               valueFrom:

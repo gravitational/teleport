@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -59,9 +60,13 @@ func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	baseParams := func() *AWSRolesAnywherProfileSyncerParams {
-		return &AWSRolesAnywherProfileSyncerParams{
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	baseParams := func() *AWSRolesAnywhereProfileSyncerParams {
+		return &AWSRolesAnywhereProfileSyncerParams{
 			KeyStoreManager:   keyStoreManager,
+			Backend:           backend,
 			Cache:             &mockCache{},
 			StatusReporter:    &mockCache{},
 			AppServerUpserter: &mockCache{},
@@ -70,15 +75,15 @@ func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
 
 	for _, tt := range []struct {
 		name       string
-		params     *AWSRolesAnywherProfileSyncerParams
+		params     *AWSRolesAnywhereProfileSyncerParams
 		errCheck   require.ErrorAssertionFunc
-		valueCheck func(*testing.T, *AWSRolesAnywherProfileSyncerParams)
+		valueCheck func(*testing.T, *AWSRolesAnywhereProfileSyncerParams)
 	}{
 		{
 			name:     "default values",
 			params:   baseParams(),
 			errCheck: require.NoError,
-			valueCheck: func(t *testing.T, p *AWSRolesAnywherProfileSyncerParams) {
+			valueCheck: func(t *testing.T, p *AWSRolesAnywhereProfileSyncerParams) {
 				require.Equal(t, 5*time.Minute, p.SyncPollInterval)
 				require.NotNil(t, p.Logger)
 				require.NotNil(t, p.Clock)
@@ -87,7 +92,7 @@ func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing key store manager",
-			params: func() *AWSRolesAnywherProfileSyncerParams {
+			params: func() *AWSRolesAnywhereProfileSyncerParams {
 				p := baseParams()
 				p.KeyStoreManager = nil
 				return p
@@ -95,8 +100,17 @@ func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
 			errCheck: require.Error,
 		},
 		{
+			name: "missing backend",
+			params: func() *AWSRolesAnywhereProfileSyncerParams {
+				p := baseParams()
+				p.Backend = nil
+				return p
+			}(),
+			errCheck: require.Error,
+		},
+		{
 			name: "missing cache client",
-			params: func() *AWSRolesAnywherProfileSyncerParams {
+			params: func() *AWSRolesAnywhereProfileSyncerParams {
 				p := baseParams()
 				p.Cache = nil
 				return p
@@ -105,7 +119,7 @@ func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing AppServerUpserter",
-			params: func() *AWSRolesAnywherProfileSyncerParams {
+			params: func() *AWSRolesAnywhereProfileSyncerParams {
 				p := baseParams()
 				p.AppServerUpserter = nil
 				return p
@@ -203,11 +217,15 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	baseParams := func(serverClient *mockCache) AWSRolesAnywherProfileSyncerParams {
-		return AWSRolesAnywherProfileSyncerParams{
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	baseParams := func(serverClient *mockCache) AWSRolesAnywhereProfileSyncerParams {
+		return AWSRolesAnywhereProfileSyncerParams{
 			KeyStoreManager:   keyStoreManager,
 			Cache:             serverClient,
 			StatusReporter:    serverClient,
+			Backend:           backend,
 			AppServerUpserter: serverClient,
 			Logger:            logtest.NewLogger(),
 			createSession:     mockCreateSession,
@@ -229,7 +247,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 		synctest.Run(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := RunAWSRolesAnywherProfileSyncer(ctx, params)
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx, params)
 				assert.NoError(t, err)
 			}()
 
@@ -257,7 +275,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 		synctest.Run(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := RunAWSRolesAnywherProfileSyncer(ctx, params)
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx, params)
 				assert.NoError(t, err)
 			}()
 
@@ -311,7 +329,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 		synctest.Run(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := RunAWSRolesAnywherProfileSyncer(ctx, params)
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx, params)
 				assert.NoError(t, err)
 			}()
 
@@ -354,7 +372,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 		synctest.Run(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := RunAWSRolesAnywherProfileSyncer(ctx, params)
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx, params)
 				assert.NoError(t, err)
 			}()
 

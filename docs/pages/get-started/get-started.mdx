@@ -9,8 +9,8 @@ labels:
 
 import Button from '@site/src/components/Button';
 import Icon from '@site/src/components/Icon';
-import { TeleportEditionsGrid, TeleportEditionCard } from '@site/src/components/Pages/GetStarted';
-import { FeatureMatrixBanner } from '@site/src/components/Pages/GetStarted';
+import TeleportEditionsGrid from "@site/src/components/Pages/GetStarted/TeleportEditionsGrid";
+import TeleportEditionCard from "@site/src/components/Pages/GetStarted/TeleportEditionCard";
 
 # Get Started with Teleport
 
@@ -36,12 +36,6 @@ There are three editions of Teleport. Before choosing one, ask yourself:
 - Do I need to deploy and manage Teleport in my own environment for compliance reasons? → <a href="#enterprise-self-hosted" style={{color: 'var(--color-dark-purple)', textDecoration: 'underline', fontWeight: 'bold'}}>Enterprise Self-Hosted</a>
 - Do I prefer to self-host Teleport locally to test features or use it for free? → <a href="#community-edition" style={{color: 'var(--color-dark-purple)', textDecoration: 'underline', fontWeight: 'bold'}}>Community Edition</a>
 
-<FeatureMatrixBanner
-  title="Quickly compare Teleport Editions and see which edition works best for your organization"
-  buttonText="Teleport Feature Matrix"
-  buttonHref="../feature-matrix"
-/>
-
 <TeleportEditionsGrid>
     <TeleportEditionCard
       title="Enterprise Cloud"
@@ -50,14 +44,8 @@ There are three editions of Teleport. Before choosing one, ask yourself:
       subtitle="A fully managed, hosted deployment of Teleport."
       id="enterprise-cloud"
     >
-      <p>Teleport Enterprise Cloud is a managed deployment of the
-  Teleport Auth Service and Proxy Service, hosted by the Teleport
-  team. We handle all infrastructure, upgrades, and certificate
-  management for you so you can focus on securing access to your
-  resources without managing servers.</p>
-      <p>Each customer is provisioned a dedicated tenant with a
-  unique `.teleport.sh` subdomain (e.g., `example.teleport.sh`).</p>
-    </TeleportEditionCard>
+    <p>Enterprise Cloud is a hosted deployment managed by the Teleport team. We handle infrastructure, upgrades, and certificates so you can focus on secure access.</p>    
+  </TeleportEditionCard>
 
     <TeleportEditionCard
       title="Enterprise Self-Hosted"
@@ -66,32 +54,16 @@ There are three editions of Teleport. Before choosing one, ask yourself:
       subtitle="The full enterprise feature set, hosted in your own infrastructure."
       id="enterprise-self-hosted"
     >
-      <p>Teleport Enterprise Self-Hosted is a paid plan that includes
-   all features of the Community Edition, plus advanced features for
-  organizations with advanced security needs, such as support for
-  Federal Information Processing Standards (FIPS) and a hardware
-  security module (HSM). It's designed for organizations that need
-  full control over their infrastructure due to internal, privacy, or
-   compliance requirements.</p>
-      <p>You deploy and operate the Teleport Auth Service and Proxy
-  Service within your own environment and manage your own updates and
-   certificates.</p>
+        <p>Enterprise Self-Hosted is for organizations that need to host Teleport on their own infrastructure for compliance, privacy, or internal security requirements.</p>
     </TeleportEditionCard>
 
     <TeleportEditionCard
       title="Community Edition"
       iconName="teleportCommunity"
       href="./deploy-community"
-      subtitle="A free, open source version of Teleport that you can self-host."
+      subtitle="An open source version of Teleport that you can self-host."
       id="community-edition"
     >
-      <p>Teleport Community Edition is a self-hosted, open source
-  distribution that anyone can download and deploy in their own
-  environment. It includes core features like secure access to SSH
-  servers, Kubernetes, databases, and internal applications using
-  identity-based access and session recording.</p>
-      <p>Community Edition is ideal for hobbyists, homelab users, or
-  small teams (under 100 employees) looking to explore Teleport or
-  secure small-scale infrastructure.</p>
+      <p>Community Edition includes core features like secure SSH, Kubernetes, database, and app access with identity-based security and session recording.</p>
     </TeleportEditionCard>
   </TeleportEditionsGrid>

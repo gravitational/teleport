@@ -88,10 +88,9 @@ func ProxyStdioConnWithAutoReconnect(ctx context.Context, cfg ProxyStdioConnWith
 	}
 
 	clientRequestReader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
-		Transport:     mcputils.NewStdioReader(cfg.ClientStdio),
-		ParentContext: ctx,
-		Logger:        cfg.Logger.With("client", "stdin"),
-		OnParseError:  mcputils.ReplyParseError(cfg.clientResponseWriter),
+		Transport:    mcputils.NewStdioReader(cfg.ClientStdio),
+		Logger:       cfg.Logger.With("client", "stdin"),
+		OnParseError: mcputils.ReplyParseError(cfg.clientResponseWriter),
 		OnNotification: func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
 			// By spec, we should not reply to notifications. Try our best to
 			// send a notification with the error message. In practice, only the
@@ -203,8 +202,7 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 
 	// This should never fail as long the correct config is passed in.
 	serverResponseReader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
-		Transport:     serverStdioReader,
-		ParentContext: r.parentCtx,
+		Transport: serverStdioReader,
 		// OnClose is called when server connection is dead.
 		// Teleport Proxy automatically closes the connection when tsh session
 		// is expired.

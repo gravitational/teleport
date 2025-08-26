@@ -120,6 +120,16 @@ func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, wri
 	return downloadFile(l.summaryPath(sessionID), writer)
 }
 
+// DownloadMetadata reads session metadata from a local directory.
+func (l *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return downloadFile(l.metadataPath(sessionID), writer)
+}
+
+// DownloadThumbnail reads a session thumbnail from a local directory.
+func (l *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return downloadFile(l.thumbnailPath(sessionID), writer)
+}
+
 func downloadFile(path string, writer events.RandomAccessWriter) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -143,6 +153,16 @@ func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return uploadFile(l.summaryPath(sessionID), reader)
 }
 
+// UploadMetadata writes session metadata to a local directory.
+func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return uploadFile(l.metadataPath(sessionID), reader)
+}
+
+// UploadThumbnail writes a session thumbnail to a local directory.
+func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return uploadFile(l.thumbnailPath(sessionID), reader)
+}
+
 func uploadFile(path string, reader io.Reader) (string, error) {
 	f, err := os.Create(path)
 	if err != nil {
@@ -161,6 +181,14 @@ func (l *Handler) recordingPath(sessionID session.ID) string {
 
 func (l *Handler) summaryPath(sessionID session.ID) string {
 	return filepath.Join(l.Directory, string(sessionID)+summaryExt)
+}
+
+func (l *Handler) metadataPath(sessionID session.ID) string {
+	return filepath.Join(l.Directory, string(sessionID)+metadataExt)
+}
+
+func (l *Handler) thumbnailPath(sessionID session.ID) string {
+	return filepath.Join(l.Directory, string(sessionID)+thumbnailExt)
 }
 
 // sessionIDFromPath extracts session ID from the filename

@@ -8605,6 +8605,11 @@ message MCPSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // McpSessionId is the session ID tracked by remote MCP servers.
+  string mcp_session_id = 7;
+  // ClientInfo stores reported client agent information, e.g. "claude-ai/0.1.0".
+  string client_info = 8;
 }
 
 // MCPSessionEnd is emitted when an MCP session ends.

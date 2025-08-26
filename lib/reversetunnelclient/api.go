@@ -105,11 +105,6 @@ func (params DialParams) String() string {
 	return fmt.Sprintf("from: %q to: %q", params.From, to)
 }
 
-// RemoteSite is an alis to allow migrating to Cluster without breaking builds.
-// Deprecated: Use Cluster instead
-// TODO(tross): Delete when all references are converted to Cluster.
-type RemoteSite = Cluster
-
 // Cluster represents a teleport cluster, either root or leaf,
 // that can be accessed via teleport tunnel or directly by proxy.
 type Cluster interface {
@@ -147,19 +142,18 @@ type Cluster interface {
 	io.Closer
 }
 
-// Tunnel provides access to connected local or remote clusters
-// using unified interface.
-type Tunnel interface {
-	// GetSites returns a list of connected clusters
-	GetSites() ([]Cluster, error)
-	// GetSite returns cluster this node belongs to
-	GetSite(domainName string) (Cluster, error)
+// ClusterGetter allows retrieving connected [Cluster].
+type ClusterGetter interface {
+	// Clusters returns all connected clusters
+	Clusters(ctx context.Context) ([]Cluster, error)
+	// Cluster returns the cluster matching the provided name or a trace.NotFoundError.
+	Cluster(ctx context.Context, clusterName string) (Cluster, error)
 }
 
 // Server is a TCP/IP SSH server which listens on an SSH endpoint and remote/local
 // cluster connect and register with it.
 type Server interface {
-	Tunnel
+	ClusterGetter
 	// Start starts server
 	Start() error
 	// Close closes server's operations immediately
