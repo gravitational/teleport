@@ -34,7 +34,7 @@ const defaultWtmpdbPath = "/var/lib/wtmpdb/wtmp.db"
 // userProcess is the wtmpdb entry type for user sessions.
 const userProcess = 3
 
-// WtmpdbBackend handles user accounting with a utmp(x) system.
+// WtmpdbBackend handles user accounting on systems with wtmpdb.
 type WtmpdbBackend struct {
 	db *sql.DB
 }
@@ -56,6 +56,7 @@ func NewWtmpdbBackend(dbPath string) (*WtmpdbBackend, error) {
 
 // Login creates a new session entry for the given user.
 func (w *WtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (int64, error) {
+	// Schema: https://github.com/thkukuk/wtmpdb?tab=readme-ov-file#database
 	stmt, err := w.db.Prepare("INSERT INTO wtmp(Type, User, Login, TTY, RemoteHost) VALUES(?,?,?,?,?)")
 	if err != nil {
 		return 0, trace.Wrap(err)

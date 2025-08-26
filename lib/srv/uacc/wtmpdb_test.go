@@ -50,6 +50,7 @@ func TestWtmpdb(t *testing.T) {
 	dbFile := filepath.Join(t.TempDir(), "wtmp.db")
 	db, err := sql.Open("sqlite3", dbFile)
 	require.NoError(t, err)
+	// Schema: https://github.com/thkukuk/wtmpdb/blob/272b109f5b3bdfb3008604461b4ddbff03c28b77/lib/sqlite.c#L128
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
 	require.NoError(t, err)
 

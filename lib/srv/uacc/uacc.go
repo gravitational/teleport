@@ -16,6 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// Package uacc implements user accounting on Linux systems. There are two
+// supported backends, utmp and wtmpdb. Operations in this package attempt to use
+// all available backends and succeed if at least one backend succeeds.
+//
+// # utmp
+//
+// utmp is the classic Unix user accounting system. Current sessions are logged in
+// the utmp file, session history is logged in the wtmp file, and failed logins are
+// logged in the btmp file (or their *tmpx counterparts, the file format is
+// identical on Linux). Teleport writes to the *tmp files via the libc API in
+// <utmp.h>.
+//
+// # wtmpdb
+//
+// [wtmpdb] is the Y2038-safe successor to utmp. Session history is logged in the
+// wtmp.db sqlite database. Teleport writes to wtmpdb with sqlite directly (to
+// avoid unnecessary cgo).
+//
+// [wtmpdb]: https://github.com/thkukuk/wtmpdb
 package uacc
 
 import (
@@ -46,7 +65,7 @@ type UaccConfig struct {
 }
 
 // NewUserAccountHandler creates a new UserAccountHandler.
-func NewUserAccountHandler(cfg UaccConfig) (*UserAccountHandler, error) {
+func NewUserAccountHandler(cfg UaccConfig) *UserAccountHandler {
 	uacc := &UserAccountHandler{}
 	utmp, err := NewUtmpBackend(cfg.UtmpFile, cfg.WtmpFile, cfg.BtmpFile)
 	if err == nil {
@@ -56,10 +75,12 @@ func NewUserAccountHandler(cfg UaccConfig) (*UserAccountHandler, error) {
 	if err == nil {
 		uacc.wtmpdb = wtmpdb
 	}
-	if uacc.utmp == nil && uacc.wtmpdb == nil {
-		return nil, trace.BadParameter("no valid backends available")
-	}
-	return uacc, nil
+	return uacc
+}
+
+// Enabled returns whether or not at least one backend is available.
+func (uacc *UserAccountHandler) Enabled() bool {
+	return uacc.utmp != nil || uacc.wtmpdb != nil
 }
 
 // Session represents a login session. It must be closed when the session is finished.
@@ -71,6 +92,10 @@ type Session struct {
 
 // OpenSession opens a new login session. It will succeed if at least one backend succeeds.
 func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remote net.Addr) (*Session, error) {
+	if uacc.utmp == nil && uacc.wtmpdb == nil {
+		return &Session{}, nil
+	}
+
 	loginTime := time.Now()
 	ttyFullName, err := os.Readlink(tty.Name())
 	if err != nil {
@@ -82,7 +107,7 @@ func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remot
 	session := &Session{
 		uacc: uacc,
 	}
-	errors := make([]error, 0, 2)
+	var errors []error
 	if uacc.utmp != nil {
 		if err := uacc.utmp.Login(ttyName, username, remote, loginTime); err == nil {
 			anySucceeded = true
@@ -108,9 +133,13 @@ func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remot
 
 // Close closes the login session. It will succeed if at least one backend succeeds.
 func (session *Session) Close() error {
+	if session.utmpKey == "" && session.wtmpdbKey == nil {
+		return nil
+	}
+
 	logoutTime := time.Now()
 	var anySucceeded bool
-	errors := make([]error, 0, 2)
+	var errors []error
 	if session.utmpKey != "" {
 		utmp := session.uacc.utmp
 		if utmp == nil {

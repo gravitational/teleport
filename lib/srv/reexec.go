@@ -343,39 +343,37 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 	readyfd = nil
-	uaccHandler, err := uacc.NewUserAccountHandler(uacc.UaccConfig{
+	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
 		UtmpFile:   c.UaccMetadata.UtmpPath,
 		WtmpFile:   c.UaccMetadata.WtmpPath,
 		BtmpFile:   c.UaccMetadata.BtmpPath,
 		WtmpdbFile: c.UaccMetadata.WtmpdbPath,
 	})
-	if err != nil {
-		slog.DebugContext(ctx, "uacc unsupported", "error", err)
+	if !uaccHandler.Enabled() {
+		slog.DebugContext(ctx, "no user accounting backends available, sessions will not be logged locally")
 	}
 
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
-		if uaccHandler != nil {
-			if uaccErr := uaccHandler.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr); uaccErr != nil {
-				slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
-			}
+		if uaccErr := uaccHandler.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr); uaccErr != nil {
+			slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
 		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	if c.Terminal && uaccHandler != nil {
+	if c.Terminal {
 		uaccSession, err := uaccHandler.OpenSession(tty, c.Login, &c.UaccMetadata.RemoteAddr)
 		if err == nil {
 			defer func() {
 				if closeErr := uaccSession.Close(); closeErr != nil {
-					slog.DebugContext(ctx, "uacc session failed to close", "error", closeErr)
+					slog.DebugContext(ctx, "failed to close uacc session", "error", closeErr)
 				}
 			}()
 		} else {
 			// uacc support is best-effort, only enable it if OpenSession is successful.
 			// Currently, there is no way to log this error out-of-band with the
 			// command output, so for now we essentially ignore it.
-			slog.DebugContext(ctx, "uacc unsupported", "error", err)
+			slog.DebugContext(ctx, "failed to open uacc session", "error", err)
 		}
 	}
 
