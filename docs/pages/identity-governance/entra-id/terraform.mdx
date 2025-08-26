@@ -140,8 +140,13 @@ foreach ($appRole in $appRoles) {
 
 </details>
 
-Once you have the permission IDs and the principal ID of the managed identity ready,
-create `tfvars` with your inputs.
+Once you have the permission IDs and the principal ID of the managed identity
+ready, create `tfvars` with your inputs. Assign values to the variables below:
+
+- <Var name="Permission IDs"/> 
+- <Var name="Principal ID of the managed identity"/>
+
+Enter the following command to populate your `tfvars` file:
 
 ```bash
 cat > variables.auto.tfvars << EOF

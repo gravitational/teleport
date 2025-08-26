@@ -209,8 +209,10 @@ following IAM policy and attach it to the new role:
     ]
 }
 ```
-Edit the trust policy of the new role to allow the Discovery Service
-to assume it:
+
+Edit the trust policy of the new role to allow the Discovery Service to assume
+it, adding the <Var name="Discovery Service role's ARN" />:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -218,15 +220,17 @@ to assume it:
         {
             "Effect": "Allow",
             "Principal": {
-                "AWS": "<Var name="discovery service role's ARN" />"
+                "AWS": "<Var name="Discovery Service role's ARN" />"
             },
             "Action": "sts:AssumeRole"
         }
     ]
 }
 ```
+
 Create the following policy in the Discovery Service's account and attach it
-to the Discovery Service's role:
+to the Discovery Service's role, adding the <Var name="new role ARN" />:
+
 ```json
 {
     "Version": "2012-10-17",
