@@ -35,7 +35,7 @@ import { ClusterGetter, WidgetView } from 'teleterm/ui/AppUpdater';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { outermostPadding } from '../../spacing';
-import type { PasswordlessLoginState } from '../useClusterLogin';
+import type { PasswordlessLoginState, SsoPrompt } from '../useClusterLogin';
 import { CompatibilityWarning } from './CompatibilityWarning';
 import { FormLocal } from './FormLocal';
 import { FormPasswordless } from './FormPasswordless';
@@ -48,7 +48,7 @@ export default function LoginForm(props: Props) {
     loginAttempt,
     onAbort,
     authSettings: { authProviders, localAuthEnabled = true },
-    shouldPromptSsoStatus,
+    ssoPrompt,
     passwordlessLoginState,
   } = props;
 
@@ -60,10 +60,10 @@ export default function LoginForm(props: Props) {
     );
   }
 
-  if (shouldPromptSsoStatus) {
+  if (ssoPrompt !== 'no-prompt') {
     return (
       <OutermostPadding>
-        <PromptSsoStatus onCancel={onAbort} />
+        <PromptSsoStatus ssoPrompt={ssoPrompt} onCancel={onAbort} />
       </OutermostPadding>
     );
   }
@@ -328,7 +328,7 @@ type LoginAttempt = Attempt<void>;
 
 export type Props = {
   authSettings: AuthSettings;
-  shouldPromptSsoStatus: boolean;
+  ssoPrompt: SsoPrompt;
   passwordlessLoginState: PasswordlessLoginState;
   loginAttempt: LoginAttempt;
   clearLoginAttempt(): void;

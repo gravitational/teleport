@@ -35,6 +35,21 @@ import { IAppContext } from 'teleterm/ui/types';
 import * as uri from 'teleterm/ui/uri';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
+export type SsoPrompt =
+  /**
+   * No prompt, SSO login not in use.
+   */
+  | 'no-prompt'
+  /**
+   * The user is asked to follow the steps in the browser (the browser automatically opens).
+   */
+  | 'follow-browser-steps'
+  /**
+   * After the user followed the steps in the browser and the login RPC returned but before the
+   * cluster sync RPC started.
+   */
+  | 'wait-for-sync';
+
 export function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
   const ctx = useAppContext();
@@ -44,7 +59,7 @@ export function useClusterLogin(props: Props) {
   const refAbortCtrl = useRef<AbortController>(null);
   const loggedInUserName =
     props.prefill.username || cluster.loggedInUser?.name || null;
-  const [shouldPromptSsoStatus, promptSsoStatus] = useState(false);
+  const [ssoPrompt, setSsoPrompt] = useState<SsoPrompt>('no-prompt');
   const [passwordlessLoginState, setPasswordlessLoginState] =
     useState<PasswordlessLoginState>();
 
@@ -66,7 +81,7 @@ export function useClusterLogin(props: Props) {
       case 'passwordless':
         return loginPasswordless(ctx, params, signal);
       case 'sso':
-        return loginSso(ctx, params, signal);
+        return loginSso(ctx, params, setSsoPrompt, signal);
       default:
         params satisfies never;
     }
@@ -122,7 +137,7 @@ export function useClusterLogin(props: Props) {
   };
 
   const onLoginWithSso = (provider: AuthProvider) => {
-    promptSsoStatus(true);
+    setSsoPrompt('follow-browser-steps');
     login({
       kind: 'sso',
       clusterUri,
@@ -153,7 +168,7 @@ export function useClusterLogin(props: Props) {
   useEffect(() => {
     if (loginAttempt.status !== 'processing') {
       setPasswordlessLoginState(null);
-      promptSsoStatus(false);
+      setSsoPrompt('no-prompt');
     }
 
     if (loginAttempt.status === 'success') {
@@ -173,7 +188,7 @@ export function useClusterLogin(props: Props) {
   const { platform } = mainProcessClient.getRuntimeSettings();
 
   return {
-    shouldPromptSsoStatus,
+    ssoPrompt,
     passwordlessLoginState,
     title: cluster?.name,
     loggedInUserName,
@@ -277,6 +292,7 @@ export interface LoginSsoParams {
 async function loginSso(
   { tshd, clustersService, usageService, mainProcessClient }: IAppContext,
   params: LoginSsoParams,
+  setSsoPrompt: (prompt: SsoPrompt) => void,
   abortSignal: CloneableAbortSignal
 ) {
   await tshd.login(
@@ -292,6 +308,7 @@ async function loginSso(
     },
     { abort: abortSignal }
   );
+  setSsoPrompt('wait-for-sync');
 
   // Force once login finishes but before we await the cluster sync. This way the focus will go back
   // to the app ASAP. The login modal will be shown until the cluster sync finishes.

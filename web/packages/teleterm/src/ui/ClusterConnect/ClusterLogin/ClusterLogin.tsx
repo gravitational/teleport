@@ -84,7 +84,7 @@ function ClusterLoginForm({
   onCloseDialog,
   onAbort,
   loggedInUserName,
-  shouldPromptSsoStatus,
+  ssoPrompt,
   passwordlessLoginState,
   reason,
   shouldSkipVersionCheck,
@@ -150,7 +150,7 @@ function ClusterLoginForm({
             onAbort={onAbort}
             loginAttempt={loginAttempt}
             clearLoginAttempt={clearLoginAttempt}
-            shouldPromptSsoStatus={shouldPromptSsoStatus}
+            ssoPrompt={ssoPrompt}
             passwordlessLoginState={passwordlessLoginState}
             shouldSkipVersionCheck={shouldSkipVersionCheck}
             disableVersionCheck={disableVersionCheck}
