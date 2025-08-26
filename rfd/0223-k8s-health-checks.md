@@ -481,48 +481,71 @@ Several existing protobufs are extended and one new message is added.
 Changes focus on adding `TargetHealth` and label matchers. 
 
 **legacy/types/types.proto**
-```protobuf
+```diff
+// KubernetesServerV3 represents a Kubernetes server.
 message KubernetesServerV3 {
-  // ..snip..
-
-  // Status is the Kubernetes cluster status.
-  KubernetesServerStatusV3 Status = 6 [
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+  // Kind is the Kubernetes server resource kind. Always "kube_server".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the Kubernetes server metadata.
+  Metadata Metadata = 4 [
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "status"
+    (gogoproto.jsontag) = "metadata"
   ];
++  // Status is the Kubernetes cluster status.
++  KubernetesServerStatusV3 Status = 5 [
++    (gogoproto.nullable) = false,
++    (gogoproto.jsontag) = "status"
++  ];
 }
 
-// KubernetesServerStatusV3 is the Kubernetes cluster status.
-message KubernetesServerStatusV3 {
-  // TargetHealth is the health status of network connectivity between
-  // the agent and the Kubernetes cluster.
-  TargetHealth TargetHealth = 1 [(gogoproto.jsontag) = "target_health,omitempty"];
-}
++ // KubernetesServerStatusV3 is the Kubernetes cluster status.
++ message KubernetesServerStatusV3 {
++  // TargetHealth is the health status of network connectivity between
++  // the agent and the Kubernetes cluster.
++  TargetHealth TargetHealth = 1 [(gogoproto.jsontag) = "target_health,omitempty"];
++ }
 ```
 
 
 **healthcheckconfig/v1/health_check_config.proto**
-```protobuf
+```diff
+// Matcher is a resource matcher for health check config.
 message Matcher {
-  // ..snip..
-
-  // KubernetesLabels matches kubernetes labels. An empty value is ignored. The match
-  // result is logically ANDed with KubernetesLabelsExpression, if both are non-empty.
-  repeated teleport.label.v1.Label kubernetes_labels = 3;
-  // KubernetesLabelsExpression is a label predicate expression to match kubernetes. An
-  // empty value is ignored. The match result is logically ANDed with KubernetesLabels,
+  // DBLabels matches database labels. An empty value is ignored. The match
+  // result is logically ANDed with DBLabelsExpression, if both are non-empty.
+  repeated teleport.label.v1.Label db_labels = 1;
+  // DBLabelsExpression is a label predicate expression to match databases. An
+  // empty value is ignored. The match result is logically ANDed with DBLabels,
   // if both are non-empty.
-  string kubernetes_labels_expression = 4;
+  string db_labels_expression = 2;
++  // KubernetesLabels matches kubernetes labels. An empty value is ignored. The match
++  // result is logically ANDed with KubernetesLabelsExpression, if both are non-empty.
++  repeated teleport.label.v1.Label kubernetes_labels = 3;
++  // KubernetesLabelsExpression is a label predicate expression to match kubernetes. An
++  // empty value is ignored. The match result is logically ANDed with KubernetesLabels,
++  // if both are non-empty.
++  string kubernetes_labels_expression = 4;
 }
 ```
 
 **lib/teleterm/v1/kube.proto**
-```protobuf
+```diff
+// Kube describes connected Kubernetes cluster
 message Kube {
-  // ..snip..
-
-  // target_health is the health of the kube cluster
-  TargetHealth target_health = 4;
+  // uri is the kube resource URI
+  string uri = 1;
+  // name is the kube name
+  string name = 2;
+  // labels is the kube labels
+  repeated Label labels = 3;
++  // target_health is the health of the kube cluster
++  TargetHealth target_health = 4;
 }
 ```
 
