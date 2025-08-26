@@ -309,7 +309,7 @@ func (s *recordingPlayback) readLoop() {
 
 		req, err := decodeBinaryRequest(data)
 		if err != nil {
-			s.logger.ErrorContext(s.ctx, "failed to decode request", "session_id", s.sessionID, "error", err)
+			s.logger.WarnContext(s.ctx, "failed to decode request", "session_id", s.sessionID, "error", err)
 			continue
 		}
 
