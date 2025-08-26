@@ -94,3 +94,10 @@ func (o *QueryOptions) Count() (int, bool) {
 	}
 	return *o.count, true
 }
+
+func (o *QueryOptions) Filter() (string, bool) {
+	if o.filter == nil {
+		return "", false
+	}
+	return *o.filter, true
+}

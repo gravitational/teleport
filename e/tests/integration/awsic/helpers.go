@@ -13,14 +13,16 @@ import (
 	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // setupMockAWSICEnvironment sets the test aws mocks
 // and reverts the change in the test cleanup function.
 // It must not be used in parallel tests.
 // )
-func setupMockAWSICEnvironment(t *testing.T, icMock *icsdk.ClientMock, scimMock scimsdk.Client) {
+func setupMockAWSICEnvironment(t *testing.T, icMock icsdk.Client, scimMock scimsdk.Client) {
 	defaultSCIM := scimsdk.ClientProvider
 	defaultIC := icsdk.ClientProvider
 
@@ -35,6 +37,7 @@ func setupMockAWSICEnvironment(t *testing.T, icMock *icsdk.ClientMock, scimMock 
 }
 
 func mustSetupAWSIdentityCenterIntegration(t *testing.T, authClient authclient.ClientI) {
+	t.Helper()
 	_, err := authClient.CreateIntegration(t.Context(), awsOIDCIntegration())
 	require.NoError(t, err)
 
@@ -196,4 +199,8 @@ func mustGetAccessListByTitle(ctx context.Context, t *testing.T, lister iciter.A
 	acl, err := getAccessListByTitle(ctx, lister, title)
 	require.NoError(t, err)
 	return acl
+}
+
+func mustUpdateUser(ctx context.Context, t *testing.T, usersSvc services.UsersService, username string, mutateFn func(types.User)) {
+	require.NoError(t, common.UpdateUser(ctx, usersSvc, username, mutateFn))
 }

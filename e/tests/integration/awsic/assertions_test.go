@@ -2,16 +2,20 @@ package awsic
 
 import (
 	"context"
+	"slices"
 	"testing"
 
+	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/stretchr/testify/assert"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // assertImportStatus defines a function signature for assertions about AWSICGroupImportStatus
@@ -68,6 +72,21 @@ func assertSCIMUsers(ctx context.Context, t assert.TestingT, client scimsdk.Clie
 		scimUserNames = append(scimUserNames, scimUser.UserName)
 	}
 	return assert.ElementsMatch(t, expectedUsers, scimUserNames)
+}
+
+// assertSCIMUsersExist asserts that the SCIM service user list includes the supplied
+// users by name. The test is not exclusive, meaning the SCIM service may have
+// other users as well Takes an [assert.TestingT] rathe than a [require.TestingT]
+// in order to be usable inside a [require.EventuallyWithT] callback.
+func assertSCIMUsersExist(ctx context.Context, t assert.TestingT, client scimsdk.Client, expectedUsers ...string) bool {
+	required := set.New(expectedUsers...)
+	for scimUser, err := range scimsdk.StreamUsers(ctx, client) {
+		if !assert.NoError(t, err) {
+			return false
+		}
+		required.Remove(scimUser.UserName)
+	}
+	return assert.Empty(t, required)
 }
 
 func assertSCIMGroupsByDisplayName(ctx context.Context, t assert.TestingT, client scimsdk.Client, expectedDisplayNames ...string) bool {
@@ -179,5 +198,63 @@ func assertPrincipalAssignment(ctx context.Context, t assert.TestingT, getter se
 		}
 	}
 
+	return true
+}
+
+type roleAssertion func(assert.TestingT, types.Role) bool
+
+func hasAllowAccountAssignments(expected ...types.IdentityCenterAccountAssignment) roleAssertion {
+	return func(t assert.TestingT, role types.Role) bool {
+		rv6, ok := role.(*types.RoleV6)
+		if !assert.True(t, ok, "unexpected role type %T", role) {
+			return false
+		}
+		return assert.ElementsMatch(t, expected, rv6.Spec.Allow.AccountAssignments)
+	}
+}
+
+// assertRole asserts that the names Teleport role exists, and runs the supplied
+// assertions on it.  Takes an [assert.TestingT] rather than a [require.TestingT]
+// in order to be usable inside a [require.EventuallyWithT] callback.
+func assertRole(ctx context.Context, t assert.TestingT, rolesSvc services.RoleGetter, roleName string, roleAssertions ...roleAssertion) bool {
+	r, err := rolesSvc.GetRole(ctx, roleName)
+	if !assert.NoError(t, err) {
+		return false
+	}
+	for _, assertionFn := range roleAssertions {
+		if !assertionFn(t, r) {
+			return false
+		}
+	}
+	return true
+}
+
+type icUserAssertion func(context.Context, assert.TestingT, icsdk.Client, *icsdk.User) bool
+
+func hasAccountAssignments(expected ...*icsdk.Assignment) icUserAssertion {
+	return func(ctx context.Context, t assert.TestingT, client icsdk.Client, user *icsdk.User) bool {
+		assignments, err := client.ListAssignments(ctx, user.ID, ssoadmintypes.PrincipalTypeUser)
+		if !assert.NoError(t, err) {
+			return false
+		}
+		return assert.ElementsMatch(t, expected, assignments)
+	}
+}
+
+func assertICUser(ctx context.Context, t assert.TestingT, client icsdk.Client, username string, assertions ...icUserAssertion) bool {
+	users, err := client.ListUsers(ctx)
+	if !assert.NoError(t, err) {
+		return false
+	}
+	i := slices.IndexFunc(users, func(u *icsdk.User) bool { return u.UserName == username })
+	if !assert.NotEqual(t, -1, i, "User %q should exist in Identity Center", username) {
+		return false
+	}
+	user := users[i]
+	for _, assertionFn := range assertions {
+		if !assertionFn(ctx, t, client, user) {
+			return false
+		}
+	}
 	return true
 }

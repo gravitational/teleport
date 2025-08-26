@@ -12,6 +12,10 @@ import (
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 )
 
+const (
+	maxPageSize = 10
+)
+
 // UnifiedClientMock defines a mock for interacting with AWS Identity Center
 // via bth the AWS API abd SCIM that manipulates the same data set
 type UnifiedClientMock struct {
@@ -213,7 +217,33 @@ func (s *scimClientMock) UpdateUser(_ context.Context, user *scimsdk.User) (*sci
 
 // ListUsers lists all Users.
 func (s *scimClientMock) ListUsers(_ context.Context, queryOptions ...scimsdk.QueryOption) (*scimsdk.ListUserResponse, error) {
-	return nil, trace.NotImplemented("UnifiedClientMock.ListUsers")
+	var options scimsdk.QueryOptions
+	for _, opt := range queryOptions {
+		opt(&options)
+	}
+
+	if _, hasFilter := options.Filter(); hasFilter {
+		return nil, trace.BadParameter("UnifiedClientMock SCIM ListUsers does not support filtering")
+	}
+
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	icUsers, startIndex := clipSlice(s.Users, &options)
+	var scimUsers []*scimsdk.User
+	for _, icUser := range icUsers {
+		scimUsers = append(scimUsers, s.toSCIMUser(icUser))
+	}
+
+	response := &scimsdk.ListUserResponse{
+		Schemas:      []string{scimschema.CoreGroupSchema().ID},
+		TotalResults: int32(len(s.Users)),
+		StartIndex:   int32(startIndex),
+		ItemsPerPage: maxPageSize,
+		Users:        scimUsers,
+	}
+
+	return response, nil
 }
 
 // CreateGroup creates a new group.
@@ -238,34 +268,19 @@ func (s *scimClientMock) DeleteGroup(_ context.Context, id string) error {
 
 // ListGroups fetches the list of known groups from the server
 func (s *scimClientMock) ListGroups(_ context.Context, queryOptions ...scimsdk.QueryOption) (*scimsdk.ListGroupResponse, error) {
-	const maxPageSize = 10
-
 	options := scimsdk.QueryOptions{}
 	for _, fn := range queryOptions {
 		fn(&options)
 	}
 
-	startIndex := 1
-	pageSize := maxPageSize
-
-	if i, ok := options.StartIndex(); ok {
-		startIndex = i
-	}
-	startIndex-- // SCIM start indices are 1-based, converting to slice index
-
-	if c, ok := options.Count(); ok {
-		pageSize = min(maxPageSize, c)
+	if _, hasFilter := options.Filter(); hasFilter {
+		return nil, trace.BadParameter("UnifiedClientMock SCIM ListGroups does not support filtering")
 	}
 
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
-	// Clip the group list to the requested range
-	var srcPage []*icsdk.Group
-	if startIndex < len(s.Groups) {
-		srcPage = s.Groups[startIndex:]
-	}
-	srcPage = srcPage[:min(pageSize, len(srcPage))]
+	srcPage, startIndex := clipSlice(s.Groups, &options)
 
 	// Convert the page of IC groups into SCIM groups
 	dstPage := make([]*scimsdk.Group, len(srcPage))
@@ -280,7 +295,7 @@ func (s *scimClientMock) ListGroups(_ context.Context, queryOptions ...scimsdk.Q
 	response := &scimsdk.ListGroupResponse{
 		Schemas:      []string{scimschema.CoreGroupSchema().ID},
 		TotalResults: int32(len(s.Groups)),
-		StartIndex:   int32(startIndex + 1),
+		StartIndex:   int32(startIndex),
 		ItemsPerPage: maxPageSize,
 		Groups:       dstPage,
 	}
@@ -351,4 +366,26 @@ func (s *scimClientMock) GetUserByUserName(_ context.Context, userName string) (
 // Ping pings the SCIM service.
 func (s *scimClientMock) Ping(_ context.Context) error {
 	return nil
+}
+
+func clipSlice[T any](src []T, options *scimsdk.QueryOptions) ([]T, int) {
+	// cget the page bounds from the query
+	startIndex := 1
+	pageSize := maxPageSize
+
+	if i, ok := options.StartIndex(); ok {
+		startIndex = i
+	}
+	startIndex-- // SCIM start indices are 1-based, converting to slice index
+
+	if c, ok := options.Count(); ok {
+		pageSize = min(maxPageSize, c)
+	}
+
+	// Clip the group list to the requested range
+	var page []T
+	if startIndex < len(src) {
+		page = src[startIndex:]
+	}
+	return page[:min(pageSize, len(page))], startIndex + 1
 }

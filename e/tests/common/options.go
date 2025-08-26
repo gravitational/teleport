@@ -22,12 +22,31 @@ type option func(*sutOptions)
 
 // WithUser adds a user with the given roles to the SUT.
 func WithUser(t *testing.T, user string, roles ...string) func(*sutOptions) {
-	aliceUser, err := types.NewUser(user)
+	userResource, err := types.NewUser(user)
 	require.NoError(t, err)
-	aliceUser.SetRoles(roles)
+	userResource.SetRoles(roles)
 
 	return func(o *sutOptions) {
-		o.resources = append(o.resources, aliceUser)
+		o.resources = append(o.resources, userResource)
+	}
+}
+
+func WithAllowAccountAssignmentRole(t *testing.T, name string, accountID string, permissionSet string) func(*sutOptions) {
+	roleSpec := types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AccountAssignments: []types.IdentityCenterAccountAssignment{
+				{Account: accountID, PermissionSet: permissionSet},
+			},
+		},
+	}
+	return WithRole(t, name, &roleSpec)
+}
+
+func WithRole(t *testing.T, name string, roleSpec *types.RoleSpecV6) func(*sutOptions) {
+	role, err := types.NewRole(name, *roleSpec)
+	require.NoError(t, err)
+	return func(o *sutOptions) {
+		o.resources = append(o.resources, role)
 	}
 }
 

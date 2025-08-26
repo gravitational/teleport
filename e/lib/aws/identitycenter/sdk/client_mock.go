@@ -350,25 +350,26 @@ func (c *ClientMock) ListAssignments(_ context.Context, principalID string, prin
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
-	var userAssignments, groupAssignments []*Assignment
 	switch principalType {
 	case ssoadmintypes.PrincipalTypeUser:
-		userAssignments = append(userAssignments, c.UserAssignments[principalID]...)
-		for _, v := range userAssignments {
-			v.PrincipalType = ssoadmintypes.PrincipalTypeUser
+		var userAssignments []*Assignment
+		for _, v := range c.UserAssignments[principalID] {
+			assignment := *v
+			assignment.PrincipalType = ssoadmintypes.PrincipalTypeUser
+			userAssignments = append(userAssignments, &assignment)
 		}
 		for groupID, members := range c.GroupMemberships {
 			for _, member := range members {
 				if member.MemberID == principalID {
-					// Add group assignments for this user
-					groupAssignments = append(groupAssignments, c.GroupAssignments[groupID]...)
+					for _, v := range c.GroupAssignments[groupID] {
+						assignment := *v
+						assignment.PrincipalType = ssoadmintypes.PrincipalTypeGroup
+						userAssignments = append(userAssignments, &assignment)
+					}
 				}
 			}
 		}
-		for _, v := range groupAssignments {
-			v.PrincipalType = ssoadmintypes.PrincipalTypeGroup
-		}
-		return append(userAssignments, groupAssignments...), nil
+		return userAssignments, nil
 	case ssoadmintypes.PrincipalTypeGroup:
 		for _, v := range c.GroupAssignments[principalID] {
 			v.PrincipalType = ssoadmintypes.PrincipalTypeGroup

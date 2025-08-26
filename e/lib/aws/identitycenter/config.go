@@ -200,7 +200,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 		cfg.AWSSyncInterval = defaultResourceSyncInterval
 	}
 	if cfg.AssignmentSyncInterval == 0 {
-		cfg.AssignmentSyncInterval = defaultAssignmentSyncInterval
+		cfg.AssignmentSyncInterval = DefaultFullAssignmentSyncInterval
 	}
 	if cfg.PluginStatusSink == nil {
 		return trace.BadParameter("missing plugin status sink")

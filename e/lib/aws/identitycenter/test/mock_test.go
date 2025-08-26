@@ -19,7 +19,68 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("ListUsers", func(t *testing.T) {
-		t.Skip("ListUsers not yet implemented")
+		client := NewUnifiedMockClient(sdk.MockedAWSStateType{
+			Users: []*sdk.User{
+				{ID: "alice", UserName: "alice@example.com"},
+				{ID: "bob", UserName: "bob@example.com"},
+				{ID: "carol", UserName: "carol@example.com"},
+				{ID: "dave", UserName: "dave@example.com"},
+				{ID: "erica", UserName: "erica@example.com"},
+			},
+		})
+
+		t.Run("default", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListUsers(t.Context())
+			require.NoError(t, err)
+
+			var actualUsers []string
+			for _, u := range resp.Users {
+				actualUsers = append(actualUsers, u.ID)
+			}
+			require.ElementsMatch(t, actualUsers, []string{"alice", "bob", "carol", "dave", "erica"})
+		})
+
+		t.Run("with start index", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListUsers(t.Context(), scimsdk.WithStartIndex(3))
+			require.NoError(t, err)
+
+			var actualUsers []string
+			for _, u := range resp.Users {
+				actualUsers = append(actualUsers, u.ID)
+			}
+			require.ElementsMatch(t, actualUsers, []string{"carol", "dave", "erica"})
+		})
+
+		t.Run("with count", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListUsers(t.Context(), scimsdk.WithCount(3))
+			require.NoError(t, err)
+
+			var actualUsers []string
+			for _, u := range resp.Users {
+				actualUsers = append(actualUsers, u.ID)
+			}
+			require.ElementsMatch(t, actualUsers, []string{"alice", "bob", "carol"})
+		})
+
+		t.Run("start index out of bounds", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListUsers(t.Context(), scimsdk.WithStartIndex(100))
+			require.NoError(t, err)
+			require.Equal(t, int32(5), resp.TotalResults)
+			require.Empty(t, resp.Users)
+		})
+
+		t.Run("count out of bounds", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListUsers(t.Context(), scimsdk.WithStartIndex(4), scimsdk.WithCount(100))
+			require.NoError(t, err)
+			require.Equal(t, int32(4), resp.StartIndex)
+			require.Equal(t, int32(5), resp.TotalResults)
+
+			var actualUsers []string
+			for _, g := range resp.Users {
+				actualUsers = append(actualUsers, g.ID)
+			}
+			require.ElementsMatch(t, actualUsers, []string{"dave", "erica"})
+		})
 	})
 
 	t.Run("CreateUser", func(t *testing.T) {

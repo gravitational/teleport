@@ -27,5 +27,7 @@ func TestMain(m *testing.M) {
 	// every 2 minutes. Tune this down to a test-friendly value
 	provisioning.DefaultStateRefreshInterval = 250 * time.Millisecond
 
+	identitycenter.DefaultFullAssignmentSyncInterval = 250 * time.Millisecond
+
 	helpers.TestMainImplementation(m)
 }

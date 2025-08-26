@@ -145,6 +145,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		AccountAssignmentCache:  config.IdentityCenterDataSvcCache,
 		RolesGetter:             config.RolesSvc,
 		Logger:                  config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICAssignmentCalculator),
+		LocksGetter:             config.Provisioning.LocksSvc,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

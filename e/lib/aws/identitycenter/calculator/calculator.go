@@ -2,7 +2,6 @@ package calculator
 
 import (
 	"context"
-	"iter"
 	"log/slog"
 	"maps"
 	"slices"
@@ -11,6 +10,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -54,6 +54,11 @@ type AccountAssignmentGetter interface {
 	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
 }
 
+type LocksGetter interface {
+	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+}
+
 type Config struct {
 	// AccessRequestsSvc is used to fetches access requests of specific users
 	// when calculating permission sets for users
@@ -81,6 +86,11 @@ type Config struct {
 	// RolesGetter lets the assignment calculator read roles held by users and
 	// access in order to calculate the principal's effective assignment set.
 	RolesGetter RolesGetter
+
+	// LocksGetter lets the assignment calculator read locks held on roles and
+	// access requests in order to calculate a principal's effective assignment
+	// set.
+	LocksGetter LocksGetter
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -93,7 +103,15 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 
 	if cfg.AccessRequestsSvc == nil {
-		return trace.BadParameter("must access requests service")
+		return trace.BadParameter("must supply access requests service")
+	}
+
+	if cfg.RolesGetter == nil {
+		return trace.BadParameter("must supply roles getter")
+	}
+
+	if cfg.LocksGetter == nil {
+		return trace.BadParameter("must supply locks service")
 	}
 
 	if cfg.Clock == nil {
@@ -162,10 +180,11 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 			return nil, trace.BadParameter("user %s has no known external id", user.GetName())
 		}
 	}
+	log := calc.Logger.With("user", user.GetName())
 
 	allRoles := set.New(user.GetRoles()...)
 	allowedByRequest := set.New[assignment]()
-	accessRequests, err := calc.getActiveAccessRequestsOnUser(ctx, user)
+	accessRequests, err := calc.getActiveAccessRequestsOnUser(ctx, user, log)
 	if err != nil {
 		return nil, trace.Wrap(err, "Fetching active access requests for user")
 	}
@@ -189,7 +208,7 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 
 	// build lists of possible account assignments rom the gathered roles. May
 	// include duplicates and glob patterns.)
-	allowExpressions, denyExpressions, err := calc.getAccountAssignmentsFromRoles(ctx, maps.Keys(allRoles))
+	allowExpressions, denyExpressions, err := calc.getAccountAssignmentsFromRoles(ctx, log, slices.Collect(maps.Keys(allRoles))...)
 	if err != nil {
 		return nil, trace.Wrap(err, "calculating account assignments")
 	}
@@ -265,7 +284,8 @@ func (calc *AssignmentCalculator) calcAccessListAssignments(
 		}
 	}
 
-	allowExpressions, denyExpressions, err := calc.getAccountAssignmentsFromRoles(ctx, slices.Values(acl.GetGrants().Roles))
+	log := calc.Logger.With("access_list", acl.GetName())
+	allowExpressions, denyExpressions, err := calc.getAccountAssignmentsFromRoles(ctx, log, acl.GetGrants().Roles...)
 	if err != nil {
 		return nil, trace.Wrap(err, "building account assignments")
 	}
@@ -286,25 +306,90 @@ func (calc *AssignmentCalculator) calcAccessListAssignments(
 	return updatedPrincipal, nil
 }
 
-func (calc *AssignmentCalculator) getActiveAccessRequestsOnUser(ctx context.Context, user *types.UserV2) ([]types.AccessRequest, error) {
-	accessRequests, err := calc.AccessRequestsSvc.GetAccessRequests(ctx, types.AccessRequestFilter{
-		User:  user.GetName(),
-		State: types.RequestState_APPROVED,
-	})
+// getActiveAccessRequestsOnUser fetches all Access Requests for a given
+// user, excluding requests that are unapproved, locked or outside their
+// specified time window.
+func (calc *AssignmentCalculator) getActiveAccessRequestsOnUser(ctx context.Context, user *types.UserV2, log *slog.Logger) ([]types.AccessRequest, error) {
+	var result []types.AccessRequest
+
+	req := proto.ListAccessRequestsRequest{
+		Limit: 100,
+		Filter: &types.AccessRequestFilter{
+			User:  user.GetName(),
+			State: types.RequestState_APPROVED,
+		},
+	}
+	for {
+		response, err := calc.AccessRequestsSvc.ListAccessRequests(ctx, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		page := calc.filterOutAccessRequestsOutsideTimeWindow(ctx, response.AccessRequests, log)
+
+		page, err = calc.filterOutLockedAccessRequests(ctx, page, log)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, ar := range page {
+			result = append(result, ar)
+		}
+
+		if response.NextKey == "" {
+			break
+		}
+		req.StartKey = response.NextKey
+	}
+
+	return result, nil
+}
+
+// selectLockedAccessRequests examines the supplied list of Access Requests and
+// identifies which Requests have in-force locks against them, returning the
+// locked Access Requests.
+func (calc *AssignmentCalculator) selectLockedAccessRequests(ctx context.Context, requests []*types.AccessRequestV3) (set.Set[string], error) {
+	if len(requests) == 0 {
+		return nil, nil
+	}
+
+	lockTargets := make([]types.LockTarget, len(requests))
+	for i, req := range requests {
+		lockTargets[i] = types.LockTarget{AccessRequest: req.GetName()}
+	}
+	locks, err := calc.LocksGetter.GetLocks(ctx, true /* in force locks only */, lockTargets...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	now := calc.Clock.Now()
-	isOutsideTimeWindow := func(a types.AccessRequest) bool {
-		if startTime := a.GetAssumeStartTime(); startTime != nil {
-			if now.Before(*startTime) {
-				return true
-			}
-		}
-		return now.After(a.GetAccessExpiry())
+	result := set.New[string]()
+	for _, lock := range locks {
+		result.Add(lock.Target().AccessRequest)
 	}
-	result := slices.DeleteFunc(accessRequests, isOutsideTimeWindow)
+
+	return result, nil
+}
+
+// selectLockedRoles examines the supplied list of Role names and identifies which
+// roles have in-force Locks against them, returning the locked roles as a Set
+func (calc *AssignmentCalculator) selectLockedRoles(ctx context.Context, roles []string) (set.Set[string], error) {
+	if len(roles) == 0 {
+		return nil, nil
+	}
+
+	lockTargets := make([]types.LockTarget, len(roles))
+	for i, role := range roles {
+		lockTargets[i] = types.LockTarget{Role: role}
+	}
+	locks, err := calc.LocksGetter.GetLocks(ctx, true /* in force locks only */, lockTargets...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result := set.New[string]()
+	for _, lock := range locks {
+		result.Add(lock.Target().Role)
+	}
 
 	return result, nil
 }
@@ -458,12 +543,17 @@ func assignmentMatchesExpressions(
 // granted or denied by the supplied list of roles.
 //
 // TODO: Handle account assignments generated with role templates
-func (calc *AssignmentCalculator) getAccountAssignmentsFromRoles(ctx context.Context, rolesNames iter.Seq[string]) (allow, deny []types.IdentityCenterAccountAssignment, err error) {
-	for roleName := range rolesNames {
+func (calc *AssignmentCalculator) getAccountAssignmentsFromRoles(ctx context.Context, log *slog.Logger, roles ...string) (allow, deny []types.IdentityCenterAccountAssignment, err error) {
+	roles, err = calc.filterOutLockedRoles(ctx, roles, log)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	for _, roleName := range roles {
 		role, err := calc.RolesGetter.GetRole(ctx, roleName)
 		if err != nil {
 			// We can't ignore failing to load a role: what if it had a deny rule?
-			calc.Logger.ErrorContext(ctx, "failed loading role", "error", err, "role", roleName)
+			log.ErrorContext(ctx, "failed loading role", "error", err, "role", roleName)
 			return nil, nil, trace.Wrap(err)
 		}
 
@@ -476,4 +566,57 @@ func (calc *AssignmentCalculator) getAccountAssignmentsFromRoles(ctx context.Con
 	}
 
 	return allow, deny, nil
+}
+
+// filterOutLockedRoles examines the supplied list of role names, deleting any
+// roles that have an in-force lock against them
+func (calc *AssignmentCalculator) filterOutLockedRoles(ctx context.Context, roleNames []string, log *slog.Logger) ([]string, error) {
+	lockedRoles, err := calc.selectLockedRoles(ctx, roleNames)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	isLocked := func(roleName string) bool {
+		if lockedRoles.Contains(roleName) {
+			log.Log(ctx, logutils.TraceLevel, "Excluding role due to lock", "role", roleName)
+			return true
+		}
+		return false
+	}
+
+	return slices.DeleteFunc(roleNames, isLocked), nil
+}
+
+func (calc *AssignmentCalculator) filterOutAccessRequestsOutsideTimeWindow(ctx context.Context, accessRequests []*types.AccessRequestV3, log *slog.Logger) []*types.AccessRequestV3 {
+	now := calc.Clock.Now()
+
+	isOutsideTimeWindow := func(a *types.AccessRequestV3) bool {
+		if startTime := a.GetAssumeStartTime(); startTime != nil {
+			if now.Before(*startTime) {
+				log.Log(ctx, logutils.TraceLevel, "Excluding access request; before start time", "access_request", a.GetName())
+				return true
+			}
+		}
+		if now.After(a.GetAccessExpiry()) {
+			log.Log(ctx, logutils.TraceLevel, "Excluding access request; after expiry", "access_request", a.GetName())
+			return true
+		}
+		return false
+	}
+	return slices.DeleteFunc(accessRequests, isOutsideTimeWindow)
+}
+
+func (calc *AssignmentCalculator) filterOutLockedAccessRequests(ctx context.Context, accessRequests []*types.AccessRequestV3, log *slog.Logger) ([]*types.AccessRequestV3, error) {
+	lockedRequests, err := calc.selectLockedAccessRequests(ctx, accessRequests)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	isLocked := func(a *types.AccessRequestV3) bool {
+		if lockedRequests.Contains(a.GetName()) {
+			log.Log(ctx, logutils.TraceLevel, "Excluding locked access request", "access_request", a.GetName())
+			return true
+		}
+		return false
+	}
+	return slices.DeleteFunc(accessRequests, isLocked), nil
 }

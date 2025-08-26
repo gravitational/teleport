@@ -24,6 +24,7 @@ import (
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type mockExternalIDGetter struct {
@@ -86,9 +87,13 @@ func (m *mockExternalIDGetter) setMockAccessList(t *testing.T, localID string, e
 func TestAssignmentCalculation(t *testing.T) {
 	externalIDs := newMockExternalIDGetter()
 	logger := slog.Default().With("test", t.Name())
-	fixture := ictest.NewFixture(t, ictest.WithStartedCache)
+	fixture := ictest.NewFixture(t)
 	ctx := fixture.Ctx
 
+	// We are expressly avoiding using the cached Account Assignment, Lock,
+	// Access Request, etc. services to bypass dealing with cache propagation
+	// delay in our tests. In production, the calculator should use the cached
+	// versions of all of these.
 	calc, err := New(Config{
 		AccessRequestsSvc:       fixture.Auth.Services,
 		Clock:                   fixture.Clock,
@@ -96,7 +101,8 @@ func TestAssignmentCalculation(t *testing.T) {
 		PrincipalAssignmentsSvc: fixture.Auth.Services,
 		Logger:                  logger,
 		RolesGetter:             fixture.Auth.Services,
-		AccountAssignmentCache:  fixture.Auth.Cache,
+		AccountAssignmentCache:  fixture.Auth.Services,
+		LocksGetter:             fixture.Auth.Services,
 	})
 	require.NoError(t, err)
 
@@ -207,6 +213,68 @@ func TestAssignmentCalculation(t *testing.T) {
 		// we expect.
 		expectedAssignments := resources.getAssignments(assignments...)
 		requireAssignmentsMatch(t, expectedAssignments, aclPrincipal)
+	})
+
+	t.Run("Access List Roles honor role locks", func(t *testing.T) {
+		owner, _ := makeTestUser(t, fixture, "emperor@corrino.imperium.ka", "")
+
+		assignments := []index{
+			{account: 3, ps: 2},
+			{account: 2, ps: 1},
+			{account: 1, ps: 2},
+			{account: 0, ps: 2},
+		}
+
+		timeDelta := func(d time.Duration) *time.Time {
+			t := fixture.Clock.Now().Add(d)
+			return &t
+		}
+
+		testCases := []struct {
+			name                string
+			expiry              *time.Time
+			expectedAssignments []index
+		}{
+			{
+				name: "valid locks are honored",
+				expectedAssignments: []index{
+					{account: 3, ps: 2},
+					{account: 1, ps: 2},
+					{account: 0, ps: 2},
+				},
+			},
+			{
+				name:                "expired locks are ignored",
+				expiry:              timeDelta(-time.Hour),
+				expectedAssignments: assignments,
+			},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				acl, aclPrincipal := makeTestAccessList(t, fixture, "acl-one", owner, nil, "ACL-EXTERNAL-ID")
+				for _, i := range assignments {
+					acl.Spec.Grants.Roles = append(acl.Spec.Grants.Roles,
+						resources.getRole(i).GetName())
+				}
+
+				lock, err := types.NewLock("role-lock", types.LockSpecV2{
+					Target:  types.LockTarget{Role: resources.getRole(index{account: 2, ps: 1}).GetName()},
+					Expires: testCase.expiry,
+				})
+				require.NoError(t, err)
+				makeTestLock(t, fixture, lock)
+
+				// WHEN I attempt to calculate the Access List's assignment set
+				aclPrincipal, err = calc.calcAccessListAssignments(ctx, acl, aclPrincipal)
+				require.NoError(t, err)
+				require.Equal(t,
+					identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
+					aclPrincipal.Status.ProvisioningState)
+
+				requireAssignmentsMatch(t, resources.getAssignments(testCase.expectedAssignments...), aclPrincipal)
+			})
+		}
 	})
 
 	t.Run("User Roles Allow", func(t *testing.T) {
@@ -508,6 +576,405 @@ func TestAssignmentCalculation(t *testing.T) {
 		expectedAssignments := resources.getAssignments(index{account: 3, ps: 0})
 		requireAssignmentsMatch(t, expectedAssignments, userPrincipal)
 	})
+
+	t.Run("User Roles honor role locks", func(t *testing.T) {
+		assignments := []index{
+			{account: 1, ps: 0},
+			{account: 3, ps: 2},
+			{account: 2, ps: 1},
+		}
+
+		timeDelta := func(d time.Duration) *time.Time {
+			t := fixture.Clock.Now().Add(d)
+			return &t
+		}
+
+		testCases := []struct {
+			name                string
+			expiry              *time.Time
+			expectedAssignments []index
+		}{
+			{
+				name: "valid locks are honored",
+				expectedAssignments: []index{
+					{account: 1, ps: 0},
+					{account: 2, ps: 1},
+				},
+			},
+			{
+				name:                "expired locks are ignored",
+				expiry:              timeDelta(-time.Hour),
+				expectedAssignments: assignments,
+			},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID")
+
+				for _, i := range assignments {
+					user.AddRole(resources.getRole(i).GetName())
+				}
+
+				lock, err := types.NewLock("role-lock", types.LockSpecV2{
+					Target:  types.LockTarget{Role: resources.getRole(index{account: 3, ps: 2}).GetName()},
+					Expires: testCase.expiry,
+				})
+				require.NoError(t, err)
+				makeTestLock(t, fixture, lock)
+
+				userPrincipal, err = calc.calcUserAssignments(ctx, user.(*types.UserV2), userPrincipal)
+				require.NoError(t, err)
+				require.Equal(t,
+					identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
+					userPrincipal.Status.ProvisioningState)
+
+				requireAssignmentsMatch(t, resources.getAssignments(testCase.expectedAssignments...), userPrincipal)
+			})
+		}
+	})
+}
+
+func TestRoleAccessRequestsAreHonoured(t *testing.T) {
+	externalIDs := newMockExternalIDGetter()
+	logger := slog.Default().With("test", t.Name())
+	fixture := ictest.NewFixture(t)
+	ctx := fixture.Ctx
+
+	slog.SetLogLoggerLevel(logutils.TraceLevel)
+
+	// We are expressly avoiding using the cached Account Assignment, Lock,
+	// Access Request, etc. services to bypass dealing with cache propagation
+	// delay in our tests. In production, the calculator should use the cached
+	// versions of all of these
+	calc, err := New(Config{
+		AccessRequestsSvc:       fixture.Auth.Services,
+		Clock:                   fixture.Clock,
+		ExternalIDGetter:        externalIDs,
+		PrincipalAssignmentsSvc: fixture.Auth.Services,
+		Logger:                  logger,
+		RolesGetter:             fixture.Auth.Services,
+		AccountAssignmentCache:  fixture.Auth.Services,
+		LocksGetter:             fixture.Auth.Services,
+	})
+	require.NoError(t, err)
+
+	resources := makeTestResources(t, ctx, fixture)
+
+	knownValidRequestAccountAssignments := []index{
+		{account: 0, ps: 2},
+		{account: 3, ps: 0},
+	}
+
+	maybeInvalidRequestAccountAssignments := []index{
+		{account: 1, ps: 0},
+	}
+
+	allRequestedAccountAssignments := append(knownValidRequestAccountAssignments, maybeInvalidRequestAccountAssignments...)
+
+	testCases := []struct {
+		name                       string
+		mutateAccessRequest        func(ictest.AccessRequest) ictest.AccessRequest
+		createRequestLocks         func(*testing.T, types.AccessRequest, types.AccessRequest)
+		createRoleLocks            func(t *testing.T)
+		expectedAccountAssignments []index
+	}{
+		{
+			name:                       "all valid",
+			mutateAccessRequest:        func(req ictest.AccessRequest) ictest.AccessRequest { return req },
+			expectedAccountAssignments: allRequestedAccountAssignments,
+		},
+		{
+			name: "pending access requests are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest {
+				req.State = types.RequestState_PENDING
+				return req
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name: "denied access requests are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest {
+				req.State = types.RequestState_DENIED
+				return req
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name: "not-yet-valid requests are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest {
+				req.AssumeStartTime = fixture.Clock.Now().Add(30 * time.Minute)
+				req.Expiry = fixture.Clock.Now().Add(time.Hour)
+				return req
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name: "expired access requests are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest {
+				req.Expiry = fixture.Clock.Now().Add(-time.Hour)
+				return req
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name:                "locked access requests are excluded",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest { return req },
+			createRequestLocks: func(t *testing.T, _, maybeInvalid types.AccessRequest) {
+				lock, err := types.NewLock(t.Name(), types.LockSpecV2{
+					Target: types.LockTarget{AccessRequest: maybeInvalid.GetName()},
+				})
+				require.NoError(t, err)
+				makeTestLock(t, fixture, lock)
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name:                "expired access request locks are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest { return req },
+			createRequestLocks: func(t *testing.T, _, maybeInvalid types.AccessRequest) {
+				expiry := fixture.Clock.Now().Add(-time.Hour)
+				lock, err := types.NewLock(t.Name(), types.LockSpecV2{
+					Target:  types.LockTarget{AccessRequest: maybeInvalid.GetName()},
+					Expires: &expiry,
+				})
+				require.NoError(t, err)
+				makeTestLock(t, fixture, lock)
+			},
+			expectedAccountAssignments: allRequestedAccountAssignments,
+		},
+		{
+			name:                "locked roles are excluded",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest { return req },
+			createRequestLocks: func(t *testing.T, _, maybeInvalid types.AccessRequest) {
+				lock, err := types.NewLock(t.Name(), types.LockSpecV2{
+					Target: types.LockTarget{Role: resources.getRole(index{account: 0, ps: 2}).GetName()},
+				})
+				require.NoError(t, err)
+				makeTestLock(t, fixture, lock)
+			},
+			expectedAccountAssignments: []index{
+				{account: 3, ps: 0},
+				{account: 1, ps: 0},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			// GIVEN a user
+			user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID")
+
+			// GIVEN an APPROVED access request granting access roles that grant
+			// the requested assignments
+			knownGoodRequest := makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+				User:   user,
+				Expiry: fixture.Clock.Now().Add(time.Hour),
+				Roles:  resources.getRoles(knownValidRequestAccountAssignments...),
+				State:  types.RequestState_APPROVED,
+			}.Build(t))
+
+			// GIVEN another potentially locked, unapproved or otherwise invalid
+			// access request granting access to some other Account Assignment
+			// resources
+			potentiallyInvalidRequest := makeTestAccessRequest(t, fixture,
+				testCase.mutateAccessRequest(
+					ictest.AccessRequest{
+						User:   user,
+						Expiry: fixture.Clock.Now().Add(time.Hour),
+						Roles:  resources.getRoles(index{account: 1, ps: 0}),
+						State:  types.RequestState_APPROVED,
+					}).Build(t))
+
+			// GIVEN sone potential locks on either the access requests or the roles they reference
+			if testCase.createRequestLocks != nil {
+				testCase.createRequestLocks(t, knownGoodRequest, potentiallyInvalidRequest)
+			}
+			if testCase.createRoleLocks != nil {
+				testCase.createRoleLocks(t)
+			}
+
+			// WHEN I calculate the user's assignments
+			userPrincipal, err := calc.calcUserAssignments(ctx, user.(*types.UserV2), userPrincipal)
+
+			// EXPECT that the operation succeeded and the user has been marked
+			// stale for provisioning
+			require.NoError(t, err)
+			require.Equal(t,
+				identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
+				userPrincipal.Status.ProvisioningState)
+
+			// EXPECT that the user has only the assignments granted by the
+			// unlocked access requests
+			expectedAssignments := resources.getAssignments(testCase.expectedAccountAssignments...)
+			requireAssignmentsMatch(t, expectedAssignments, userPrincipal)
+
+		})
+	}
+}
+
+func TestResourceAccessRequestsAreHonored(t *testing.T) {
+	externalIDs := newMockExternalIDGetter()
+	fixture := ictest.NewFixture(t)
+	slog.SetLogLoggerLevel(logutils.TraceLevel)
+	calc, err := New(Config{
+		AccessRequestsSvc:       fixture.Auth.Services,
+		Clock:                   fixture.Clock,
+		ExternalIDGetter:        externalIDs,
+		PrincipalAssignmentsSvc: fixture.Auth.Services,
+		Logger:                  slog.Default().With("test", t.Name()),
+		RolesGetter:             fixture.Auth.Services,
+		AccountAssignmentCache:  fixture.Auth.Services,
+		LocksGetter:             fixture.Auth.Services,
+	})
+	require.NoError(t, err)
+
+	resources := makeTestResources(t, fixture.Ctx, fixture)
+
+	icAccessRole := []types.Role{
+		makeTestRole(t, fixture, "test-aws-ic-access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AccountAssignments: []types.IdentityCenterAccountAssignment{
+					{
+						Account:       types.Wildcard,
+						PermissionSet: types.Wildcard,
+					},
+				},
+			},
+		}),
+	}
+
+	knownValidRequestAccountAssignments := []index{
+		{account: 0, ps: 2}, {account: 3, ps: 0},
+	}
+
+	potentiallyInvalidAccessRequestAssignments := []index{
+		{account: 1, ps: 0}, {account: 3, ps: 1},
+	}
+
+	allRequestedAccountAssignments := append(knownValidRequestAccountAssignments, potentiallyInvalidAccessRequestAssignments...)
+
+	testCases := []struct {
+		name                       string
+		mutateAccessRequest        func(ictest.AccessRequest) ictest.AccessRequest
+		createRequestLocks         func(*testing.T, types.AccessRequest, types.AccessRequest)
+		expectedAccountAssignments []index
+	}{
+		{
+			name:                       "all valid",
+			mutateAccessRequest:        func(req ictest.AccessRequest) ictest.AccessRequest { return req },
+			expectedAccountAssignments: allRequestedAccountAssignments,
+		},
+		{
+			name: "pending access requests are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest {
+				req.State = types.RequestState_PENDING
+				return req
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name: "denied access requests are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest {
+				req.State = types.RequestState_DENIED
+				return req
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name: "not-yet-valid requests are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest {
+				req.AssumeStartTime = fixture.Clock.Now().Add(30 * time.Minute)
+				req.Expiry = fixture.Clock.Now().Add(time.Hour)
+				return req
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name: "expired access requests are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest {
+				req.Expiry = fixture.Clock.Now().Add(-time.Hour)
+				return req
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name:                "locked access requests are excluded",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest { return req },
+			createRequestLocks: func(t *testing.T, _, maybeInvalid types.AccessRequest) {
+				lock, err := types.NewLock(t.Name(), types.LockSpecV2{
+					Target: types.LockTarget{AccessRequest: maybeInvalid.GetName()},
+				})
+				require.NoError(t, err)
+				makeTestLock(t, fixture, lock)
+			},
+			expectedAccountAssignments: knownValidRequestAccountAssignments,
+		},
+		{
+			name:                "expired locks are ignored",
+			mutateAccessRequest: func(req ictest.AccessRequest) ictest.AccessRequest { return req },
+			createRequestLocks: func(t *testing.T, _, maybeInvalid types.AccessRequest) {
+				expiry := fixture.Clock.Now().Add(-time.Hour)
+				lock, err := types.NewLock(t.Name(), types.LockSpecV2{
+					Target:  types.LockTarget{AccessRequest: maybeInvalid.GetName()},
+					Expires: &expiry,
+				})
+				require.NoError(t, err)
+				makeTestLock(t, fixture, lock)
+			},
+			expectedAccountAssignments: allRequestedAccountAssignments,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			// GIVEN a user
+			user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID")
+
+			// GIVEN an APPROVED access request granting access to the desired Account
+			// Assignment resources
+			knownGoodRequest := makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+				User:        user,
+				Expiry:      fixture.Clock.Now().Add(time.Hour),
+				Roles:       icAccessRole,
+				ResourceIDs: resources.getResourceIDs(knownValidRequestAccountAssignments...),
+				State:       types.RequestState_APPROVED,
+			}.Build(t))
+
+			// GIVEN another potentially locked, unapproved or otherwise invalid
+			// access request granting access to some other Account Assignment
+			// resources
+			potentiallyInvalidRequest := makeTestAccessRequest(t, fixture,
+				testCase.mutateAccessRequest(
+					ictest.AccessRequest{
+						User:        user,
+						Expiry:      fixture.Clock.Now().Add(time.Hour),
+						Roles:       icAccessRole,
+						ResourceIDs: resources.getResourceIDs(potentiallyInvalidAccessRequestAssignments...),
+						State:       types.RequestState_APPROVED,
+					}).Build(t))
+
+			// GIVEN sone potential locks
+			if testCase.createRequestLocks != nil {
+				testCase.createRequestLocks(t, knownGoodRequest, potentiallyInvalidRequest)
+			}
+
+			// WHEN I calculate the user's assignments
+			userPrincipal, err := calc.calcUserAssignments(fixture.Ctx, user.(*types.UserV2), userPrincipal)
+
+			// EXPECT that the operation succeeded and the user has been marked
+			// stale for provisioning
+			require.NoError(t, err)
+			require.Equal(t,
+				identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
+				userPrincipal.Status.ProvisioningState)
+
+			// EXPECT that the user has only the assignments granted by the
+			// unlocked access requests
+			expectedAssignments := resources.getAssignments(testCase.expectedAccountAssignments...)
+			requireAssignmentsMatch(t, expectedAssignments, userPrincipal)
+		})
+	}
 }
 
 // requireAssignmentsMatch asserts that the assignments listed in the principal
@@ -611,12 +1078,23 @@ func makeTestRole(t *testing.T, fixture *ictest.Fixture, name string, spec types
 
 // makeTestAccessRequest creates an Access Request that is automatically deleted
 // at the end of the test.
-func makeTestAccessRequest(t *testing.T, fixture *ictest.Fixture, req types.AccessRequest) {
+func makeTestAccessRequest(t *testing.T, fixture *ictest.Fixture, req types.AccessRequest) types.AccessRequest {
 	t.Helper()
 	ctx := fixture.Ctx
 	require.NoError(t, fixture.Auth.UpsertAccessRequest(ctx, req))
 	t.Cleanup(func() {
 		require.NoError(t, fixture.Auth.DeleteAccessRequest(ctx, req.GetName()))
+	})
+	return req
+}
+
+// makeTestLock creates a Lock that is automatically deleted at the end
+// of the test.
+func makeTestLock(t *testing.T, fixture *ictest.Fixture, lock types.Lock) {
+	t.Helper()
+	require.NoError(t, fixture.Auth.UpsertLock(fixture.Ctx, lock))
+	t.Cleanup(func() {
+		require.NoError(t, fixture.Auth.DeleteLock(fixture.Ctx, lock.GetName()))
 	})
 }
 
