@@ -25,42 +25,6 @@ export type AuthProviderType = shared.AuthProviderType;
 
 export type AuthProvider = tsh.AuthProvider;
 
-export interface LoginLocalParams {
-  kind: 'local';
-  clusterUri: uri.RootClusterUri;
-  username: string;
-  password: string;
-  token?: string;
-}
-
-export interface LoginSsoParams {
-  kind: 'sso';
-  clusterUri: uri.RootClusterUri;
-  providerType: string;
-  providerName: string;
-}
-
-export interface LoginPasswordlessParams {
-  kind: 'passwordless';
-  clusterUri: uri.RootClusterUri;
-  onPromptCallback(res: PasswordlessLoginPrompt): void;
-}
-
-export type LoginParams =
-  | LoginLocalParams
-  | LoginPasswordlessParams
-  | LoginSsoParams;
-
-export type PasswordlessLoginPrompt =
-  | { type: 'tap' }
-  | { type: 'retap' }
-  | { type: 'pin'; onUserResponse(pin: string): void }
-  | {
-      type: 'credential';
-      data: { credentials: tsh.CredentialInfo[] };
-      onUserResponse(index: number): void;
-    };
-
 export type ClustersServiceState = {
   clusters: Map<
     uri.ClusterUri,

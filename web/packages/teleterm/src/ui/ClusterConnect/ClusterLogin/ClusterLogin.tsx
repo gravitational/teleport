@@ -43,7 +43,7 @@ import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
 import { outermostPadding } from '../spacing';
 import LoginForm from './FormLogin';
-import useClusterLogin, { Props, State } from './useClusterLogin';
+import { Props, State, useClusterLogin } from './useClusterLogin';
 
 export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
   const { reason, ...otherProps } = props;
