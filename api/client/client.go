@@ -935,6 +935,12 @@ func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingM
 	return recordingmetadatav1.NewRecordingMetadataServiceClient(c.conn)
 }
 
+// RecordingEncryptionServiceClient returns an unadorned client for the session
+// recording encryption service.
+func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
+	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
+}
+
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})

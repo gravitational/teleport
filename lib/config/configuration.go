@@ -973,7 +973,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("cannot set both proxy_checks_host_keys and session_recording_config at the same time, prefer session_recording_config.proxy_checks_host_keys")
 			}
 
-			src = *fc.Auth.SessionRecordingConfig
+			src = fc.Auth.SessionRecordingConfig.toSpec()
 		}
 
 		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(src)

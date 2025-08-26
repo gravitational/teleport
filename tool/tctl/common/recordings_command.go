@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -47,6 +48,8 @@ type RecordingsCommand struct {
 	format string
 	// recordingsList implements the "tctl recordings ls" subcommand.
 	recordingsList *kingpin.CmdClause
+	// recordingsEncryption implements the "tctl recordings encryption" subcommand.
+	recordingsEncryption recordingsEncryptionCommand
 	// fromUTC is the start time to use for the range of recordings listed by the recorded session listing command
 	fromUTC string
 	// toUTC is the start time to use for the range of recordings listed by the recorded session listing command
@@ -55,10 +58,17 @@ type RecordingsCommand struct {
 	maxRecordingsToShow int
 	// recordingsSince is a duration which sets the time into the past in which to list session recordings
 	recordingsSince string
+
+	// stdout allows to switch standard output source for resource command. Used in tests.
+	stdout io.Writer
 }
 
 // Initialize allows RecordingsCommand to plug itself into the CLI parser
 func (c *RecordingsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
+
 	c.config = config
 	recordings := app.Command("recordings", "View and control session recordings.")
 	c.recordingsList = recordings.Command("ls", "List recorded sessions.")
@@ -67,6 +77,11 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Glob
 	c.recordingsList.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.toUTC)
 	c.recordingsList.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxRecordingsToShow)
 	c.recordingsList.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&c.recordingsSince)
+	c.recordingsEncryption.Initialize(recordings, c.stdout)
+
+	if c.recordingsEncryption.stdout == nil {
+		c.recordingsEncryption.stdout = c.stdout
+	}
 }
 
 // TryRun attempts to run subcommands like "recordings ls".
@@ -76,7 +91,7 @@ func (c *RecordingsCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 	case c.recordingsList.FullCommand():
 		commandFunc = c.ListRecordings
 	default:
-		return false, nil
+		return c.recordingsEncryption.TryRun(ctx, cmd, clientFunc)
 	}
 	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
@@ -103,5 +118,5 @@ func (c *RecordingsCommand) ListRecordings(ctx context.Context, tc *authclient.C
 	if err != nil {
 		return trace.Errorf("getting session events: %v", err)
 	}
-	return trace.Wrap(common.ShowSessions(recordings, c.format, os.Stdout))
+	return trace.Wrap(common.ShowSessions(recordings, c.format, c.stdout))
 }
