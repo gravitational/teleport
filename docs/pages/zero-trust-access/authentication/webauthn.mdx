@@ -293,8 +293,7 @@ $ tsh device asset-tag
 </Tabs>
 </details>
 
-Replace 
-<Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/> 
+Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
 with the serial number of the device you wish to enroll, and
 <Var name="macos" /> with your operating system. Run the
 `tctl devices add` command:
@@ -308,9 +307,9 @@ Use `tctl` to check that the device has been registered:
 
 ```code
 $ tctl devices ls
-Asset Tag    OS    Enroll Status Device ID
------------- ----- ------------- ------------------------------------
-(=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
+Asset Tag    OS    Source Enroll Status Owner Device ID
+------------ ----- ------ ------------- ----- ------------------------------------
+(=devicetrust.asset_tag=) macOS        not enrolled        (=devicetrust.device_id=)
 ```
 
 ### Step 2/3. Create a device enrollment token

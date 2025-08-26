@@ -84,9 +84,9 @@ Use `tctl` to check that the device has been registered:
 
 ```code
 $ tctl devices ls
-Asset Tag    OS    Enroll Status Device ID
------------- ----- ------------- ------------------------------------
-(=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
+Asset Tag    OS    Source Enroll Status Owner Device ID
+------------ ----- ------ ------------- ----- ------------------------------------
+(=devicetrust.asset_tag=) macOS        not enrolled        (=devicetrust.device_id=)
 ```
 
 ## Create a device enrollment token
@@ -197,9 +197,9 @@ A device that is no longer in use may be removed using `tctl devices rm
 First, find a device to delete:
 ```code
 $ tctl devices ls
-Asset Tag    OS    Enroll Status Device ID
------------- ----- ------------- ------------------------------------
-C00AA0AAAA0A macOS enrolled      c9cbb327-68a8-497e-b820-6a4b2bf58269
+Asset Tag    OS    Source Enroll Status Owner Device ID
+------------ ----- ------ ------------- ----- ------------------------------------
+C00AA0AAAA0A macOS        enrolled      alice c9cbb327-68a8-497e-b820-6a4b2bf58269
 ```
 
 Now use asset-tag or device id to delete a device:
