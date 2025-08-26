@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "16.5.13-dev.nrel.1"
+const Version = "16.5.14"
 
 const VersionMajor = 16
 const VersionMinor = 5
-const VersionPatch = 13
-const VersionPreRelease = "dev.nrel.1"
+const VersionPatch = 14
+const VersionPreRelease = ""
 const VersionMetadata = ""
