@@ -220,6 +220,7 @@ func (s *recordingPlayback) readLoop() {
 		}
 
 		if msgType != websocket.BinaryMessage {
+			s.logger.DebugContext(s.ctx, "ignoring non-binary websocket message", "session_id", s.sessionID, "type", msgType)
 			continue
 		}
 
