@@ -2100,7 +2100,7 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 						},
 						"manual_key_management": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"active_key": {
+								"active_keys": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"label": {
 											Description: "Label is a value that can be used with the related keystore in order to find relevant keys.",
@@ -2121,7 +2121,7 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
-								"rotated_key": {
+								"rotated_keys": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"label": {
 											Description: "Label is a value that can be used with the related keystore in order to find relevant keys.",
@@ -22432,7 +22432,7 @@ func CopySessionRecordingConfigV2FromTerraform(_ context.Context, tf github_com_
 														}
 													}
 													{
-														a, ok := tf.Attrs["active_key"]
+														a, ok := tf.Attrs["active_keys"]
 														if !ok {
 															diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.active_keys"})
 														} else {
@@ -22495,7 +22495,7 @@ func CopySessionRecordingConfigV2FromTerraform(_ context.Context, tf github_com_
 														}
 													}
 													{
-														a, ok := tf.Attrs["rotated_key"]
+														a, ok := tf.Attrs["rotated_keys"]
 														if !ok {
 															diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.rotated_keys"})
 														} else {
@@ -23035,7 +23035,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 														}
 													}
 													{
-														a, ok := tf.AttrTypes["active_key"]
+														a, ok := tf.AttrTypes["active_keys"]
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.active_keys"})
 														} else {
@@ -23043,7 +23043,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.active_keys", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
 															} else {
-																c, ok := tf.Attrs["active_key"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																c, ok := tf.Attrs["active_keys"].(github_com_hashicorp_terraform_plugin_framework_types.List)
 																if !ok {
 																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
 
@@ -23062,7 +23062,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ActiveKeys))
 																	}
 																	for k, a := range obj.ActiveKeys {
-																		v, ok := tf.Attrs["active_key"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		v, ok := tf.Attrs["active_keys"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																		if !ok {
 																			v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -23132,12 +23132,12 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 																	}
 																}
 																c.Unknown = false
-																tf.Attrs["active_key"] = c
+																tf.Attrs["active_keys"] = c
 															}
 														}
 													}
 													{
-														a, ok := tf.AttrTypes["rotated_key"]
+														a, ok := tf.AttrTypes["rotated_keys"]
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.rotated_keys"})
 														} else {
@@ -23145,7 +23145,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.rotated_keys", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
 															} else {
-																c, ok := tf.Attrs["rotated_key"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																c, ok := tf.Attrs["rotated_keys"].(github_com_hashicorp_terraform_plugin_framework_types.List)
 																if !ok {
 																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
 
@@ -23164,7 +23164,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RotatedKeys))
 																	}
 																	for k, a := range obj.RotatedKeys {
-																		v, ok := tf.Attrs["rotated_key"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		v, ok := tf.Attrs["rotated_keys"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																		if !ok {
 																			v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -23234,7 +23234,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 																	}
 																}
 																c.Unknown = false
-																tf.Attrs["rotated_key"] = c
+																tf.Attrs["rotated_keys"] = c
 															}
 														}
 													}
