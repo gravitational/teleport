@@ -494,6 +494,10 @@ const Resources = memo(
               kind: 'windows_desktop',
               disabled: false,
             },
+            {
+              kind: 'mcp',
+              disabled: false,
+            },
           ]}
           NoResources={
             <NoResources
