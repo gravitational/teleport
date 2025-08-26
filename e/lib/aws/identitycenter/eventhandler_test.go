@@ -25,12 +25,13 @@ func TestBatchReadEventsDetectsClose(t *testing.T) {
 		batchTimeout  = 2 * batchDuration
 	)
 
-	fixture := ictest.NewFixture(t)
+	clock := clockwork.NewFakeClock()
+	fixture := ictest.NewFixture(t, ictest.WithClock(clock))
 
 	type producer struct {
-		svc     *Service
-		fixture *ictest.Fixture
-		cancel  context.CancelFunc
+		svc    *Service
+		clock  *clockwork.FakeClock
+		cancel context.CancelFunc
 	}
 
 	testCases := []struct {
@@ -56,7 +57,7 @@ func TestBatchReadEventsDetectsClose(t *testing.T) {
 		{
 			name: "timeout context",
 			closer: func(p *producer) {
-				p.fixture.Clock.Advance(batchTimeout + time.Second)
+				p.clock.Advance(batchTimeout + time.Second)
 			},
 		},
 	}
@@ -72,9 +73,9 @@ func TestBatchReadEventsDetectsClose(t *testing.T) {
 			// a channel and then does something to indicate that there will be
 			// no more messages...
 			p := producer{
-				svc:     icSvc,
-				fixture: fixture,
-				cancel:  batchCancel,
+				svc:    icSvc,
+				clock:  clock,
+				cancel: batchCancel,
 			}
 
 			// GIVEN an asynchronous consumer process that logs when it receives
@@ -120,7 +121,8 @@ func TestBatchReadEventsDropsDuplicatePrincipalEvents(t *testing.T) {
 		users[i] = u.(*types.UserV2)
 	}
 
-	fixture := ictest.NewFixture(t)
+	clock := clockwork.NewFakeClock()
+	fixture := ictest.NewFixture(t, ictest.WithClock(clock))
 	icSvc := newTestService(t, fixture)
 
 	// Force the principal event channel to be an unbuffered channel. This way we
@@ -174,7 +176,7 @@ func TestBatchReadEventsDropsDuplicatePrincipalEvents(t *testing.T) {
 	require.Eventually(t, writeComplete.Load, 10*time.Second, 100*time.Millisecond)
 
 	// WHEN I advance the system clock past the batch completion deadline...
-	fixture.Clock.Advance(batchDuration + time.Millisecond)
+	clock.Advance(batchDuration + time.Millisecond)
 
 	// EXPECT That the consumer process will complete reading its batch of events
 	// and return
@@ -262,7 +264,8 @@ func TestBatchReadEventsRecalcAllOverridesEverything(t *testing.T) {
 		},
 	}
 
-	fixture := ictest.NewFixture(t)
+	clock := clockwork.NewFakeClock()
+	fixture := ictest.NewFixture(t, ictest.WithClock(clock))
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
@@ -322,7 +325,7 @@ func TestBatchReadEventsRecalcAllOverridesEverything(t *testing.T) {
 			require.Eventually(t, writeComplete.Load, 10*time.Second, 100*time.Millisecond)
 
 			// WHEN I advance the system clock past the batch completion deadline...
-			fixture.Clock.Advance(batchDuration + time.Millisecond)
+			clock.Advance(batchDuration + time.Millisecond)
 
 			// EXPECT that the consumer process will complete reading its batch of events
 			// and return

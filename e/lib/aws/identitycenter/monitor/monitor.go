@@ -240,6 +240,11 @@ func (m *ResourceMonitor) processEvent(ctx context.Context, resource types.Resou
 			// back to the owning access list
 			acl, err := m.AccessListsSvcCache.GetAccessList(ctx, resource.GetMetadata().Description)
 			if err != nil {
+				// The underlying access list not existing at ths point is a legitimate case,
+				// as we may be handling the entire access list being deleted.
+				if trace.IsNotFound(err) {
+					return nil
+				}
 				return trace.Wrap(err, "access list lookup failed")
 			}
 			m.OnEvent(ctx, &PrincipalEvent{Verb: VerbCalculate, Principal: acl})

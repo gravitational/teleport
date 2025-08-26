@@ -56,6 +56,7 @@ type Service struct {
 	assignmentProvisioner      *icprov.AssignmentProvisioner
 	emitter                    apievents.Emitter
 	rolesSyncMode              RolesSyncMode
+	eventBatchDuration         time.Duration
 }
 
 // NewService creates a new Identity Center Service instance from the supplied
@@ -112,6 +113,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		assignmentProvisioner:      assignmentProvisioner,
 		emitter:                    config.Emitter,
 		rolesSyncMode:              config.RolesSyncMode,
+		eventBatchDuration:         config.EventBatchDuration,
 	}
 
 	svc.provisioner, err = provisioning.NewService(provisioning.ServiceConfig{
@@ -129,6 +131,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		OnPrincipalProvisioned:    svc.onPrincipalProvisioned,
 		OnPrincipalDeprovisioning: svc.onPrincipalDeprovisioning,
 		Logger:                    config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICPrincipalProvisioner),
+		StateRefreshInterval:      config.Provisioning.StateRefreshInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating provisioner")
@@ -177,7 +180,6 @@ func (svc *Service) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	svc.log.InfoContext(ctx, "Starting provisioning service...")
 	go svc.runProvisioner(ctx)
 	go svc.runAWSSyncService(ctx)
 	go svc.runResourceMonitor(ctx)
@@ -188,7 +190,7 @@ func (svc *Service) Run(ctx context.Context) error {
 }
 
 func (svc *Service) runProvisioner(ctx context.Context) {
-	svc.log.DebugContext(ctx, "Starting provisioning service...")
+	svc.log.InfoContext(ctx, "Starting SCIM provisioning service")
 	if err := svc.provisioner.Run(ctx); err != nil {
 		svc.log.ErrorContext(ctx, "Provisioning service exited with error",
 			"error", err)

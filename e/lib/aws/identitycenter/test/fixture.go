@@ -25,7 +25,6 @@ import (
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	samlidptestenv "github.com/gravitational/teleport/e/lib/idp/saml/testenv"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth"
@@ -36,11 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 // Fixture holds resources for constructing and testing an
@@ -48,7 +44,7 @@ import (
 type Fixture struct {
 	Ctx              context.Context
 	Backend          backend.Backend
-	Clock            clocki.FakeClock
+	Clock            clockwork.Clock
 	Auth             *auth.Server
 	SCIMClient       scimsdk.Client
 	ICClient         *icsdk.ClientMock
@@ -120,8 +116,8 @@ func WithWriteThroughStatusSink(fixtureOpts *fixtureOptions) {
 
 func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 	args := fixtureOptions{
-		awsState:      nil, // use default mock state by default
-		clock:         clockwork.NewFakeClock(),
+		awsState:      nil, // use default mock state unless otherwise directed
+		clock:         clockwork.NewRealClock(),
 		getStatusSink: func(services.Plugins) common.StatusSink { return &integration.FakeStatusSink{} },
 	}
 	for _, optFn := range opts {
@@ -132,21 +128,10 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 		args.awsState = &defaultState
 	}
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessLists: {Enabled: true},
-			},
-		},
-	})
-
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	clock := clockwork.NewFakeClock()
-
-	backend, err := memory.New(memory.Config{Clock: clock})
+	backend, err := memory.New(memory.Config{Clock: args.clock})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, backend.Close()) })
 
@@ -155,7 +140,7 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 	})
 	require.NoError(t, err)
 
-	authOpts := append(args.authOptions, authtest.WithClock(clock))
+	authOpts := append(args.authOptions, authtest.WithClock(args.clock))
 	auth, err := auth.NewServer(&auth.InitConfig{
 		Authority:              authority.New(),
 		Backend:                backend,
@@ -176,7 +161,7 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 	fixture := &Fixture{
 		Ctx:              ctx,
 		Backend:          backend,
-		Clock:            clock,
+		Clock:            args.clock,
 		Auth:             auth,
 		SCIMClient:       icClient.ViaSCIM(),
 		ICClient:         icClient.ViaAPI(),

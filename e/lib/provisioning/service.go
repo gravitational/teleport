@@ -24,13 +24,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// DefaultStateRefreshInterval is the default time between full User and Access List
+// state resynchronisations.
+var DefaultStateRefreshInterval = 2 * time.Minute
+
 const (
 	provisioningComponent          = "PROV"
-	defaultPageSize                = 100
-	defaultUserPageSize            = defaultPageSize
 	defaultUpdateAttempts          = 5
-	defaultProvisioningInterval    = 5 * time.Minute
-	defaultStateSyncInterval       = 2 * time.Minute
 	defaultEventBufferSize         = 128
 	defaultProvisioningConcurrency = 8
 )
@@ -131,7 +131,7 @@ type ServiceConfig struct {
 
 	// StateRefreshInterval sets the interval between full state refreshes, which
 	// scans the User and AccessList services for changes that require
-	// provisioning. Defaults to defaultStateRefreshInterval if not set.
+	// provisioning. Defaults to [DefaultStateRefreshInterval] if not set.
 	StateRefreshInterval time.Duration
 
 	// EventBufferSize is the number of provisioning events to buffer between
@@ -213,7 +213,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.StateRefreshInterval == 0 {
-		cfg.StateRefreshInterval = defaultStateSyncInterval
+		cfg.StateRefreshInterval = DefaultStateRefreshInterval
 	}
 
 	if cfg.ProvisioningConcurrency == 0 {

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -82,12 +81,13 @@ func newTestService(t *testing.T, fixture *ictest.Fixture, options ...testServic
 
 	cfg := ServiceConfig{
 		Provisioning: ProvisioningConfig{
-			SCIMClient:          fixture.SCIMClient,
-			StateSvc:            fixture.Auth.Services,
-			StateSvcCache:       fixture.Auth.Cache,
-			UsersSvcCache:       fixture.Auth.Cache,
-			AccessListsSvcCache: fixture.Auth.Cache,
-			LocksSvc:            fixture.Auth.Services,
+			SCIMClient:           fixture.SCIMClient,
+			StateSvc:             fixture.Auth.Services,
+			StateSvcCache:        fixture.Auth.Services,
+			UsersSvcCache:        fixture.Auth.Services,
+			AccessListsSvcCache:  fixture.Auth.Services,
+			LocksSvc:             fixture.Auth.Services,
+			StateRefreshInterval: 500 * time.Millisecond,
 		},
 		ICClient:                   fixture.ICClient,
 		UsersSvc:                   fixture.Auth.Services,
@@ -103,11 +103,12 @@ func newTestService(t *testing.T, fixture *ictest.Fixture, options ...testServic
 			AccessListDefaultOwners: []string{"user1", "user2"},
 			GroupSyncFilter:         details.GroupSyncFilters,
 		},
-		PluginsService:   fixture.PluginService,
-		PluginStatusSink: fixture.PluginStatusSink,
-		UserPredicate:    identitycentercommon.UserPredicateFilter(nil),
-		Emitter:          fixture.Emitter,
-		RolesSyncMode:    RolesSyncModeAll,
+		PluginsService:     fixture.PluginService,
+		PluginStatusSink:   fixture.PluginStatusSink,
+		UserPredicate:      identitycentercommon.UserPredicateFilter(nil),
+		Emitter:            fixture.Emitter,
+		RolesSyncMode:      RolesSyncModeAll,
+		EventBatchDuration: 50 * time.Millisecond,
 	}
 
 	for _, optionFn := range options {
@@ -117,23 +118,4 @@ func newTestService(t *testing.T, fixture *ictest.Fixture, options ...testServic
 	svc, err := NewService(cfg)
 	require.NoError(t, err, "creating Identity Center service")
 	return svc
-}
-
-// runClock starts a goroutine that advances the supplied clock by [elapsedInterval]
-// every [updateInterval] until the given context expires.
-func runClock(ctx context.Context, clock *clockwork.FakeClock, updateInterval, elapsedInterval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(updateInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-
-			case <-ticker.C:
-				clock.Advance(elapsedInterval)
-			}
-		}
-	}()
 }

@@ -35,6 +35,9 @@ type ProvisioningConfig struct {
 	StateSvcCache services.DownstreamProvisioningStateGetter
 	// LocksSvc is the service used to manage locks
 	LocksSvc services.LockGetter
+	// StateRefreshInterval specifies the interval between full user and Access List
+	// state refreshes.
+	StateRefreshInterval time.Duration
 }
 
 func (cfg *ProvisioningConfig) CheckAndSetDefaults() error {
@@ -148,6 +151,12 @@ type ServiceConfig struct {
 	// RolesSyncMode indicates how the integration will create and manage Teleport
 	// Roles representing possible Account Assignments
 	RolesSyncMode RolesSyncMode
+
+	// EventBatchDuration specifies how long to to collect events before acting
+	// on them. Shorter durations make the service more responsive, but longer
+	// durations are able to discard more work and are thus more efficient.
+	// Defaults to [DefaultEventBatchDuration]
+	EventBatchDuration time.Duration
 }
 
 func (cfg *ServiceConfig) CheckAndSetDefaults() error {
@@ -204,6 +213,9 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Emitter == nil {
 		return trace.BadParameter("missing event emitter")
+	}
+	if cfg.EventBatchDuration == 0 {
+		cfg.EventBatchDuration = DefaultEventBatchDuration
 	}
 
 	switch cfg.RolesSyncMode {

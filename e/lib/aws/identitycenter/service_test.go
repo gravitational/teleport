@@ -4,28 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestUserCreation(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessLists: {Enabled: true},
-			},
-		},
-	})
-
 	ctx := t.Context()
 
 	// GIVEN a running cluster...
@@ -33,11 +20,6 @@ func TestUserCreation(t *testing.T) {
 	fixture.CreatePluginResource(t, ictest.WithoutImport)
 	_, stopService := runNewTestService(t, ctx, fixture)
 	defer stopService()
-
-	// GIVEN a cluster clock running faster than real time. (The IC event handler
-	// throws away duplicate events in a given time window, so it needs a
-	// running clock or nothing will get done)
-	runClock(ctx, fixture.Clock.(*clockwork.FakeClock), 500*time.Millisecond, 1*time.Minute)
 
 	// EXPECT that the AWS resource sync will eventually complete at least one
 	// pass, indicating that the server is up and running.

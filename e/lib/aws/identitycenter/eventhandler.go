@@ -17,15 +17,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// EventBatchDuration specifies how long the event aggregator will collect and
-// aggregate resource events before acting on the them. Shorter durations make
-// the service more responsive, but longer durations are  able to discard more
+// DefaultEventBatchDuration is the default interval for how long the event aggregator
+// will collect and aggregate resource events before acting on them. Shorter durations
+// make the service more responsive, but longer durations are able to discard more
 // work and are thus more efficient.
 //
 // There is no particular data behind the initial 30s value, other than being
 // short enough to make the service still feel responsive while being long
 // enough to reliably aggregate work from sync events and access list updates.
-var EventBatchDuration = 30 * time.Second
+//
+// Adjustable for testing.
+var DefaultEventBatchDuration = 30 * time.Second
 
 // resourceEventLoop handles events from the resource monitor.
 func (svc *Service) resourceEventLoop(ctx context.Context) error {
@@ -49,7 +51,7 @@ func (svc *Service) resourceEventLoop(ctx context.Context) error {
 	}()
 
 	for {
-		pendingEvents, doFullRefresh, readOK := svc.batchReadEvents(ctx, EventBatchDuration)
+		pendingEvents, doFullRefresh, readOK := svc.batchReadEvents(ctx, svc.eventBatchDuration)
 		if !readOK {
 			return nil
 		}

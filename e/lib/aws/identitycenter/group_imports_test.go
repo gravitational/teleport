@@ -10,7 +10,6 @@ import (
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -532,13 +531,11 @@ func accessListsHaveNoProvisioningState(ctx context.Context, svc services.Downst
 }
 
 func TestGroupDeletesAreSuppressed(t *testing.T) {
-	slog.SetLogLoggerLevel(slog.LevelDebug)
 	logger := slog.Default()
 	ctx := t.Context()
 
 	// GIVEN an Identity Center service managing several Access Lists that were
 	// imported from the downstream Identity Center instance
-	logger.InfoContext(ctx, ">>> Setting up test environment")
 	const idStoreID = "test-identity-store"
 	awsICState := icsdk.MockedAWSStateType{
 		Info: icsdk.InstanceInfo{
@@ -569,25 +566,29 @@ func TestGroupDeletesAreSuppressed(t *testing.T) {
 		icfixture.WithAWSState(&awsICState),
 		icfixture.WithStartedCache,
 		icfixture.WithWriteThroughStatusSink)
-	runClock(ctx, fixture.Clock.(*clockwork.FakeClock), 500*time.Millisecond, time.Minute)
+
 	fixture.CreatePluginResource(t)
 
-	logger.InfoContext(ctx, ">>> Creating service for import")
 	_, stopService := runNewTestService(t, ctx, fixture, withLogger(logger.With("phase", "setup")))
 	defer stopService()
 
-	logger.InfoContext(ctx, ">>> Waiting on import confirmation...")
 	allGroups := []string{"alpha", "bravo", "charlie", "delta"}
 	requireEventually(t, downstreamGroupsMatch(ctx, fixture.ICClient, allGroups...))
-	requireEventually(t, accessListsAreMarkedAsProvisioned(ctx, fixture.Auth.Cache, allGroups...))
 
-	logger.InfoContext(ctx, ">>> Stopping setup service")
+	// On the first run through, the underlying SCIM provisioner has to adopt
+	// the downstream groups before the IC permissions calculator and provisioner
+	// even get started on them. This can take a while in resource-constrained
+	// environments (like the flaky test detector), so we need to give
+	// this assertion a bit more time than the regular `requireEventually()`
+	require.EventuallyWithT(t,
+		accessListsAreMarkedAsProvisioned(ctx, fixture.Auth, allGroups...),
+		30*time.Second,
+		100*time.Millisecond)
 	stopService()
 
 	// WHEN I change the Identity Center group import filters such that only two
 	// of the downstream groups are imported, and start the service (implicitly
 	// triggering a new import), and re-start the service
-	logger.InfoContext(ctx, ">>> Modifying import filters")
 	pr := fixture.MustGetPluginResource(t)
 	pr.Spec.GetAwsIc().GroupSyncFilters = icfilters.Filters{
 		{Include: &types.AWSICResourceFilter_Id{Id: "bravo"}},
@@ -596,7 +597,6 @@ func TestGroupDeletesAreSuppressed(t *testing.T) {
 	pr.Status.GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
 	fixture.MustUpdatePluginResource(t, pr)
 
-	logger.InfoContext(ctx, ">>> Starting test service initial import")
 	_, stopService = runNewTestService(t, ctx, fixture, withLogger(logger.With("phase", "test")))
 	defer stopService()
 
@@ -604,7 +604,7 @@ func TestGroupDeletesAreSuppressed(t *testing.T) {
 	// Principal State records have been destroyed, but that they still exist
 	// as Groups in the downstream system
 	requireEventually(t, accessListsMatch(ctx, fixture.Auth, "bravo", "delta"))
-	requireEventually(t, accessListsHaveNoProvisioningState(ctx, fixture.Auth.Cache, "alpha", "charlie"))
+	requireEventually(t, accessListsHaveNoProvisioningState(ctx, fixture.Auth, "alpha", "charlie"))
 	requireEventually(t, downstreamGroupsMatch(ctx, fixture.ICClient, allGroups...))
 
 	// WHEN I explicitly delete an IC-sourced access list

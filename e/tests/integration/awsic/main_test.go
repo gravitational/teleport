@@ -6,6 +6,7 @@ import (
 
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	"github.com/gravitational/teleport/e/lib/plugins"
+	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/integration/helpers"
 )
 
@@ -20,7 +21,11 @@ func TestMain(m *testing.M) {
 
 	// The Identity Center event handler processes events in 30s batches in order
 	// to discard duplicate events. This is obviously too long for our tests.
-	identitycenter.EventBatchDuration = 50 * time.Millisecond
+	identitycenter.DefaultEventBatchDuration = 50 * time.Millisecond
+
+	// The SCIM provisioner checks whether it needs to update the downstream system
+	// every 2 minutes. Tune this down to a test-friendly value
+	provisioning.DefaultStateRefreshInterval = 250 * time.Millisecond
 
 	helpers.TestMainImplementation(m)
 }
