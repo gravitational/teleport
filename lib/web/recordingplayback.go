@@ -94,6 +94,7 @@ type recordingPlayback struct {
 	cancelActiveTask context.CancelFunc
 	ws               *websocket.Conn
 	writeChan        chan []byte
+	wg               sync.WaitGroup
 
 	stream struct {
 		sync.Mutex
@@ -266,14 +267,22 @@ func (s *recordingPlayback) readLoop() {
 // A task context is used to manage the lifecycle of a fetch request, ensuring that only one fetch request is active at a time.
 func (s *recordingPlayback) createTaskContext() context.Context {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.cancelActiveTask != nil {
+		// Cancel the active task first
 		s.cancelActiveTask()
+		s.mu.Unlock()
+
+		// Wait for streamEvents to terminate before continuing
+		// We unlock the mutex while waiting to avoid deadlock
+		s.wg.Wait()
+
+		s.mu.Lock()
 	}
 
 	ctx, taskCancel := context.WithCancel(s.ctx)
 	s.cancelActiveTask = taskCancel
+	s.mu.Unlock()
 
 	return ctx
 }
@@ -333,10 +342,13 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 
 // streamEvents streams session events to the client.
 func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest, eventsChan <-chan apievents.AuditEvent, errorsChan <-chan error) {
+	s.wg.Add(1)
+
 	defer func() {
 		s.mu.Lock()
 		s.cancelActiveTask = nil
 		s.mu.Unlock()
+		s.wg.Done()
 	}()
 
 	startSent := false
