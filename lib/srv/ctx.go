@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
@@ -318,6 +319,13 @@ type ServerContext struct {
 
 	// sessionParams are parameters associated with this server session.
 	sessionParams *tracessh.SessionParams
+
+	// newSessionID is set if this server context is going to create a new session.
+	// If this is a join session, or it is not known whether this will be a join session,
+	// then this field should not be set. Additionally, this field should only be set
+	// through [ServerContext.SetNewSessionID] to ensure it notifies the client of the
+	// session ID.
+	newSessionID rsession.ID
 
 	// session holds the active session (if there's an active one).
 	session *session
@@ -692,21 +700,44 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 	return sessionParams
 }
 
-// setSession sets the context's session
-func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Channel) {
+// SetNewSessionID sets the ID for a new session in this server context.
+// This is a noop if the session ID is already set.
+func (c *ServerContext) SetNewSessionID(ctx context.Context, ch ssh.Channel) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.session = sess
 
-	// inform the client of the session ID that is being used in a new
+	// newSessionID only needs to be set once.
+	if c.newSessionID != "" {
+		return
+	}
+
+	c.newSessionID = rsession.NewID()
+
+	// inform the client of the session ID that is going to be used in a new
 	// goroutine to reduce latency
 	go func() {
 		c.Logger.DebugContext(ctx, "Sending current session ID")
-		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sess.ID()))
+		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(c.newSessionID))
 		if err != nil {
 			c.Logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
 		}
 	}()
+}
+
+// GetSetNewSessionID gets or sets the ID for a new session in this server context.
+func (c *ServerContext) GetSetNewSessionID(ctx context.Context, ch ssh.Channel) rsession.ID {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.SetNewSessionID(ctx, ch)
+	return c.newSessionID
+}
+
+// setSession sets the context's session
+func (c *ServerContext) setSession(ctx context.Context, sess *session) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.session = sess
 }
 
 // getSession returns the context's session

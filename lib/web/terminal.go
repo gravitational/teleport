@@ -847,6 +847,8 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 
 		// wait in a new goroutine because the server won't set a
 		// session ID until we start the session.
+		// Note: before v19.0.0, the session ID isn't set until during
+		// the shell request, rather than right after the session request.
 		go func() {
 			defer close(sessionDataSent)
 

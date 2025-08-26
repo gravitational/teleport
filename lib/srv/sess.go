@@ -366,7 +366,7 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.setSession(ctx, sess, ch)
+	scx.setSession(ctx, sess)
 	s.addSession(sess)
 	scx.Logger.InfoContext(ctx, "Creating interactive session", "session_id", sess.id)
 
@@ -400,7 +400,7 @@ func (s *SessionRegistry) JoinSession(ctx context.Context, ch ssh.Channel, scx *
 		return trace.BadParameter("Unrecognized session participant mode: %q", mode)
 	}
 
-	scx.setSession(ctx, session, ch)
+	scx.setSession(ctx, session)
 
 	// Update the in-memory data structure that a party member has joined.
 	if err := session.join(ch, scx, mode); err != nil {
@@ -440,7 +440,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	scx.setSession(ctx, sess, channel)
+	scx.setSession(ctx, sess)
 
 	err = sess.startExec(ctx, channel, scx)
 	if err != nil {
@@ -828,7 +828,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
 		Kind: types.SSHSessionKind,
-		ID:   rsession.NewID(),
+		ID:   scx.GetSetNewSessionID(ctx, ch),
 		TerminalParams: rsession.TerminalParams{
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
