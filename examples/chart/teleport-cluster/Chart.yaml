@@ -1,4 +1,4 @@
-.version: &version "18.1.6"
+.version: &version "18.2.0-dev.kopiczko.2"
 
 name: teleport-cluster
 apiVersion: v2

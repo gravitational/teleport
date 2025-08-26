@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.1.6"
+const Version = "18.2.0-dev.kopiczko.2"
 
 const VersionMajor = 18
-const VersionMinor = 1
-const VersionPatch = 6
-const VersionPreRelease = ""
+const VersionMinor = 2
+const VersionPatch = 0
+const VersionPreRelease = "dev.kopiczko.2"
 const VersionMetadata = ""
