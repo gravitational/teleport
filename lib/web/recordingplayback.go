@@ -503,7 +503,7 @@ func (s *recordingPlayback) writeMessage(msgType int, data []byte) error {
 	defer s.websocket.Unlock()
 
 	if err := s.websocket.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	return s.websocket.WriteMessage(msgType, data)
