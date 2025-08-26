@@ -69,7 +69,7 @@ func (s *thumbnailBucketSampler) add(state *vt10x.TerminalState, timestamp time.
 		state:       state,
 		timestamp:   timestamp,
 		startOffset: timestamp.Sub(s.startTime),
-		endOffset:   timestamp.Add(s.interval).Add(-1 * time.Millisecond).Sub(s.startTime),
+		endOffset:   timestamp.Add(s.interval).Add(-1 * time.Millisecond).Sub(s.startTime), // subtract 1ms to make the ranges non-overlapping
 	}
 
 	s.nextTimestamp = timestamp.Add(s.interval)
