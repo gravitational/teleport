@@ -112,9 +112,7 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 
 	vt := vt10x.New()
 
-	metadata := &pb.SessionRecordingMetadata{
-		Events: make([]*pb.SessionRecordingEvent, 0),
-	}
+	metadata := &pb.SessionRecordingMetadata{}
 
 	addInactivityEvent := func(start, end time.Time) {
 		if end.IsZero() {
