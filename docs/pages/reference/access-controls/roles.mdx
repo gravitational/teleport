@@ -611,6 +611,8 @@ for Kubernetes sessions together with the user and session fields above.
 The following database session fields can be used in `where` expressions to filter access
 for database sessions together with the user and session fields above.
 
+{/* vale messaging.capitalization = NO */}
+
 | Database Session Field | Description | Type |
 |---|---|---|
 | `session.db_service` | The name of the database service where the session took place. | `string` |
@@ -620,6 +622,8 @@ for database sessions together with the user and session fields above.
 | `session.db_user` | The database user used during the session. | `string` |
 | `session.db_labels` | The labels assigned to the database where the session took place. | `dict<string, string>` |
 | `session.db_type` | The type of the database (e.g., "postgres", "mysql"). | `string` |
+
+{/* vale messaging.capitalization = YES */}
 
 </TabItem>
 <TabItem value="Windows Desktop Sessions" label="Windows Desktop Sessions">
