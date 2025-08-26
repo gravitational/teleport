@@ -290,10 +290,10 @@ func TestListAccessListsWithFilter(t *testing.T) {
 	for i, name := range names {
 		al := newAccessList(t, name, clock)
 		// Set different audit dates to test sorting
-		auditDate := clock.Now().Add(time.Duration(i) * time.Hour)
+		auditDate := clock.Now().Add(time.Duration(i) * (time.Hour) * 24)
 		// add arbitrary date so we can make sure its not just sorted by name
 		if name == "banana-access" {
-			auditDate = clock.Now().Add(100 * time.Hour)
+			auditDate = clock.Now().Add(100 * (time.Hour) * 24)
 		}
 		al.Spec.Audit.NextAuditDate = auditDate
 

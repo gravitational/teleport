@@ -20,7 +20,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -46,7 +45,16 @@ func accessListNameIndexFn(al *accesslist.AccessList) string {
 }
 
 func accessListAuditNextDateIndexFn(al *accesslist.AccessList) string {
-	return fmt.Sprintf("%s/%s", al.Spec.Audit.NextAuditDate.Format(time.RFC3339), al.GetMetadata().Name)
+	if al.Spec.Audit.NextAuditDate.IsZero() {
+		// last lexical char make sure that if ACL don't have aduit date it will be at the end.
+		// Otherwise we will compare against `0001-01-01 00:00:00` which is the first element
+		// but means that the access list is not eligible for review.
+		return "z" + "/" + al.GetName()
+	}
+	fmt.Println("888")
+	fmt.Printf("%+v\n", al.Spec.Audit.NextAuditDate.Format("20060102")+"/"+al.GetName())
+	fmt.Println("888")
+	return al.Spec.Audit.NextAuditDate.Format("20060102") + "/" + al.GetName()
 }
 
 func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex], error) {
@@ -59,7 +67,8 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 			types.KindAccessList,
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
-				accessListNameIndex:          accessListNameIndexFn,
+				accessListNameIndex: accessListNameIndexFn,
+				// auditNextDate index is used in the web UI to sort by next audit date
 				accessListAuditNextDateIndex: accessListAuditNextDateIndexFn,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {

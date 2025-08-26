@@ -319,7 +319,7 @@ func MatchAccessList(al *accesslist.AccessList, search string) bool {
 	}
 
 	// Type-specific matches
-	if strings.Contains(al.Origin(), search) {
+	if strings.Contains(strings.ToLower(al.Origin()), search) {
 		return true
 	}
 
