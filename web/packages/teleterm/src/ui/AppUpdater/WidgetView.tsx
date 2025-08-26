@@ -38,6 +38,7 @@ import {
   AppUpdateEvent,
   AutoUpdatesStatus,
 } from 'teleterm/services/appUpdater';
+import { UnsupportedVersionError } from 'teleterm/services/appUpdater/errors';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
@@ -97,6 +98,13 @@ export function WidgetView({
         App updates are disabled
       </Alert>
     );
+  }
+
+  if (
+    updateEvent.kind === 'error' &&
+    updateEvent.error.name === UnsupportedVersionError.name
+  ) {
+    return;
   }
 
   // If an error occurred when there was no update info, return early.
