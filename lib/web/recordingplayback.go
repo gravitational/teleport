@@ -258,6 +258,8 @@ func (s *recordingPlayback) readLoop() {
 		case requestTypeFetch:
 			s.handleFetchRequest(req)
 		default:
+			s.sendError(trace.BadParameter("unknown request type: %d", req.requestType), req.requestID)
+
 			s.logger.ErrorContext(s.ctx, "received unknown request type", "session_id", s.sessionID, "type", req.requestType)
 		}
 	}
