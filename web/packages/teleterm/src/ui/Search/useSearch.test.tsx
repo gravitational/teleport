@@ -26,6 +26,7 @@ import {
   makeLeafCluster,
   makeRootCluster,
   makeServer,
+  rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { SearchResult } from 'teleterm/ui/services/resources';
@@ -39,6 +40,11 @@ beforeEach(() => {
   jest.restoreAllMocks();
 });
 
+const currentWorkspace = {
+  workspaceUri: rootClusterUri,
+  localClusterUri: rootClusterUri,
+};
+
 describe('rankResults', () => {
   it('uses the displayed resource name as the tie breaker if the scores are equal', () => {
     const server = makeResourceResult({
@@ -49,10 +55,10 @@ describe('rankResults', () => {
       kind: 'kube',
       resource: makeKube({ name: 'a' }),
     });
-    const sortedResults = rankResults([server, kube], '');
+    const sortedResults = rankResults([server, kube], '', currentWorkspace);
 
-    expect(sortedResults[0]).toEqual(kube);
-    expect(sortedResults[1]).toEqual(server);
+    expect(sortedResults[0].resource.uri).toEqual(kube.resource.uri);
+    expect(sortedResults[1].resource.uri).toEqual(server.resource.uri);
   });
 
   it('prefers accessible resources over requestable ones', () => {
@@ -74,7 +80,8 @@ describe('rankResults', () => {
     });
     const sortedResults = rankResults(
       [labelMatch, serverRequestable, serverAccessible],
-      'sales'
+      'sales',
+      currentWorkspace
     );
 
     expect(sortedResults[0].resource).toEqual(serverAccessible.resource);
@@ -90,7 +97,11 @@ describe('rankResults', () => {
       }),
     });
 
-    const { labelMatches } = rankResults([server], 'foo bar')[0];
+    const { labelMatches } = rankResults(
+      [server],
+      'foo bar',
+      currentWorkspace
+    )[0];
 
     labelMatches.forEach(match => {
       expect(match.score).toBeGreaterThan(0);
@@ -144,7 +155,7 @@ describe('rankResults', () => {
       })
     );
 
-    const sorted = rankResults(servers, 'bar');
+    const sorted = rankResults(servers, 'bar', currentWorkspace);
 
     expect(sorted).toHaveLength(10);
     // the item with the highest score is the first one
