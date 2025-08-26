@@ -182,7 +182,7 @@ func TestEncodeScreenEvent(t *testing.T) {
 	result := encodeScreenEvent(state, cols, rows, cursor)
 
 	require.Greater(t, len(result), requestHeaderSize)
-	require.Equal(t, eventTypeScreen, result[0])
+	require.Equal(t, byte(eventTypeScreen), result[0])
 	require.Equal(t, uint32(cols), binary.BigEndian.Uint32(result[1:5]))
 	require.Equal(t, uint32(rows), binary.BigEndian.Uint32(result[5:9]))
 	require.Equal(t, uint32(cursor.X), binary.BigEndian.Uint32(result[9:13]))
@@ -312,9 +312,9 @@ func TestFetchOverWebSocket(t *testing.T) {
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, print, stop")
 
-	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
-	require.Equal(t, eventTypeBatch, responses[1][0], "Second message should be batch event")
-	require.Equal(t, eventTypeStop, responses[2][0], "Third message should be stop event")
+	require.Equal(t, byte(eventTypeStart), responses[0][0], "First message should be start event")
+	require.Equal(t, byte(eventTypeBatch), responses[1][0], "Second message should be batch event")
+	require.Equal(t, byte(eventTypeStop), responses[2][0], "Third message should be stop event")
 
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "Hello, World!", "Print event should contain expected data")
 }
@@ -330,9 +330,9 @@ func TestErrorOverWebSocket(t *testing.T) {
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, error, stop")
 
-	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
-	require.Equal(t, eventTypeError, responses[1][0], "Second message should be error event")
-	require.Equal(t, eventTypeStop, responses[2][0], "Third message should be stop event")
+	require.Equal(t, byte(eventTypeStart), responses[0][0], "First message should be start event")
+	require.Equal(t, byte(eventTypeError), responses[1][0], "Second message should be error event")
+	require.Equal(t, byte(eventTypeStop), responses[2][0], "Third message should be stop event")
 
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "test error", "Error event should contain expected error message")
 }
@@ -408,14 +408,14 @@ func TestRequestScreen(t *testing.T) {
 
 	require.Len(t, responses, 4, "Should receive 4 messages: start, screen, batch, stop")
 
-	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
-	require.Equal(t, eventTypeScreen, responses[1][0], "Second message should be screen event")
+	require.Equal(t, byte(eventTypeStart), responses[0][0], "First message should be start event")
+	require.Equal(t, byte(eventTypeScreen), responses[1][0], "Second message should be screen event")
 
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "This is the second screen update", "Screen event should contain data from after the clear screen sequence")
 	require.NotContains(t, string(responses[1][responseHeaderSize:]), "Hello, World!", "Screen event should not contain data from before the clear screen sequence")
 
-	require.Equal(t, eventTypeBatch, responses[2][0], "Third message should be batch event")
-	require.Equal(t, eventTypeStop, responses[3][0], "Fourth message should be stop event")
+	require.Equal(t, byte(eventTypeBatch), responses[2][0], "Third message should be batch event")
+	require.Equal(t, byte(eventTypeStop), responses[3][0], "Fourth message should be stop event")
 }
 
 func TestResizeEvent(t *testing.T) {
@@ -454,16 +454,14 @@ func TestResizeEvent(t *testing.T) {
 
 	require.Len(t, responses, 4, "Should receive 4 messages: start, screen, batch, stop")
 
-	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
-	require.Equal(t, eventTypeScreen, responses[1][0], "Second message should be screen event")
+	require.Equal(t, byte(eventTypeStart), responses[0][0], "First message should be start event")
+	require.Equal(t, byte(eventTypeScreen), responses[1][0], "Second message should be screen event")
 
-	require.Equal(t, eventTypeScreen, responses[1][responseHeaderSize], byte(24), "Initial screen event should have 24 rows")
-	require.Equal(t, eventTypeScreen, responses[1][responseHeaderSize], byte(80), "Initial screen event should have 80 columns")
+	require.Contains(t, string(responses[1][responseHeaderSize:]), "[8;24;80t", "Initial screen event should have 24 rows and 80 columns")
 
 	responses = fetchAndCollectResponses(t, ws, 1000, 2000, true)
 
-	require.Equal(t, eventTypeScreen, responses[1][responseHeaderSize], byte(30), "Screen event after resize should have 30 rows")
-	require.Equal(t, eventTypeScreen, responses[1][responseHeaderSize], byte(100), "Screen event after resize should have 100 columns")
+	require.Contains(t, string(responses[1][responseHeaderSize:]), "[8;30;100", "Initial screen event should have 30 rows and 100 columns")
 }
 
 func TestBufferedEvents(t *testing.T) {
@@ -495,24 +493,24 @@ func TestBufferedEvents(t *testing.T) {
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, batch, stop")
 
-	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
-	require.Equal(t, eventTypeBatch, responses[1][0], "Second message should be batch event")
+	require.Equal(t, byte(eventTypeStart), responses[0][0], "First message should be start event")
+	require.Equal(t, byte(eventTypeBatch), responses[1][0], "Second message should be batch event")
 
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "Will only just make it into the first batch", "First batch should contain expected data")
 	require.NotContains(t, string(responses[1][responseHeaderSize:]), "Will be included in the second batch", "First batch should not contain data from the third print event")
 
-	require.Equal(t, eventTypeStop, responses[2][0], "Third message should be stop event")
+	require.Equal(t, byte(eventTypeStop), responses[2][0], "Third message should be stop event")
 
 	responses = fetchAndCollectResponses(t, ws, 1000, 2000, false)
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, batch, stop")
 
-	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
-	require.Equal(t, eventTypeBatch, responses[1][0], "Second message should be batch event")
+	require.Equal(t, byte(eventTypeStart), responses[0][0], "First message should be start event")
+	require.Equal(t, byte(eventTypeBatch), responses[1][0], "Second message should be batch event")
 
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "Will be included in the second batch", "Second batch should contain expected data")
 
-	require.Equal(t, eventTypeStop, responses[2][0], "Third message should be stop event")
+	require.Equal(t, byte(eventTypeStop), responses[2][0], "Third message should be stop event")
 }
 
 func TestBufferedEvents_LargeGap(t *testing.T) {
@@ -566,30 +564,30 @@ func TestBufferedEvents_LargeGap(t *testing.T) {
 
 	require.Len(t, responses, 3, "Should receive 3 messages: start, batch, stop")
 
-	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
-	require.Equal(t, eventTypeBatch, responses[1][0], "Second message should be batch event")
+	require.Equal(t, byte(eventTypeStart), responses[0][0], "First message should be start event")
+	require.Equal(t, byte(eventTypeBatch), responses[1][0], "Second message should be batch event")
 
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "a", "First batch should contain event with 'a' data")
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "b", "First batch should contain event with 'b' data")
 
-	require.Equal(t, eventTypeStop, responses[2][0], "Third message should be stop event")
+	require.Equal(t, byte(eventTypeStop), responses[2][0], "Third message should be stop event")
 
 	responses = fetchAndCollectResponses(t, ws, 9000, 10000, true)
 
 	require.Len(t, responses, 4, "Should receive 4 messages: start, screen, batch, stop")
 
-	require.Equal(t, eventTypeStart, responses[0][0], "First message should be start event")
-	require.Equal(t, eventTypeScreen, responses[1][0], "Second message should be screen event")
+	require.Equal(t, byte(eventTypeStart), responses[0][0], "First message should be start event")
+	require.Equal(t, byte(eventTypeScreen), responses[1][0], "Second message should be screen event")
 
 	require.Contains(t, string(responses[1][responseHeaderSize:]), "abcde", "Screen event should contain data from all previous events")
 	require.NotContains(t, string(responses[1][responseHeaderSize:]), "f", "Screen event should not contain data from the future events")
 
-	require.Equal(t, eventTypeBatch, responses[2][0], "Third message should be batch event")
+	require.Equal(t, byte(eventTypeBatch), responses[2][0], "Third message should be batch event")
 
 	require.Contains(t, string(responses[2][responseHeaderSize:]), "f", "Second batch should contain event with f data")
 	require.Contains(t, string(responses[2][responseHeaderSize:]), "g", "Second batch should contain event with g data")
 
-	require.Equal(t, eventTypeStop, responses[3][0], "Fourth message should be stop event")
+	require.Equal(t, byte(eventTypeStop), responses[3][0], "Fourth message should be stop event")
 }
 
 func createFetchRequest(start, end int64, requestID uint32, currentScreen bool) []byte {
