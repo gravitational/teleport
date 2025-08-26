@@ -20,6 +20,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -88,12 +89,16 @@ func (h *Handler) getSessionRecordingMetadata(
 
 	metadata, err := stream.Recv()
 	if err != nil {
-		if !trace.IsNotFound(err) {
+		if trace.IsNotFound(err) {
+			sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
+				Error: fmt.Sprintf("metadata for session %q not found", sessionID),
+			})
+		} else {
 			h.logger.ErrorContext(ctx, "failed to receive metadata", "session_id", sessionID, "error", err)
+			sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
+				Error: err.Error(),
+			})
 		}
-		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
-			Error: err.Error(),
-		})
 		return nil, nil
 	}
 
@@ -164,6 +169,9 @@ func (h *Handler) getSessionRecordingThumbnail(
 		SessionId: sessionId,
 	})
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("thumbnail not found for session %q", sessionId)
+		}
 		return nil, trace.Wrap(err)
 	}
 
