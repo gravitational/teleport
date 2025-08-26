@@ -52,7 +52,7 @@ const (
 
 type responseType byte
 
-// Response types send back to the client
+// Response types sent back to the client
 const (
 	// eventTypeStart indicates the start of a response of events
 	eventTypeStart responseType = 1
