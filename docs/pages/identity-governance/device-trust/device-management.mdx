@@ -144,9 +144,17 @@ integration, like the [Jamf Pro integration](./jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
 
 Enable auto-enrollment in your cluster settings. To do so, modify the dynamic
-config resource using the following command:
+config resource
 
-```code
+
+
+
+<Tabs>
+<TabItem label="Using the CLI">
+
+Using the following command:
+
+```shell
 $ tctl edit cluster_auth_preference
 ```
 
@@ -163,6 +171,23 @@ spec:
     mode: "required"
 +   auto_enroll: true
 ```
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+Because this is an enterprise feature, it is not included in the set of supported settings in our default helm chart.
+In order to enable it, you will need to add the following snippet to your helm values file under `auth.teleportconfig.auth_service`:
+```diff
+auth:
+  teleportConfig:
+    # ...
+    auth_service:
+      # ...
+      device_trust:
++       auto_enroll: true
+```
+</TabItem>
+</Tabs>
 
 Save and close your editor to apply your changes.
 
