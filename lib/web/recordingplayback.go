@@ -246,6 +246,7 @@ func (s *recordingPlayback) readLoop() {
 }
 
 // createTaskContext creates a new context for a task and cancels any previous task.
+// A task context is used to manage the lifecycle of a fetch request, ensuring that only one fetch request is active at a time.
 func (s *recordingPlayback) createTaskContext() context.Context {
 	s.mu.Lock()
 	defer s.mu.Unlock()
