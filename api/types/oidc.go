@@ -135,8 +135,8 @@ type OIDCConnector interface {
 	SetUserMatchers([]string)
 	// GetEntraIDGroupsProvider returns Entra ID groups provider.
 	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
-	// IsEntraIDGroupsProviderEnabled checks if Entra ID groups provider is enabled.
-	IsEntraIDGroupsProviderEnabled() bool
+	// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
+	IsEntraIDGroupsProviderDisabled() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -659,8 +659,10 @@ func (r *OIDCAuthRequest) Check() error {
 }
 
 func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
-	if !slices.Contains(entraIDGroupsTypes, e.GroupType) {
-		return trace.BadParameter("expected group type to be one of %q, got %q", entraIDGroupsTypes, e.GroupType)
+	if e.GroupType != "" {
+		if !slices.Contains(EntraIDGroupsTypes, e.GroupType) {
+			return trace.BadParameter("expected group type to be one of %q, got %q", EntraIDGroupsTypes, e.GroupType)
+		}
 	}
 
 	if err := ValidateMSGraphEndpoints("", e.GraphEndpoint); err != nil {
@@ -670,32 +672,13 @@ func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
 	return nil
 }
 
-// TODO(sshah): merge these constants with msgraph types.
-const (
-	// entraIDSecurityGroups represents security enabled Entra ID groups.
-	entraIDSecurityGroups = "security-groups"
-	// entraIDDirectoryRoles represents Entra ID directory roles.
-	entraIDDirectoryRoles = "directory-roles"
-	// entraIDAllGroups represents all types of Entra ID groups, including directory roles.
-	entraIDAllGroups = "all-groups"
-)
-
-// entraIDGroupsTypes defines supported Entra ID
-// group types for Entra ID groups proivder.
-// TODO(sshah): merge this with msgraph types.
-var entraIDGroupsTypes = []string{
-	entraIDSecurityGroups,
-	entraIDDirectoryRoles,
-	entraIDAllGroups,
-}
-
 // GetEntraIDGroupsProvider returns Entra ID groups provider.
 func (o *OIDCConnectorV3) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
 	return o.Spec.EntraIdGroupsProvider
 }
 
-// IsEntraIDGroupsProviderEnabled checks if Entra ID groups provider is enabled.
-func (o *OIDCConnectorV3) IsEntraIDGroupsProviderEnabled() bool {
+// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
+func (o *OIDCConnectorV3) IsEntraIDGroupsProviderDisabled() bool {
 	entra := o.Spec.EntraIdGroupsProvider
-	return entra != nil && entra.Enabled
+	return entra != nil && entra.ForceDisable
 }

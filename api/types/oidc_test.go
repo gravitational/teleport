@@ -49,9 +49,18 @@ func TestOIDCValidate(t *testing.T) {
 			errAssertion: require.NoError,
 		},
 		{
+			name: "disabled state should not skip invalid configuration",
+			entra: &EntraIDGroupsProvider{
+				ForceDisable:  true,
+				GroupType:     "all-groups",
+				GraphEndpoint: "https://example.com",
+			},
+			errAssertion: require.Error,
+		},
+		{
 			name: "valid",
 			entra: &EntraIDGroupsProvider{
-				Enabled:       true,
+				ForceDisable:  false,
 				GroupType:     "all-groups",
 				GraphEndpoint: "https://graph.microsoft.com",
 			},

@@ -5367,22 +5367,25 @@ message OIDCConnectorSpecV3 {
   // for authorization request parameters.
   string RequestObjectMode = 22 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
   // EntraIDGroupsProvider configures out-of-band user groups provider.
+  // It works by following through the groups claim source, which is sent for the "groups"
+  // claim when the user's group membership exceeds 200 max item limit.
   EntraIDGroupsProvider entra_id_groups_provider = 23;
 }
 
-// EntraIDGroupsProvider configures groups provider for Entra ID,
-// based on the Microsoft Graph API.
+// EntraIDGroupsProvider configures out-of-band user groups provider.
+// It works by following through the groups claim source, which is sent for
+// "groups" claim when the user's group membership exceeds 200 max item limit.
 message EntraIDGroupsProvider {
-  // Enabled specifies groups provider enabled/disabled state. Defaults to false.
-  // If enabled, groups provider should honour groups claim source.
+  // ForceDisable specifies groups provider should be disabled, even if
+  // Entra ID responds with a groups claim source.
   // User may choose to disable it if they are using
   // integrations such as SCIM or similar groups importer as
   // connector based role mapping may be not needed in such a scenario.
-  bool enabled = 1;
-  // GroupType configures group filter behavior.
+  bool force_disable = 1;
+  // GroupType is a user group type filter. Defaults to "security-groups".
   // Value can be "security-groups", "directory-roles", "all-groups".
   string group_type = 2;
-  // Optional Microsoft Graph API endpoint. Defaults to "graph.microsoft.com".
+  // Microsoft Graph API endpoint. Defaults to "https://graph.microsoft.com".
   string graph_endpoint = 3;
 }
 
