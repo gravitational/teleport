@@ -957,7 +957,6 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 		}, nil
 	})
 
-
 	_, err = authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
