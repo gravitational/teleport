@@ -787,6 +787,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 		desc          string
 		kubeUsers     []string
 		kubeGroups    []string
+		username      string
 		remoteCluster bool
 		isProxy       bool
 		inHeaders     http.Header
@@ -931,6 +932,32 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
+		{
+			desc:       "kubernetes_users wildcard, no impersonation headers",
+			username:   "ted-lasso",
+			kubeUsers:  []string{"*"},
+			kubeGroups: []string{"kube-group-a"},
+			inHeaders:  http.Header{},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader: []string{"ted-lasso"},
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			desc:       "kubernetes_users wildcard, impersonation headers given",
+			username:   "ted-lasso",
+			kubeUsers:  []string{"*"},
+			kubeGroups: []string{"kube-group-a"},
+			inHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			errAssertion: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -942,6 +969,11 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				&clusterSession{
 					kubeAPICreds: kubeCreds,
 					authContext: authContext{
+						Context: authz.Context{
+							User: &types.UserV2{
+								Metadata: types.Metadata{Name: tt.username},
+							},
+						},
 						kubeUsers:       set.New(tt.kubeUsers...),
 						kubeGroups:      set.New(tt.kubeGroups...),
 						teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
