@@ -84,7 +84,7 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 		return nil, trace.BadParameter("streamer is required")
 	}
 	if cfg.UploadHandler == nil {
-		return nil, trace.BadParameter("uploadHandler is required")
+		return nil, trace.BadParameter("downloadHandler is required")
 	}
 
 	return &RecordingMetadataService{

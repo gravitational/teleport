@@ -5953,8 +5953,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			cfg.AuthServer,
 			cfg.Authorizer,
 		),
-		Streamer:      cfg.AuthServer,
-		UploadHandler: cfg.AuthServer,
+		Streamer:        cfg.AuthServer,
+		DownloadHandler: cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating recording metadata service")
