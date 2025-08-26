@@ -25,7 +25,7 @@ import * as Icons from 'design/Icon';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
 import { SortMenu } from 'shared/components/Controls/SortMenu';
 
-import { type IntegrationTag } from 'teleport/Integrations/Enroll/IntegrationTiles/integrations';
+import { type IntegrationTag } from './common';
 
 export function FilterPanel({ integrationTagOptions, params, setParams }) {
   const { sort, kinds } = params;

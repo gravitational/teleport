@@ -28,7 +28,7 @@ import {
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { IntegrationIcon, IntegrationTile, Tile } from '../common';
+import { IntegrationIcon, IntegrationTile } from '../common';
 import { installableIntegrations, IntegrationTileSpec } from './integrations';
 
 export function IntegrationTiles({
@@ -39,7 +39,7 @@ export function IntegrationTiles({
   hasExternalAuditStorage?: boolean;
 }) {
   return installableIntegrations().map(i => (
-    <IntegrationCardWithSpec
+    <IntegrationTileWithSpec
       key={i.kind}
       spec={i}
       hasIntegrationAccess={hasIntegrationAccess}
@@ -95,57 +95,7 @@ export function IntegrationTileWithSpec({
   );
 }
 
-export function IntegrationCardWithSpec({
-  spec,
-  hasIntegrationAccess = true,
-  hasExternalAuditStorage = true,
-}: {
-  spec: IntegrationTileSpec;
-  hasIntegrationAccess?: boolean;
-  hasExternalAuditStorage?: boolean;
-}) {
-  const link = hasExternalAuditStorage
-    ? { external: false, url: cfg.getIntegrationEnrollRoute(spec.kind) }
-    : null;
-
-  let renderBadge = null;
-  const dataTestID = `tile-${spec.kind}`;
-
-  if (spec.kind === IntegrationKind.ExternalAuditStorage) {
-    const externalAuditStorageEnabled =
-      cfg.entitlements.ExternalAuditStorage.enabled;
-
-    hasIntegrationAccess =
-      (hasIntegrationAccess && hasExternalAuditStorage) ||
-      externalAuditStorageEnabled;
-
-    renderBadge = () => {
-      return renderExternalAuditStorageBadge(
-        hasExternalAuditStorage,
-        externalAuditStorageEnabled
-      );
-    };
-  } else if (!hasIntegrationAccess) {
-    renderBadge = () => {
-      return <GenericNoPermBadge noAccess={!hasIntegrationAccess} />;
-    };
-  }
-
-  return (
-    <Tile
-      title={spec.name}
-      hasAccess={hasIntegrationAccess}
-      link={link}
-      tags={spec.tags}
-      icon={spec.icon}
-      description={spec.description}
-      renderBadge={renderBadge}
-      data-testid={dataTestID}
-    />
-  );
-}
-
-function renderExternalAuditStorageBadge(
+export function renderExternalAuditStorageBadge(
   hasExternalAuditStorageAccess: boolean,
   isEnterprise: boolean
 ) {
@@ -164,7 +114,7 @@ function renderExternalAuditStorageBadge(
   ) : undefined;
 }
 
-function GenericNoPermBadge({
+export function GenericNoPermBadge({
   noAccess,
   kind = 'integration',
 }: {

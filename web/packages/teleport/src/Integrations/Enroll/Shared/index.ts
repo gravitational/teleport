@@ -16,5 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { FilterPanel } from './FilterPanel';
-export * from './common';
+export { IntegrationPicker, titleOrName } from './IntegrationPicker';
+export {
+  type IntegrationTag,
+  type BaseIntegration,
+  isIntegrationTag,
+  integrationTagOptions,
+} from './common';
+export { Tile, IntegrationTileWithSpec } from './Tile';
