@@ -211,7 +211,9 @@ func (s *recordingPlayback) cleanup() {
 // readLoop reads messages from the websocket connection and processes them.
 func (s *recordingPlayback) readLoop() {
 	for {
+		s.websocket.Lock()
 		msgType, data, err := s.websocket.ReadMessage()
+		s.websocket.Unlock()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 				// Expected closure, don't log as error
