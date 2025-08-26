@@ -590,6 +590,132 @@ func TestBufferedEvents_LargeGap(t *testing.T) {
 	require.Equal(t, byte(eventTypeStop), responses[3][0], "Fourth message should be stop event")
 }
 
+func TestUnsupportedRequest(t *testing.T) {
+	mockClient := newMockStreamClient()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{}
+		ws, _ := upgrader.Upgrade(w, r, nil)
+		defer ws.Close()
+
+		ctx := context.Background()
+		logger := slog.Default()
+
+		playback := newRecordingPlayback(ctx, ws, mockClient, "test-session", logger)
+		playback.run()
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	if resp != nil {
+		resp.Body.Close()
+	}
+	defer ws.Close()
+
+	// Send a request with an invalid request type
+	req := make([]byte, requestHeaderSize)
+	req[0] = 99 // invalid request type
+
+	err = ws.WriteMessage(websocket.BinaryMessage, req)
+	require.NoError(t, err)
+
+	ws.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	_, data, err := ws.ReadMessage()
+
+	// Should receive a message with the type set to eventTypeError
+	require.NoError(t, err)
+	require.Equal(t, byte(eventTypeError), data[0], "Response should be an error event")
+	require.Contains(t, string(data[responseHeaderSize:]), "unknown request type", "Error message should indicate unsupported request type")
+
+	deadline := time.Now().Add(time.Second)
+	ws.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+		deadline)
+}
+
+func TestNonBinaryMessageClosesWebSocket(t *testing.T) {
+	mockClient := newMockStreamClient()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{}
+		ws, _ := upgrader.Upgrade(w, r, nil)
+		defer ws.Close()
+
+		ctx := context.Background()
+		logger := slog.Default()
+
+		playback := newRecordingPlayback(ctx, ws, mockClient, "test-session", logger)
+		playback.run()
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	if resp != nil {
+		resp.Body.Close()
+	}
+	defer ws.Close()
+
+	// Send a text message (non-binary) - this should trigger the close handshake
+	err = ws.WriteMessage(websocket.TextMessage, []byte("this is a text message"))
+	require.NoError(t, err)
+
+	ws.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	// The server should send a close message with CloseUnsupportedData
+	_, _, err = ws.ReadMessage()
+	require.Error(t, err)
+
+	var closeErr *websocket.CloseError
+
+	require.ErrorAs(t, err, &closeErr, "Expected a websocket.CloseError, got %T: %v", err, err)
+	require.Equal(t, websocket.CloseUnsupportedData, closeErr.Code, "Expected CloseUnsupportedData (1003), got %d", closeErr.Code)
+	require.Contains(t, closeErr.Text, "only binary messages are supported", "Close message should explain that only binary messages are supported")
+
+	err = ws.WriteMessage(websocket.BinaryMessage, createFetchRequest(0, 1000, 1, false))
+
+	require.Error(t, err, "Should not be able to send messages after close handshake")
+}
+
+func TestGracefulWebSocketClose(t *testing.T) {
+	// Test the gracefulWebSocketClose function directly
+	mockClient := newMockStreamClient()
+	defer mockClient.close()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{}
+		ws, _ := upgrader.Upgrade(w, r, nil)
+
+		gracefulWebSocketClose(ws, 2*time.Second)
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	if resp != nil {
+		resp.Body.Close()
+	}
+	defer ws.Close()
+
+	ws.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	// The server should send a close message
+	_, _, err = ws.ReadMessage()
+
+	require.Error(t, err)
+
+	// Check if it's a close error with normal closure
+	var closeErr *websocket.CloseError
+
+	require.ErrorAs(t, err, &closeErr, "Expected a websocket.CloseError, got %T: %v", err, err)
+	require.Equal(t, websocket.CloseNormalClosure, closeErr.Code, "Expected CloseNormalClosure (1000), got %d", closeErr.Code)
+}
+
 func createFetchRequest(start, end int64, requestID uint32, currentScreen bool) []byte {
 	buf := make([]byte, requestHeaderSize)
 
