@@ -234,7 +234,14 @@ func (s *recordingPlayback) cleanup() {
 	// Wait for peer's close frame response (or timeout)
 	deadline := time.Now().Add(websocketCloseTimeout)
 	_ = s.ws.SetReadDeadline(deadline)
-	_, _, _ = s.ws.ReadMessage()
+	msgType, _, _ := s.ws.ReadMessage()
+
+	// Log if we got something other than a close acknowledgement
+	if msgType != -1 {
+		s.logger.DebugContext(s.ctx, "received non-close message while waiting for close acknowledgement",
+			"session_id", s.sessionID,
+			"message_type", msgType)
+	}
 
 	// Finally close the underlying connection
 	s.ws.Close()
