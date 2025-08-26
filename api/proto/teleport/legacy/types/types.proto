@@ -2485,9 +2485,9 @@ message ManualKeyManagementConfig {
   // Enabled controls whether or recording encryption keys should be managed externally.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // ActiveKeys describe which keys should be queried for active recording encryption and replay.
-  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_key,omitempty"];
+  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_keys,omitempty"];
   // RotatedKeys describe which keys should be queried for historical replay.
-  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_key,omitempty"];
+  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_keys,omitempty"];
 }
 
 // SessionRecordingEncryptionConfig configures if and how session recordings

@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -92,6 +93,7 @@ type VersionStorage interface {
 type RecordingEncryptionManager interface {
 	services.RecordingEncryption
 	recordingencryption.KeyUnwrapper
+	recordingencryptionv1.KeyRotater
 	SetCache(cache recordingencryption.Cache)
 }
 

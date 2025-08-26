@@ -2200,9 +2200,10 @@ func (process *TeleportProcess) initAuthService() error {
 				LockNameComponents: []string{"recording_encryption"},
 			},
 		},
+		InitialSessionRecordingConfig: cfg.Auth.SessionRecordingConfig,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "initializing session recording encryption")
 	}
 
 	clusterConfig = recordingEncryptionManager
