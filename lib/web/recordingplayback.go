@@ -300,14 +300,9 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 	ctx := s.createTaskContext()
 
 	s.stream.Lock()
-	needNewStream := false
 
-	if s.stream.eventsChan == nil {
-		needNewStream = true
-	} else if req.startOffset < s.stream.lastEndTime {
-		// start the stream over if we need to go back in time
-		needNewStream = true
-	}
+	// start the stream if it doesn't exist or if we need to go back in time
+	needNewStream := s.stream.eventsChan == nil || req.startOffset < s.stream.lastEndTime
 
 	if needNewStream {
 		events, errors := s.clt.StreamSessionEvents(
