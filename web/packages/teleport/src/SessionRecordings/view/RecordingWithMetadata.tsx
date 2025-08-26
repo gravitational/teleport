@@ -4,12 +4,7 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
-import {
-  ArrowLineLeft,
-  ChevronLeft,
-  DotsThreeMoreVertical,
-  Terminal,
-} from 'design/Icon';
+import { ArrowLineLeft, ChevronLeft, MoreVert, Terminal } from 'design/Icon';
 import { H3 } from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -204,7 +199,7 @@ export function RecordingWithMetadata({
       ) : (
         <HoverTooltip tipContent="Show Sidebar" placement="right">
           <ShowSidebarButton onClick={toggleSidebar}>
-            <DotsThreeMoreVertical size="large" />
+            <MoreVert size="large" />
           </ShowSidebarButton>
         </HoverTooltip>
       )}
