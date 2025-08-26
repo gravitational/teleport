@@ -244,8 +244,12 @@ func (s *recordingPlayback) readLoop() {
 		}
 
 		if msgType != websocket.BinaryMessage {
-			s.logger.DebugContext(s.ctx, "ignoring non-binary websocket message", "session_id", s.sessionID, "type", msgType)
-			continue
+			s.logger.ErrorContext(s.ctx, "ignoring non-binary websocket message", "session_id", s.sessionID, "type", msgType)
+
+			if err := s.ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "only binary messages are supported")); err != nil {
+				s.logWebsocketError(err)
+				return
+			}
 		}
 
 		req, err := decodeBinaryRequest(data)
