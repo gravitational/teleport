@@ -340,9 +340,9 @@ func (c *LDAPClient) Update(dn string, replaceAttrs map[string][]string) error {
 	return nil
 }
 
-// CombineLDAPFilters joins the slice of filters
-func CombineLDAPFilters(filters []string) string {
-	return "(&" + strings.Join(filters, "") + ")"
+// CombineLDAPFilters joins the slice of filters using given operator (e.g. &,|)
+func CombineLDAPFilters(operator string, filters []string) string {
+	return "(" + operator + strings.Join(filters, "") + ")"
 }
 
 func crlContainerDN(domain string, caType types.CertAuthType) string {

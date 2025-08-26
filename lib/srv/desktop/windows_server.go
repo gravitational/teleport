@@ -1274,21 +1274,26 @@ func timer() func() int64 {
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
 	if !desktop.NonAD() {
-		domainDN := windows.DomainDN(s.cfg.LDAPConfig.Domain)
+		domain := s.cfg.LDAPConfig.Domain
 		username := username
 		if strings.Contains(username, "@") {
 			parts := strings.SplitN(username, "@", 2)
 			username = parts[0]
-			domainDN = windows.DomainDN(parts[1])
+			domain = parts[1]
 		}
 
 		// Find the user's SID
-		filter := windows.CombineLDAPFilters([]string{
+		filter := windows.CombineLDAPFilters("&", []string{
 			fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
-			fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
+			windows.CombineLDAPFilters("|", []string{
+				//sAMAAccountName is limited to 20 characters by AD
+				fmt.Sprintf("(%s=%s)", attrSAMAccountName, username[:20]),
+				fmt.Sprintf("(%s=%s)", attrUserPrincipalName, username+"@"+domain),
+			}),
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
 
+		domainDN := windows.DomainDN(domain)
 		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid, windows.AttrDistinguishedName})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
@@ -1300,21 +1305,21 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
-			
+
 		} else {
 			if len(entries) == 0 {
 				return nil, nil, trace.NotFound("could not find Windows account %q", username)
 			} else if len(entries) > 1 {
 				s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
 			}
-			activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
 			if dn, err := windows.DistinguishedNameFromLDAPEntry(entries[0]); err == nil {
 				s.cfg.Logger.DebugContext(ctx, "found DN", "DN", dn)
 			} else {
 				s.cfg.Logger.DebugContext(ctx, "DN not found", "err", err)
+			}
+			activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
 			}
 			s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
 		}

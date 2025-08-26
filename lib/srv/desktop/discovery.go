@@ -68,6 +68,9 @@ const (
 	// attrSAMAccountName is the SAM Account name of an LDAP object.
 	attrSAMAccountName = "sAMAccountName"
 
+	// attrUserPrincipalName is the User Principal Name of an LDAP object.
+	attrUserPrincipalName = "userPrincipalName"
+
 	// attrSAMAccountType is the SAM Account type for an LDAP object.
 	attrSAMAccountType = "sAMAccountType"
 )
@@ -145,7 +148,7 @@ func (s *WindowsService) ldapSearchFilter() string {
 	filters = append(filters, fmt.Sprintf("(!(%s=%s))", windows.AttrObjectClass, ClassGMSA))
 	filters = append(filters, s.cfg.DiscoveryLDAPFilters...)
 
-	return windows.CombineLDAPFilters(filters)
+	return windows.CombineLDAPFilters("&", filters)
 }
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
