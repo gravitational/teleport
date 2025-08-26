@@ -147,7 +147,7 @@ func (h *Handler) recordingPlaybackWs(
 ) (interface{}, error) {
 	sessionID := p.ByName("session_id")
 	if sessionID == "" {
-		h.handleWebsocketError(r.Context(), ws, sessionID, h.logger, trace.BadParameter("missing session ID in request URL"))
+		h.closeWebsocketWithError(r.Context(), ws, sessionID, trace.BadParameter("missing session ID in request URL"))
 
 		return nil, nil
 	}
@@ -155,7 +155,7 @@ func (h *Handler) recordingPlaybackWs(
 	ctx := r.Context()
 	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
-		h.handleWebsocketError(ctx, ws, sessionID, h.logger, trace.Wrap(err, "failed to get user client"))
+		h.closeWebsocketWithError(ctx, ws, sessionID, trace.Wrap(err, "failed to get user client"))
 
 		return nil, nil
 	}
@@ -167,7 +167,7 @@ func (h *Handler) recordingPlaybackWs(
 	return nil, nil
 }
 
-func (h *Handler) handleWebsocketError(ctx context.Context, ws *websocket.Conn, sessionID string, logger *slog.Logger, err error) {
+func (h *Handler) closeWebsocketWithError(ctx context.Context, ws *websocket.Conn, sessionID string, err error) {
 	data := []byte(err.Error())
 
 	totalSize := responseHeaderSize + len(data)
@@ -179,7 +179,25 @@ func (h *Handler) handleWebsocketError(ctx context.Context, ws *websocket.Conn, 
 		h.logger.ErrorContext(ctx, "failed to send event", "session_id", sessionID, "error", err)
 	}
 
-	gracefulWebSocketClose(ws, websocketCloseTimeout)
+	deadline := time.Now().Add(websocketCloseTimeout)
+
+	// Send close frame to initiate graceful shutdown
+	_ = ws.SetWriteDeadline(deadline)
+	_ = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+
+	// Wait for peer's close frame response (or timeout)
+	_ = ws.SetReadDeadline(deadline)
+	msgType, _, _ := ws.ReadMessage()
+
+	// Log if we got something other than a close acknowledgement
+	if msgType != -1 {
+		h.logger.DebugContext(ctx, "received non-close message while waiting for close acknowledgement",
+			"session_id", sessionID,
+			"message_type", msgType)
+	}
+
+	// Finally close the underlying connection
+	ws.Close()
 }
 
 // newRecordingPlayback creates a new session recording playback handler.
@@ -747,31 +765,13 @@ func getEventTime(evt apievents.AuditEvent) time.Duration {
 	}
 }
 
-// gracefulWebSocketClose performs the proper WebSocket close handshake (RFC 6455).
-// This ensures all frames are delivered before connection termination and prevents data
-// loss in fast WebSocket connections.
-func gracefulWebSocketClose(ws *websocket.Conn, timeout time.Duration) {
-	deadline := time.Now().Add(timeout)
-
-	// Send close frame to initiate graceful shutdown
-	_ = ws.SetWriteDeadline(deadline)
-	_ = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-
-	// Wait for peer's close frame response (or timeout)
-	_ = ws.SetReadDeadline(deadline)
-	_, _, _ = ws.ReadMessage()
-
-	// Finally close the underlying connection
-	ws.Close()
-}
-
 // validateRequest validates the fetch request parameters.
 func validateRequest(req *fetchRequest) error {
 	if req.startOffset < 0 || req.endOffset < 0 || req.endOffset < req.startOffset {
 		return fmt.Errorf("invalid time range (%v, %v)", req.startOffset, req.endOffset)
 	}
 
-	if req.endOffset - req.startOffset > maxRequestRange {
+	if req.endOffset-req.startOffset > maxRequestRange {
 		return trace.LimitExceeded("time range too large, max is %s", maxRequestRange)
 	}
 

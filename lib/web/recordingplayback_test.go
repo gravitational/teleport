@@ -681,38 +681,6 @@ func TestNonBinaryMessageClosesWebSocket(t *testing.T) {
 	require.Error(t, err, "Should not be able to send messages after close handshake")
 }
 
-func TestGracefulWebSocketClose(t *testing.T) {
-	// Test the gracefulWebSocketClose function directly
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		upgrader := websocket.Upgrader{}
-		ws, _ := upgrader.Upgrade(w, r, nil)
-
-		gracefulWebSocketClose(ws, 2*time.Second)
-	}))
-	defer server.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	require.NoError(t, err)
-	if resp != nil {
-		resp.Body.Close()
-	}
-	defer ws.Close()
-
-	ws.SetReadDeadline(time.Now().Add(5 * time.Second))
-
-	// The server should send a close message
-	_, _, err = ws.ReadMessage()
-
-	require.Error(t, err)
-
-	// Check if it's a close error with normal closure
-	var closeErr *websocket.CloseError
-
-	require.ErrorAs(t, err, &closeErr, "Expected a websocket.CloseError, got %T: %v", err, err)
-	require.Equal(t, websocket.CloseNormalClosure, closeErr.Code, "Expected CloseNormalClosure (1000), got %d", closeErr.Code)
-}
-
 func createFetchRequest(start, end int64, requestID uint32, currentScreen bool) []byte {
 	buf := make([]byte, requestHeaderSize)
 
