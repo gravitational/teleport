@@ -32,12 +32,14 @@ import (
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 type testPack struct {
@@ -494,12 +496,21 @@ func TestGetCertAuthority(t *testing.T) {
 			},
 			assertion: func(t *testing.T, authority types.CertAuthority, err error) {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(authority, ca,
+
+				// SSHKeyPair has an Equal() method, so we can't use cmpopts.IgnoreField
+				// to suppress checking the PrivateKey field. Instead, we craft a comparison
+				// target by copying the target CA and deleting the SSHKeyPair.PrivateKey
+				// field values
+				caWithoutSecrets := utils.CloneProtoMsg(ca.(*types.CertAuthorityV2))
+				for _, sshKeyPair := range caWithoutSecrets.Spec.ActiveKeys.SSH {
+					sshKeyPair.PrivateKey = nil
+				}
+				require.Empty(t, cmp.Diff(authority, caWithoutSecrets,
 					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-					cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
 					cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
 					cmpopts.IgnoreFields(types.JWTKeyPair{}, "PrivateKey"),
 				))
+
 				keys := authority.GetActiveKeys()
 				require.Nil(t, keys.TLS[0].Key)
 				require.Nil(t, keys.SSH[0].PrivateKey)
@@ -587,9 +598,20 @@ func TestGetCertAuthorities(t *testing.T) {
 			},
 			assertion: func(t *testing.T, resp *trustpb.GetCertAuthoritiesResponse, err error) {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(expectedCAs, resp.CertAuthoritiesV2,
+
+				// SSHKeyPair has an Equal() method, so we can't use cmpopts.IgnoreField
+				// to suppress checking the PrivateKey field. Instead, we craft a comparison
+				// target by copying the target CAs and deleting the SSHKeyPair.PrivateKey
+				// field values
+				expectedWithoutSecrets := slices.Map(expectedCAs, utils.CloneProtoMsg)
+				for _, ca := range expectedWithoutSecrets {
+					for _, sshKeyPair := range ca.Spec.ActiveKeys.SSH {
+						sshKeyPair.PrivateKey = nil
+					}
+				}
+
+				require.Empty(t, cmp.Diff(expectedWithoutSecrets, resp.CertAuthoritiesV2,
 					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-					cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
 					cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
 					cmpopts.IgnoreFields(types.JWTKeyPair{}, "PrivateKey"),
 				))
