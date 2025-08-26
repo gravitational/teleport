@@ -274,18 +274,18 @@ func TestCreateTaskContext(t *testing.T) {
 	taskCtx2 := s.createTaskContext()
 	require.NotNil(t, taskCtx2)
 
-	// First task should be cancelled
+	// First task should be canceled
 	select {
 	case <-taskCtx1.Done():
 		// Expected
 	case <-time.After(100 * time.Millisecond):
-		t.Fatal("First task context should be cancelled")
+		t.Fatal("First task context should be canceled")
 	}
 
 	// Second task should still be active
 	select {
 	case <-taskCtx2.Done():
-		t.Fatal("Second task context should not be cancelled yet")
+		t.Fatal("Second task context should not be canceled yet")
 	default:
 		// Expected
 	}
