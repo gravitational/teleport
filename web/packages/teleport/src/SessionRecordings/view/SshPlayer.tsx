@@ -74,7 +74,7 @@ export default function Player({
 
   return (
     <StyledPlayer>
-      <Flex height="calc(100% - 56px)" flexDirection="column" px={2}>
+      <Flex height="calc(100% - 56px)" flexDirection="column" px={2} py={1}>
         <Xterm tty={tty} />
       </Flex>
       <ProgressBar
