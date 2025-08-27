@@ -410,6 +410,32 @@ func TestGenerateLongTermResourceGrouping(t *testing.T) {
 			expectedCanProceed: false,
 			expectedMessage:    "Long-term access is not available for resources in different clusters",
 		},
+		{
+			name: "incompatible resource kinds",
+			currentResources: []testNodeDesc{
+				{name: "node1", labels: map[string]string{"type": "asdf"}},
+			},
+			currentRoles: []testRoleDesc{
+				{name: "node-access", allow: types.RoleConditions{NodeLabels: types.Labels{"type": []string{"asdf"}}}},
+			},
+			currentUsers: []testUserDesc{
+				{name: "user1", roles: []string{}},
+			},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:         "node-list",
+					owners:       []string{"admin"},
+					grantedRoles: []string{"node-access"},
+				},
+			},
+			requestedIDs: []types.ResourceID{
+				{ClusterName: testClusterName, Kind: types.KindWindowsDesktop, Name: "desktop1"},
+				{ClusterName: testClusterName, Kind: types.KindNode, Name: "node1"},
+				{ClusterName: testClusterName, Kind: types.KindNamespace, Name: "ns1"},
+			},
+			expectedCanProceed: false,
+			expectedMessage:    "Long-term access is not available for some selected resources",
+		},
 	}
 
 	for _, tc := range testCases {

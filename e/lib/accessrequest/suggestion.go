@@ -38,21 +38,35 @@ type AccessListLister interface {
 // and returns information about optimal groupings for long-term access. This helps users
 // understand which resources can be requested together for long-term access.
 func GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessResourcesGetter, request types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	resourceIDs := request.GetRequestedResourceIDs()
-	if len(resourceIDs) == 0 {
-		return nil, trace.BadParameter("no resources provided for long-term access suggestion")
-	}
-
-	requester, err := clt.GetUser(ctx, request.GetUser(), false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var resourceIDs []types.ResourceID
 
 	suggestion := &types.LongTermResourceGrouping{
 		AccessListToResources: make(map[string]types.ResourceIDList),
 		RecommendedAccessList: "",
 		CanProceed:            true,
 		ValidationMessage:     "",
+	}
+
+	// Filter out any 'namespace' or 'windows_desktop' resource IDs, they are not supported.
+	// TODO(kiosion): These should be supported by `ListResources`, see #58184
+	for _, rid := range request.GetRequestedResourceIDs() {
+		switch rid.Kind {
+		case types.KindWindowsDesktop, types.KindNamespace:
+			continue
+		default:
+			resourceIDs = append(resourceIDs, rid)
+		}
+	}
+
+	if len(resourceIDs) == 0 {
+		suggestion.CanProceed = false
+		suggestion.ValidationMessage = "No resources are available for long-term access"
+		return suggestion, nil
+	}
+
+	requester, err := clt.GetUser(ctx, request.GetUser(), false /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// We don't allow long-term requests where the resources are in different clusters.
@@ -123,14 +137,14 @@ func GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessRes
 	}
 
 	// If any resources are uncovered
-	if uncovered := findUncoveredResources(resourceIDs, accessListToResources); len(uncovered) > 0 {
+	if uncovered := findUncoveredResources(request, accessListToResources); len(uncovered) > 0 {
 		suggestion.CanProceed = false
 		suggestion.ValidationMessage = "Long-term access is not available for some selected resources"
 		return suggestion, nil
 	}
 
 	// If any resources are somehow covered, but not by the recommended list's grouping
-	if conflicting := findConflictingResources(resourceIDs, accessListToResources, recommendedList); len(conflicting) > 0 {
+	if conflicting := findConflictingResources(request, accessListToResources, recommendedList); len(conflicting) > 0 {
 		suggestion.CanProceed = false
 		suggestion.ValidationMessage = "Selected resources cannot be grouped for long-term access"
 	}
@@ -139,12 +153,12 @@ func GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessRes
 }
 
 // findConflictingResources checks which resources are not covered by the recommended access list's resource grouping.
-func findConflictingResources(resourceIDs []types.ResourceID, accessListToResources map[string]types.ResourceIDList, recommendedList string) (conflicting []types.ResourceID) {
+func findConflictingResources(request types.AccessRequest, accessListToResources map[string]types.ResourceIDList, recommendedList string) (conflicting []types.ResourceID) {
 	if len(accessListToResources) == 0 {
 		return conflicting
 	}
 	optimalSet := buildResourceIDSet(accessListToResources[recommendedList].ResourceIds)
-	for _, r := range resourceIDs {
+	for _, r := range request.GetRequestedResourceIDs() {
 		if _, ok := optimalSet[types.ResourceIDToString(r)]; !ok {
 			conflicting = append(conflicting, r)
 		}
@@ -152,19 +166,31 @@ func findConflictingResources(resourceIDs []types.ResourceID, accessListToResour
 	return conflicting
 }
 
-// findUncoveredResources checks which resources are not covered by any access list in the grouping.
-func findUncoveredResources(resourceIDs []types.ResourceID, accessListToResources map[string]types.ResourceIDList) (uncovered []types.ResourceID) {
-	if len(accessListToResources) == 0 {
-		return resourceIDs
+// findUncoveredResources returns requested resources that aren't covered by any access list.
+func findUncoveredResources(
+	request types.AccessRequest,
+	accessListToResources map[string]types.ResourceIDList,
+) (uncovered []types.ResourceID) {
+	capCovered := 0
+	for _, rs := range accessListToResources {
+		capCovered += len(rs.ResourceIds)
 	}
-	coveredSet := make(map[string]struct{})
-	for _, resources := range accessListToResources {
-		for _, r := range resources.ResourceIds {
-			coveredSet[types.ResourceIDToString(r)] = struct{}{}
+	covered := make(map[string]struct{}, capCovered)
+	for _, rs := range accessListToResources {
+		for _, r := range rs.ResourceIds {
+			covered[types.ResourceIDToString(r)] = struct{}{}
 		}
 	}
-	for _, r := range resourceIDs {
-		if _, ok := coveredSet[types.ResourceIDToString(r)]; !ok {
+
+	req := request.GetRequestedResourceIDs()
+	seen := make(map[string]struct{}, len(req))
+	for _, r := range req {
+		k := types.ResourceIDToString(r)
+		if _, dup := seen[k]; dup {
+			continue
+		}
+		seen[k] = struct{}{}
+		if _, ok := covered[k]; !ok {
 			uncovered = append(uncovered, r)
 		}
 	}
