@@ -10,7 +10,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
@@ -57,7 +57,7 @@ func CreateAWSConfigForIntegration(ctx context.Context, config credprovider.Conf
 
 // ValidateAWSRegion checks if the given region is a valid AWS region
 func ValidateAWSRegion(region string) error {
-	if !awsutils.IsKnownRegion(region) {
+	if !awsregion.IsKnownRegion(region) {
 		return trace.BadParameter("region %q is invalid", region)
 	}
 	return nil
