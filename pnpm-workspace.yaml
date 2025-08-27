@@ -32,3 +32,6 @@ shellEmulator: true
 # affect performance outside of docker.
 # https://github.com/gravitational/teleport/issues/46019
 packageImportMethod: clone-or-copy
+patchedDependencies:
+  # Needed for roundRect support which was merged to jest-canvas-mock but not released.
+  jest-canvas-mock@2.5.2: web/patches/jest-canvas-mock@2.5.2.patch
