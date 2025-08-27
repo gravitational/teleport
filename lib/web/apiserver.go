@@ -814,7 +814,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewWebSession))
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
+	// TODO(rudream): DELETE IN V21.0.0
+	// MUST delete with related code found in web/packages/teleport/src/services/user/user.ts(fetchUsers)
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
+	// The v2 version of this endpoint is paginated.
+	h.GET("/v2/webapi/users", h.WithAuth(h.listUsersHandle))
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	// We have an overlap route here, please see godoc of handleGetUserOrResetToken
