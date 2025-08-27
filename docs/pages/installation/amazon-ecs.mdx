@@ -8,11 +8,17 @@ labels:
 
 Using Amazon ECS and Terraform allows you to easily deploy and manage Teleport Agents that are closer to your AWS resources.
 
-This flow is ideal when you want to auto discover and secure access to your EKS clusters, RDS databases or other supported AWS resources.
+This flow is ideal when you want to automatically discover and secure access to your EKS clusters, RDS databases or other supported AWS resources.
 
 ## How it works
-Amazon ECS provides a convenient way to deploy Teleport agents closely located to your AWS resources, allowing access even if they are not publicly accessible.
-With Terraform, you can easily deploy and keep the Teleport agent up to date.
+Using Terraform, a Teleport Agent is deployed and kept up to date in Amazon ECS.
+You have to create or re-use an IAM Join Token so the Agent is able to join the cluster.
+
+You will need to configure which Teleport services you want to run (e.g., discovery, database and kube services), and then pick the subnets and security groups which allow access to the resources you want to access.
+
+After deploying, the Agent is part of your cluster and starts discovering or proxying requests.
+
+You can customize the Agent configuration and re-deploying it as needed.
 
 ## Prerequisites
 The following set up is required:
@@ -20,7 +26,7 @@ The following set up is required:
 - [configure AWS credentials](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration)
 - a Teleport [IAM Join Token](../reference/join-methods.mdx#aws-iam-role-iam) so that your agent can securely join the Teleport cluster
 
-## Step 1/3. Download the terraform module
+## Step 1/3. Download the Terraform module
 
 Download the source code for our example:
 ```code
@@ -121,7 +127,7 @@ After deployment, the agent should be part of your Teleport cluster.
 
 Navigate to the Amazon ECS console, select the Cluster and Service, and look for the logs tab which are stored in CloudWatch.
 
-## Next Steps
+## Next steps
 Use this guide as a starting point for implementing Auto Discovery for AWS resources:
 - [for EKS clusters](../enroll-resources/auto-discovery/kubernetes/aws.mdx)
 - [for AWS databases](../enroll-resources/database-access/enroll-aws-databases/)
