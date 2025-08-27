@@ -180,13 +180,13 @@ func (a *AccessListService) ListAccessListsWithFilter(ctx context.Context, req *
 		return nil, "", trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
 	}
 
-	if req.GetFilter().Search == "" {
+	if req.GetFilter().Search == "" && len(req.GetFilter().Owners) == 0 && len(req.GetFilter().Roles) == 0 {
 		r, nextToken, err := a.service.ListResources(ctx, int(req.GetPageSize()), req.GetPageToken())
 		return r, nextToken, trace.Wrap(err)
 	}
 
 	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
-		return services.MatchAccessList(item, req.GetFilter().GetSearch())
+		return services.MatchAccessList(item, req.GetFilter())
 	})
 }
 

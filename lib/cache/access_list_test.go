@@ -285,12 +285,10 @@ func TestListAccessListsWithFilter(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	// Create test access lists with different names and audit dates
 	names := []string{"apple-list", "banana-access", "cherry-management", "apple-admin", "zebra-test"}
 
 	for i, name := range names {
 		al := newAccessList(t, name, clock)
-		// Set different audit dates to test sorting
 		auditDate := clock.Now().Add(time.Duration(i) * (time.Hour) * 24)
 		// add arbitrary date so we can make sure its not just sorted by name
 		if name == "banana-access" {

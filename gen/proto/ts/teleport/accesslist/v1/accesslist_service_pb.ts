@@ -127,7 +127,7 @@ export interface ListAccessListsWithFilterRequest {
     filter?: ListAccessListsFilter;
 }
 /**
- * ListAccessListsFilter is used to collect filter options for listing access lists
+ * ListAccessListsFilter is used to collect filter options for listing access lists.
  *
  * @generated from protobuf message teleport.accesslist.v1.ListAccessListsFilter
  */
@@ -138,6 +138,18 @@ export interface ListAccessListsFilter {
      * @generated from protobuf field: string search = 1;
      */
     search: string;
+    /**
+     * owners is a list of owner names to filter by (OR logic).
+     *
+     * @generated from protobuf field: repeated string owners = 2;
+     */
+    owners: string[];
+    /**
+     * roles is a list of roles to filter by (OR logic).
+     *
+     * @generated from protobuf field: repeated string roles = 3;
+     */
+    roles: string[];
 }
 /**
  * ListAccessListsWithFilterResponse is the response for getting paginated access lists.
@@ -1094,12 +1106,16 @@ export const ListAccessListsWithFilterRequest = new ListAccessListsWithFilterReq
 class ListAccessListsFilter$Type extends MessageType<ListAccessListsFilter> {
     constructor() {
         super("teleport.accesslist.v1.ListAccessListsFilter", [
-            { no: 1, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "owners", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ListAccessListsFilter>): ListAccessListsFilter {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.search = "";
+        message.owners = [];
+        message.roles = [];
         if (value !== undefined)
             reflectionMergePartial<ListAccessListsFilter>(this, message, value);
         return message;
@@ -1111,6 +1127,12 @@ class ListAccessListsFilter$Type extends MessageType<ListAccessListsFilter> {
             switch (fieldNo) {
                 case /* string search */ 1:
                     message.search = reader.string();
+                    break;
+                case /* repeated string owners */ 2:
+                    message.owners.push(reader.string());
+                    break;
+                case /* repeated string roles */ 3:
+                    message.roles.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1127,6 +1149,12 @@ class ListAccessListsFilter$Type extends MessageType<ListAccessListsFilter> {
         /* string search = 1; */
         if (message.search !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.search);
+        /* repeated string owners = 2; */
+        for (let i = 0; i < message.owners.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.owners[i]);
+        /* repeated string roles = 3; */
+        for (let i = 0; i < message.roles.length; i++)
+            writer.tag(3, WireType.LengthDelimited).string(message.roles[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

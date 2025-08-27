@@ -304,11 +304,15 @@ func (x *ListAccessListsWithFilterRequest) GetFilter() *ListAccessListsFilter {
 	return nil
 }
 
-// ListAccessListsFilter is used to collect filter options for listing access lists
+// ListAccessListsFilter is used to collect filter options for listing access lists.
 type ListAccessListsFilter struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// search is a search term to filter access lists by name.
-	Search        string `protobuf:"bytes,1,opt,name=search,proto3" json:"search,omitempty"`
+	Search string `protobuf:"bytes,1,opt,name=search,proto3" json:"search,omitempty"`
+	// owners is a list of owner names to filter by (OR logic).
+	Owners []string `protobuf:"bytes,2,rep,name=owners,proto3" json:"owners,omitempty"`
+	// roles is a list of roles to filter by (OR logic).
+	Roles         []string `protobuf:"bytes,3,rep,name=roles,proto3" json:"roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -348,6 +352,20 @@ func (x *ListAccessListsFilter) GetSearch() string {
 		return x.Search
 	}
 	return ""
+}
+
+func (x *ListAccessListsFilter) GetOwners() []string {
+	if x != nil {
+		return x.Owners
+	}
+	return nil
+}
+
+func (x *ListAccessListsFilter) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
 }
 
 // ListAccessListsWithFilterResponse is the response for getting paginated access lists.
@@ -2545,9 +2563,11 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12&\n" +
 	"\asort_by\x18\x03 \x01(\v2\r.types.SortByR\x06sortBy\x12E\n" +
-	"\x06filter\x18\x04 \x01(\v2-.teleport.accesslist.v1.ListAccessListsFilterR\x06filter\"/\n" +
+	"\x06filter\x18\x04 \x01(\v2-.teleport.accesslist.v1.ListAccessListsFilterR\x06filter\"]\n" +
 	"\x15ListAccessListsFilter\x12\x16\n" +
-	"\x06search\x18\x01 \x01(\tR\x06search\"\x92\x01\n" +
+	"\x06search\x18\x01 \x01(\tR\x06search\x12\x16\n" +
+	"\x06owners\x18\x02 \x03(\tR\x06owners\x12\x14\n" +
+	"\x05roles\x18\x03 \x03(\tR\x05roles\"\x92\x01\n" +
 	"!ListAccessListsWithFilterResponse\x12E\n" +
 	"\faccess_lists\x18\x01 \x03(\v2\".teleport.accesslist.v1.AccessListR\vaccessLists\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"A\n" +

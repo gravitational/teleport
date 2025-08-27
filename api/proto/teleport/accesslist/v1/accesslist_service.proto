@@ -148,10 +148,14 @@ message ListAccessListsWithFilterRequest {
   ListAccessListsFilter filter = 4;
 }
 
-// ListAccessListsFilter is used to collect filter options for listing access lists
+// ListAccessListsFilter is used to collect filter options for listing access lists.
 message ListAccessListsFilter {
   // search is a search term to filter access lists by name.
   string search = 1;
+  // owners is a list of owner names to filter by (OR logic).
+  repeated string owners = 2;
+  // roles is a list of roles to filter by (OR logic).
+  repeated string roles = 3;
 }
 
 // ListAccessListsWithFilterResponse is the response for getting paginated access lists.

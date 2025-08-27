@@ -146,7 +146,7 @@ func (c *Cache) ListAccessListsWithFilter(ctx context.Context, req *accesslistv1
 			return c.Config.AccessLists.ListAccessListsWithFilter(ctx, req)
 		},
 		filter: func(al *accesslist.AccessList) bool {
-			return services.MatchAccessList(al, req.GetFilter().Search)
+			return services.MatchAccessList(al, req.GetFilter())
 		},
 		nextToken: func(al *accesslist.AccessList) string {
 			return keyFn(al)

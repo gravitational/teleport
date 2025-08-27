@@ -282,35 +282,80 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 	return &review, nil
 }
 
-// MatchAccessList returns true if the access list matches the given search string.
-// An empty search string matches all access lists. For non-empty searches, the
-// function performs case-insensitive matching against the access list's title,
-// name, owner names, description, granted roles, and origin. All space-separated
-// search terms must be found across these fields (each term can match any field).
-func MatchAccessList(al *accesslist.AccessList, search string) bool {
-	if search == "" {
+// MatchAccessList returns true if the access list matches the given filter criteria.
+// The function applies filters in sequence: owners, then roles, then search.
+// All provided filters must match for the access list to be included.
+//
+//   - If owners filter is provided, the access list must have at least one matching owner
+//   - If roles filter is provided, the access list must grant at least one matching role
+//   - If search filter is provided, all search terms must be found across the access list's
+//     title, name, owner names, description, granted roles, and origin fields
+//
+// All matching is case-insensitive and supports partial matches.
+func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.ListAccessListsFilter) bool {
+	search := req.GetSearch()
+	owners := req.GetOwners()
+	roles := req.GetRoles()
+
+	if search == "" && len(owners) == 0 && len(roles) == 0 {
 		return true
 	}
-	searchTerms := strings.Fields(search)
 
-	// collect all searchable text
-	var allFields []string
-	allFields = append(allFields, al.Spec.Title)
-	allFields = append(allFields, al.GetName())
-	allFields = append(allFields, al.Spec.Description)
-	allFields = append(allFields, al.Origin())
-
-	for _, owner := range al.Spec.Owners {
-		allFields = append(allFields, owner.Name)
+	// Step 1: Check owner filter if provided
+	if len(owners) > 0 {
+		ownerMatched := slices.ContainsFunc(owners, func(filterOwner string) bool {
+			return slices.ContainsFunc(al.Spec.Owners, func(alOwner accesslist.Owner) bool {
+				return strcase.Contains(alOwner.Name, filterOwner)
+			})
+		})
+		if !ownerMatched {
+			return false
+		}
 	}
 
-	allFields = append(allFields, al.Spec.Grants.Roles...)
+	// Step 2: Check role filter if provided
+	if len(roles) > 0 {
+		roleMatched := slices.ContainsFunc(roles, func(filterRole string) bool {
+			return slices.ContainsFunc(al.Spec.Grants.Roles, func(alRole string) bool {
+				return strcase.Contains(alRole, filterRole)
+			})
+		})
+		if !roleMatched {
+			return false
+		}
+	}
 
-	// check if all terms exist somewhere across all fields
-	return matchesAllTerms(searchTerms, allFields)
+	// Step 3: Check search filter if provided
+	if search != "" {
+		searchTerms := strings.Fields(search)
+		if len(searchTerms) > 0 {
+			// collect all searchable text from the access list itself
+			var allFields []string
+			allFields = append(allFields, al.Spec.Title)
+			allFields = append(allFields, al.GetName())
+			allFields = append(allFields, al.Spec.Description)
+			allFields = append(allFields, al.Origin())
+
+			for _, owner := range al.Spec.Owners {
+				allFields = append(allFields, owner.Name)
+			}
+
+			allFields = append(allFields, al.Spec.Grants.Roles...)
+
+			// check if all search terms exist somewhere across the access list fields
+			if !allSearchTermsFound(searchTerms, allFields) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
-func matchesAllTerms(terms []string, targets []string) bool {
+// allSearchTermsFound checks if each search term can be found in at least one of the target fields.
+// For example, searching "john database" would return true if "john" is found in any field
+// AND "database" is found in any field (they don't need to be in the same field).
+func allSearchTermsFound(terms []string, targets []string) bool {
 	for _, term := range terms {
 		if !slices.ContainsFunc(targets, func(target string) bool {
 			return strcase.Contains(target, term)
