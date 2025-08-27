@@ -1,6 +1,7 @@
 import React from 'react';
 
 import cfg from 'e-teleport/config';
+import { ViewSessionRecordingRouteE } from 'e-teleport/SessionRecordings/view/ViewSessionRecordingRouteE';
 import { WaitingRoom } from 'e-teleport/WaitingRoom';
 import { ENewCredentials } from 'e-teleport/Welcome/NewCredentials';
 import { Route, Switch } from 'teleport/components/Router';
@@ -63,6 +64,10 @@ function privateERoutes() {
     <WaitingRoom>
       <Switch>
         <Route path={cfg.routes.samlIdPLogin} component={SAMLIdPLogin} />
+        <Route
+          path={cfg.oss.routes.player}
+          component={ViewSessionRecordingRouteE}
+        />
         {getSharedPrivateRoutes()}
         <Route path={ossConfig.routes.root} component={Main} />
       </Switch>

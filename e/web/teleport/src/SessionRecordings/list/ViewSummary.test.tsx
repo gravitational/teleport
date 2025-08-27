@@ -12,7 +12,10 @@ import {
 } from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
-import { RecordingSummaryState } from 'e-teleport/services/recordings/types';
+import {
+  RecordingSummaryState,
+  type SessionRecordingSummary,
+} from 'e-teleport/services/recordings/types';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
@@ -50,7 +53,7 @@ const getSummaryUrl = generatePath(cfg.api.sessionRecordingSummary, {
   sessionId: mockSessionId,
 });
 
-function withRecordingSummary(summary: any) {
+function withRecordingSummary(summary: SessionRecordingSummary) {
   server.use(
     http.get(getSummaryUrl, () => {
       return HttpResponse.json(summary);
@@ -234,6 +237,27 @@ describe('summary states', () => {
       await screen.findByText('Session summary is currently being generated')
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
+  });
+
+  it('displays a nice message when summary generation fails due to the session being too long', async () => {
+    withRecordingSummary({
+      sessionId: mockSessionId,
+      state: RecordingSummaryState.Error,
+      errorMessage: 'session transcript exceeds maximum length',
+    });
+
+    setupTest();
+
+    const button = screen.getByRole('button', {
+      name: 'View session summary',
+    });
+    await userEvent.click(button);
+
+    expect(
+      await screen.findByText(
+        'This session was not summarized because it is too large.'
+      )
+    ).toBeInTheDocument();
   });
 
   it('displays error state when summary generation fails', async () => {
@@ -432,5 +456,57 @@ describe('refetch functionality', () => {
     deferred.resolve();
 
     expect(await screen.findByText('Completed Summary')).toBeInTheDocument();
+  });
+});
+
+describe('duration', () => {
+  it('shows the duration of the summarization when complete', async () => {
+    const now = new Date();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+    withRecordingSummary({
+      sessionId: mockSessionId,
+      state: RecordingSummaryState.Success,
+      inferenceStartedAt: fiveMinutesAgo.toISOString(),
+      inferenceFinishedAt: now.toISOString(),
+      content: 'This is a summary.',
+    });
+
+    setupTest();
+
+    const button = screen.getByRole('button', {
+      name: 'View session summary',
+    });
+    await userEvent.click(button);
+
+    expect(await screen.findByText('This is a summary.')).toBeInTheDocument();
+
+    expect(
+      screen.getByText('Summarization took 5 minutes.')
+    ).toBeInTheDocument();
+  });
+
+  it('handles displaying long durations correctly', async () => {
+    const now = new Date();
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+    withRecordingSummary({
+      sessionId: mockSessionId,
+      state: RecordingSummaryState.Success,
+      inferenceStartedAt: twoHoursAgo.toISOString(),
+      inferenceFinishedAt: now.toISOString(),
+      content: 'This is a summary.',
+    });
+
+    setupTest();
+
+    const button = screen.getByRole('button', {
+      name: 'View session summary',
+    });
+    await userEvent.click(button);
+
+    expect(await screen.findByText('This is a summary.')).toBeInTheDocument();
+
+    expect(screen.getByText('Summarization took 2 hours.')).toBeInTheDocument();
   });
 });

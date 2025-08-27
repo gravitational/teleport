@@ -8,7 +8,12 @@ import {
   useFloating,
   useInteractions,
 } from '@floating-ui/react';
-import { formatDuration, intervalToDuration, isValid } from 'date-fns';
+import {
+  formatDistanceToNow,
+  formatDuration,
+  intervalToDuration,
+  isValid,
+} from 'date-fns';
 import { useCallback, useState, type MouseEvent, type ReactNode } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
 import styled from 'styled-components';
@@ -257,14 +262,10 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
 
     let content: ReactNode | null = null;
     if (isValid(inferenceStartedAt)) {
-      const duration = intervalToDuration({
-        start: inferenceStartedAt,
-        end: new Date(),
-      });
-
       content = (
         <Text color="text.slightlyMuted">
-          Started summarizing {formatDuration(duration)} ago
+          Started summarizing{' '}
+          {formatDistanceToNow(inferenceStartedAt, { addSuffix: true })}
         </Text>
       );
     }
@@ -285,6 +286,18 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
   }
 
   if (data.state === RecordingSummaryState.Error) {
+    if (
+      data.errorMessage.includes('session transcript exceeds maximum length')
+    ) {
+      return (
+        <SessionSummaryContainer>
+          <Text color="text.slightlyMuted">
+            This session was not summarized because it is too large.
+          </Text>
+        </SessionSummaryContainer>
+      );
+    }
+
     return (
       <SessionSummaryContainer>
         <Text color="error.main" fontWeight="bold">
@@ -307,11 +320,7 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
         end: inferenceFinishedAt,
       });
 
-      content = (
-        <>
-          Inference took <strong>{formatDuration(duration)}</strong>
-        </>
-      );
+      content = <>Summarization took {formatDuration(duration)}.</>;
     }
 
     return (
