@@ -236,42 +236,42 @@ export const fakeItems: TrustedDevice[] = [
     assetTag: 'FWPGP915V',
     osType: 'macOS',
     enrollStatus: 'enrolled',
-    owner: 'mykel',
+    owner: 'alice',
   },
   {
     id: 'M7XJR4GK8823',
     assetTag: 'M7XJR4GK8823',
     osType: 'Windows',
     enrollStatus: 'enrolled',
-    owner: 'lila',
+    owner: 'bob',
   },
   {
     id: 'L2FQZ9VH4466',
     assetTag: 'L2FQZ9VH4466',
     osType: 'Linux',
     enrollStatus: 'enrolled',
-    owner: 'bart',
+    owner: 'charlie',
   },
   {
     id: 'N8EYW1DP7732',
     assetTag: 'N8EYW1DP7732',
     osType: 'Linux',
     enrollStatus: 'not enrolled',
-    owner: 'rafao',
+    owner: '',
   },
   {
     id: 'K5BHP6CT5598',
     assetTag: 'K5BHP6CT5598',
     osType: 'Windows',
     enrollStatus: 'not enrolled',
-    owner: 'gzz',
+    owner: '',
   },
   {
     id: 'Y3RSL7FJ2104',
     assetTag: 'Y3RSL7FJ2104',
     osType: 'macOS',
     enrollStatus: 'enrolled',
-    owner: 'ryry',
+    owner: 'dan',
   },
 ];
 
@@ -292,7 +292,7 @@ const auditEvents = [
     code: 'TC000I',
     event: 'cert.create',
     identity: {
-      user: 'lisa',
+      user: 'charlie',
     },
     time: '2024-02-04T19:43:23.529Z',
   },
@@ -303,14 +303,14 @@ const auditEvents = [
     success: true,
     time: '2024-02-04T19:43:22.529Z',
     uid: 'fa279611-91d8-47b5-9fad-b8ea3e5286e0',
-    user: 'lisa',
+    user: 'charlie',
   },
   {
     cert_type: 'user',
     code: 'TC000I',
     event: 'cert.create',
     identity: {
-      user: 'isabelle',
+      user: 'dan',
     },
     time: '2024-02-04T19:43:21.529Z',
   },
@@ -319,7 +319,7 @@ const auditEvents = [
     code: 'T1016I',
     time: '2024-02-04T19:43:20.529Z',
     uid: '815bbcf4-fb05-4e08-917c-7259e9332d69',
-    user: 'isabelle',
+    user: 'dan',
   },
 ].map(makeEvent);
 
