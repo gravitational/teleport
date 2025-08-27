@@ -81,6 +81,8 @@ function Player({
     [tty]
   );
 
+  // expose a moveToTime method through the ref so we can update the time from the outside
+  // without having to pass it in as a prop and cause a re-render.
   useImperativeHandle(ref, () => ({
     moveToTime,
   }));
