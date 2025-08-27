@@ -36,7 +36,7 @@ export default function PromptSsoStatus(props: {
           )}
 
           {ssoPrompt === 'wait-for-sync' && (
-            <>Login successful, getting current cluster state…</>
+            <>Login successful, connecting to the cluster…</>
           )}
         </Text>
         <LinearProgress />
