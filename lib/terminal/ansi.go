@@ -28,7 +28,7 @@ import (
 // VtStateToANSI converts a terminal state to an ANSI escape sequence string,
 // including both the primary and alternate screen buffers.
 // It handles terminal modes, colors, cursor position, and other settings.
-func VtStateToANSI(buf *bytes.Buffer, state vt10x.TerminalState) string {
+func VtStateToANSI(buf *bytes.Buffer, state vt10x.TerminalState) {
 	// Initialize the terminal
 	buf.WriteString("\x1b[!p") // Soft reset (DECSTR)
 	buf.WriteString("\x1b[2J") // Clear screen
@@ -81,8 +81,6 @@ func VtStateToANSI(buf *bytes.Buffer, state vt10x.TerminalState) string {
 	// Set cursor position and visibility
 	fmt.Fprintf(buf, "\x1b[%d;%dH", state.CursorY+1, state.CursorX+1)
 	writeMode(buf, "?25", state.CursorVisible)
-
-	return buf.String()
 }
 
 func writeMode(buf *bytes.Buffer, mode string, enabled bool) {
