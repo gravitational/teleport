@@ -92,6 +92,20 @@ type websocketMessage struct {
 	data        []byte
 }
 
+type recordingTerminal struct {
+	sync.Mutex
+	vt          vt10x.Terminal
+	currentTime int64
+}
+
+type recordingStream struct {
+	sync.Mutex
+	eventsChan    <-chan apievents.AuditEvent
+	errorsChan    <-chan error
+	lastEndTime   time.Duration
+	bufferedEvent apievents.AuditEvent
+}
+
 // recordingPlayback manages session event streaming
 type recordingPlayback struct {
 	ctx              context.Context
@@ -105,20 +119,8 @@ type recordingPlayback struct {
 	ws               *websocket.Conn
 	writeChan        chan websocketMessage
 	closeSent        bool // tracks if a close message has been sent
-
-	stream struct {
-		sync.Mutex
-		eventsChan    <-chan apievents.AuditEvent
-		errorsChan    <-chan error
-		lastEndTime   time.Duration
-		bufferedEvent apievents.AuditEvent
-	}
-
-	terminal struct {
-		sync.Mutex
-		vt          vt10x.Terminal
-		currentTime int64
-	}
+	stream           recordingStream
+	terminal         recordingTerminal
 }
 
 // fetchRequest represents a request for session events.
