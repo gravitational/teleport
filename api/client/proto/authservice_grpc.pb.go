@@ -224,6 +224,7 @@ const (
 	AuthService_DeleteApp_FullMethodName                           = "/proto.AuthService/DeleteApp"
 	AuthService_DeleteAllApps_FullMethodName                       = "/proto.AuthService/DeleteAllApps"
 	AuthService_GetDatabases_FullMethodName                        = "/proto.AuthService/GetDatabases"
+	AuthService_ListDatabases_FullMethodName                       = "/proto.AuthService/ListDatabases"
 	AuthService_GetDatabase_FullMethodName                         = "/proto.AuthService/GetDatabase"
 	AuthService_CreateDatabase_FullMethodName                      = "/proto.AuthService/CreateDatabase"
 	AuthService_UpdateDatabase_FullMethodName                      = "/proto.AuthService/UpdateDatabase"
@@ -796,6 +797,8 @@ type AuthServiceClient interface {
 	DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetDatabases returns all registered databases.
 	GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
+	// ListDatabases returns a page of registered databases.
+	ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
@@ -3033,6 +3036,16 @@ func (c *authServiceClient) GetDatabases(ctx context.Context, in *emptypb.Empty,
 	return out, nil
 }
 
+func (c *authServiceClient) ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDatabasesResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListDatabases_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.DatabaseV3, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.DatabaseV3)
@@ -4260,6 +4273,8 @@ type AuthServiceServer interface {
 	DeleteAllApps(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetDatabases returns all registered databases.
 	GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error)
+	// ListDatabases returns a page of registered databases.
+	ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(context.Context, *types.ResourceRequest) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
@@ -5038,6 +5053,9 @@ func (UnimplementedAuthServiceServer) DeleteAllApps(context.Context, *emptypb.Em
 }
 func (UnimplementedAuthServiceServer) GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
+}
+func (UnimplementedAuthServiceServer) ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDatabases not implemented")
 }
 func (UnimplementedAuthServiceServer) GetDatabase(context.Context, *types.ResourceRequest) (*types.DatabaseV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabase not implemented")
@@ -8512,6 +8530,24 @@ func _AuthService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDatabasesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListDatabases(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListDatabases_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListDatabases(ctx, req.(*ListDatabasesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetDatabase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.ResourceRequest)
 	if err := dec(in); err != nil {
@@ -10491,6 +10527,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDatabases",
 			Handler:    _AuthService_GetDatabases_Handler,
+		},
+		{
+			MethodName: "ListDatabases",
+			Handler:    _AuthService_ListDatabases_Handler,
 		},
 		{
 			MethodName: "GetDatabase",
