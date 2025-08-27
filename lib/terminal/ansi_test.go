@@ -18,6 +18,7 @@
 package terminal
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/hinshun/vt10x"
@@ -221,8 +222,9 @@ func TestTerminalStateToANSI(t *testing.T) {
 
 			tt.setup(vt)
 
+			var buf bytes.Buffer
 			state := vt.DumpState()
-			ansi := VtStateToANSI(state)
+			ansi := VtStateToANSI(&buf, state)
 
 			if golden.ShouldSet() {
 				golden.Set(t, []byte(ansi))
