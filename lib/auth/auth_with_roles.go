@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/url"
 	"os"
@@ -179,12 +180,13 @@ func (a *ServerWithRoles) identityCenterAction(namespace string, resource string
 
 // actionForListWithCondition extracts a restrictive filter condition to be
 // added to a list query after a simple resource check fails.
-func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resource, identifier string) (*types.WhereExpr, error) {
+func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resource, identifier string) (*utils.ToFieldsConditionConfig, error) {
 	origErr := a.authorizeAction(resource, types.VerbList)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return nil, trace.Wrap(origErr)
 	}
-	cond, err := a.context.Checker.ExtractConditionForIdentifier(&services.Context{User: a.context.User}, apidefaults.Namespace, resource, types.VerbList, identifier)
+	svcCtx := &services.Context{User: a.context.User}
+	cond, err := a.context.Checker.ExtractConditionForIdentifier(svcCtx, apidefaults.Namespace, resource, types.VerbList, identifier)
 	if trace.IsAccessDenied(err) {
 		a.authServer.logger.InfoContext(ctx, "Access to list resource denied",
 			"error", err,
@@ -193,7 +195,19 @@ func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resour
 		// Return the original AccessDenied to avoid leaking information.
 		return nil, trace.Wrap(origErr)
 	}
-	return cond, trace.Wrap(err)
+	return &utils.ToFieldsConditionConfig{
+		CanView: func(ef utils.Fields) bool {
+			au, err := events.FromEventFields(events.EventFields(ef))
+			if err != nil {
+				slog.WarnContext(ctx, "Failed to convert event fields", "error", err)
+				return false
+			}
+			canViewCtx := services.Context{User: a.context.User}
+			canViewCtx.ExtendWithSessionEnd(au, a.context.Checker)
+			return services.CanViewResourceFunc(&canViewCtx)()()
+		},
+		Expr: cond,
+	}, trace.Wrap(err)
 }
 
 // actionWithExtendedContext performs an additional RBAC check with extended
@@ -221,11 +235,7 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		servicesCtx.Session = sessionEnd
-		servicesCtx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
-		// AccessCheker is set here to allow access checks to other resources
-		// in the where clause.
-		servicesCtx.AccessChecker = a.context.Checker
+		servicesCtx.ExtendWithSessionEnd(sessionEnd, a.context.Checker)
 		return nil
 	}
 
@@ -4458,10 +4468,12 @@ func (a *ServerWithRoles) findSessionEndEvent(ctx context.Context, sid session.I
 		To:    a.authServer.clock.Now().UTC(),
 		Limit: defaults.EventsIterationLimit,
 		Order: types.EventOrderAscending,
-		Cond: &types.WhereExpr{Equals: types.WhereExpr2{
-			L: &types.WhereExpr{Field: events.SessionEventID},
-			R: &types.WhereExpr{Literal: sid.String()},
-		}},
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr: &types.WhereExpr{Equals: types.WhereExpr2{
+				L: &types.WhereExpr{Field: events.SessionEventID},
+				R: &types.WhereExpr{Literal: sid.String()},
+			}},
+		},
 		SessionID: sid.String(),
 	})
 	if err != nil {
