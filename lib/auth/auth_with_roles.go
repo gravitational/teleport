@@ -63,6 +63,7 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -6543,6 +6544,42 @@ func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Data
 		}
 	}
 	return result, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	if err := a.authorizeAction(types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var next string
+	var seen int
+	out, err := iterstream.Collect(
+		iterstream.TakeWhile(
+			iterstream.FilterMap(
+				a.authServer.RangeDatabases(ctx, startKey, ""),
+				func(db types.Database) (types.Database, bool) {
+					if a.checkAccessToDatabase(db) == nil {
+						return db, true
+					}
+					return nil, false
+				},
+			),
+			func(db types.Database) bool {
+				if seen < limit {
+					seen++
+					return true
+				}
+				next = db.GetName()
+				return false
+			},
+		),
+	)
+	return out, next, trace.Wrap(err)
 }
 
 // DeleteDatabase removes the specified database resource.

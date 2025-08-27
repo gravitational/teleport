@@ -884,3 +884,50 @@ func TestMergeStreams(t *testing.T) {
 		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
 	})
 }
+
+func TestTakeWhile(t *testing.T) {
+	t.Parallel()
+
+	// Regular operation
+	out, err := Collect(TakeWhile(
+		Slice([]int{1, 2, 3, 4, 5, 6}),
+		func(item int) bool {
+			return item < 4
+		},
+	))
+
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, out)
+
+	out, err = Collect(TakeWhile(
+		Slice([]int{1, 2, 3, 4, 5, 6}),
+		func(_ int) bool {
+			return true
+		},
+	))
+
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+
+	// Propagate error
+	out, err = Collect(TakeWhile(
+		Fail[int](fmt.Errorf("unexpected error")),
+		func(_ int) bool {
+			return true
+		},
+	))
+
+	require.Error(t, err)
+	require.Empty(t, out)
+
+	// Test early exit
+	var actual []int
+	TakeWhile(Slice([]int{1, 2, 3, 4, 5, 6}),
+		func(item int) bool { return true },
+	)(func(item int, err error) bool {
+		actual = append(actual, item)
+		return item < 3
+	})
+	require.Equal(t, []int{1, 2, 3}, actual)
+
+}
