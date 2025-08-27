@@ -9,6 +9,7 @@ interface RecordingPlayerProps {
   durationMs: number;
   recordingType: RecordingType;
   sessionId: string;
+  onShowSidebar?: () => void;
 }
 
 const Container = styled.div`
@@ -24,6 +25,7 @@ export function RecordingPlayer({
   durationMs,
   recordingType,
   sessionId,
+  onShowSidebar,
 }: RecordingPlayerProps) {
   if (recordingType === 'desktop') {
     return (
@@ -43,6 +45,7 @@ export function RecordingPlayer({
         sid={sessionId}
         clusterId={clusterId}
         durationMs={durationMs}
+        onShowSidebar={onShowSidebar}
       />
     </Container>
   );

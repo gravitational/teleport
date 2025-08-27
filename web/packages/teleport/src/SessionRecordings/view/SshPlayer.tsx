@@ -30,7 +30,19 @@ import { getAccessToken, getHostName } from 'teleport/services/api';
 import ProgressBar from './ProgressBar';
 import Xterm from './Xterm';
 
-export default function Player({ sid, clusterId, durationMs }) {
+interface PlayerProps {
+  sid: string;
+  clusterId: string;
+  durationMs: number;
+  onShowSidebar?: () => void;
+}
+
+export default function Player({
+  sid,
+  clusterId,
+  durationMs,
+  onShowSidebar,
+}: PlayerProps) {
   const { tty, playerStatus, statusText, time } = useStreamingSshPlayer(
     clusterId,
     sid
@@ -81,6 +93,7 @@ export default function Player({ sid, clusterId, durationMs }) {
         toggle={() => {
           isPlaying ? tty.stop() : tty.play();
         }}
+        onShowSidebar={onShowSidebar}
       />
     </StyledPlayer>
   );

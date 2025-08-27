@@ -132,6 +132,8 @@ export function RecordingWithMetadata({
   const startTime = new Date(data.metadata.startTime * 1000);
   const endTime = new Date(data.metadata.endTime * 1000);
 
+  const onShowSidebar = sidebarVisible ? undefined : toggleSidebar;
+
   return (
     <Grid sidebarVisible={sidebarVisible}>
       <Player>
@@ -140,10 +142,11 @@ export function RecordingWithMetadata({
           sessionId={sessionId}
           durationMs={data.metadata.duration}
           recordingType="ssh"
+          onShowSidebar={onShowSidebar}
         />
       </Player>
 
-      {sidebarVisible ? (
+      {sidebarVisible && (
         <Sidebar>
           <Flex flexDirection="column" gap={4} pt={3}>
             <Flex pl={3} pr={2} justifyContent="space-between">
