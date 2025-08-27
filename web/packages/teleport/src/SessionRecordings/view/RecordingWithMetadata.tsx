@@ -161,18 +161,3 @@ const BackLink = styled(Link)`
   align-items: center;
   gap: ${p => p.theme.space[2]}px;
 `;
-
-const HideSidebarButton = styled.button`
-  background: none;
-  border: none;
-  color: ${p => p.theme.colors.text.slightlyMuted};
-  cursor: pointer;
-  padding: ${p => p.theme.space[2]}px;
-  border-radius: ${p => p.theme.radii[2]}px;
-  display: flex;
-  align-items: center;
-
-  &:hover {
-    background: ${p => p.theme.colors.spotBackground[1]};
-  }
-`;
