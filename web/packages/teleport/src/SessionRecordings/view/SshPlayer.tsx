@@ -42,7 +42,7 @@ interface PlayerProps {
   clusterId: string;
   durationMs: number;
   onTimeChange?: (time: number) => void;
-  showTimeline?: () => void;
+  onToggleTimeline?: () => void;
   onToggleSidebar?: () => void;
 }
 
@@ -51,7 +51,7 @@ export interface PlayerHandle {
 }
 
 const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
-  { sid, clusterId, durationMs, onTimeChange, onToggleSidebar, showTimeline },
+  { sid, clusterId, durationMs, onTimeChange, onToggleSidebar, onToggleTimeline },
   ref
 ) {
   const { tty, playerStatus, statusText, time } = useStreamingSshPlayer(
@@ -117,7 +117,7 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
           isPlaying ? tty.stop() : tty.play();
         }}
         onToggleSidebar={onToggleSidebar}
-        showTimeline={showTimeline}
+        onToggleTimeline={onToggleTimeline}
       />
     </StyledPlayer>
   );

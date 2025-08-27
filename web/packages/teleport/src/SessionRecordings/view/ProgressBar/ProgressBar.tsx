@@ -36,7 +36,7 @@ export default function ProgressBar(props: ProgressBarProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { showTimeline } = props;
+  const { onToggleTimeline } = props;
 
   // Force slider to recalculate dimensions when the container resizes or
   // when the timeline button appears.
@@ -54,7 +54,7 @@ export default function ProgressBar(props: ProgressBarProps) {
     return () => {
       observer.disconnect();
     };
-  }, [showTimeline]);
+  }, [onToggleTimeline]);
 
   return (
     <StyledProgessBar
@@ -95,13 +95,13 @@ export default function ProgressBar(props: ProgressBarProps) {
         />
       </SliderContainer>
       <Restart onRestart={props.onRestart} />
-      {showTimeline && (
-        <HoverTooltip tipContent="Show Timeline">
+      {onToggleTimeline && (
+        <HoverTooltip tipContent="Toggle Timeline">
           <ActionButton
             style={{
               marginLeft: '16px',
             }}
-            onClick={showTimeline}
+            onClick={onToggleTimeline}
           >
             <Icons.FilmStrip />
           </ActionButton>
@@ -143,7 +143,7 @@ export type ProgressBarProps = {
   onPlaySpeedChange?: (newSpeed: number) => void;
   onRestart?: () => void;
   onToggleSidebar?: () => void;
-  showTimeline?: () => void;
+  onToggleTimeline?: () => void;
 };
 
 const PlaySpeedSelector = memo(

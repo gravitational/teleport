@@ -32,7 +32,7 @@ interface RecordingPlayerProps {
   recordingType: RecordingType;
   sessionId: string;
   onToggleSidebar?: () => void;
-  showTimeline?: () => void;
+  onToggleTimeline?: () => void;
 }
 
 const Container = styled.div`
@@ -52,7 +52,7 @@ export const RecordingPlayer = forwardRef<PlayerHandle, RecordingPlayerProps>(
       onToggleSidebar,
       recordingType,
       sessionId,
-      showTimeline,
+      onToggleTimeline,
     },
     ref
   ) {
@@ -77,7 +77,7 @@ export const RecordingPlayer = forwardRef<PlayerHandle, RecordingPlayerProps>(
           sid={sessionId}
           clusterId={clusterId}
           durationMs={durationMs}
-          showTimeline={showTimeline}
+          onToggleTimeline={onToggleTimeline}
         />
       </Container>
     );
