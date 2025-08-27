@@ -402,9 +402,6 @@ type InitConfig struct {
 	// It allows for late initialization of the summarizer in the enterprise
 	// plugin. The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
-
-	// MultipartHandler handles multipart uploads.
-	MultipartHandler events.MultipartHandler
 }
 
 // Init instantiates and configures an instance of AuthServer

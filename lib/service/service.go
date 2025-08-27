@@ -2341,7 +2341,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Logger:                    logger,
 			SessionSummarizerProvider: sessionSummarizerProvider,
 			RecordingEncryption:       recordingEncryptionManager,
-			MultipartHandler:          uploadHandler,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil

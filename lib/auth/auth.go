@@ -619,7 +619,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
-		MultipartHandler:                cfg.MultipartHandler,
 	}
 
 	as = &Server{
@@ -866,7 +865,6 @@ type Services struct {
 	events.MultipartHandler
 	services.Summarizer
 	RecordingEncryptionManager
-	events.MultipartHandler
 }
 
 // GetWebSession returns existing web session described by req.
