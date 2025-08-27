@@ -17,7 +17,7 @@
  */
 
 import { screen } from '@testing-library/react';
-import { http, HttpResponse, ws } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router-dom';
 
@@ -28,13 +28,11 @@ import cfg from 'teleport/config';
 import { MockAuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket.mock';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
-  SessionRecordingMessageType,
   type RecordingType,
-  type SessionRecordingMessage,
   type SessionRecordingMetadata,
-  type SessionRecordingThumbnail,
 } from 'teleport/services/recordings';
 
+import { createMetadataHandler } from './mock';
 import { ViewSessionRecordingRoute } from './ViewSessionRecordingRoute';
 
 jest.spyOn(cfg, 'getSessionRecordingMetadataUrl').mockImplementation(() => {
@@ -300,50 +298,3 @@ test('shows error if metadata and duration are not available', async () => {
     })
   ).toBeInTheDocument();
 });
-
-interface MetadataHandlerOptions {
-  shouldError?: boolean;
-  errorMessage?: string;
-}
-
-function createMetadataHandler(
-  metadata: SessionRecordingMetadata,
-  frames: SessionRecordingThumbnail[],
-  options?: MetadataHandlerOptions
-) {
-  return ws
-    .link(
-      'ws://localhost/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws'
-    )
-    .addEventListener('connection', ({ client }) => {
-      function sendMessage(message: SessionRecordingMessage) {
-        client.send(JSON.stringify(message));
-      }
-
-      // Send messages immediately after connection
-      if (options?.shouldError) {
-        sendMessage({
-          type: SessionRecordingMessageType.Error,
-          data: { message: options?.errorMessage },
-        });
-        client.close();
-        return;
-      }
-
-      sendMessage({
-        type: SessionRecordingMessageType.Metadata,
-        data: { ...mockMetadata, ...metadata },
-      });
-
-      for (const frame of frames) {
-        sendMessage({
-          type: SessionRecordingMessageType.Thumbnail,
-          data: frame,
-        });
-      }
-
-      setTimeout(() => {
-        client.close();
-      }, 100);
-    });
-}
