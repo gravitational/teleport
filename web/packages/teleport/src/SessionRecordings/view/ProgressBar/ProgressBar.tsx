@@ -35,9 +35,9 @@ export default function ProgressBar(props: ProgressBarProps) {
       disabled={props.disabled}
     >
       <Flex gap={3}>
-        {props.onShowSidebar && (
-          <HoverTooltip tipContent="Show Sidebar">
-            <ActionButton onClick={props.onShowSidebar}>
+        {props.onToggleSidebar && (
+          <HoverTooltip tipContent="Toggle Sidebar">
+            <ActionButton onClick={props.onToggleSidebar}>
               <Layout />
             </ActionButton>
           </HoverTooltip>
@@ -100,7 +100,7 @@ export type ProgressBarProps = {
   onStartMove?: () => void;
   onPlaySpeedChange?: (newSpeed: number) => void;
   onRestart?: () => void;
-  onShowSidebar?: () => void;
+  onToggleSidebar?: () => void;
 };
 
 const PlaySpeedSelector = memo(

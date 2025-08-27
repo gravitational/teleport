@@ -34,14 +34,14 @@ interface PlayerProps {
   sid: string;
   clusterId: string;
   durationMs: number;
-  onShowSidebar?: () => void;
+  onToggleSidebar?: () => void;
 }
 
 export default function Player({
   sid,
   clusterId,
   durationMs,
-  onShowSidebar,
+  onToggleSidebar,
 }: PlayerProps) {
   const { tty, playerStatus, statusText, time } = useStreamingSshPlayer(
     clusterId,
@@ -93,7 +93,7 @@ export default function Player({
         toggle={() => {
           isPlaying ? tty.stop() : tty.play();
         }}
-        onShowSidebar={onShowSidebar}
+        onToggleSidebar={onToggleSidebar}
       />
     </StyledPlayer>
   );

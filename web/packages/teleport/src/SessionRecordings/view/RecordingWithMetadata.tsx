@@ -4,9 +4,8 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
-import { ArrowLineLeft, ChevronLeft, Terminal } from 'design/Icon';
+import { ChevronLeft, Terminal } from 'design/Icon';
 import { H3 } from 'design/Text';
-import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
 import { useSuspenseGetRecordingMetadata } from 'teleport/services/recordings/hooks';
@@ -45,8 +44,6 @@ export function RecordingWithMetadata({
   const startTime = new Date(data.metadata.startTime * 1000);
   const endTime = new Date(data.metadata.endTime * 1000);
 
-  const onShowSidebar = sidebarVisible ? undefined : toggleSidebar;
-
   return (
     <Grid sidebarVisible={sidebarVisible}>
       <Player>
@@ -55,7 +52,7 @@ export function RecordingWithMetadata({
           sessionId={sessionId}
           durationMs={data.metadata.duration}
           recordingType="ssh"
-          onShowSidebar={onShowSidebar}
+          onToggleSidebar={toggleSidebar}
         />
       </Player>
 
@@ -67,12 +64,6 @@ export function RecordingWithMetadata({
                 <ChevronLeft size="small" />
                 Back to Session Recordings
               </BackLink>
-
-              <HoverTooltip tipContent="Hide Sidebar">
-                <HideSidebarButton onClick={toggleSidebar}>
-                  <ArrowLineLeft size="small" />
-                </HideSidebarButton>
-              </HoverTooltip>
             </Flex>
 
             <Flex alignItems="center" gap={3} px={3}>
