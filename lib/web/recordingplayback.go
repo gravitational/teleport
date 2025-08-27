@@ -236,15 +236,10 @@ func (s *recordingPlayback) run() {
 func (s *recordingPlayback) cleanup() {
 	s.cancel()
 
-	// Wait for any active task to complete
 	s.mu.Lock()
-	alreadySent := s.closeSent
-	s.mu.Unlock()
-
-	s.wg.Wait()
 
 	// Only send close message if we haven't already sent one
-	if !alreadySent {
+	if !s.closeSent {
 		select {
 		case s.writeChan <- websocketMessage{
 			messageType: websocket.CloseMessage,
@@ -253,6 +248,11 @@ func (s *recordingPlayback) cleanup() {
 		case <-time.After(websocketCloseTimeout):
 		}
 	}
+
+	s.mu.Unlock()
+
+	// Wait for any active task to complete
+	s.wg.Wait()
 
 	close(s.writeChan)
 
