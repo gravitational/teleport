@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { memo, useEffect, useRef } from 'react';
+import React, { memo, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
 import { Layout } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import { useResizeObserver } from 'design/utils/useResizeObserver';
 
 import Slider from './Slider';
 
@@ -34,26 +35,24 @@ export default function ProgressBar(props: ProgressBarProps) {
   const Icon = props.isPlaying ? Icons.CirclePause : Icons.CirclePlay;
   const sliderRef = useRef<SliderHandle>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useResizeObserver(
+    useCallback(() => {
+      if (!sliderRef.current) {
+        return;
+      }
+
+      sliderRef.current._handleResize();
+    }, [])
+  );
 
   const { onToggleTimeline } = props;
 
-  // Force slider to recalculate dimensions when the container resizes or
-  // when the timeline button appears.
   useEffect(() => {
-    if (!containerRef.current || !sliderRef.current) {
+    if (!sliderRef.current) {
       return;
     }
 
-    const observer = new ResizeObserver(() => {
-      sliderRef.current._handleResize();
-    });
-
-    observer.observe(containerRef.current);
-
-    return () => {
-      observer.disconnect();
-    };
+    sliderRef.current._handleResize();
   }, [onToggleTimeline]);
 
   return (
