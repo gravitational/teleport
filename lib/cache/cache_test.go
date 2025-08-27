@@ -2110,13 +2110,85 @@ func TestDatabases(t *testing.T) {
 				URI:      "localhost:5432",
 			})
 		},
-		create:    p.databases.CreateDatabase,
-		list:      p.databases.GetDatabases,
-		cacheGet:  p.cache.GetDatabase,
-		cacheList: p.cache.GetDatabases,
+		create: p.databases.CreateDatabase,
+		list: func(ctx context.Context) ([]types.Database, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.databases.ListDatabases))
+		},
+		cacheGet: p.cache.GetDatabase,
+		cacheList: func(ctx context.Context) ([]types.Database, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListDatabases))
+		},
 		update:    p.databases.UpdateDatabase,
 		deleteAll: p.databases.DeleteAllDatabases,
 	})
+}
+
+func TestDatabasesPagination(t *testing.T) {
+	// TODO(okraport): extract this into generic helper for other paginated resources.
+	t.Parallel()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-p.eventsC: // Drain events to prevent deadlocking.
+			}
+		}
+	}()
+
+	expected := make([]types.Database, 0, 50)
+	for i := range 50 {
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: "db" + strconv.Itoa(i+1),
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+		})
+
+		require.NoError(t, err)
+		require.NoError(t, p.databases.CreateDatabase(context.Background(), db))
+		expected = append(expected, db)
+	}
+	slices.SortFunc(expected, func(a, b types.Database) int {
+		return cmp.Compare(a.GetName(), b.GetName())
+	})
+
+	// Wait for all the Databases to be replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		found, err := stream.Collect(clientutils.Resources(ctx, p.cache.ListDatabases))
+		assert.NoError(t, err)
+		assert.Len(t, expected, len(found))
+	}, 15*time.Second, 100*time.Millisecond)
+
+	out, err := p.cache.GetDatabases(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	page1, page2Start, err := p.cache.ListDatabases(context.Background(), 10, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, 10)
+	assert.NotEmpty(t, page2Start)
+
+	page2, next, err := p.cache.ListDatabases(context.Background(), 1000, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, len(expected)-10)
+	assert.Empty(t, next)
+
+	listed := append(page1, page2...)
+	assert.Empty(t, gocmp.Diff(expected, listed,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 }
 
 // TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
