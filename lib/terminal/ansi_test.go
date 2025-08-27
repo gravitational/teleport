@@ -224,13 +224,13 @@ func TestTerminalStateToANSI(t *testing.T) {
 
 			var buf bytes.Buffer
 			state := vt.DumpState()
-			ansi := VtStateToANSI(&buf, state)
+			VtStateToANSI(&buf, state)
 
 			if golden.ShouldSet() {
-				golden.Set(t, []byte(ansi))
+				golden.Set(t, []byte(buf.String()))
 			}
 
-			require.Equal(t, string(golden.Get(t)), ansi)
+			require.Equal(t, string(golden.Get(t)), buf.String())
 		})
 	}
 }
