@@ -52,14 +52,14 @@ const (
 	// EventProtocol specifies protocol that was captured
 	EventProtocol = "proto"
 	// EventProtocolsSSH specifies SSH as a type of captured protocol
-	EventProtocolSSH = "ssh"
+	EventProtocolSSH = apievents.EventProtocolSSH
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
-	EventProtocolKube = "kube"
+	EventProtocolKube = apievents.EventProtocolKube
 	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
 	// as a type of captured protocol
-	EventProtocolTDP = "tdp"
+	EventProtocolTDP = apievents.EventProtocolTDP
 	// EventProtocolDB specifies database as a type of captured protocol
-	EventProtocolDB = "db"
+	EventProtocolDB = apievents.EventProtocolDB
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
