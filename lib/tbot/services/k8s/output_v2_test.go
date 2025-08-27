@@ -305,10 +305,13 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 			require.NoError(t, err)
 			status := &kubernetesStatusV2{
 				kubernetesClusterNames: []string{"a", "b", "c"},
-				teleportClusterName:    mockClusterName,
-				tlsServerName:          client.GetKubeTLSServerName(mockClusterName),
-				credentials:            keyRing,
-				clusterAddr:            fmt.Sprintf("https://%s:443", mockClusterName),
+				defaultNamespaces: map[string]string{
+					"a": "namespace-a",
+				},
+				teleportClusterName: mockClusterName,
+				tlsServerName:       client.GetKubeTLSServerName(mockClusterName),
+				credentials:         keyRing,
+				clusterAddr:         fmt.Sprintf("https://%s:443", mockClusterName),
 			}
 
 			err = svc.render(
