@@ -70,7 +70,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -112,7 +112,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -205,7 +205,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -280,7 +280,7 @@ func (h *Handler) awsOIDCListDeployedDatabaseService(w http.ResponseWriter, r *h
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	regions, err := regionsForListingDeployedDatabaseService(ctx, r, clt, clt.DiscoveryConfigClient())
@@ -776,7 +776,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	versionGetter := &handlerVersionGetter{h}
@@ -828,7 +828,7 @@ func (h *Handler) awsOIDCListEKSClusters(w http.ResponseWriter, r *http.Request,
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -862,7 +862,7 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -950,7 +950,7 @@ func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Re
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1068,7 +1068,7 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1155,7 +1155,7 @@ func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1389,7 +1389,7 @@ func (h *Handler) awsOIDCListSubnets(w http.ResponseWriter, r *http.Request, p h
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1435,7 +1435,7 @@ func (h *Handler) awsOIDCListDatabaseVPCs(w http.ResponseWriter, r *http.Request
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1557,7 +1557,7 @@ func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprout
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	var req ui.AWSOIDCPingRequest
