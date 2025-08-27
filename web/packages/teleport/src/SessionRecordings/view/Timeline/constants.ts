@@ -28,4 +28,4 @@ export const BASE_FRAME_WIDTH = 240; // base width of the frame, used to calcula
 export const DEFAULT_FRAME_HEIGHT = 250; // default height of a frame
 export const DEFAULT_MAX_FRAME_WIDTH = 250; // the maximum width a frame can be
 
-export const CANVAS_FONT = font.slice(0, -1); // remove the semicolon at the end
+export const CANVAS_FONT = font.replace(/;$/, ''); // remove the semicolon at the end
