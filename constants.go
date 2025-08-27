@@ -759,6 +759,10 @@ const (
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
+
+	// PresetAccessGraphViewRoleName is a name of a preset role that
+	// includes permissions to read access graph resources.
+	PresetAccessGraphViewRoleName = "access-graph-view"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
