@@ -78,13 +78,16 @@ export interface SessionRecordingThumbnail {
 }
 
 export interface SessionRecordingMetadata {
-  durationMs: number;
+  duration: number;
   events: SessionRecordingEvent[];
   startCols: number;
   startRows: number;
-  startTimeMs: number;
-  endTimeMs: number;
+  startTime: number;
+  endTime: number;
   clusterName: string;
+  user: string;
+  resourceName: string;
+  type: RecordingType;
 }
 
 export interface SessionRecordingError {

@@ -23,6 +23,7 @@ import { makeRecording } from './makeRecording';
 import type {
   RecordingsQuery,
   RecordingsResponse,
+  RecordingType,
   SessionRecordingThumbnail,
 } from './types';
 
@@ -39,12 +40,42 @@ export default class RecordingsService {
     return fetchRecordings({ clusterId, params });
   }
 
+  /**
+   * @deprecated Use `fetchSessionRecordingDuration` instead.
+   */
   fetchRecordingDuration(
     clusterId: string,
     sessionId: string
   ): Promise<{ durationMs: number; recordingType: string }> {
-    return api.get(cfg.getSessionDurationUrl(clusterId, sessionId));
+    return fetchSessionRecordingDuration({
+      clusterId,
+      sessionId,
+    });
   }
+}
+
+interface FetchSessionRecordingDurationVariables {
+  clusterId: string;
+  sessionId: string;
+}
+
+interface FetchSessionRecordingDurationResponse {
+  durationMs: number;
+  recordingType: RecordingType;
+}
+
+export async function fetchSessionRecordingDuration({
+  clusterId,
+  sessionId,
+}: FetchSessionRecordingDurationVariables): Promise<FetchSessionRecordingDurationResponse> {
+  const url = cfg.getSessionDurationUrl(clusterId, sessionId);
+  const response = await api.get(url);
+
+  if (!response) {
+    throw new Error('Failed to fetch session recording duration');
+  }
+
+  return response;
 }
 
 interface FetchRecordingsVariables {
