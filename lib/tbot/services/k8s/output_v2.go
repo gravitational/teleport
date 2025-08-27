@@ -51,7 +51,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-func OutputV2ServiceBuilder(cfg *OutputV2Config, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
+func OutputV2ServiceBuilder(cfg *OutputV2Config, opts ...OutputV2Option) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -59,7 +59,7 @@ func OutputV2ServiceBuilder(cfg *OutputV2Config, defaultCredentialLifetime bot.C
 		svc := &OutputV2Service{
 			botAuthClient:             deps.Client,
 			botIdentityReadyCh:        deps.BotIdentityReadyCh,
-			defaultCredentialLifetime: defaultCredentialLifetime,
+			defaultCredentialLifetime: bot.DefaultCredentialLifetime,
 			cfg:                       cfg,
 			proxyPinger:               deps.ProxyPinger,
 			reloadCh:                  deps.ReloadCh,
@@ -67,10 +67,20 @@ func OutputV2ServiceBuilder(cfg *OutputV2Config, defaultCredentialLifetime bot.C
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
 		}
+		for _, opt := range opts {
+			opt.applyToV2Output(svc)
+		}
 		svc.log = deps.LoggerForService(svc)
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+}
+
+// OutputV1Option is an option that can be provided to customize the service.
+type OutputV2Option interface{ applyToV2Output(*OutputV2Service) }
+
+func (opt DefaultCredentialLifetimeOption) applyToV2Output(o *OutputV2Service) {
+	o.defaultCredentialLifetime = opt.lifetime
 }
 
 // OutputV2Service produces credentials which can be used to connect to a

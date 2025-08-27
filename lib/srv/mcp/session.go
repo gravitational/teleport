@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -55,6 +56,9 @@ type SessionCtx struct {
 	// Note that for stdio-based MCP server, a new session ID is generated per
 	// connection instead of using the web session ID from the app route.
 	sessionID session.ID
+
+	// mcpSessionID is the MCP session ID tracked by remote MCP server.
+	mcpSessionID atomicString
 }
 
 func (c *SessionCtx) checkAndSetDefaults() error {
@@ -270,4 +274,16 @@ func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) m
 		"RBAC is enforced by your Teleport roles. Contact your Teleport Admin for more details.",
 		authErr,
 	)
+}
+
+type atomicString struct {
+	atomic.Pointer[string]
+}
+
+// String loads the atomic string value. If the point is nil, empty is returned.
+func (s *atomicString) String() string {
+	if loaded := s.Load(); loaded != nil {
+		return *loaded
+	}
+	return ""
 }

@@ -509,7 +509,10 @@ type CLIConf struct {
 	TraceExporter string
 
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
-	TracingProvider oteltrace.TracerProvider
+	TracingProvider *tracing.Provider
+	// waitingForTracingClient will be set to true if the tracing provider is
+	// waiting for a *tracing.Client to be reported to it after logging in.
+	waitingForTracingClient bool
 
 	// disableAccessRequest disables automatic resource access requests. Deprecated in favor of RequestType.
 	disableAccessRequest bool
@@ -1961,18 +1964,35 @@ func initializeTracing(cf *CLIConf) func() {
 		cf.TracingProvider = provider
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
 		return flush(provider)
-	// The login command cannot forward spans to Auth since there is no way to get
-	// an authenticated client to forward with until after the authentication ceremony
-	// is complete. However, if the user explicitly provided an exporter then the login
-	// spans can be sent directly to it.
-	case cf.command == "login":
-		return func() {}
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
 	// for a Cloud tenant.
 	case !cf.SampleTraces:
 		return func() {}
 	case cf.SampleTraces:
+	}
+
+	// A login may be required to get a working Teleport client. Set up the
+	// tracing provider to wait for a client so that the initial login can be
+	// traced. Spans will be buffered in memory until the client is provided.
+	provider, err := tracing.NewTraceProvider(cf.Context,
+		tracing.Config{
+			Service:              teleport.ComponentTSH,
+			SamplingRate:         samplingRate,
+			WaitForDelayedClient: true,
+		})
+	if err != nil {
+		logger.DebugContext(cf.Context, "failed to set up span forwarding", "error", err)
+		return func() {}
+	}
+	cf.TracingProvider = provider
+	cf.tracer = provider.Tracer(teleport.ComponentTSH)
+
+	if cf.command == "login" {
+		// Don't call RetryWithRelogin below if the user is trying to log in.
+		// Rely on [onLogin] to set the delayed client on the tracing provider.
+		cf.waitingForTracingClient = true
+		return flush(provider)
 	}
 
 	// Parse the config to determine if forwarding is needed for Cloud and
@@ -1983,32 +2003,20 @@ func initializeTracing(cf *CLIConf) func() {
 		return func() {}
 	}
 
-	var provider *tracing.Provider
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clt, err := tc.NewTracingClient(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		p, err := tracing.NewTraceProvider(cf.Context,
-			tracing.Config{
-				Service:      teleport.ComponentTSH,
-				Client:       clt,
-				SamplingRate: samplingRate,
-			})
-		if err != nil {
+		if err := provider.SetClient(cf.Context, clt); err != nil {
 			return trace.NewAggregate(err, clt.Close())
 		}
-
-		provider = p
 		return nil
 	}); err != nil {
 		logger.DebugContext(cf.Context, "failed to set up span forwarding", "error", err)
 		return func() {}
 	}
 
-	cf.TracingProvider = provider
-	cf.tracer = provider.Tracer(teleport.ComponentTSH)
 	return flush(provider)
 }
 
@@ -2113,7 +2121,7 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 }
 
 // onLogin logs in with remote proxy and gets signed certificates
-func onLogin(cf *CLIConf, reExecArgs ...string) error {
+func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	autoRequest := true
 	// special case: --request-roles=no disables auto-request behavior.
 	if cf.DesiredRoles == "no" {
@@ -2152,6 +2160,27 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If the user requested tracing and the login succeeds (even if the user
+	// was already logged in) report the tracing client to the trace provider
+	// to that spans can be exported.
+	if cf.waitingForTracingClient {
+		defer func() {
+			if err != nil {
+				logger.DebugContext(cf.Context, "Login failed, unable to export traced spans")
+				return
+			}
+			tracingClient, err := tc.NewTracingClient(cf.Context)
+			if err != nil {
+				logger.DebugContext(cf.Context, "Failed to create tracing client after login", "error", err)
+				return
+			}
+			if err := cf.TracingProvider.SetClient(cf.Context, tracingClient); err != nil {
+				logger.DebugContext(cf.Context, "Failed to set tracing client on trace provider after login", "error", err)
+				tracingClient.Close()
+			}
+		}()
 	}
 
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
@@ -2305,7 +2334,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		}
 		return trace.Wrap(err)
 	}
-
 	tc.AllowStdinHijack = false
 
 	// the login operation may update the username and should be considered the more

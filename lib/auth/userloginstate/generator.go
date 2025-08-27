@@ -28,7 +28,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -213,127 +213,96 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 
 // addAccessListsToState will add the user's applicable access lists to the user login state after validating them, returning any inherited roles and traits.
 func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) (inheritedRoles []string, inheritedTraits map[string][]string, err error) {
-	accessLists, err := g.accessLists.GetAccessLists(ctx)
+	locks, err := g.accessLists.GetLocks(ctx, true, types.LockTarget{
+		User: user.GetName(),
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
+	}
+	if len(locks) > 0 {
+		return inheritedRoles, inheritedTraits, nil
 	}
 
 	var allInheritedRoles []string
 	allInheritedTraits := make(map[string][]string)
-
-	for _, accessList := range accessLists {
-		// Grants are inherited if the user is a member of the access list, explicitly or via inheritance.
-		inheritedRoles, inheritedTraits, err := g.handleAccessListMembership(ctx, user, accessList, state)
+	applyHierarchy := func(hierarchy []*accesslist.AccessList, accessListName string, ownerHierarchy bool) error {
+		if len(hierarchy) == 0 {
+			return nil
+		}
+		inheritedRoles, inheritedTraits, err := g.applyGrantsAcrossACLs(ctx, hierarchy, accessListName, user, state, ownerHierarchy)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		allInheritedRoles = append(allInheritedRoles, inheritedRoles...)
 		for k, values := range inheritedTraits {
 			allInheritedTraits[k] = append(allInheritedTraits[k], values...)
 		}
-
-		// OwnerGrants are inherited if the user is an owner of the access list, explicitly or via inheritance.
-		inheritedRoles, inheritedTraits, err = g.handleAccessListOwnership(ctx, user, accessList, state)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		allInheritedRoles = append(allInheritedRoles, inheritedRoles...)
-		for k, values := range inheritedTraits {
-			allInheritedTraits[k] = append(allInheritedTraits[k], values...)
-		}
+		return nil
 	}
 
+	h, err := accesslists.NewHierarchy(accesslists.HierarchyConfig{
+		AccessListsService: g.accessLists,
+		Clock:              g.clock,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	for acl, err := range clientutils.Resources(ctx, g.accessLists.ListAccessLists) {
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		memberOf, ownerOf, err := h.GetHierarchyForUser(ctx, acl, user)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		// Grants are inherited if the user is a member of the access list, explicitly or via inheritance.
+		if err := applyHierarchy(memberOf, acl.GetName(), false); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		// OwnerGrants are inherited if the user is an owner of the access list, explicitly or via inheritance.
+		if err := applyHierarchy(ownerOf, acl.GetName(), true); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
 	return allInheritedRoles, allInheritedTraits, nil
 }
 
-// handleAccessListMembership validates the access list and applies the grants and traits from the access list to the user if they are a member of the access list.
-// If the access list is invalid (because it references a non-existent role, for example,
-// then it will not be applied.
-func (g *Generator) handleAccessListMembership(ctx context.Context, user types.User, accessList *accesslist.AccessList, state *userloginstate.UserLoginState) ([]string, map[string][]string, error) {
-	var inheritedRoles []string
-	inheritedTraits := make(map[string][]string)
-
-	membershipKind, err := accesslists.IsAccessListMember(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
-	// Return early if there was an error or the user isn't a member of the access list.
-	if err != nil || membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-		// Log any error besides user being locked.
-		if err != nil && !accesslists.IsUserLocked(err) {
-			g.log.WarnContext(ctx, "checking access list membership", "error", err)
+func (g *Generator) applyGrantsAcrossACLs(ctx context.Context, acls []*accesslist.AccessList, baseName string, user types.User, state *userloginstate.UserLoginState, owner bool) (inheritedRoles []string, inheritedTraits map[string][]string, err error) {
+	inheritedTraits = make(map[string][]string)
+	for _, acl := range acls {
+		grants := selectGrants(acl, owner)
+		missing, err := g.identifyMissingRoles(ctx, grants.Roles)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
-		return inheritedRoles, inheritedTraits, nil
-	}
-
-	// Validate that all the roles in the access list exist.
-	missingRoles, err := g.identifyMissingRoles(ctx, accessList.Spec.Grants.Roles)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// If there are any missing roles, then we cannot apply the access list.
-	// Emit an audit event and return early.
-	// This flow is designed to skip the entire access list rather than processing individual roles within it.
-	// This approach ensures that access lists are treated as cohesive units of access control. Partial
-	// application of an access list could result in unintended permission configurations, potentially leading
-	// to security vulnerabilities or unpredictable behavior.
-	if missingRoles != nil {
-		g.emitSkippedAccessListEvent(ctx, accessList.Spec.Title, missingRoles, user.GetName())
-		return nil, nil, nil
-	}
-
-	g.grantRolesAndTraits(accessList.Spec.Grants, state)
-	if membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED {
-		inheritedRoles = append(inheritedRoles, accessList.Spec.Grants.Roles...)
-		for k, values := range accessList.Spec.Grants.Traits {
+		if len(missing) > 0 {
+			// If there are any missing roles, then we cannot apply the access list.
+			// Emit an audit event and skip the access list.
+			// This flow is designed to skip the entire access list rather than processing individual roles within it.
+			// This approach ensures that access lists are treated as cohesive units of access control. Partial
+			// application of an access list could result in unintended permission configurations, potentially leading
+			// to security vulnerabilities or unpredictable behavior.
+			g.emitSkippedAccessListEvent(ctx, acl.Spec.Title, missing, user.GetName())
+			continue
+		}
+		g.grantRolesAndTraits(grants, state)
+		if acl.GetName() == baseName {
+			continue
+		}
+		inheritedRoles = append(inheritedRoles, grants.Roles...)
+		for k, values := range grants.Traits {
 			inheritedTraits[k] = append(inheritedTraits[k], values...)
 		}
 	}
-
 	return inheritedRoles, inheritedTraits, nil
 }
 
-// handleAccessListOwnership validates the access list and applies the grants and traits from the access list to the user if they are an owner of the access list.
-// If the access list is invalid (because it references a non-existent role, for example,
-// then it will not be applied.
-func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.User, accessList *accesslist.AccessList, state *userloginstate.UserLoginState) ([]string, map[string][]string, error) {
-	var inheritedRoles []string
-	inheritedTraits := make(map[string][]string)
-
-	ownershipType, err := accesslists.IsAccessListOwner(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
-	// Return early if there was an error or the user isn't an owner of the access list.
-	if err != nil || ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-		// Log any error besides user being locked.
-		if err != nil && !accesslists.IsUserLocked(err) {
-			g.log.WarnContext(ctx, "checking access list ownership", "error", err)
-		}
-		return inheritedRoles, inheritedTraits, nil
+func selectGrants(acl *accesslist.AccessList, owner bool) accesslist.Grants {
+	if owner {
+		return acl.Spec.OwnerGrants
 	}
-
-	// Validate that all the roles in the access list exist.
-	missingRoles, err := g.identifyMissingRoles(ctx, accessList.Spec.OwnerGrants.Roles)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// If there are any missing roles, then we cannot apply the access list.
-	// Emit an audit event and return early.
-	// This flow is designed to skip the entire access list rather than processing individual roles within it.
-	// This approach ensures that access lists are treated as cohesive units of access control. Partial
-	// application of an access list could result in unintended permission configurations, potentially leading
-	// to security vulnerabilities or unpredictable behavior.
-	if missingRoles != nil {
-		g.emitSkippedAccessListEvent(ctx, accessList.Spec.Title, missingRoles, user.GetName())
-		return nil, nil, nil
-	}
-
-	g.grantRolesAndTraits(accessList.Spec.OwnerGrants, state)
-	if ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED {
-		inheritedRoles = append(inheritedRoles, accessList.Spec.OwnerGrants.Roles...)
-		for k, values := range accessList.Spec.OwnerGrants.Traits {
-			inheritedTraits[k] = append(inheritedTraits[k], values...)
-		}
-	}
-
-	return inheritedRoles, inheritedTraits, nil
+	return acl.Spec.Grants
 }
 
 // grantRolesAndTraits will append the roles and traits from the provided Grants to the UserLoginState,

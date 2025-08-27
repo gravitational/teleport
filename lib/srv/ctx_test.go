@@ -271,7 +271,7 @@ func TestCreateOrJoinSession(t *testing.T) {
 	require.NoError(t, err)
 
 	runningSessionID := rsession.NewID()
-	sess, _, err := newSession(ctx, runningSessionID, registry, newTestServerContext(t, srv, nil, nil), newMockSSHChannel(), sessionTypeInteractive)
+	sess, _, err := newSession(ctx, runningSessionID, registry, newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{}), newMockSSHChannel(), sessionTypeInteractive)
 	require.NoError(t, err)
 
 	t.Cleanup(sess.Stop)

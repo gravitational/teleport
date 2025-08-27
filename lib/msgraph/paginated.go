@@ -27,12 +27,14 @@ import (
 	"strconv"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // iterateSimple implements pagination for "simple" object lists, where additional logic isn't needed
 func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f func(*T) bool) error {
 	var err error
-	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
+	itErr := c.iterate(ctx, endpoint, nil /* query */, nil /* optional header */, func(msg json.RawMessage) bool {
 		var page []T
 		if err = json.Unmarshal(msg, &page); err != nil {
 			return false
@@ -51,13 +53,18 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 }
 
 // iterate implements pagination for "list" endpoints.
-func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool) error {
+func (c *Client) iterate(ctx context.Context, endpoint string, query url.Values, header map[string]string, f func(json.RawMessage) bool) error {
 	uri := *c.baseURL
 	uri.Path = path.Join(uri.Path, endpoint)
-	uri.RawQuery = url.Values{"$top": {strconv.Itoa(c.pageSize)}}.Encode()
+	pageSize := strconv.Itoa(c.pageSize)
+	if query == nil {
+		query = make(url.Values)
+	}
+	query.Add("$top", pageSize)
+	uri.RawQuery = query.Encode()
 	uriString := uri.String()
 	for uriString != "" {
-		resp, err := c.request(ctx, http.MethodGet, uriString, nil)
+		resp, err := c.request(ctx, http.MethodGet, uriString, header, nil /* payload */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -115,7 +122,7 @@ func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal 
 // Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-members].
 func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func(GroupMember) bool) error {
 	var err error
-	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), func(msg json.RawMessage) bool {
+	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), nil /* query */, nil /* optional header */, func(msg json.RawMessage) bool {
 		var page []json.RawMessage
 		if err = json.Unmarshal(msg, &page); err != nil {
 			return false
@@ -134,6 +141,69 @@ func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func
 				}
 			}
 			if !f(member) {
+				return false
+			}
+		}
+		return true
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(itErr)
+}
+
+const (
+	graphNamespaceGroups         = "microsoft.graph.group"
+	graphNamespaceDirectoryRoles = "microsoft.graph.directoryRole"
+)
+
+const (
+	securityGroupsFilter = `mailEnabled eq false and securityEnabled eq true`
+)
+
+// IterateUsersTransitiveMemberOf lists groups that the user is a member of
+// through a direct or nested group membership.
+// This method calls user's transitiveMemberOf endpoint https://learn.microsoft.com/en-us/graph/api/user-list-transitivememberof?view=graph-rest-1.0&tabs=http.
+// Supported endpoints:
+// - All groups and directory roles: /v1.0/users/<user-id>/transitiveMemberOf
+// - Security groups: /v1.0/users/<user-id>/transitiveMemberOf/microsoft.graph.group?$filter=mailEnabled eq false and securityEnabled eq true
+// - Directory roles: /v1.0/users/<user-id>/transitiveMemberOf/microsoft.graph.directoryRole
+// Only group ID is extracted from the response, so the DirectoryObject struct is sufficient
+// to parse groups as well ass directory roles response.
+func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, groupType string, f func(*Group) bool) error {
+	// MS Graph expects $count query parameter and
+	// "ConsistencyLevel: eventual" header set when using
+	// advanced query parameter such as $filter.
+	// https://learn.microsoft.com/en-us/graph/aad-advanced-queries?tabs=http#legend
+	query := url.Values{
+		"$select": {"id"},
+		"$count":  {"true"},
+	}
+	header := map[string]string{
+		"ConsistencyLevel": "eventual",
+	}
+
+	endpoint := path.Join("users", userID, "transitiveMemberOf")
+	switch groupType {
+	case types.EntraIDAllGroups:
+		// default endpoint suffices.
+	case types.EntraIDDirectoryRoles:
+		endpoint = path.Join(endpoint, graphNamespaceDirectoryRoles)
+	case types.EntraIDSecurityGroups:
+		endpoint = path.Join(endpoint, graphNamespaceGroups)
+		query.Add("$filter", securityGroupsFilter)
+	default:
+		return trace.BadParameter("unexpected group type %q received, expected types are %q", groupType, types.EntraIDGroupsTypes)
+	}
+
+	var err error
+	itErr := c.iterate(ctx, endpoint, query, header, func(msg json.RawMessage) bool {
+		var page []Group
+		if err = json.Unmarshal(msg, &page); err != nil {
+			return false
+		}
+		for _, item := range page {
+			if !f(&item) {
 				return false
 			}
 		}

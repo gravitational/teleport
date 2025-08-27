@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -557,3 +558,179 @@ func TestGetApplication(t *testing.T) {
 }
 
 func toPtr[T any](s T) *T { return &s }
+
+func TestNewClient(t *testing.T) {
+	tests := []struct {
+		name                  string
+		config                Config
+		expectedGraphEndpoint string
+		errExpected           bool
+		errAssertion          require.ErrorAssertionFunc
+	}{
+		{
+			name: "empty endpoint sets default graph endpoint",
+			config: Config{
+				TokenProvider: &fakeTokenProvider{},
+				GraphEndpoint: "",
+			},
+			expectedGraphEndpoint: types.MSGraphDefaultEndpoint,
+			errAssertion:          require.NoError,
+		},
+		{
+			name: "configured endpoint",
+			config: Config{
+				TokenProvider: &fakeTokenProvider{},
+				GraphEndpoint: "https://dod-graph.microsoft.us",
+			},
+			expectedGraphEndpoint: "https://dod-graph.microsoft.us",
+			errAssertion:          require.NoError,
+		},
+		{
+			name: "invalid endpoint",
+			config: Config{
+				TokenProvider: &fakeTokenProvider{},
+				GraphEndpoint: "https://graph.windows.net",
+			},
+			errExpected:  true,
+			errAssertion: require.Error,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			clt, err := NewClient(test.config)
+			test.errAssertion(t, err)
+			if !test.errExpected {
+				require.Equal(t, test.expectedGraphEndpoint+"/"+graphVersion, clt.baseURL.String())
+			}
+		})
+	}
+}
+
+func TestIterateUsersTransitiveMemberOf(t *testing.T) {
+	userID := "9ef1bc41-1b26-4a66-b8bc-956b2a54f8dc"
+	allGroupsPath := fmt.Sprintf("/%s/users/%s/transitiveMemberOf", graphVersion, userID)
+	groupsPath := fmt.Sprintf("/%s/users/%s/transitiveMemberOf/%s", graphVersion, userID, graphNamespaceGroups)
+	directoryRolePath := fmt.Sprintf("/%s/users/%s/transitiveMemberOf/%s", graphVersion, userID, graphNamespaceDirectoryRoles)
+
+	consistencyHeaderValue := ""
+	foundQuery := make(url.Values)
+	requestedPath := ""
+	withRequestChecker := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestedPath = r.URL.Path
+			consistencyHeaderValue = r.Header.Get("ConsistencyLevel")
+			foundQuery = r.URL.Query()
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	mux := http.NewServeMux()
+	var groups []json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(userGroups), &groups))
+	mux.Handle("GET "+allGroupsPath, withRequestChecker(paginatedHandler(t, groups)))
+	mux.Handle("GET "+groupsPath, withRequestChecker(paginatedHandler(t, groups)))
+	mux.Handle("GET "+directoryRolePath, withRequestChecker(paginatedHandler(t, groups)))
+	srv := httptest.NewServer(mux)
+	t.Cleanup(func() { srv.Close() })
+
+	uri, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	client := &Client{
+		httpClient:    &http.Client{},
+		tokenProvider: &fakeTokenProvider{},
+		retryConfig:   retryConfig,
+		baseURL:       uri.JoinPath(graphVersion),
+		pageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+	}
+
+	assertConsistencyLevelHeader := func(t *testing.T, h string) {
+		t.Helper()
+		require.Equal(t, "eventual", h, "request made without ConsistencyLevel header")
+	}
+	assertCountQuery := func(t *testing.T, c string) {
+		t.Helper()
+		require.Equal(t, "true", c, "request made without $count query")
+	}
+	assertRequestedPath := func(t *testing.T, e, p string) {
+		t.Helper()
+		require.Equal(t, e, p, "expected request path did not match")
+	}
+
+	t.Run(types.EntraIDSecurityGroups, func(tt *testing.T) {
+		var groupIDs []string
+		err := client.IterateUsersTransitiveMemberOf(context.Background(), userID, types.EntraIDSecurityGroups, func(group *Group) bool {
+			groupIDs = append(groupIDs, *group.ID)
+			return true
+		})
+		require.NoError(t, err)
+		require.Len(t, groupIDs, 5)
+
+		filterValue, err := url.QueryUnescape(foundQuery.Get("$filter"))
+		require.NoError(t, err)
+		require.Equal(t, securityGroupsFilter, filterValue, "security groups request made without filter query")
+		assertConsistencyLevelHeader(t, consistencyHeaderValue)
+		assertRequestedPath(t, groupsPath, requestedPath)
+		assertCountQuery(t, foundQuery.Get("$count"))
+	})
+
+	t.Run(types.EntraIDAllGroups, func(tt *testing.T) {
+		var groupIDs []string
+		err := client.IterateUsersTransitiveMemberOf(context.Background(), userID, types.EntraIDAllGroups, func(group *Group) bool {
+			groupIDs = append(groupIDs, *group.ID)
+			return true
+		})
+		require.NoError(t, err)
+		require.Len(t, groupIDs, 5)
+
+		require.Empty(t, foundQuery.Get("$filter"), "non security groups request made with filter query")
+		assertConsistencyLevelHeader(t, consistencyHeaderValue)
+		assertRequestedPath(t, allGroupsPath, requestedPath)
+		assertCountQuery(t, foundQuery.Get("$count"))
+	})
+
+	t.Run(types.EntraIDDirectoryRoles, func(tt *testing.T) {
+		var groupIDs []string
+		err := client.IterateUsersTransitiveMemberOf(context.Background(), userID, types.EntraIDDirectoryRoles, func(group *Group) bool {
+			groupIDs = append(groupIDs, *group.ID)
+			return true
+		})
+		require.NoError(t, err)
+		require.Len(t, groupIDs, 5)
+
+		require.Empty(t, foundQuery.Get("$filter"), "non security groups request made with filter query")
+		assertConsistencyLevelHeader(t, consistencyHeaderValue)
+		assertRequestedPath(t, directoryRolePath, requestedPath)
+		assertCountQuery(t, foundQuery.Get("$count"))
+	})
+
+	t.Run("unsupported-group-type", func(tt *testing.T) {
+		var groupIDs []string
+		err := client.IterateUsersTransitiveMemberOf(context.Background(), userID, "unsupported-group-type", func(group *Group) bool {
+			groupIDs = append(groupIDs, *group.ID)
+			return true
+		})
+		require.Error(t, err)
+	})
+}
+
+var userGroups = `
+[
+	{
+		"id": "07af5ddc-0f6b-4237-8b3c-64815501d1d5"
+	},
+	{
+		"id": "dd034a93-4ac3-4095-8b9e-f521ad7eace9"
+	},
+	{
+		"id": "20b81a2c-fda0-41e7-8268-48a014be0b08"
+	},
+	{
+		"id": "97336101-e9a4-4455-9d19-945fd9178ff6"
+	},
+	{
+		"id": "76c1db72-be9c-4ed5-8a42-bdeec6a34502"
+	}
+]
+`

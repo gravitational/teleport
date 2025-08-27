@@ -46,11 +46,11 @@ func (r *RemoteFS) ReadDir(path string) ([]os.FileInfo, error) {
 		return nil, err
 	}
 	for i := range fileInfos {
-		// if the file is a symlink, return the info of the linked file
-		if fileInfos[i].Mode().Type()&os.ModeSymlink != 0 {
-			fileInfos[i], err = r.Stat(portablepath.Join(path, fileInfos[i].Name()))
-			if err != nil {
-				return nil, err
+		// If the file is a valid symlink, return the info of the linked file.
+		if fileInfos[i].Mode()&os.ModeSymlink != 0 {
+			resolvedInfo, err := r.Stat(portablepath.Join(path, fileInfos[i].Name()))
+			if err == nil {
+				fileInfos[i] = resolvedInfo
 			}
 		}
 	}

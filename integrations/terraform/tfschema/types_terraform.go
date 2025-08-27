@@ -472,6 +472,22 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 				},
 				"gcp": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"alloydb": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"endpoint_override": {
+									Description: "EndpointOverride is an override of endpoint address to use.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"endpoint_type": {
+									Description: "EndpointType is the database endpoint type to use. Should be one of: \"private\", \"public\", \"psc\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "AlloyDB contains AlloyDB specific configuration elements.",
+							Optional:    true,
+						},
 						"instance_id": {
 							Description: "InstanceID is the Cloud SQL instance ID.",
 							Optional:    true,
@@ -2103,7 +2119,7 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 						},
 						"manual_key_management": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"active_key": {
+								"active_keys": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"label": {
 											Description: "Label is a value that can be used with the related keystore in order to find relevant keys.",
@@ -2124,7 +2140,7 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
-								"rotated_key": {
+								"rotated_keys": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"label": {
 											Description: "Label is a value that can be used with the related keystore in order to find relevant keys.",
@@ -2166,7 +2182,7 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 		"status": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"encryption_keys": {
 				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"public_key": {
-					Description: "A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.",
+					Description: "A PKIX ASN.1 DER encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				}}),
@@ -4163,6 +4179,11 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 						},
 						"prompt": {
 							Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"request_object_mode": {
+							Description: "RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters. If omitted, MFA flows will default to the `RequestObjectMode` behavior specified in the base OIDC connector. Set this property to 'none' to explicitly disable request objects for the MFA client.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -6445,6 +6466,57 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 													t = string(v.Value)
 												}
 												obj.InstanceID = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["alloydb"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.AlloyDB = github_com_gravitational_teleport_api_types.AlloyDB{}
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj := &obj.AlloyDB
+													{
+														a, ok := tf.Attrs["endpoint_type"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.EndpointType = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["endpoint_override"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.EndpointOverride = t
+															}
+														}
+													}
+												}
 											}
 										}
 									}
@@ -8793,6 +8865,80 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 											v.Value = string(obj.InstanceID)
 											v.Unknown = false
 											tf.Attrs["instance_id"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["alloydb"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["alloydb"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												{
+													obj := obj.AlloyDB
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["endpoint_type"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType"})
+														} else {
+															v, ok := tf.Attrs["endpoint_type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.EndpointType) == ""
+															}
+															v.Value = string(obj.EndpointType)
+															v.Unknown = false
+															tf.Attrs["endpoint_type"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["endpoint_override"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride"})
+														} else {
+															v, ok := tf.Attrs["endpoint_override"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.EndpointOverride) == ""
+															}
+															v.Value = string(obj.EndpointOverride)
+															v.Unknown = false
+															tf.Attrs["endpoint_override"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["alloydb"] = v
+											}
 										}
 									}
 								}
@@ -22489,7 +22635,7 @@ func CopySessionRecordingConfigV2FromTerraform(_ context.Context, tf github_com_
 														}
 													}
 													{
-														a, ok := tf.Attrs["active_key"]
+														a, ok := tf.Attrs["active_keys"]
 														if !ok {
 															diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.active_keys"})
 														} else {
@@ -22552,7 +22698,7 @@ func CopySessionRecordingConfigV2FromTerraform(_ context.Context, tf github_com_
 														}
 													}
 													{
-														a, ok := tf.Attrs["rotated_key"]
+														a, ok := tf.Attrs["rotated_keys"]
 														if !ok {
 															diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.rotated_keys"})
 														} else {
@@ -23092,7 +23238,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 														}
 													}
 													{
-														a, ok := tf.AttrTypes["active_key"]
+														a, ok := tf.AttrTypes["active_keys"]
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.active_keys"})
 														} else {
@@ -23100,7 +23246,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.active_keys", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
 															} else {
-																c, ok := tf.Attrs["active_key"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																c, ok := tf.Attrs["active_keys"].(github_com_hashicorp_terraform_plugin_framework_types.List)
 																if !ok {
 																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
 
@@ -23119,7 +23265,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ActiveKeys))
 																	}
 																	for k, a := range obj.ActiveKeys {
-																		v, ok := tf.Attrs["active_key"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		v, ok := tf.Attrs["active_keys"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																		if !ok {
 																			v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -23189,12 +23335,12 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 																	}
 																}
 																c.Unknown = false
-																tf.Attrs["active_key"] = c
+																tf.Attrs["active_keys"] = c
 															}
 														}
 													}
 													{
-														a, ok := tf.AttrTypes["rotated_key"]
+														a, ok := tf.AttrTypes["rotated_keys"]
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.rotated_keys"})
 														} else {
@@ -23202,7 +23348,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption.manual_key_management.rotated_keys", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
 															} else {
-																c, ok := tf.Attrs["rotated_key"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																c, ok := tf.Attrs["rotated_keys"].(github_com_hashicorp_terraform_plugin_framework_types.List)
 																if !ok {
 																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
 
@@ -23221,7 +23367,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RotatedKeys))
 																	}
 																	for k, a := range obj.RotatedKeys {
-																		v, ok := tf.Attrs["rotated_key"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		v, ok := tf.Attrs["rotated_keys"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																		if !ok {
 																			v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -23291,7 +23437,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 																	}
 																}
 																c.Unknown = false
-																tf.Attrs["rotated_key"] = c
+																tf.Attrs["rotated_keys"] = c
 															}
 														}
 													}
@@ -41665,6 +41811,23 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["request_object_mode"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.MFASettings.RequestObjectMode"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.RequestObjectMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.RequestObjectMode = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -42829,6 +42992,28 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 											v.Value = time.Duration(obj.MaxAge)
 											v.Unknown = false
 											tf.Attrs["max_age"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["request_object_mode"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.MFASettings.RequestObjectMode"})
+										} else {
+											v, ok := tf.Attrs["request_object_mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.MFASettings.RequestObjectMode", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.RequestObjectMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.RequestObjectMode) == ""
+											}
+											v.Value = string(obj.RequestObjectMode)
+											v.Unknown = false
+											tf.Attrs["request_object_mode"] = v
 										}
 									}
 								}

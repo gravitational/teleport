@@ -1,0 +1,89 @@
+---
+title: CI/CD with Machine & Workload Identity
+description: Configuring CI/CD with Machine & Workload Identity
+labels:
+ - conceptual
+ - mwi
+---
+
+Teleport Machine & Workload Identity eliminates the need for long-lived static secrets in CI/CD pipelines by issuing short-lived 
+certificates at runtime. Teleport natively integrates with many CI/CD providers and deployment targets.
+
+## Choose your CI/CD platform
+
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="azureDevops" size="xl" />,
+      to: "/machine-workload-identity/machine-id/deployment/azure-devops",
+      name: "Azure DevOps",
+    },
+    {
+      icon: <Icon name="bitbucket" size="xl" />,
+      to: "/machine-workload-identity/machine-id/deployment/bitbucket",
+      name: "BitBucket Pipelines",
+    },
+    {
+      icon: <Icon name="circleci" size="xl" />,
+      to: "/machine-workload-identity/machine-id/deployment/circleci",
+      name: "CircleCI",
+    },
+    {
+      icon: <Icon name="gitlab" size="xl" />,
+      to: "/machine-workload-identity/machine-id/deployment/gitlab",
+      name: "GitLab CI",
+    },
+    {
+      icon: <Icon name="githubActions" size="xl" />,
+      to: "/machine-workload-identity/machine-id/deployment/github-actions",
+      name: "GitHub Actions",
+    },
+    {
+      icon: <Icon name="jenkins" size="xl" />,
+      to: "/machine-workload-identity/machine-id/deployment/jenkins",
+      name: "Jenkins",
+    },
+    {
+      icon: <Icon name="spacelift" size="xl" />,
+      to: "/zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
+      name: "Spacelift",
+    }
+  ]}
+/>
+
+## Eliminate secrets from your CI/CD pipeline
+
+In a typical CI/CD setup, a pipeline such as one running in GitHub Actions on GitHub's infrastructure outside the corporate network builds a 
+container image, pushes it to a container registry, and updates an application running in a container orchestration platform (such as Kubernetes).
+
+This workflow commonly relies on sensitive credentials stored in the CI/CD system, such as:
+
+- Cloud provider access credentials (e.g., AWS, GCP, Azure)
+- Configuration files or tokens for deploying to orchestration platforms
+
+Traditionally, platform teams would generate static credentials and share them with development teams, who were then responsible for manually updating 
+repositories. Although the credential generation process emits a security log, teams often lack a reliable way to correlate it with GitHub's audit logs 
+to verify timely rotation. Sharing credentials via Slack, email, file drops, or password managers adds further risk. Moreover, exposing the Kubernetes API 
+to the internet introduces unnecessary surface area for attack.
+
+Teleport eliminates the need for these shared secrets by issuing short-lived, identity-based credentials at runtime. Rather than storing static access tokens in the CI/CD 
+system, pipelines can request ephemeral credentials that expire automatically, reducing the risk of credential leaks and simplifying access management.
+
+## Secure and auditable access with ephemeral credentials
+
+In CI/CD pipelines, Teleport eliminates the need for static credentials by generating ephemeral, short-lived identities at the start of each job:
+
+- A SPIFFE Verifiable Identity Document (SVID) used with AWS IAM Roles Anywhere for secure AWS access (e.g., to ECR or S3).
+- A time-bound Kubernetes config file to interact with the cluster.
+
+These credentials are issued as short-lived JWT-SVIDs or X.509 certificates that expire automatically when the job completes. 
+This improves the security posture and simplifies credential management for platform teams. All usage is logged by Teleport, 
+and Kubernetes commands from the CI/CD runner are routed through the Teleport Proxy, enabling secure access to private 
+API endpoints and full audit visibility.
+
+### Further reading
+
+- [Architecture](../../reference/architecture/machine-id-architecture.mdx): A technical deep-dive into how Machine ID
+  works.
+- [Reference](../../reference/machine-id/machine-id.mdx): Complete documentation of available
+  configuration options.

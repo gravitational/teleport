@@ -226,6 +226,9 @@ func TestSession_newRecorder(t *testing.T) {
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecording,
 				term:                   &terminal{},
+				Identity: IdentityContext{
+					AccessPermit: &decisionpb.SSHAccessPermit{},
+				},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -247,6 +250,9 @@ func TestSession_newRecorder(t *testing.T) {
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecordingSync,
 				term:                   &terminal{},
+				Identity: IdentityContext{
+					AccessPermit: &decisionpb.SSHAccessPermit{},
+				},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -336,6 +342,9 @@ func TestSession_newRecorder(t *testing.T) {
 				srv: &mockServer{
 					MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 					datadir:             t.TempDir(),
+				},
+				Identity: IdentityContext{
+					AccessPermit: &decisionpb.SSHAccessPermit{},
 				},
 				term: &terminal{},
 			},
@@ -1168,7 +1177,7 @@ func TestSessionRecordingMode(t *testing.T) {
 				},
 			}
 
-			gotMode := sess.sessionRecordingMode()
+			gotMode := sess.sessionRecordingLocation()
 			require.Equal(t, tt.expectedMode, gotMode)
 		})
 	}

@@ -747,7 +747,7 @@ type Auth struct {
 
 	// SessionRecordingConfig configures how session recording should be handled including things like
 	// encryption and key management.
-	SessionRecordingConfig *types.SessionRecordingConfigSpecV2 `yaml:"session_recording_config,omitempty"`
+	SessionRecordingConfig *SessionRecordingConfig `yaml:"session_recording_config,omitempty"`
 
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
@@ -2076,6 +2076,17 @@ type DatabaseGCP struct {
 	ProjectID string `yaml:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL database instance ID.
 	InstanceID string `yaml:"instance_id,omitempty"`
+	// AlloyDB contains AlloyDB specific settings.
+	AlloyDB DatabaseGCPAlloyDB `yaml:"alloydb,omitempty"`
+}
+
+// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
+type DatabaseGCPAlloyDB struct {
+	// EndpointType is the database endpoint type to use. Available types are 'private', 'public' and 'psc'.
+	// 'private' is the default type.
+	EndpointType string `yaml:"endpoint_type,omitempty"`
+	// EndpointOverride is an override of endpoint address to use.
+	EndpointOverride string `yaml:"endpoint_override,omitempty"`
 }
 
 // DatabaseAzure contains Azure database configuration.
@@ -2917,4 +2928,51 @@ type Relay struct {
 	// APIPublicHostnames is the list of DNS names and IP addresses that the
 	// Relay service credentials should be authoritative for.
 	APIPublicHostnames []string `yaml:"api_public_hostnames"`
+}
+
+// SessionRecordingEncryptionConfig is the session_recording_config.encryption
+// section of the Teleport config file. It maps directly to [types.SessionRecordingEncryptionConfig]
+type SessionRecordingEncryptionConfig struct {
+	Enabled             bool `yaml:"enabled,omitempty"`
+	ManualKeyManagement *struct {
+		Enabled     bool              `yaml:"enabled,omitempty"`
+		ActiveKeys  []*types.KeyLabel `yaml:"active_keys,omitempty"`
+		RotatedKeys []*types.KeyLabel `yaml:"rotated_keys,omitempty"`
+	} `yaml:"manual_key_management,omitempty"`
+}
+
+// SessionRecordingConfig is the session_recording_config section of the Teleport config file.
+// It maps directly to [types.SessionRecordingConfigSpecV2]
+type SessionRecordingConfig struct {
+	Mode                string                            `yaml:"mode"`
+	ProxyChecksHostKeys *types.BoolOption                 `yaml:"proxy_checks_host_keys,omitempty"`
+	Encryption          *SessionRecordingEncryptionConfig `yaml:"encryption,omitempty"`
+}
+
+// toSpec converts SessionRecordingConfig into a types.SessionRecordingConfigSpecV2 so it can
+// be used to initialize session recording.
+func (src *SessionRecordingConfig) toSpec() types.SessionRecordingConfigSpecV2 {
+	if src == nil {
+		return types.SessionRecordingConfigSpecV2{}
+	}
+
+	var encryption *types.SessionRecordingEncryptionConfig
+	if src.Encryption != nil {
+		encryption = &types.SessionRecordingEncryptionConfig{
+			Enabled: src.Encryption.Enabled,
+		}
+		if src.Encryption.ManualKeyManagement != nil {
+			encryption.ManualKeyManagement = &types.ManualKeyManagementConfig{
+				Enabled:     src.Encryption.ManualKeyManagement.Enabled,
+				ActiveKeys:  src.Encryption.ManualKeyManagement.ActiveKeys,
+				RotatedKeys: src.Encryption.ManualKeyManagement.RotatedKeys,
+			}
+		}
+	}
+
+	return types.SessionRecordingConfigSpecV2{
+		Mode:                src.Mode,
+		ProxyChecksHostKeys: src.ProxyChecksHostKeys,
+		Encryption:          encryption,
+	}
 }

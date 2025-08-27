@@ -95,6 +95,9 @@ const cfg = {
   // isPolicyEnabled refers to the Teleport Policy product
   isPolicyEnabled: false,
 
+  // sessionSummarizerEnabled refers to the AI session summary feature
+  sessionSummarizerEnabled: false,
+
   configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
@@ -259,7 +262,7 @@ const cfg = {
     clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
-    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
+    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
 
@@ -519,6 +522,12 @@ const cfg = {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
     },
+
+    sessionRecording: {
+      metadata:
+        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/metadata/ws',
+      thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
+    },
   },
 
   playable_db_protocols: [],
@@ -573,10 +582,32 @@ const cfg = {
     clusterId: string,
     params: UrlSessionRecordingsParams
   ) {
-    return generatePath(cfg.api.clusterEventsRecordingsPath, {
+    const searchParams = new URLSearchParams();
+
+    if (params.start) {
+      searchParams.append('from', params.start);
+    }
+
+    if (params.end) {
+      searchParams.append('to', params.end);
+    }
+
+    if (params.limit) {
+      searchParams.append('limit', params.limit.toString());
+    }
+
+    if (params.startKey) {
+      searchParams.append('startKey', params.startKey);
+    }
+
+    const paramsString = searchParams.toString();
+    const queryString = paramsString ? `?${paramsString}` : '';
+
+    const path = generatePath(cfg.api.clusterEventsRecordingsPath, {
       clusterId,
-      ...params,
     });
+
+    return `${path}${queryString}`;
   },
 
   getAuthProviders() {
@@ -892,6 +923,20 @@ const cfg = {
     }
 
     return route;
+  },
+
+  getSessionRecordingMetadataUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.metadata, {
+      clusterId,
+      sessionId,
+    });
+  },
+
+  getSessionRecordingThumbnailUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.thumbnail, {
+      clusterId,
+      sessionId,
+    });
   },
 
   getConnectionDiagnosticUrl() {
