@@ -1,3 +1,5 @@
+//go:build !terraform
+
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
