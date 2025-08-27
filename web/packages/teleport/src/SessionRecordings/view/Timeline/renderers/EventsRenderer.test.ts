@@ -18,12 +18,13 @@
 
 import 'jest-canvas-mock';
 
+import { darkTheme } from 'design/theme';
+
 import {
   SessionRecordingEventType,
   SessionRecordingMetadata,
 } from 'teleport/services/recordings';
 import type { TimelineRenderContext } from 'teleport/SessionRecordings/view/Timeline/renderers/TimelineCanvasRenderer';
-import { darkTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 import {
   EVENT_ROW_HEIGHT,
