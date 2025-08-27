@@ -494,6 +494,11 @@ const colors: ThemeColors = {
     caribbean: dataVisualisationColors.primary.caribbean,
   },
 
+  sessionRecording: {
+    resource: '#004570',
+    user: '#311C79',
+  },
+
   link: '#0073BA',
 
   highlightedNavigationItem: blue[200],

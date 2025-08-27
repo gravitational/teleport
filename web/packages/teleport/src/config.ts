@@ -525,7 +525,7 @@ const cfg = {
 
     sessionRecording: {
       metadata:
-        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/metadata/ws',
+        '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
   },
@@ -925,10 +925,15 @@ const cfg = {
     return route;
   },
 
-  getSessionRecordingMetadataUrl(clusterId: string, sessionId: string) {
+  getSessionRecordingMetadataUrl(
+    clusterId: string,
+    sessionId: string,
+    fqdn: string
+  ) {
     return generatePath(cfg.api.sessionRecording.metadata, {
       clusterId,
       sessionId,
+      fqdn,
     });
   },
 

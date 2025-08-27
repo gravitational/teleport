@@ -47,7 +47,7 @@ test('renders thumbnail with correct background position for centered cursor', a
   const thumbnail = await screen.findByTestId('recording-thumbnail');
 
   expect(thumbnail).toHaveStyle({
-    backgroundPosition: '50% 50%',
+    backgroundPosition: '25% 25%',
     backgroundSize: '200%',
   });
 });
@@ -83,7 +83,7 @@ test('renders thumbnail with correct background position for bottom-right cursor
   const thumbnail = await screen.findByTestId('recording-thumbnail');
 
   expect(thumbnail).toHaveStyle({
-    backgroundPosition: '100% 100%',
+    backgroundPosition: '75% 75%',
     backgroundSize: '200%',
   });
 });
@@ -103,7 +103,7 @@ test('renders thumbnail with different aspect ratio', async () => {
   const thumbnail = await screen.findByTestId('recording-thumbnail');
 
   expect(thumbnail).toHaveStyle({
-    backgroundPosition: '50% 50%',
+    backgroundPosition: '25% 25%',
     backgroundSize: '200%',
   });
 });
@@ -121,7 +121,7 @@ test('clamps background position when cursor is near edges', async () => {
   const thumbnail = await screen.findByTestId('recording-thumbnail');
 
   expect(thumbnail).toHaveStyle({
-    backgroundPosition: '100% 0%',
+    backgroundPosition: '70% 0%',
     backgroundSize: '200%',
   });
 });

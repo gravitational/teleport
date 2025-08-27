@@ -222,6 +222,11 @@ export type ThemeColors = {
     caribbean: string;
   };
 
+  sessionRecording: {
+    resource: string;
+    user: string;
+  };
+
   link: string;
 
   highlightedNavigationItem: string;
