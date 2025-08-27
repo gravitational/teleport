@@ -30,6 +30,11 @@ esac
 
 echo "Teleport binaries have been copied to $BINDIR"
 echo ""
+if [ "$machine" = "linux" ]; then
+    echo "To configure the systemd service for Teleport run:"
+    echo "  sudo teleport install systemd -o /etc/systemd/system/teleport.service"
+    echo ""
+fi
 echo "Thanks for installing Teleport."
 echo ""
 echo "Is it OK if we collect some info about your install?"
