@@ -1,0 +1,20 @@
+---
+title: Identity Governance in Action
+description: Common use cases with Teleport Identity Governance
+labels:
+ - identity-governance
+---
+
+Teleport Identity Governance helps organizations strengthen security and compliance by centralizing how access is granted, monitored, and enforced across infrastructure and applications. The following use cases highlight practical ways to apply Teleport’s governance features, from integrating with device and identity providers, monitoring risky access patterns, and extending controls into external services. Each scenario links to detailed guides so you can quickly put these capabilities into practice.
+
+## Jamf Pro integration
+
+Identity Governance use case is the Jamf Pro integration, which lets you automatically sync your Jamf Pro computer inventory into Teleport. By bringing device data directly from Jamf Pro into Teleport, you can enforce device trust policies and ensure that only compliant machines are allowed to access critical resources. Follow the [how-to guide](./device-trust/jamf-integration.mdx) to set up the integration.
+
+## Access Monitoring
+
+Another Identity Governance use case is Access Monitoring, which helps you understand and analyze access patterns in a Teleport cluster. By collecting data from the audit log, Access Monitoring highlights risky usage events (such as SSH sessions without MFA) and provides recommended actions. You can also write custom queries to create tailored reports, making it easier to detect weak security practices and improve compliance. Learn how to use [Access Monitoring](../identity-governance/access-monitoring.mdx).
+
+## SAML identity provider
+
+Teleport can act as a SAML identity provider (IdP), allowing users to authenticate into external applications and services through their Teleport account. By configuring Teleport as a SAML IdP, organizations can centralize access policies, enforce MFA, and ensure that external service authentication inherits the same governance controls as internal Teleport access. Learn how to [set up Teleport as a SAML IdP](../identity-governance/idps/saml-guide.mdx)
