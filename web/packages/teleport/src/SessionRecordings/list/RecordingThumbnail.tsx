@@ -51,27 +51,23 @@ export function RecordingThumbnail({
 
   // calculate the background position based on the cursor position and zoom level
   const { bgPosX, bgPosY } = useMemo(() => {
-    let bgPosX: number;
-    let bgPosY: number;
-
-    if (data.cursorVisible) {
-      const cursorPercentX = (data.cursorX / data.cols) * 100;
-      const cursorPercentY = (data.cursorY / data.rows) * 100;
-
-      const viewportStartX = cursorPercentX - 50 / zoomLevel;
-      const viewportStartY = cursorPercentY - 50 / zoomLevel;
-
-      const viewportSize = 100 / zoomLevel;
-
-      bgPosX = (viewportStartX / (100 - viewportSize)) * 100;
-      bgPosY = (viewportStartY / (100 - viewportSize)) * 100;
-
-      bgPosX = Math.max(0, Math.min(100, bgPosX));
-      bgPosY = Math.max(0, Math.min(100, bgPosY));
-    } else {
-      bgPosX = 50;
-      bgPosY = 50;
+    if (!data.cursorVisible) {
+      return { bgPosX: 50, bgPosY: 50 };
     }
+
+    const cursorXPercent = (data.cursorX / data.cols) * 100;
+    const cursorYPercent = (data.cursorY / data.rows) * 100;
+
+    const viewportPercent = (1 / zoomLevel) * 100;
+
+    const bgPosX = Math.max(
+      0,
+      Math.min(100, cursorXPercent - viewportPercent / 2)
+    );
+    const bgPosY = Math.max(
+      0,
+      Math.min(100, cursorYPercent - viewportPercent / 2)
+    );
 
     return { bgPosX, bgPosY };
   }, [data.cols, data.cursorX, data.cursorY, data.rows, data.cursorVisible]);
