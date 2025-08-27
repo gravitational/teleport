@@ -61,6 +61,7 @@ async function setupTest({
           recording={recording}
           viewMode={viewMode}
           density={density}
+          thumbnailStyles=""
         />
       </ContextProvider>
     </MemoryRouter>
