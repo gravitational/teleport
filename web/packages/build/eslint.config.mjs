@@ -57,6 +57,7 @@ export default tseslint.config(
     // And just to be future-proof we specify other non-default extensions used in the project.
     files: ['**/*.ts', '**/*.mts', '**/*.tsx', '**/*.jsx'],
   },
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   {
     ignores: [
       '**/dist/**',
