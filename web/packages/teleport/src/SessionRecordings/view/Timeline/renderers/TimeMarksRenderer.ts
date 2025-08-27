@@ -192,11 +192,5 @@ function formatRelativeTime(seconds: number) {
 function formatAbsoluteTime(timestamp: number) {
   const date = new Date(timestamp);
 
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-
-  const period = hours >= 12 ? 'pm' : 'am';
-  const displayHours = hours % 12 || 12;
-
-  return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
+  return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
 }
