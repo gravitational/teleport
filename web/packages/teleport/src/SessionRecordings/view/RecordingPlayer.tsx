@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { forwardRef } from 'react';
+import { type RefObject } from 'react';
 import styled from 'styled-components';
 
 import type { RecordingType } from 'teleport/services/recordings';
@@ -33,6 +33,7 @@ interface RecordingPlayerProps {
   sessionId: string;
   onToggleSidebar?: () => void;
   onToggleTimeline?: () => void;
+  ref?: RefObject<PlayerHandle>;
 }
 
 const Container = styled.div`
@@ -43,43 +44,39 @@ const Container = styled.div`
   bottom: 0;
 `;
 
-export const RecordingPlayer = forwardRef<PlayerHandle, RecordingPlayerProps>(
-  function RecordingPlayer(
-    {
-      clusterId,
-      durationMs,
-      onTimeChange,
-      onToggleSidebar,
-      recordingType,
-      sessionId,
-      onToggleTimeline,
-    },
-    ref
-  ) {
-    if (recordingType === 'desktop') {
-      return (
-        <Container>
-          <DesktopPlayer
-            sid={sessionId}
-            clusterId={clusterId}
-            durationMs={durationMs}
-          />
-        </Container>
-      );
-    }
-
+export function RecordingPlayer({
+  clusterId,
+  durationMs,
+  onTimeChange,
+  onToggleSidebar,
+  recordingType,
+  sessionId,
+  onToggleTimeline,
+  ref,
+}: RecordingPlayerProps) {
+  if (recordingType === 'desktop') {
     return (
       <Container>
-        <SshPlayer
-          ref={ref}
-          onTimeChange={onTimeChange}
-          onToggleSidebar={onToggleSidebar}
+        <DesktopPlayer
           sid={sessionId}
           clusterId={clusterId}
           durationMs={durationMs}
-          onToggleTimeline={onToggleTimeline}
         />
       </Container>
     );
   }
-);
+
+  return (
+    <Container>
+      <SshPlayer
+        ref={ref}
+        onTimeChange={onTimeChange}
+        onToggleSidebar={onToggleSidebar}
+        sid={sessionId}
+        clusterId={clusterId}
+        durationMs={durationMs}
+        onToggleTimeline={onToggleTimeline}
+      />
+    </Container>
+  );
+}

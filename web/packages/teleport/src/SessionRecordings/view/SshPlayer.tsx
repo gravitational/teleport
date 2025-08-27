@@ -17,12 +17,12 @@
  */
 
 import {
-  forwardRef,
   useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
   useState,
+  type RefObject,
 } from 'react';
 import styled from 'styled-components';
 
@@ -44,16 +44,22 @@ interface PlayerProps {
   onTimeChange?: (time: number) => void;
   onToggleTimeline?: () => void;
   onToggleSidebar?: () => void;
+  ref?: RefObject<PlayerHandle>;
 }
 
 export interface PlayerHandle {
   moveToTime: (time: number) => void;
 }
 
-const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
-  { sid, clusterId, durationMs, onTimeChange, onToggleSidebar, onToggleTimeline },
-  ref
-) {
+function Player({
+  sid,
+  clusterId,
+  durationMs,
+  onTimeChange,
+  onToggleSidebar,
+  onToggleTimeline,
+  ref,
+}: PlayerProps) {
   const { tty, playerStatus, statusText, time } = useStreamingSshPlayer(
     clusterId,
     sid,
@@ -121,7 +127,7 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
       />
     </StyledPlayer>
   );
-});
+}
 
 export { Player as default };
 
