@@ -36,9 +36,9 @@ Teleport cluster.
 <Admonition type="warning">
   If you are upgrading more then one major version, you must repeat the
   following steps for each major version until you reach your target version.
-  For example, if your cluster is on v10 and you wish to upgrade to v13, you
-  must first follow the sequence below for v11, then v12, before finally upgrading
-  to v13. You must not upgrade directly from v10 to v13.
+  For example, if your cluster is on v15 and you wish to upgrade to v18, you
+  must first follow the sequence below for v16, then v17, before finally upgrading
+  to v18. You must not upgrade directly from v15 to v18.
 </Admonition>
 
 1. Back up your Teleport cluster state as a precaution against any unforeseen
@@ -48,14 +48,19 @@ Teleport cluster.
 1. Upgrade all **Auth Service** instances to the **target version first**.
    Auth Service instances may be upgraded in any sequence or at the same time. After
    the upgrade **confirm** that the cluster is in a healthy state before continuing.
-1. Upgrade Proxy Service instances to the same version as the Auth
-   Service. Proxy Service instances are stateless and can be upgraded in any
-   sequence or at the same time. After the upgrade **confirm** that the cluster
-   is in a healthy state before continuing.
-1. Upgrade your Teleport Agents to the same version as the Auth Service.
-   You can upgrade resource agents in any sequence or at the same time. After the
+1. After all Auth Service instances are running the tareget version, upgrade Proxy Service instances
+   to the same version as the Auth Service. Proxy Service instances are
+   stateless and can be upgraded in any sequence or at the same time. After the
    upgrade **confirm** that the cluster is in a healthy state before continuing.
+1. After all Proxy Service instances are running the target version, upgrade
+   your Teleport Agents to the same version as the Auth Service. You can upgrade
+   agents in any sequence or at the same time. After the upgrade **confirm**
+   that the cluster is in a healthy state before continuing.
 1. Upgrade your Teleport clients and plugins (tctl, tsh, tbot, terraform-provider, event-handler, etc.).
+
+By following this process, your agents will never get ahead of your control
+plane components (even within the same major/patch version), ensuring that all
+expected APIs and migrations will be available by the time the agents upgrade.
 
 ## Upgrading multiple Teleport clusters
 
