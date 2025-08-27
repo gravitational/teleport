@@ -25,6 +25,16 @@ compromising productivity.
 
 </details>
 
+## How it works
+
+The Teleport Discord plugin authenticates to your Discord server as well as the
+Teleport Auth Service, and listens for audit events from the Teleport Auth
+Service related to Access Requests. When a user creates an Access Request, the
+plugin sends a message on Discord to reviewers of the request, including a link
+that each reviewer can follow in order to review the request in the Teleport Web
+UI. You can configure the reviewers the plugin will notify based on the role
+targeted by the Access Request.
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
