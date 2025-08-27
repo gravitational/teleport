@@ -35,21 +35,35 @@ var (
 	// PrecomputedKeys is a queue of cached keys ready for usage.
 	PrecomputedKeys = make(chan *rsa.PrivateKey, 25)
 
+	// PrecomputedKeys4096 is a queue of cached 4096-bit keys ready for usage.
+	PrecomputedKeys4096 = make(chan *rsa.PrivateKey, 10)
+
 	// StartPrecomputeOnce is used to start the background task that precomputes key pairs.
 	StartPrecomputeOnce sync.Once
 )
 
 // GenerateKey returns a newly generated RSA private key.
 func GenerateKey() (*rsa.PrivateKey, error) {
-	return getOrGenerateRSAPrivateKey()
+	return getOrGenerateRSAPrivateKey(constants.RSAKeySize)
 }
 
-func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
+// GenerateKey4096 generates a 4096-bit RSA private key meant for use in asymmetric encryption use cases such as
+// encrypted session recordings.
+func GenerateKey4096() (*rsa.PrivateKey, error) {
+	return getOrGenerateRSAPrivateKey(4096)
+}
+
+func getOrGenerateRSAPrivateKey(bitSize int) (*rsa.PrivateKey, error) {
+	source := PrecomputedKeys
+	if bitSize == 4096 {
+		source = PrecomputedKeys4096
+	}
+
 	select {
-	case k := <-PrecomputedKeys:
+	case k := <-source:
 		return k, nil
 	default:
-		rsaKeyPair, err := generateRSAPrivateKey()
+		rsaKeyPair, err := generateRSAPrivateKey(bitSize)
 		if err != nil {
 			return nil, err
 		}
@@ -57,15 +71,15 @@ func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
 	}
 }
 
-func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
+func generateRSAPrivateKey(bits int) (*rsa.PrivateKey, error) {
 	//nolint:forbidigo // This is the one function allowed to generate RSA keys.
-	return rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	return rsa.GenerateKey(rand.Reader, bits)
 }
 
 func precomputeKeys() {
 	const backoff = time.Second * 30
 	for {
-		rsaPrivateKey, err := generateRSAPrivateKey()
+		rsaPrivateKey, err := generateRSAPrivateKey(constants.RSAKeySize)
 		if err != nil {
 			log.ErrorContext(context.Background(), "Failed to precompute key pair, retrying (this might be a bug).",
 				slog.Any("error", err), slog.Duration("backoff", backoff))

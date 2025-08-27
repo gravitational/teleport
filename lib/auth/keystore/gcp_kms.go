@@ -45,7 +45,9 @@ import (
 const (
 	// GCP does not allow "." or "/" in labels
 	hostLabel                      = "teleport_auth_host"
+	encryptedHostLabel             = "teleport_encryption_auth_host"
 	gcpkmsPrefix                   = "gcpkms:"
+	gcpOAEPHash                    = crypto.SHA256
 	defaultGCPRequestTimeout       = 30 * time.Second
 	defaultGCPPendingTimeout       = 2 * time.Minute
 	defaultGCPPendingRetryInterval = 5 * time.Second
@@ -110,25 +112,27 @@ func (g *gcpKMSKeyStore) keyTypeDescription() string {
 	return fmt.Sprintf("GCP KMS keys in keyring %s", g.keyRing)
 }
 
-// generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
-// identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getSigner
-// later to get an equivalent crypto.Signer.
-func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
-	alg, err := gcpAlgorithm(algorithm)
+func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (gcpKMSKeyID, error) {
+	alg, err := gcpAlgorithm(usage, algorithm)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return gcpKMSKeyID{}, trace.Wrap(err)
 	}
 
 	keyUUID := uuid.NewString()
 	g.log.InfoContext(ctx, "Creating new GCP KMS keypair.", "id", keyUUID, "algorithm", alg.String())
 
+	label := hostLabel
+	if usage == keyUsageDecrypt {
+		label = encryptedHostLabel
+	}
+
 	req := &kmspb.CreateCryptoKeyRequest{
 		Parent:      g.keyRing,
 		CryptoKeyId: keyUUID,
 		CryptoKey: &kmspb.CryptoKey{
-			Purpose: kmspb.CryptoKey_ASYMMETRIC_SIGN,
+			Purpose: usage.toGCP(),
 			Labels: map[string]string{
-				hostLabel: g.hostUUID,
+				label: g.hostUUID,
 			},
 			VersionTemplate: &kmspb.CryptoKeyVersionTemplate{
 				ProtectionLevel: g.protectionLevel,
@@ -138,38 +142,113 @@ func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites
 	}
 	resp, err := doGCPRequest(ctx, g, g.kmsClient.CreateCryptoKey, req)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "error while attempting to generate new GCP KMS key")
+		return gcpKMSKeyID{}, trace.Wrap(err, "error while attempting to generate new GCP KMS key")
 	}
 
-	keyID := gcpKMSKeyID{
+	return gcpKMSKeyID{
 		keyVersionName: resp.Name + keyVersionSuffix,
+	}, nil
+}
+
+// generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
+// identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getSigner
+// later to get an equivalent crypto.Signer.
+func (g *gcpKMSKeyStore) generateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+	keyID, err := g.generateKey(ctx, algorithm, keyUsageSign)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
-	signer, err := g.newKmsSigner(ctx, keyID)
+	signer, err := g.newKmsKey(ctx, keyID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	return keyID.marshal(), signer, nil
 }
 
-func gcpAlgorithm(alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
+// generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
+// identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getDecrypter
+// later to get an equivalent crypto.Decrypter.
+func (g *gcpKMSKeyStore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
+	keyID, err := g.generateKey(ctx, algorithm, keyUsageDecrypt)
+	if err != nil {
+		return nil, nil, gcpOAEPHash, trace.Wrap(err)
+	}
+
+	decrypter, err := g.newKmsKey(ctx, keyID)
+	if err != nil {
+		return nil, nil, gcpOAEPHash, trace.Wrap(err)
+	}
+	return keyID.marshal(), decrypter, gcpOAEPHash, nil
+}
+
+func gcpAlgorithm(usage keyUsage, alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
 	switch alg {
 	case cryptosuites.RSA2048:
-		return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, nil
+		switch usage {
+		case keyUsageSign:
+			return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, nil
+		case keyUsageDecrypt:
+			return kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_2048_SHA256, nil
+		}
+	case cryptosuites.RSA4096:
+		switch usage {
+		case keyUsageSign:
+			return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA256, nil
+		case keyUsageDecrypt:
+			return kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256, nil
+		}
 	case cryptosuites.ECDSAP256:
-		return kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256, nil
+		switch usage {
+		case keyUsageSign:
+			return kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256, nil
+		case keyUsageDecrypt:
+			return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported algorithm for decryption: %v", alg)
+		}
 	}
 	return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported algorithm: %v", alg)
 }
 
-// getSigner returns a crypto.Signer for the given pem-encoded private key.
+// getSigner returns a crypto.Signer for the given raw private key.
 func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer, err := g.newKmsSignerWithPublicKey(ctx, keyID, publicKey)
+	signer, err := g.newKmsKeyWithPublicKey(ctx, keyID, publicKey)
 	return signer, trace.Wrap(err)
+}
+
+// getDecrypter returns a crypto.Decrypter for the given raw private key.
+func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
+	keyID, err := parseGCPKMSKeyID(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signer, err := g.newKmsKeyWithPublicKey(ctx, keyID, publicKey)
+	return signer, trace.Wrap(err)
+}
+
+func (g *gcpKMSKeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	if label == nil || label.Type != storeGCP {
+		return nil, nil
+	}
+
+	keyMeta, err := g.kmsClient.GetCryptoKeyVersion(ctx, &kmspb.GetCryptoKeyVersionRequest{
+		Name: label.Label,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch keyMeta.GetAlgorithm() {
+	case kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256:
+	default:
+		return nil, trace.BadParameter("key spec must be RSA 4096 to be used as a decrypter")
+	}
+
+	key, err := g.newKmsKey(ctx, gcpKMSKeyID{keyMeta.GetName()})
+	return []crypto.Decrypter{key}, trace.Wrap(err)
 }
 
 // deleteKey deletes the given key from the KeyStore.
@@ -186,13 +265,13 @@ func (g *gcpKMSKeyStore) deleteKey(ctx context.Context, rawKey []byte) error {
 	return trace.Wrap(err, "error while attempting to delete GCP KMS key")
 }
 
-// canSignWithKey returns true if given a GCP_KMS key in the same key ring
-// managed by this keystore. This means that it's possible (and expected) for
+// canUseKey returns true if given a GCP_KMS key in the same key ring managed
+// by this keystore. This means that it's possible (and expected) for
 // multiple auth servers in a cluster to sign with the same KMS keys if they are
 // configured with the same keyring. This is a divergence from the PKCS#11
 // keystore where different auth servers will always create their own keys even
 // if configured to use the same HSM
-func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+func (g *gcpKMSKeyStore) canUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_GCP_KMS {
 		return false, nil
 	}
@@ -203,6 +282,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	if !strings.HasPrefix(keyID.keyVersionName, g.keyRing) {
 		return false, nil
 	}
+
 	return true, nil
 }
 
@@ -228,7 +308,7 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	// check which keys in KMS are unused.
 	activeKmsKeyVersions := make(map[string]int)
 	for _, activeKey := range activeKeys {
-		keyIsRelevant, err := g.canSignWithKey(ctx, activeKey, keyType(activeKey))
+		keyIsRelevant, err := g.canUseKey(ctx, activeKey, keyType(activeKey))
 		if err != nil {
 			// Don't expect this error to ever hit, safer to return if it does.
 			return trace.Wrap(err)
@@ -240,7 +320,7 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		}
 		keyID, err := parseGCPKMSKeyID(activeKey)
 		if err != nil {
-			// Realistically we should not hit this since canSignWithKey already
+			// Realistically we should not hit this since canUseKey already
 			// calls parseGCPKMSKeyID.
 			return trace.Wrap(err)
 		}
@@ -304,15 +384,15 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	return nil
 }
 
-// kmsSigner implements the crypto.Signer interface
-type kmsSigner struct {
+// kmsKey implements the crypto.Signer and crypto.Decrypter interface
+type kmsKey struct {
 	ctx    context.Context
 	g      *gcpKMSKeyStore
 	keyID  gcpKMSKeyID
 	public crypto.PublicKey
 }
 
-func (g *gcpKMSKeyStore) newKmsSigner(ctx context.Context, keyID gcpKMSKeyID) (*kmsSigner, error) {
+func (g *gcpKMSKeyStore) newKmsKey(ctx context.Context, keyID gcpKMSKeyID) (*kmsKey, error) {
 	req := &kmspb.GetPublicKeyRequest{
 		Name: keyID.keyVersionName,
 	}
@@ -331,11 +411,11 @@ func (g *gcpKMSKeyStore) newKmsSigner(ctx context.Context, keyID gcpKMSKeyID) (*
 		return nil, trace.Wrap(err, "unexpected error parsing public key PEM")
 	}
 
-	return g.newKmsSignerWithPublicKey(ctx, keyID, pub)
+	return g.newKmsKeyWithPublicKey(ctx, keyID, pub)
 }
 
-func (g *gcpKMSKeyStore) newKmsSignerWithPublicKey(ctx context.Context, keyID gcpKMSKeyID, publicKey crypto.PublicKey) (*kmsSigner, error) {
-	return &kmsSigner{
+func (g *gcpKMSKeyStore) newKmsKeyWithPublicKey(ctx context.Context, keyID gcpKMSKeyID, publicKey crypto.PublicKey) (*kmsKey, error) {
+	return &kmsKey{
 		ctx:    ctx,
 		g:      g,
 		keyID:  keyID,
@@ -343,11 +423,11 @@ func (g *gcpKMSKeyStore) newKmsSignerWithPublicKey(ctx context.Context, keyID gc
 	}, nil
 }
 
-func (s *kmsSigner) Public() crypto.PublicKey {
+func (s *kmsKey) Public() crypto.PublicKey {
 	return s.public
 }
 
-func (s *kmsSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (s *kmsKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	var (
 		requestDigest *kmspb.Digest
 		data          []byte
@@ -381,6 +461,26 @@ func (s *kmsSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) 
 		return nil, trace.Wrap(err, "error while attempting GCP KMS signing operation")
 	}
 	return resp.Signature, nil
+}
+
+func (s *kmsKey) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.DecrypterOpts) (plaintext []byte, err error) {
+	resp, err := doGCPRequest(s.ctx, s.g, s.g.kmsClient.AsymmetricDecrypt, &kmspb.AsymmetricDecryptRequest{
+		Name:       s.keyID.keyVersionName,
+		Ciphertext: ciphertext,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "error while attempting GCP KMS decryption operation")
+	}
+	return resp.Plaintext, nil
+}
+
+func (u keyUsage) toGCP() kmspb.CryptoKey_CryptoKeyPurpose {
+	switch u {
+	case keyUsageDecrypt:
+		return kmspb.CryptoKey_ASYMMETRIC_DECRYPT
+	default:
+		return kmspb.CryptoKey_ASYMMETRIC_SIGN
+	}
 }
 
 type gcpKMSKeyID struct {
