@@ -166,22 +166,14 @@ it('shows two separate prompt texts during SSO login', async () => {
     )
   );
 
-  let resolveLoginPromise: (value: ReturnType<TshdClient['login']>) => void;
-  const loginPromise = new Promise<ReturnType<TshdClient['login']>>(resolve => {
-    resolveLoginPromise = resolve;
-  });
+  const { resolve: resolveLoginPromise, promise: loginPromise } =
+    Promise.withResolvers<ReturnType<TshdClient['login']>>();
   jest
     .spyOn(appContext.tshd, 'login')
     .mockImplementation(async () => loginPromise);
 
-  let resolveGetClusterPromise: (
-    value: ReturnType<TshdClient['getCluster']>
-  ) => void;
-  const getClusterPromise = new Promise<ReturnType<TshdClient['getCluster']>>(
-    resolve => {
-      resolveGetClusterPromise = resolve;
-    }
-  );
+  const { resolve: resolveGetClusterPromise, promise: getClusterPromise } =
+    Promise.withResolvers<ReturnType<TshdClient['getCluster']>>();
   jest
     .spyOn(appContext.tshd, 'getCluster')
     .mockImplementation(async () => getClusterPromise);
