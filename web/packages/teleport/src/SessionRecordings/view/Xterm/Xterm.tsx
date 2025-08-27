@@ -27,7 +27,8 @@ import { TermEvent } from 'teleport/lib/term/enums';
 import Terminal from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';
 
-// Keys that Xterm should not block and let the other handlers handle them instead.
+// These keys are used for keyboard shortcuts in the session timeline,
+// so we need to make sure that xterm.js doesn't trap the keyboard events.
 const doNotBlockKeys = ['?', 't', 'h', 's', 'Escape'];
 
 export default function Xterm({ tty }: { tty: Tty }) {
