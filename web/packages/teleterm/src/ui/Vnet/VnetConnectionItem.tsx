@@ -288,7 +288,7 @@ const VnetConnectionItemBase = forwardRef<
                 width={toggleVnetButtonWidth}
                 size="small"
                 intent="neutral"
-                fill="minimal"
+                fill="filled"
                 title=""
                 onClick={e => {
                   e.stopPropagation();
@@ -329,7 +329,7 @@ const VnetConnectionItemBase = forwardRef<
             (props.showExtraRightButtons ? (
               <Button
                 intent="neutral"
-                fill="minimal"
+                fill="filled"
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
