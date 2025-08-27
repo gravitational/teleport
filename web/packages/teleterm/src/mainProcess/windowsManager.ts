@@ -22,6 +22,7 @@ import * as url from 'node:url';
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   Menu,
   nativeTheme,
@@ -36,10 +37,15 @@ import {
   RuntimeSettings,
   WindowsManagerIpc,
 } from 'teleterm/mainProcess/types';
+import { ConfigService } from 'teleterm/services/config';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 type WindowState = Rectangle;
+
+interface RunInTrayState {
+  notified?: boolean;
+}
 
 export class WindowsManager {
   private storageKey = 'windowState';
@@ -60,7 +66,8 @@ export class WindowsManager {
 
   constructor(
     private fileStorage: FileStorage,
-    private settings: RuntimeSettings
+    private settings: RuntimeSettings,
+    private configService: ConfigService
   ) {
     this.selectionContextMenu = Menu.buildFromTemplate([{ role: 'copy' }]);
     this.frontendAppInit = {
@@ -125,11 +132,61 @@ export class WindowsManager {
       },
     });
 
-    window.once('close', () => {
-      this.saveWindowState(window);
-      this.frontendAppInit.reject(
-        new Error('Window was closed before frontend app got initialized')
-      );
+    let isAppQuitting = false;
+
+    // Emitted when clicking on application's dock or taskbar icon.
+    app.on('activate', () => {
+      window.show();
+    });
+
+    // Emitted when the windows are being closed by the app, not by the user.
+    app.on('before-quit', () => {
+      isAppQuitting = true;
+    });
+
+    window.on('close', async e => {
+      if (isAppQuitting) {
+        this.saveWindowState(window);
+        this.frontendAppInit.reject(
+          new Error('Window was closed before frontend app got initialized')
+        );
+        return;
+      }
+
+      if (!this.configService.get('keepInTray').value) {
+        return;
+      }
+
+      e.preventDefault();
+
+      const runInTrayState = this.fileStorage.get(
+        'runInTray'
+      ) as RunInTrayState;
+      if (!runInTrayState?.notified) {
+        const { response } = await dialog.showMessageBox({
+          type: 'info',
+          message: 'Teleport Connect will stay active in the system tray',
+          detail: 'You can change this behavior anytime in the configuration.',
+          buttons: ['Don’t run in tray', 'OK'],
+          defaultId: 1,
+        });
+        this.fileStorage.put('runInTray', { notified: true });
+        if (response === 0) {
+          this.configService.set('keepInTray', false);
+          return;
+        }
+      }
+
+      window.hide();
+    });
+
+    window.on('hide', () => {
+      // Hides the app icon in dock on macOS.
+      app.setActivationPolicy('accessory');
+    });
+    window.on('show', () => {
+      // Shows the app icon in dock on macOS.
+      app.setActivationPolicy('regular');
     });
 
     // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
@@ -165,6 +222,10 @@ export class WindowsManager {
     );
 
     this.window = window;
+  }
+
+  showWindow(): void {
+    this.window.show();
   }
 
   /**

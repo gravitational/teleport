@@ -57,6 +57,9 @@ export interface StatePersistenceState {
   workspacesState: WorkspacesPersistedState;
   shareFeedback: ShareFeedbackState;
   usageReporting: UsageReportingState;
+  runInBackground: {
+    notified: boolean;
+  };
   vnet: {
     autoStart: boolean;
     /**

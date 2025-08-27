@@ -144,6 +144,7 @@ module.exports = {
       },
     ].filter(Boolean),
   },
+  extraResources: ['build_resources/iconTemplate@2x.png'],
   dmg: {
     artifactName: '${productName}-${version}-${arch}.${ext}',
     // Turn off blockmaps since we don't support automatic updates.
@@ -206,6 +207,7 @@ module.exports = {
         from: env.CONNECT_MSGFILE_DLL_PATH,
         to: './bin/msgfile.dll',
       },
+      'build_resources/icon-win.ico',
     ].filter(Boolean),
   },
   nsis: {
@@ -245,6 +247,7 @@ module.exports = {
         from: 'build_resources/linux/apparmor-profile',
         to: './apparmor-profile',
       },
+      'build_resources/tray-icon-linux.png',
     ].filter(Boolean),
   },
   directories: {

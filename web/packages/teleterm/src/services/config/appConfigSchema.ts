@@ -63,6 +63,12 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .describe(
         'Skips the version check and hides the version compatibility warning when logging in to a cluster.'
       ),
+    keepInTray: z
+      .boolean()
+      .default(true)
+      .describe(
+        'Keeps the app available in the system tray even when the main window is closed.'
+      ),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
