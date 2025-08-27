@@ -46,7 +46,7 @@ func TestAuthServers(t *testing.T) {
 		list: func(_ context.Context) ([]types.Server, error) {
 			return p.presenceS.GetAuthServers()
 		},
-		cacheList: func(_ context.Context) ([]types.Server, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
 			return p.cache.GetAuthServers()
 		},
 		update: p.presenceS.UpsertAuthServer,

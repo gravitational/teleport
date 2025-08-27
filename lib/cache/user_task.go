@@ -25,6 +25,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,6 +41,7 @@ func newUserTaskCollection(upstream services.UserTasks, w types.WatchKind) (*col
 
 	return &collection[*usertasksv1.UserTask, userTaskIndex]{
 		store: newStore(
+			types.KindUserTask,
 			proto.CloneOf[*usertasksv1.UserTask],
 			map[userTaskIndex]func(*usertasksv1.UserTask) string{
 				userTaskNameIndex: func(r *usertasksv1.UserTask) string {
@@ -46,22 +49,10 @@ func newUserTaskCollection(upstream services.UserTasks, w types.WatchKind) (*col
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*usertasksv1.UserTask, error) {
-			var resources []*usertasksv1.UserTask
-			var nextToken string
-			for {
-				var page []*usertasksv1.UserTask
-				var err error
-				page, nextToken, err = upstream.ListUserTasks(ctx, 0 /* page size */, nextToken, &usertasksv1.ListUserTasksFilters{})
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				resources = append(resources, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, size int, nextToken string) ([]*usertasksv1.UserTask, string, error) {
+				return upstream.ListUserTasks(ctx, int64(size), nextToken, &usertasksv1.ListUserTasksFilters{})
+			}))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *usertasksv1.UserTask {
 			return &usertasksv1.UserTask{

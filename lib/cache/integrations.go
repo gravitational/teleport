@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -36,29 +38,14 @@ func newIntegrationCollection(upstream services.Integrations, w types.WatchKind)
 
 	return &collection[types.Integration, integrationIndex]{
 		store: newStore(
+			types.KindIntegration,
 			types.Integration.Clone,
 			map[integrationIndex]func(types.Integration) string{
 				integrationNameIndex: types.Integration.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Integration, error) {
-			var startKey string
-			var resources []types.Integration
-			for {
-				var igs []types.Integration
-				var err error
-				igs, startKey, err = upstream.ListIntegrations(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, igs...)
-
-				if startKey == "" {
-					break
-				}
-			}
-
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListIntegrations))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Integration {
 			return &types.IntegrationV1{

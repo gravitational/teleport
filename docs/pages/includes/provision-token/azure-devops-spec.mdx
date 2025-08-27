@@ -1,0 +1,46 @@
+```yaml
+# token.yaml
+kind: token
+version: v2
+metadata:
+  # the token name is not a secret because instances must prove that they are
+  # running in your Azure DevOps organization to use this token
+  name: azure-devops-token
+spec:
+  roles: [Bot]
+  join_method: azure_devops
+  bot_name: my-bot
+  azure_devops:
+    # the UUID of the Azure DevOps organization that the pipeline will be
+    # joining from. Joins from pipelines in other organizations will be
+    # rejected.
+    organization_id: 11111111-1111-1111-1111-111111111111
+    # a list of rules that determine which Azure DevOps pipelines can use this
+    # token to join. At least one must be specified, and each rule must define
+    # at least the `sub`, `project_name` or `project_id` field.
+    allow:
+        # the `sub` field is a unique identifier for the pipeline in Azure DevOps.
+        # It is a combination of the organization, project, and pipeline name.
+        # The format is `p://<organization>/<project>/<pipeline>`.
+      - sub: p://my-organization/my-project/my-pipeline
+        # the `project_name` field is the name of the Azure DevOps project the
+        # pipeline is in.
+        project_name: my-project
+        # the `pipeline_name` field is the name of the Azure DevOps pipeline.
+        pipeline_name: my-pipeline
+        # the `project_id` field is the unique identifier for the Azure DevOps
+        # project the pipeline is in.
+        project_id: 22222222-2222-2222-2222-222222222222
+        # the `definition_id` is the unique identifier for the pipeline
+        # definition within the Azure DevOps project.
+        definition_id: 1
+        # the `repository_uri` is the URI of the source code repository that
+        # the pipeline is running against.
+        repository_uri: https://github.com/gravitational/teleport.git
+        # the `repository_version` is the commit SHA of the source code that
+        # the pipeline is running against.
+        repository_version: e6b9eb29a288b27a3a82cc19c48b9d94b80aff36
+        # the `repository_ref` is the branch or tag of the source code that
+        # the pipeline is running against.
+        repository_ref: refs/heads/main
+```

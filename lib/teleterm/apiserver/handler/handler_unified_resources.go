@@ -28,6 +28,8 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnifiedResourcesRequest) (*api.ListUnifiedResourcesResponse, error) {
@@ -113,4 +115,22 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 	}
 
 	return &response, nil
+}
+
+func newAPIServer(server clusters.Server) *api.Server {
+	serverLabels := server.GetStaticLabels()
+	serverCmdLabels := server.GetCmdLabels()
+	apiLabels := makeAPILabels(
+		ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels)),
+	)
+
+	return &api.Server{
+		Uri:      server.URI.String(),
+		Tunnel:   server.GetUseTunnel(),
+		Name:     server.GetName(),
+		Hostname: server.GetHostname(),
+		Addr:     server.GetAddr(),
+		SubKind:  server.GetSubKind(),
+		Labels:   apiLabels,
+	}
 }

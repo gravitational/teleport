@@ -148,9 +148,6 @@ func Run(args []string, stdout io.Writer) error {
 		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewSPIFFESVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
-		cli.NewSPIFFESVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
-
 		cli.NewWorkloadIdentityX509Command(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewWorkloadIdentityX509Command(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
@@ -355,8 +352,13 @@ func onConfigure(
 		out = f
 	}
 
-	// Ensure they have provided a join method to use in the configuration.
-	if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
+	// Ensure they have provided either a valid joining URI, or a
+	// join method to use in the configuration.
+	if cfg.JoinURI != "" {
+		if _, err := config.ParseJoinURI(cfg.JoinURI); err != nil {
+			return trace.Wrap(err, "invalid joining URI")
+		}
+	} else if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
 		return trace.BadParameter("join method must be provided")
 	}
 

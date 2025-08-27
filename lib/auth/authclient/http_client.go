@@ -291,12 +291,12 @@ func getHTTPTransport(c *roundtrip.Client) (*http.Transport, error) {
 }
 
 // PostJSON is a generic method that issues http POST request to the server
-func (c *HTTPClient) PostJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *HTTPClient) PostJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostJSON(ctx, endpoint, val))
 }
 
 // PutJSON is a generic method that issues http PUT request to the server
-func (c *HTTPClient) PutJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *HTTPClient) PutJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PutJSON(ctx, endpoint, val))
 }
 

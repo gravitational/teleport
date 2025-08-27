@@ -17,15 +17,31 @@
  */
 
 import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
+import jestPlugin from 'eslint-plugin-jest';
+import jestDomPlugin from 'eslint-plugin-jest-dom';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import jestPlugin from 'eslint-plugin-jest';
+import storybook from 'eslint-plugin-storybook';
 import testingLibraryPlugin from 'eslint-plugin-testing-library';
-import jestDomPlugin from 'eslint-plugin-jest-dom';
+import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
+  {
+    // Citing from the ESLint docs:
+    // https://eslint.org/docs/latest/use/configure/configuration-files#specifying-files-and-ignores
+    //
+    // "By default, ESLint lints files that match the patterns **/*.js, **/*.cjs, and **/*.mjs.
+    // Those files are always matched unless you explicitly exclude them using global ignores."
+    //
+    // "Configuration objects without files or ignores are automatically applied to any file that is
+    // matched by any other configuration object."
+    //
+    // Since no configs apply rules to jsx files specifically, we need to specify them manually.
+    // And just to be future-proof we specify other non-default extensions used in the project.
+    files: ['**/*.ts', '**/*.mts', '**/*.tsx', '**/*.jsx'],
+  },
   {
     ignores: [
       '**/dist/**',
@@ -36,10 +52,14 @@ export default tseslint.config(
       // WASM generated files
       '**/ironrdp/pkg/**',
       'web/packages/teleterm/build',
+      // allows for eslint-plugin-storybook to also lint
+      // configuration files inside the .storybook folder
+      '!.storybook',
     ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+  ...storybook.configs['flat/recommended'],
   reactPlugin.configs.flat.recommended,
   reactPlugin.configs.flat['jsx-runtime'],
   {
@@ -62,6 +82,7 @@ export default tseslint.config(
     plugins: {
       // There is no flat config available.
       'react-hooks': reactHooksPlugin,
+      'unused-imports': unusedImportsPlugin,
     },
     rules: {
       ...reactHooksPlugin.configs.recommended.rules,
@@ -74,6 +95,13 @@ export default tseslint.config(
         // with-single-extends is needed to allow for interface extends like we have in jest.d.ts.
         { allowInterfaces: 'with-single-extends' },
       ],
+
+      // Turn on the no-unused-imports rule. As it works by wrapping
+      // @typescript-eslint/no-unused-vars, we need to turn this one off, and
+      // instead use the wrapped one.
+      '@typescript-eslint/no-unused-vars': 'off',
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': 'error',
 
       // <TODO> Enable these recommended typescript-eslint rules after fixing existing issues.
       '@typescript-eslint/no-explicit-any': 'off',
@@ -110,6 +138,7 @@ export default tseslint.config(
 
       'react-hooks/rules-of-hooks': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/react-compiler': 'warn',
     },
   },
   {
@@ -144,6 +173,105 @@ export default tseslint.config(
     files: ['**/*.js'],
     rules: {
       '@typescript-eslint/no-require-imports': 'warn',
+    },
+  },
+
+  /*
+   * Restricted imports
+   *
+   * If an import is caught by these rules, it means that the imported package needs to be moved
+   * elsewhere in the dependency tree.
+   * https://github.com/gravitational/teleport/issues/54872
+   */
+  {
+    files: ['web/packages/shared/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['teleport/*', 'e-teleport/*', 'teleterm/*'],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['web/packages/teleport/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['e-teleport/*', 'teleterm/*'],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['e/web/teleport/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['teleterm/*'],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['web/packages/teleterm/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['teleport/*', 'e-teleport/*'],
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  /*
+   * Restricted hook imports
+   *
+   * We already have our own, Electron and browser safe hooks, so we don't want any usage of the equivalent
+   * hooks from `usehooks-ts`
+   */
+  {
+    files: ['e/web/**/*.{ts,tsx,js,jsx}', 'web/packages/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'usehooks-ts',
+              importNames: ['useResizeObserver'],
+              message:
+                "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead.",
+            },
+            {
+              name: 'usehooks-ts',
+              importNames: ['useCopyToClipboard'],
+              message:
+                "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead.",
+            },
+          ],
+        },
+      ],
     },
   }
 );

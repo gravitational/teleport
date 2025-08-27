@@ -38,7 +38,7 @@ const (
 // It is called twice, first soon after launching tsh before argv is parsed and then again after
 // kingpin parses argv. This makes it possible to debug early startup functionality, particularly
 // command aliases.
-func initLogger(cf *CLIConf, opts loggingOpts) error {
+func initLogger(cf *CLIConf, purpose utils.LoggingPurpose, opts loggingOpts) (*slog.Logger, error) {
 	cf.OSLog = opts.osLog
 	cf.Debug = opts.debug || opts.osLog
 
@@ -49,7 +49,8 @@ func initLogger(cf *CLIConf, opts loggingOpts) error {
 		level = slog.LevelDebug
 	}
 
-	return trace.Wrap(utils.InitLogger(utils.LoggingForCLI, level, initLoggerOpts...))
+	logger, err := utils.InitLogger(purpose, level, initLoggerOpts...)
+	return logger, trace.Wrap(err)
 }
 
 type loggingOpts struct {
@@ -59,19 +60,36 @@ type loggingOpts struct {
 
 // parseLoggingOptsFromEnv calculates logging opts taking into account only env vars.
 func parseLoggingOptsFromEnv() loggingOpts {
-	var opts loggingOpts
-	opts.debug, _ = strconv.ParseBool(os.Getenv(debugEnvVar))
-	opts.osLog, _ = strconv.ParseBool(os.Getenv(osLogEnvVar))
+	return parseLoggingOptsFromEnvWithDefault(loggingOpts{})
+}
+
+// parseLoggingOptsFromEnvWithDefault calculates logging opts from env vars and
+// only updates opts if the env vars are set with valid values.
+func parseLoggingOptsFromEnvWithDefault(opts loggingOpts) loggingOpts {
+	if debugValue, ok := os.LookupEnv(debugEnvVar); ok {
+		if debug, err := strconv.ParseBool(debugValue); err == nil {
+			opts.debug = debug
+		}
+	}
+	if osLogValue, ok := os.LookupEnv(osLogEnvVar); ok {
+		if osLog, err := strconv.ParseBool(osLogValue); err == nil {
+			opts.osLog = osLog
+		}
+	}
 	return opts
 }
 
-// parseLoggingOptsFromEnvAndArgv calculates logging opts taking into account env vars and argv.
+func parseLoggingOptsFromEnvAndArgv(cf *CLIConf) loggingOpts {
+	return getLoggingOptsWithDefault(cf, loggingOpts{})
+}
+
+// getLoggingOptsWithDefault calculates logging opts taking into account env vars and argv.
 // Before calling this function, make sure that argv has been processed by kingpin (by calling
 // kingpin.Application.Parse) so that cf fields set from argv are up-to-date.
 //
 // CLI flags take precedence over env vars.
-func parseLoggingOptsFromEnvAndArgv(cf *CLIConf) loggingOpts {
-	opts := parseLoggingOptsFromEnv()
+func getLoggingOptsWithDefault(cf *CLIConf, defaults loggingOpts) loggingOpts {
+	opts := parseLoggingOptsFromEnvWithDefault(defaults)
 
 	if cf.DebugSetByUser {
 		opts.debug = cf.Debug

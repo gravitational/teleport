@@ -362,7 +362,7 @@ func TestConcurrentOutput(t *testing.T) {
 
 	var wg sync.WaitGroup
 	ctx := context.Background()
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -388,7 +388,7 @@ func allPossibleSubsets(in []string) [][]string {
 	for subsetBits := 1; subsetBits < (1 << length); subsetBits++ {
 		var subset []string
 
-		for object := 0; object < length; object++ {
+		for object := range length {
 			if (subsetBits>>object)&1 == 1 {
 				subset = append(subset, in[object])
 			}

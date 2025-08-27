@@ -263,6 +263,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	HealthCheckConfigCreateEvent:                  &apievents.HealthCheckConfigCreate{},
 	HealthCheckConfigUpdateEvent:                  &apievents.HealthCheckConfigUpdate{},
 	HealthCheckConfigDeleteEvent:                  &apievents.HealthCheckConfigDelete{},
+	BoundKeypairRecovery:                          &apievents.BoundKeypairRecovery{},
+	BoundKeypairRotation:                          &apievents.BoundKeypairRotation{},
+	BoundKeypairJoinStateVerificationFailed:       &apievents.BoundKeypairJoinStateVerificationFailed{},
 }
 
 // TestJSON tests JSON marshal events
@@ -270,7 +273,7 @@ func TestJSON(t *testing.T) {
 	type testCase struct {
 		name  string
 		json  string
-		event interface{}
+		event any
 	}
 	testCases := []testCase{
 		{
@@ -503,20 +506,20 @@ func TestJSON(t *testing.T) {
 				UserMetadata: apievents.UserMetadata{
 					User: "bob@example.com",
 				},
-				IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{
+				IdentityAttributes: apievents.MustEncodeMap(map[string]any{
 					"followers_url": "https://api.github.com/users/bob/followers",
 					"err":           nil,
 					"public_repos":  20,
 					"site_admin":    false,
-					"app_metadata":  map[string]interface{}{"roles": []interface{}{"example/admins", "example/devc"}},
-					"emails": []interface{}{
-						map[string]interface{}{
+					"app_metadata":  map[string]any{"roles": []any{"example/admins", "example/devc"}},
+					"emails": []any{
+						map[string]any{
 							"email":      "bob@example.com",
 							"primary":    true,
 							"verified":   true,
 							"visibility": "public",
 						},
-						map[string]interface{}{
+						map[string]any{
 							"email":      "bob@alternative.com",
 							"primary":    false,
 							"verified":   true,
@@ -731,7 +734,8 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "desktop session start",
-			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","login":"Administrator","success":true,"proto":"tdp","sid":"test-session","addr.local":"192.168.1.100:39887","addr.remote":"[::1]:34902","with_mfa":"mfa-device","code":"TDP00I","event":"windows.desktop.session.start","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_name":"test-desktop","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","allow_user_creation":false,"nla":true,"desktop_labels":{"env":"production"}}`,
+			json: `{"uid":"cd06365f-3cef-4b21-809a-4af9502c11a1","user":"foo","impersonator":"bar","login":"Administrator","success":true,"proto":"tdp","sid":"test-session","addr.local":"192.168.1.100:39887","addr.remote":"[::1]:34902","with_mfa":"mfa-device","code":"TDP00I","event":"windows.desktop.session.start","time":"2020-04-23T18:22:35.35Z","ei":4,"cluster_name":"test-cluster","windows_user":"Administrator","windows_domain":"test.example.com","desktop_name":"test-desktop","desktop_addr":"[::1]:34902","windows_desktop_service":"00baaef5-ff1e-4222-85a5-c7cb0cd8e7b8","allow_user_creation":false,"nla":true,"desktop_labels":{"env":"production"},
+			"certificate": { "crl_distribution_points": [ "ldap:///CN=ABC123_exampple,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint" ], "enhanced_key_usage": [ "1.3.6.1.5.5.7.3.2", "1.3.6.1.4.1.311.20.2.2" ], "extended_key_usage": [ 2 ], "key_usage": 1, "serial_number": "325419247945947193356212349496095884841", "subject": "CN=Administrator", "upn": "Administrator@example.com" } }`,
 			event: apievents.WindowsDesktopSessionStart{
 				Metadata: apievents.Metadata{
 					Index:       4,
@@ -754,6 +758,15 @@ func TestJSON(t *testing.T) {
 					LocalAddr:  "192.168.1.100:39887",
 					RemoteAddr: "[::1]:34902",
 					Protocol:   EventProtocolTDP,
+				},
+				CertMetadata: &apievents.WindowsCertificateMetadata{
+					Subject:               "CN=Administrator",
+					UPN:                   "Administrator@example.com",
+					CRLDistributionPoints: []string{"ldap:///CN=ABC123_exampple,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint"},
+					KeyUsage:              1,
+					EnhancedKeyUsage:      []string{"1.3.6.1.5.5.7.3.2", "1.3.6.1.4.1.311.20.2.2"},
+					ExtendedKeyUsage:      []int32{2},
+					SerialNumber:          "325419247945947193356212349496095884841",
 				},
 				Status: apievents.Status{
 					Success: true,
@@ -1000,7 +1013,6 @@ func TestJSON(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1081,7 +1093,7 @@ func setProtoFields(msg proto.Message) {
 	m := msg.ProtoReflect()
 	fields := m.Descriptor().Fields()
 
-	for i := 0; i < fields.Len(); i++ {
+	for i := range fields.Len() {
 		fd := fields.Get(i)
 		if m.Has(fd) {
 			continue

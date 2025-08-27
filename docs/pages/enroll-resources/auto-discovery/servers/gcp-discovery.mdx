@@ -1,7 +1,15 @@
 ---
 title: Automatically Discover GCP Compute Instances
 description: How to configure Teleport to automatically enroll GCP compute instances.
+labels:
+ - how-to
+ - zero-trust
 ---
+
+This guide shows you how to set up automatic server discovery for Google Compute
+Engine virtual machines.
+
+## How it works
 
 The Teleport Discovery Service can connect to GCP and automatically
 discover and enroll GCP Compute Engine instances matching configured labels. It will then
@@ -287,7 +295,7 @@ for details on alternate methods.
 
 ## Step 6/6. [Optional] Customize the default installer script
 
-(!docs/pages/includes/server-access/custom-installer.mdx cloud="GCP" matcher="gcp" matchTypes="[\"gce\"]"!)
+(!docs/pages/includes/server-access/custom-installer.mdx matcher="gcp"!)
 
 ## Next steps
 

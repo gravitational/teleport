@@ -1,0 +1,13 @@
+In order to interact with dynamically registered applications, a user must have
+a Teleport role with permissions to manage `app` resources.
+
+In the following example, a role allows a user to perform all possible
+operations against `app` resources:
+
+```yaml
+allow:
+  rules:
+    - resources:
+        - app
+      verbs: [list, create, read, update, delete]
+```

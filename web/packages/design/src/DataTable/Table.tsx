@@ -104,7 +104,10 @@ export default function Table<T>(props: TableProps<T>) {
   const renderBody = (data: T[]) => {
     const rows: ReactNode[] = [];
 
-    if (fetching?.fetchStatus === 'loading') {
+    if (
+      fetching?.fetchStatus === 'loading' &&
+      !fetching.disableLoadingIndicator
+    ) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
     data.map((item, rowIdx) => {
@@ -346,7 +349,7 @@ function ServersideTable<T>({
   return (
     <>
       <StyledPanel>
-        {serversideProps?.serversideSearchPanel}
+        <Box width="100%">{serversideProps?.serversideSearchPanel}</Box>
         {(showTopPager || showBothPager) && (
           <ServerSidePager
             nextPage={nextPage}

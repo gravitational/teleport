@@ -24,6 +24,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	autoupdatelib "github.com/gravitational/teleport/lib/autoupdate"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 )
 
 const initTestSentinel = "init_test"
@@ -44,5 +47,113 @@ func BenchmarkInit(b *testing.B) {
 		cmd := exec.Command(executable, initTestSentinel)
 		err := cmd.Run()
 		assert.NoError(b, err)
+	}
+}
+
+func TestStatusExitCode(t *testing.T) {
+	lowVersion := "1.2.3"
+	highVersion := "1.2.4"
+	tests := []struct {
+		name             string
+		ccfg             *cliConfig
+		status           autoupdate.Status
+		expectedExitCode int
+	}{
+		{
+			name: "no --is-up-to-date passed, should update",
+			ccfg: &cliConfig{StatusWithExitCode: false},
+			status: autoupdate.Status{
+				UpdateStatus: autoupdate.UpdateStatus{
+					Active: autoupdate.Revision{
+						Version: lowVersion,
+					},
+				},
+				FindResp: autoupdate.FindResp{
+					Target: autoupdate.Revision{
+						Version: highVersion,
+					},
+					InWindow: true,
+				},
+			},
+			expectedExitCode: 0,
+		},
+		{
+			name: "--is-up-to-date passed, different version in maintenance",
+			ccfg: &cliConfig{StatusWithExitCode: true},
+			status: autoupdate.Status{
+				UpdateStatus: autoupdate.UpdateStatus{
+					Active: autoupdate.Revision{
+						Version: lowVersion,
+					},
+				},
+				FindResp: autoupdate.FindResp{
+					Target: autoupdate.Revision{
+						Version: highVersion,
+					},
+					InWindow: true,
+				},
+			},
+			expectedExitCode: notUpToDateExitCode,
+		},
+		{
+			name: "--is-up-to-date passed, different version out of maintenance",
+			ccfg: &cliConfig{StatusWithExitCode: true},
+			status: autoupdate.Status{
+				UpdateStatus: autoupdate.UpdateStatus{
+					Active: autoupdate.Revision{
+						Version: lowVersion,
+					},
+				},
+				FindResp: autoupdate.FindResp{
+					Target: autoupdate.Revision{
+						Version: highVersion,
+					},
+					InWindow: false,
+				},
+			},
+			expectedExitCode: 0,
+		},
+		{
+			name: "--is-up-to-date passed, same version in maintenance",
+			ccfg: &cliConfig{StatusWithExitCode: true},
+			status: autoupdate.Status{
+				UpdateStatus: autoupdate.UpdateStatus{
+					Active: autoupdate.Revision{
+						Version: highVersion,
+					},
+				},
+				FindResp: autoupdate.FindResp{
+					Target: autoupdate.Revision{
+						Version: highVersion,
+					},
+					InWindow: true,
+				},
+			},
+			expectedExitCode: 0,
+		},
+		{
+			name: "--is-up-to-date passed, same version in maintenance, edition mismatch",
+			ccfg: &cliConfig{StatusWithExitCode: true},
+			status: autoupdate.Status{
+				UpdateStatus: autoupdate.UpdateStatus{
+					Active: autoupdate.Revision{
+						Version: highVersion,
+					},
+				},
+				FindResp: autoupdate.FindResp{
+					Target: autoupdate.Revision{
+						Version: highVersion,
+						Flags:   autoupdatelib.FlagEnterprise,
+					},
+					InWindow: true,
+				},
+			},
+			expectedExitCode: notUpToDateExitCode,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expectedExitCode, statusExitCode(tt.ccfg, tt.status))
+		})
 	}
 }

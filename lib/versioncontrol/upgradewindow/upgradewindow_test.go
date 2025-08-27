@@ -51,12 +51,11 @@ func (b *fakeKubeBackend) Put(ctx context.Context, item backend.Item) (*backend.
 func TestKubeControllerDriver(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk := newFakeKubeBackend()
 
-	driver, err := NewKubeControllerDriver(KubeControllerDriverConfig{
+	driver, err := NewKubeControllerDriver(ctx, KubeControllerDriverConfig{
 		Backend: bk,
 	})
 	require.NoError(t, err)
@@ -112,8 +111,7 @@ func TestKubeControllerDriver(t *testing.T) {
 func TestSystemdUnitDriver(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// use a sub-directory of a temp dir in order to verify that
 	// driver creates dir when needed.
@@ -228,8 +226,7 @@ func (d *fakeDriver) withLock(fn func()) {
 func TestExporterBasics(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	sc := make(chan context.Context)
 

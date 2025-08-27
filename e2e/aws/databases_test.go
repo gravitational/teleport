@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestDatabases(t *testing.T) {
@@ -338,7 +338,7 @@ func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName
 		_ = conn.Close(ctx)
 	})
 	return &pgConn{
-		logger: utils.NewSlogLoggerForTests().With("test_name", t.Name()),
+		logger: logtest.With("test_name", t.Name()),
 		Conn:   conn,
 	}
 }
@@ -389,7 +389,7 @@ type pgConn struct {
 	*pgx.Conn
 }
 
-func (c *pgConn) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+func (c *pgConn) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	var out pgconn.CommandTag
 	err := withRetry(ctx, c.logger, func() error {
 		var err error
@@ -418,7 +418,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 
 	// retry a finite number of times before giving up.
 	const retries = 10
-	for i := 0; i < retries; i++ {
+	for range retries {
 		err := f()
 		if err == nil {
 			return nil

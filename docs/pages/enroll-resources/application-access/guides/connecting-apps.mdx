@@ -1,6 +1,9 @@
 ---
 title: Web Application Access
 description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 This guide shows you how to enroll a web application with your Teleport cluster
@@ -321,7 +324,7 @@ rewritten:
 - Any header matching the pattern `X-Forwarded-*`
 
 Rewritten header values support the same templating variables as
-[role templates](../../../admin-guides/access-controls/guides/role-templates.mdx). In the
+[role templates](../../../zero-trust-access/rbac-get-started/role-templates.mdx). In the
 example above, `X-Internal-Trait` header will be populated with the value of
 internal user trait `logins` and `X-External-Trait` header will get the value of
 the user's external `env` trait coming from the identity provider.

@@ -19,7 +19,7 @@
 package selinux
 
 type filePaths struct {
-	InstallDir     string
+	BinaryPath     string
 	DataDir        string
 	ConfigPath     string
 	UpgradeUnitDir string

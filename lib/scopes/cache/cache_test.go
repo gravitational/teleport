@@ -42,6 +42,219 @@ func (i item[K]) Scope() string {
 	return i.scope
 }
 
+// TestCacheFiltering verifies the expected behavior of the cache when filtering is applied to
+// the policies-applicable-to-resource and resources-subject-to-policy queries.
+func TestCacheFiltering(t *testing.T) {
+	items := []item[int]{
+		{1, "/"},
+		{2, "/aa"},
+		{3, "/aa/bb"},
+		{4, "/aa/bb/cc"},
+		{5, "/aa/bb/cc/dd"},
+		{6, "/aa/bb/cc/dd/ee"},
+		{7, "/aa/bb/cc/dd/ee/ff"},
+		{8, "/aa/bb/cc/dd/ee/ff/gg"},
+	}
+
+	tts := []struct {
+		name                 string
+		scope                string
+		filter               func(item[int]) bool
+		policiesApplicableTo []item[int]
+		resourcesSubjectTo   []item[int]
+	}{
+		{
+			name:   "subscope all",
+			scope:  "/aa/bb/cc",
+			filter: func(i item[int]) bool { return true },
+			policiesApplicableTo: []item[int]{
+				{1, "/"},
+				{2, "/aa"},
+				{3, "/aa/bb"},
+				{4, "/aa/bb/cc"},
+			},
+			resourcesSubjectTo: []item[int]{
+				{4, "/aa/bb/cc"},
+				{5, "/aa/bb/cc/dd"},
+				{6, "/aa/bb/cc/dd/ee"},
+				{7, "/aa/bb/cc/dd/ee/ff"},
+				{8, "/aa/bb/cc/dd/ee/ff/gg"},
+			},
+		},
+		{
+			name:                 "subscope none",
+			scope:                "/aa/bb/cc",
+			filter:               func(i item[int]) bool { return false },
+			policiesApplicableTo: nil,
+			resourcesSubjectTo:   nil,
+		},
+		{
+			name:   "subscope even",
+			scope:  "/aa/bb/cc",
+			filter: func(i item[int]) bool { return i.key%2 == 0 },
+			policiesApplicableTo: []item[int]{
+				{2, "/aa"},
+				{4, "/aa/bb/cc"},
+			},
+			resourcesSubjectTo: []item[int]{
+				{4, "/aa/bb/cc"},
+				{6, "/aa/bb/cc/dd/ee"},
+				{8, "/aa/bb/cc/dd/ee/ff/gg"},
+			},
+		},
+		{
+			name:   "subscope odd",
+			scope:  "/aa/bb/cc",
+			filter: func(i item[int]) bool { return i.key%2 != 0 },
+			policiesApplicableTo: []item[int]{
+				{1, "/"},
+				{3, "/aa/bb"},
+			},
+			resourcesSubjectTo: []item[int]{
+				{5, "/aa/bb/cc/dd"},
+				{7, "/aa/bb/cc/dd/ee/ff"},
+			},
+		},
+		{
+			name:   "subscope first",
+			scope:  "/aa/bb/cc",
+			filter: func(i item[int]) bool { return i.key == 1 },
+			policiesApplicableTo: []item[int]{
+				{1, "/"},
+			},
+			resourcesSubjectTo: nil,
+		},
+		{
+			name:                 "subscope last",
+			scope:                "/aa/bb/cc",
+			filter:               func(i item[int]) bool { return i.key == 8 },
+			policiesApplicableTo: nil,
+			resourcesSubjectTo: []item[int]{
+				{8, "/aa/bb/cc/dd/ee/ff/gg"},
+			},
+		},
+		{
+			name:   "root all",
+			scope:  "/",
+			filter: func(i item[int]) bool { return true },
+			policiesApplicableTo: []item[int]{
+				{1, "/"},
+			},
+			resourcesSubjectTo: items,
+		},
+		{
+			name:                 "root none",
+			scope:                "/",
+			filter:               func(i item[int]) bool { return false },
+			policiesApplicableTo: nil,
+			resourcesSubjectTo:   nil,
+		},
+		{
+			name:                 "root even",
+			scope:                "/",
+			filter:               func(i item[int]) bool { return i.key%2 == 0 },
+			policiesApplicableTo: nil,
+			resourcesSubjectTo: []item[int]{
+				{2, "/aa"},
+				{4, "/aa/bb/cc"},
+				{6, "/aa/bb/cc/dd/ee"},
+				{8, "/aa/bb/cc/dd/ee/ff/gg"},
+			},
+		},
+		{
+			name:   "root odd",
+			scope:  "/",
+			filter: func(i item[int]) bool { return i.key%2 != 0 },
+			policiesApplicableTo: []item[int]{
+				{1, "/"},
+			},
+			resourcesSubjectTo: []item[int]{
+				{1, "/"},
+				{3, "/aa/bb"},
+				{5, "/aa/bb/cc/dd"},
+				{7, "/aa/bb/cc/dd/ee/ff"},
+			},
+		},
+		{
+			name:   "root first",
+			scope:  "/",
+			filter: func(i item[int]) bool { return i.key == 1 },
+			policiesApplicableTo: []item[int]{
+				{1, "/"},
+			},
+			resourcesSubjectTo: []item[int]{
+				{1, "/"},
+			},
+		},
+		{
+			name:   "root last",
+			filter: func(i item[int]) bool { return i.key == 8 },
+			resourcesSubjectTo: []item[int]{
+				{8, "/aa/bb/cc/dd/ee/ff/gg"},
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			var cloned int
+			cache, err := New(Config[item[int], int]{
+				Scope: (item[int]).Scope,
+				Key:   (item[int]).Key,
+				Clone: func(i item[int]) item[int] {
+					cloned++
+					return i
+				},
+			})
+			require.NoError(t, err)
+
+			for _, item := range items {
+				_, ok := cache.Get(item.Key())
+				require.False(t, ok, "item %+v should not be in cache before Put", item)
+
+				cache.Put(item)
+
+				got, ok := cache.Get(item.Key())
+				require.True(t, ok, "item %+v should be in cache after Put", item)
+				require.Equal(t, item, got, "item %+v should match after Put", item)
+				require.Equal(t, 1, cloned)
+				cloned = 0 // reset cloned counter after each Put
+			}
+
+			var policiesApplicableTo []item[int]
+			for scope := range cache.PoliciesApplicableToResourceScope(tt.scope, cache.WithFilter(tt.filter)) {
+				var seen int
+				for item := range scope.Items() {
+					seen++
+					policiesApplicableTo = append(policiesApplicableTo, item)
+				}
+				// verify that filtering doesn't cause empty scopes to be yielded
+				require.NotZero(t, seen, "scope=%s", scope.Scope())
+			}
+			require.Equal(t, tt.policiesApplicableTo, policiesApplicableTo)
+
+			// verify that clone was only called on items that matched the filter
+			require.Equal(t, len(tt.policiesApplicableTo), cloned)
+
+			cloned = 0
+			var resourcesSubjectTo []item[int]
+			for scope := range cache.ResourcesSubjectToPolicyScope(tt.scope, cache.WithFilter(tt.filter)) {
+				var seen int
+				for item := range scope.Items() {
+					seen++
+					resourcesSubjectTo = append(resourcesSubjectTo, item)
+				}
+				// verify that filtering doesn't cause empty scopes to be yielded
+				require.NotZero(t, seen, "scope=%s", scope.Scope())
+			}
+			require.Equal(t, tt.resourcesSubjectTo, resourcesSubjectTo)
+
+			// verify that clone was only called on items that matched the filter
+			require.Equal(t, len(tt.resourcesSubjectTo), cloned)
+		})
+	}
+}
+
 // TestCacheConcurrency verifies the basic expected concurrency behavior of the cache.
 func TestCacheConcurrency(t *testing.T) {
 	t.Parallel()
@@ -60,7 +273,14 @@ func TestCacheConcurrency(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, item := range items {
+		_, ok := cache.Get(item.Key())
+		require.False(t, ok, "item %+v should not be in cache before Put", item)
+
 		cache.Put(item)
+
+		got, ok := cache.Get(item.Key())
+		require.True(t, ok, "item %+v should be in cache after Put", item)
+		require.Equal(t, item, got, "item %+v should match after Put", item)
 	}
 
 	// lockstepC is used to force the background queries to progress in lockstep
@@ -111,7 +331,7 @@ func TestCacheConcurrency(t *testing.T) {
 	// we can't really guarantee that the background writer is waiting, but we can
 	// be reasonably sure by stepping through multiple qery cycles and asserting that
 	// the writer hasn't completed at each iteration.
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// perform initial check to verify that write hasn't succeeded (racy)
 		select {
 		case <-putDone:
@@ -391,6 +611,28 @@ func TestCursorScenarios(t *testing.T) {
 				{13, "/aa/bb/cc/dd/ee/ff"},
 			},
 		},
+		{
+			// regression test case for a bug in initial cursor impl that
+			// would cause policy application mode to still yield items
+			// for scope/cursor combos that should have resulted in zero
+			// results if the leaf segment was non-empty.
+			name: "non-empty leaf segment bug",
+			items: []item[int]{
+				{0, "/"},
+				{1, "/aa"},
+				{2, "/aa/bb"},
+				{3, "/aa/bb/cc"},
+			},
+			scope: "/aa/bb",
+			cursor: Cursor[int]{
+				Scope: "/aa/bb/cc",
+				Key:   3,
+			},
+			policiesApplicableTo: nil, // would have contained {2, "/aa/bb"} prior to fix
+			resourcesSubjectTo: []item[int]{
+				{3, "/aa/bb/cc"},
+			},
+		},
 	}
 
 	for _, tt := range tts {
@@ -402,12 +644,19 @@ func TestCursorScenarios(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, item := range tt.items {
+				_, ok := cache.Get(item.Key())
+				require.False(t, ok, "item %+v should not be in cache before Put", item)
+
 				cache.Put(item)
+
+				got, ok := cache.Get(item.Key())
+				require.True(t, ok, "item %+v should be in cache after Put", item)
+				require.Equal(t, item, got, "item %+v should match after Put", item)
 			}
 
 			// verify policies-applicable-to-resource iteration
 			var policiesApplicableTo []item[int]
-			for scope := range cache.PoliciesApplicableToResourceScope(tt.scope, WithCursor(tt.cursor)) {
+			for scope := range cache.PoliciesApplicableToResourceScope(tt.scope, cache.WithCursor(tt.cursor)) {
 				for item := range scope.Items() {
 					policiesApplicableTo = append(policiesApplicableTo, item)
 				}
@@ -417,7 +666,7 @@ func TestCursorScenarios(t *testing.T) {
 
 			// verify resources-subject-to-policy iteration
 			var resourcesSubjectTo []item[int]
-			for scope := range cache.ResourcesSubjectToPolicyScope(tt.scope, WithCursor(tt.cursor)) {
+			for scope := range cache.ResourcesSubjectToPolicyScope(tt.scope, cache.WithCursor(tt.cursor)) {
 				for item := range scope.Items() {
 					resourcesSubjectTo = append(resourcesSubjectTo, item)
 				}
@@ -571,7 +820,14 @@ func TestCursorPagination(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, item := range tt.items {
+				_, ok := cache.Get(item.Key())
+				require.False(t, ok, "item %+v should not be in cache before Put", item)
+
 				cache.Put(item)
+
+				got, ok := cache.Get(item.Key())
+				require.True(t, ok, "item %+v should be in cache after Put", item)
+				require.Equal(t, item, got, "item %+v should match after Put", item)
 			}
 
 			// verify policies-applicable-to-resource iteration
@@ -595,7 +851,7 @@ func TestCursorPagination(t *testing.T) {
 			require.Equal(t, tt.policiesApplicableTo.firstPage, firstPage)
 
 			if !cursor.IsZero() {
-				for scope := range cache.PoliciesApplicableToResourceScope(tt.scope, WithCursor(cursor)) {
+				for scope := range cache.PoliciesApplicableToResourceScope(tt.scope, cache.WithCursor(cursor)) {
 					for item := range scope.Items() {
 						remaining = append(remaining, item)
 					}
@@ -627,7 +883,7 @@ func TestCursorPagination(t *testing.T) {
 			require.Equal(t, tt.resourcesSubjectTo.firstPage, firstPage)
 
 			if !cursor.IsZero() {
-				for scope := range cache.ResourcesSubjectToPolicyScope(tt.scope, WithCursor(cursor)) {
+				for scope := range cache.ResourcesSubjectToPolicyScope(tt.scope, cache.WithCursor(cursor)) {
 					for item := range scope.Items() {
 						remaining = append(remaining, item)
 					}

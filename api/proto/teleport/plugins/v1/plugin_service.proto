@@ -143,6 +143,37 @@ message SearchPluginStaticCredentialsRequest {
   map<string, string> labels = 1;
 }
 
+// CredentialQuery is a set of values to match when searching for credentials
+message CredentialQuery {
+  map<string, string> labels = 1;
+}
+
+// UpdatePluginStaticCredentialsRequest holds information for updating a plugin
+// static credential. The service will attempt to find the credential to update
+// based on the supplied plugin name and labels.
+message UpdatePluginStaticCredentialsRequest {
+  oneof target {
+    // Name is the name of the plugin static credentials resource that we're
+    // targeting
+    string name = 1;
+
+    // Query is the search query that a credential must match in order to be
+    // updated. The update will only proceed if exactly one credential matches
+    // the search query.
+    CredentialQuery query = 2;
+  }
+
+  // Credential is the payload containing the updated credential. Only the spec
+  // is allowed to be updated via this interface.
+  types.PluginStaticCredentialsSpecV1 credential = 3;
+}
+
+// UpdatePluginStaticCredentialsResponse holds the updated credential returned
+// from UpdatePluginStaticCredentials
+message UpdatePluginStaticCredentialsResponse {
+  types.PluginStaticCredentialsV1 credential = 1;
+}
+
 // SearchPluginStaticCredentialsResponse is the response type for
 // SearchPluginStaticCredentials
 message SearchPluginStaticCredentialsResponse {
@@ -210,10 +241,41 @@ service PluginService {
   // RoleProxy.
   rpc SearchPluginStaticCredentials(SearchPluginStaticCredentialsRequest) returns (SearchPluginStaticCredentialsResponse);
 
+  // UpdatePluginStaticCredentials
+  rpc UpdatePluginStaticCredentials(UpdatePluginStaticCredentialsRequest) returns (UpdatePluginStaticCredentialsResponse);
+
   // NeedsCleanup will indicate whether a plugin of the given type needs cleanup
   // before it can be created.
   rpc NeedsCleanup(NeedsCleanupRequest) returns (NeedsCleanupResponse);
 
   // Cleanup will clean up the resources for the given plugin type.
   rpc Cleanup(CleanupRequest) returns (google.protobuf.Empty);
+
+  // CreatePluginOauthToken issues a short-lived OAuth access token for the specified plugin.
+  //
+  // This endpoint supports the OAuth 2.0 "client_credentials" grant type, where the plugin
+  // authenticates using its client ID and client secret
+  rpc CreatePluginOauthToken(CreatePluginOauthTokenRequest) returns (CreatePluginOauthTokenResponse);
+}
+
+// CreatePluginOauthTokenRequest is the request type for creating an OAuth token for a plugin.
+message CreatePluginOauthTokenRequest {
+  // plugin_name is the name of the plugin for which the OAuth token is requested.
+  string plugin_name = 1;
+  // client_id is the OAuth client identifier issued to the plugin.
+  string client_id = 2;
+  // client_secret is the secret associated with the client_id.
+  string client_secret = 3;
+  // grant_type is the OAuth 2.0 grant type being used. Currently, only "client_credentials" is supported.
+  string grant_type = 4;
+}
+
+// CreatePluginOauthTokenResponse is the response type for a successful OAuth token creation.
+message CreatePluginOauthTokenResponse {
+  // access_token is the generated token issued to the plugin.
+  string access_token = 1;
+  // token_type describes the type of the token issued
+  string token_type = 2;
+  // expires_in is the number of seconds until the token expires.
+  int64 expires_in = 3;
 }

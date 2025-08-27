@@ -1,0 +1,159 @@
+---
+title: Backup and Restore
+description: How to back up and restore your Teleport cluster state.
+labels:
+ - conceptual
+ - platform-wide
+---
+
+Operators must have a plan in place to back up self-hosted Teleport clusters.
+While the Teleport Proxy Service and Teleport Agent services are stateless, you
+should ensure that you can restore their configuration files. The Teleport Auth
+Service manages state for the entire cluster, and it is critical that you can
+back up its data. This guide explains the components of a Teleport Auth Service
+deployment that must be backed up and lays out our recommended approach for
+performing backups. 
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## Data to back up
+
+You must back up data that the Auth Service manages across its three backends:
+
+- Cluster state backend
+- Audit event backend
+- Session recording backend
+
+See [Storage Backends](../../../reference/backends.mdx) for more information on
+Teleport backends.
+
+The following table summarizes the kinds of backend data the Auth Service
+maintains:
+
+| What | Where |
+| - | - |
+| Local Users (not SSO) | Cluster state backend |
+| Certificate Authorities | Cluster state backend |
+| Dynamic resources ([more information below](#versioning-dynamic-resources-with-infrastructure-as-code)) | Cluster state backend |
+| teleport.yaml | File system |
+| teleport.service | File system |
+| license.pem | File system |
+| TLS key/certificate | File system or third-party service (e.g., AWS Certificate Manager)|
+| Audit log | Audit event backend |
+| Session recordings | Session recording backend |
+
+## Backing up Teleport backends
+
+Your plan for backing up the Teleport cluster state and session recording
+backends depends on the solution you use for each backend. The following table
+includes instructions for backing up each backend solution. For backends not
+listed here, consult the documentation for your backend:
+
+### Cluster state and audit event backends
+
+For the most part, you can use the same solution for both cluster state and
+audit events, setting aside a separate table for each kind of backend. The
+exception is etcd, which can only function as a cluster state backend. (See a
+full explanation in [Storage Backends](../../../reference/backends.mdx#etcd).)
+
+| Backend | Recommended backup strategy |
+| - | - |
+| Local Filesystem | Back up the data directory (`/var/lib/teleport/` by default) |
+| DynamoDB | [Amazon DynamoDB documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Backup-and-Restore.html) |
+| etcd | [etcd documentation](https://etcd.io/docs/v2.3/admin_guide/#disaster-recovery) |
+| Firestore | [Firestore documentation](https://firebase.google.com/docs/database/backups) |
+| Azure Database for PostgreSQL | [Azure Database for PostgreSQL documentation](https://learn.microsoft.com/en-us/azure/backup/backup-azure-database-postgresql) |
+| Cloud SQL for PostgreSQL | [Cloud SQL for PostgreSQL documentation](https://cloud.google.com/sql/docs/postgres/backup-recovery/backups) |
+
+### Session recording backends
+
+| Backend | Recommended backup strategy |
+| - | - |
+| Local Filesystem | Back up the data directory (`/var/lib/teleport/` by default) |
+| S3 | [Amazon S3 documentation](https://docs.aws.amazon.com/aws-backup/latest/devguide/s3-backups.html) |
+| GCS | GCS has [built-in redundancy](https://cloud.google.com/storage/docs/availability-durability), but you may also use [cross-bucket replication](https://cloud.google.com/storage/docs/using-cross-bucket-replication) |
+| Azure Blob Storage | [Azure Blob backup documentation](https://learn.microsoft.com/en-us/azure/backup/blob-backup-overview)|
+
+## Versioning dynamic resources with infrastructure as code
+
+Teleport uses [dynamic
+resources](../../../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx) for roles,
+local users, authentication connectors, and other configurations, and stores
+dynamic resource data on the cluster state backend. Backing up the cluster
+state backend protects your cluster against the loss of dynamic resource data.
+
+For more control over the version of a dynamic resource that you back up and
+restore, we recommend storing dynamic resource manifests in a code repository
+that uses a version control system. You can use a continuous deployment pipeline
+to apply configurations automatically, so your Teleport cluster always reflects
+the latest state of your dynamic resources. 
+
+If you need to revert to an earlier version of a resource (e.g., to correct a
+misconfiguration), you can restore the resource on your code repository without
+conducting a full restore of the cluster state backend.
+
+Teleport provides the following infrastructure as code tools for managing
+dynamic resources:
+
+- [Terraform
+  provider](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+- [Kubernetes
+  operator](../../../zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator.mdx)
+
+## Cloning a backend
+
+You can clone a Teleport Auth Service backend by instructing Teleport to
+retrieve all items from one backend and store them in another backend. You can
+use this operation to, for example, migrate data to a new backend or back up
+data from one region to another. 
+
+This operation uses the `teleport backend clone` command with a configuration
+file that includes information about the source and destination backends. The
+`teleport` process running the clone must have access to credentials for both
+backends. If you complete the instructions below on a virtual machine or
+Kubernetes pod that usually runs the Teleport Auth Service, you can expect the
+`teleport` process to have the required permissions.
+
+1. Write a configuration file for the clone. Create a file called `clone.yaml`
+   that includes the following structure:
+
+   ```yaml
+     # src is the configuration for the backend where data is cloned from.
+     src: 
+       type: dynamodb
+       region: us-east-1
+       table: teleport_backend
+     # dst is the configuration for the backend where data is cloned to.
+     dst:
+       type: sqlite
+       path: /var/lib/teleport_data
+     # parallel is the amount of backend data cloned in parallel.
+     # If a clone operation is taking too long consider increasing this value.
+     parallel: 100
+     # force, if set to true, will continue cloning data to a destination
+     # regardless of whether data is already present. By default this is false
+     # to protect against overwriting the data of an existing Teleport cluster.
+     force: false
+   ```
+
+   This example clones backend data in Amazon DynamoDB to a SQLite database.
+
+1. Update the `src` and `dst` sections of the clone configuration file to
+   include information about the source and destination backends. Possible
+   values of `src` and `dst` are the same as the `teleport.storage` section in
+   the Teleport configuration file. See the [Storage
+   Backends](../../../reference/backends.mdx) reference for the configuration
+   fields to assign for each backend.
+
+1. Run the following command on an Auth Service instance to execute the clone
+   operation. The value of the `-c` flag is the configuration file you created
+   earlier:
+   
+   ```code
+   $ sudo teleport backend clone -c clone.yaml
+   ```
+
+You can run the `teleport backend clone` command on an Auth Service instance
+without stopping your cluster. The command retrieves each item from the source
+backend and writes it to the destination backend. Any items created on the
+source backend after the initial retrieval will not be included in the clone.

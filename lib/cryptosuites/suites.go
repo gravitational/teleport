@@ -128,6 +128,9 @@ const (
 	// BoundKeypairCAJWT represents the JWT key for the bound_keypair CA.
 	BoundKeypairCAJWT
 
+	// RecordingKeyWrapping is a key used for wrapping session recording decryption keys.
+	RecordingKeyWrapping
+
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -141,6 +144,8 @@ const (
 
 	// RSA2048 represents RSA 2048-bit keys.
 	RSA2048
+	// RSA4096 represents RSA 4096-bit keys.
+	RSA4096
 	// ECDSAP256 represents ECDSA keys using NIST curve P-256.
 	ECDSAP256
 	// Ed25519 represents Ed25519 keys.
@@ -156,6 +161,8 @@ func (a Algorithm) String() string {
 		return "algorithm unspecified"
 	case RSA2048:
 		return "RSA2048"
+	case RSA4096:
+		return "RSA4096"
 	case ECDSAP256:
 		return "ECDSAP256"
 	case Ed25519:
@@ -204,11 +211,12 @@ var (
 		ProxyToDatabaseAgent: RSA2048,
 		ProxyKubeClient:      RSA2048,
 		// EC2InstanceConnect has always used Ed25519 by default.
-		EC2InstanceConnect:  Ed25519,
-		GitClient:           Ed25519,
-		AWSRACATLS:          ECDSAP256,
-		BoundKeypairJoining: Ed25519,
-		BoundKeypairCAJWT:   ECDSAP256,
+		EC2InstanceConnect:   Ed25519,
+		GitClient:            Ed25519,
+		AWSRACATLS:           ECDSAP256,
+		BoundKeypairJoining:  Ed25519,
+		BoundKeypairCAJWT:    ECDSAP256,
+		RecordingKeyWrapping: RSA4096,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -243,6 +251,7 @@ var (
 		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     Ed25519,
 		BoundKeypairCAJWT:       Ed25519,
+		RecordingKeyWrapping:    RSA4096,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -278,6 +287,7 @@ var (
 		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     ECDSAP256,
 		BoundKeypairCAJWT:       ECDSAP256,
+		RecordingKeyWrapping:    RSA4096,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -315,6 +325,7 @@ var (
 		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     Ed25519,
 		BoundKeypairCAJWT:       ECDSAP256,
+		RecordingKeyWrapping:    RSA4096,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{
@@ -361,6 +372,14 @@ func GetCurrentSuiteFromPing(pinger Pinger) GetSuiteFunc {
 		}
 		return pingResp.SignatureAlgorithmSuite, nil
 	})
+}
+
+// StaticAlgorithmSuite returns a [GetSuiteFunc] that always returns the given
+// static suite.
+func StaticAlgorithmSuite(suite types.SignatureAlgorithmSuite) GetSuiteFunc {
+	return func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+		return suite, nil
+	}
 }
 
 // GetSuiteFunc is a function type that retrieves the current signature
@@ -455,12 +474,24 @@ func GenerateKeyWithAlgorithm(alg Algorithm) (crypto.Signer, error) {
 	switch alg {
 	case RSA2048:
 		return generateRSA2048()
+	case RSA4096:
+		return generateRSA4096()
 	case ECDSAP256:
 		return generateECDSAP256()
 	case Ed25519:
 		return generateEd25519()
 	default:
 		return nil, trace.BadParameter("unsupported key algorithm %v", alg)
+	}
+}
+
+// GenerateDecrypterWithAlgorithm generates a new cryptographic keypair with the given algorithm meant for decryption.
+func GenerateDecrypterWithAlgorithm(alg Algorithm) (crypto.Decrypter, error) {
+	switch alg {
+	case RSA4096:
+		return generateRSA4096()
+	default:
+		return nil, trace.BadParameter("unsupported decryption key algorithm %v", alg)
 	}
 }
 
@@ -477,6 +508,11 @@ func GeneratePrivateKeyWithAlgorithm(alg Algorithm) (*keys.PrivateKey, error) {
 
 func generateRSA2048() (*rsa.PrivateKey, error) {
 	key, err := internalrsa.GenerateKey()
+	return key, trace.Wrap(err)
+}
+
+func generateRSA4096() (*rsa.PrivateKey, error) {
+	key, err := internalrsa.GenerateKey4096()
 	return key, trace.Wrap(err)
 }
 

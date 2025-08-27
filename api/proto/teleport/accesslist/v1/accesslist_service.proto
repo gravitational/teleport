@@ -53,16 +53,28 @@ service AccessListService {
   rpc ListAllAccessListMembers(ListAllAccessListMembersRequest) returns (ListAllAccessListMembersResponse);
   // GetAccessListMember returns the specified access list member resource.
   rpc GetAccessListMember(GetAccessListMemberRequest) returns (Member);
+  // GetStaticAccessListMember returns the specified access_list_member resource. If returns error
+  // if the target access_list is not of type static.  This API is there for the IaC tools to
+  // prevent them from making changes to members of dynamic access lists.
+  rpc GetStaticAccessListMember(GetStaticAccessListMemberRequest) returns (GetStaticAccessListMemberResponse);
   // GetAccessListOwners returns a list of all owners in an Access List,
   // including those inherited from nested Access Lists.
   rpc GetAccessListOwners(GetAccessListOwnersRequest) returns (GetAccessListOwnersResponse);
   // UpsertAccessListMember creates or updates an access list member resource.
   rpc UpsertAccessListMember(UpsertAccessListMemberRequest) returns (Member);
+  // UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns
+  // error and does nothing if the target access_list is not of type static. This API is there for
+  // the IaC tools to prevent them from making changes to members of dynamic access lists.
+  rpc UpsertStaticAccessListMember(UpsertStaticAccessListMemberRequest) returns (UpsertStaticAccessListMemberResponse);
   // UpdateAccessListMember conditionally updates an access list member resource.
   rpc UpdateAccessListMember(UpdateAccessListMemberRequest) returns (Member);
   // DeleteAccessListMember hard deletes the specified access list member
   // resource.
   rpc DeleteAccessListMember(DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
+  // DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error
+  // and does nothing if the target access_list is not of static type. This API is there for the
+  // IaC tools to prevent them from making changes to members of dynamic access lists.
+  rpc DeleteStaticAccessListMember(DeleteStaticAccessListMemberRequest) returns (DeleteStaticAccessListMemberResponse);
   // DeleteAllAccessListMembers hard deletes all access list members for an
   // access list.
   rpc DeleteAllAccessListMembersForAccessList(DeleteAllAccessListMembersForAccessListRequest) returns (google.protobuf.Empty);
@@ -247,14 +259,28 @@ message UpsertAccessListWithMembersResponse {
   repeated Member members = 2;
 }
 
-// GetAccessListMemberRequest is the request for retrieving an access list
-// member.
+// GetAccessListMemberRequest is the request for retrieving an access_list_member.
 message GetAccessListMemberRequest {
   // access_list is the name of the access list that the member belongs to.
   string access_list = 1;
-
   // member_name is the name of the user that belongs to the access list.
   string member_name = 2;
+}
+
+// GetStaticAccessListMemberRequest is the request for retrieving an access_list_member of a static
+// type access_list.
+message GetStaticAccessListMemberRequest {
+  // access_list is the name of the access_list that the member belongs to.
+  string access_list = 1;
+  // member_name is the name of the user that belongs to the access_list.
+  string member_name = 2;
+}
+
+// GetStaticAccessListMemberResponse is the response containing the access_list_member of the
+// target access_list of static type.
+message GetStaticAccessListMemberResponse {
+  // member of the target static access_list.
+  Member member = 1;
 }
 
 // GetAccessListOwnersRequest is the request for getting a list of all owners
@@ -282,6 +308,20 @@ message UpsertAccessListMemberRequest {
   Member member = 4;
 }
 
+// UpsertStaticAccessListMemberRequest is the request for upserting an access_list_member to an
+// access_list of type static.
+message UpsertStaticAccessListMemberRequest {
+  // member is the access_list_member to upsert.
+  Member member = 1;
+}
+
+// UpsertStaticAccessListMemberResponse is the response of upserting an access_list_member to an
+// static_access of type static.
+message UpsertStaticAccessListMemberResponse {
+  // member is the upserted access_list_member.
+  Member member = 1;
+}
+
 // UpdateAccessListMemberRequest is the request for updating an access list
 // member.
 message UpdateAccessListMemberRequest {
@@ -300,6 +340,19 @@ message DeleteAccessListMemberRequest {
   // member_name is the name of the user to delete.
   string member_name = 3;
 }
+
+// DeleteStaticAccessListMemberRequest is the request for deleting an access_list_member from an
+// access_list of type static.
+message DeleteStaticAccessListMemberRequest {
+  // access_list is the name of access list.
+  string access_list = 1;
+  // member_name is the name of the user to delete.
+  string member_name = 2;
+}
+
+// DeleteStaticAccessListMemberResponse is the response of deleting an access_list_member from an
+// access_list of type static.
+message DeleteStaticAccessListMemberResponse {}
 
 // DeleteAllAccessListMembersForAccessListRequest is the request for deleting
 // all members from an access list.

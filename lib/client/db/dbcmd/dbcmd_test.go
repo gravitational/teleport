@@ -186,6 +186,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mariadb",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -208,6 +209,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mariadb",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -225,6 +227,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mysql",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -247,6 +250,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 			cmd: []string{"mysql",
 				"--defaults-group-suffix=_db.example.com-mysql",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -265,6 +269,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mysql",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -291,6 +296,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				execOutput: map[string][]byte{},
 			},
 			cmd: []string{"mysql",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -309,6 +315,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mariadb",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "3036",
@@ -769,7 +776,6 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -932,7 +938,6 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1018,7 +1023,6 @@ func TestConvertCommandError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 

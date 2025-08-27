@@ -336,7 +336,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		pref, err := s.cache.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -615,7 +615,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		cfg, err := s.cache.GetClusterNetworkingConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -738,6 +738,10 @@ func (s *Service) CreateSessionRecordingConfig(ctx context.Context, cfg types.Se
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
+	if err := services.ValidateSessionRecordingConfig(cfg, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	created, err := s.backend.CreateSessionRecordingConfig(ctx, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -771,6 +775,10 @@ func (s *Service) UpdateSessionRecordingConfig(ctx context.Context, req *cluster
 	}
 
 	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
+
+	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	updated, err := s.backend.UpdateSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 
@@ -818,6 +826,10 @@ func (s *Service) UpsertSessionRecordingConfig(ctx context.Context, req *cluster
 
 	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
 
+	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	upserted, err := s.backend.UpsertSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.SessionRecordingConfigUpdate{
@@ -864,7 +876,7 @@ func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clustercon
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 
 		cfg, err := s.cache.GetSessionRecordingConfig(ctx)
 		if err != nil {

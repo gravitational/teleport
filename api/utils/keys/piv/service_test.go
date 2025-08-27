@@ -22,11 +22,13 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
-	pivgo "github.com/go-piv/piv-go/piv"
+	pivgo "github.com/go-piv/piv-go/v2/piv"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -163,54 +165,61 @@ func TestOverwritePrompt(t *testing.T) {
 	}
 
 	ctx := context.Background()
-
-	promptWriter := bytes.NewBuffer([]byte{})
 	promptReader := prompt.NewFakeReader()
-	prompt := hardwarekey.NewCLIPrompt(promptWriter, promptReader)
+	prompt := hardwarekey.NewCLIPrompt(os.Stderr, promptReader)
 	s := piv.NewYubiKeyService(prompt)
 
 	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
 
-	resetYubikey(t, y)
 	t.Cleanup(func() { resetYubikey(t, y) })
 
+	const testPIN = "123123"
+	setupYubiKey := func(t *testing.T) {
+		resetYubikey(t, y)
+		// Set pin.
+		require.NoError(t, y.SetPIN(pivgo.DefaultPIN, testPIN))
+	}
+
 	// Get the default slot used for hardware_key_touch.
-	touchSlot := pivgo.SlotSignature
+	pinSlot := pivgo.SlotCardAuthentication
 
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
+		promptReader.AddString(testPIN)
 		promptReader.AddString("n")
 		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
-			Policy: hardwarekey.PromptPolicy{TouchRequired: true},
+			Policy: hardwarekey.PromptPolicy{PINRequired: true},
 		})
+		require.Error(t, err)
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
+		promptReader.AddString(testPIN)
 		promptReader.AddString("y")
 		_, err = keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
-			Policy: hardwarekey.PromptPolicy{TouchRequired: true},
+			Policy: hardwarekey.PromptPolicy{PINRequired: true},
 		})
 		require.NoError(t, err)
 	}
 
 	t.Run("invalid metadata cert", func(t *testing.T) {
-		resetYubikey(t, y)
+		setupYubiKey(t)
 
 		// Set a non-teleport certificate in the slot.
-		err = y.SetMetadataCertificate(touchSlot, pkix.Name{Organization: []string{"not-teleport"}})
+		err = y.SetMetadataCertificate(pinSlot, pkix.Name{Organization: []string{"not-teleport"}})
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
 	})
 
 	t.Run("invalid key policies", func(t *testing.T) {
-		resetYubikey(t, y)
+		setupYubiKey(t)
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
 		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
-			CustomSlot: hardwarekey.PIVSlotKeyString(touchSlot.String()),
-			Policy:     hardwarekey.PromptPolicy{TouchRequired: false},
+			CustomSlot: hardwarekey.PIVSlotKeyString(pinSlot.String()),
+			Policy:     hardwarekey.PromptPolicy{PINRequired: false},
 		})
 		require.NoError(t, err)
 
@@ -284,11 +293,52 @@ func TestPINCaching(t *testing.T) {
 	// Signing with the right PIN should cache it.
 	promptReader.AddString(testPIN)
 	err = priv.WarmupHardwareKey(ctx)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// The PIN is cached, no prompt needed.
 	err = priv.WarmupHardwareKey(ctx)
-	require.Error(t, err)
+	require.NoError(t, err)
+}
+
+func TestConcurrentSignature(t *testing.T) {
+	// This test will overwrite any PIV data on the yubiKey.
+	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
+		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
+	}
+
+	ctx := context.Background()
+	promptReader := prompt.NewFakeReader()
+	prompt := hardwarekey.NewCLIPrompt(os.Stderr, promptReader)
+	s := piv.NewYubiKeyService(prompt)
+
+	y, err := piv.FindYubiKey(0)
+	require.NoError(t, err)
+
+	resetYubikey(t, y)
+	t.Cleanup(func() { resetYubikey(t, y) })
+
+	// Set pin.
+	const testPIN = "123123"
+	require.NoError(t, y.SetPIN(pivgo.DefaultPIN, testPIN))
+
+	promptReader.AddString(testPIN)
+	priv, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+		// Use PIN policy to slow down the signatures a bit so that they are concurrent.
+		Policy: hardwarekey.PromptPolicyPIN,
+	})
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	for range 5 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err = priv.WarmupHardwareKey(ctx)
+			assert.NoError(t, err)
+		}()
+	}
+
+	wg.Wait()
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.

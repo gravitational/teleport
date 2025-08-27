@@ -93,7 +93,7 @@ func (c *mockJoinServiceClient) RegisterUsingBoundKeypairMethod(
 	ctx context.Context,
 	req *proto.RegisterUsingBoundKeypairInitialRequest,
 	challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-) (*proto.Certs, string, error) {
+) (*client.BoundKeypairRegistrationResponse, error) {
 	c.gotBoundKeypairInitReq = req
 	resp, err := challengeResponse(&proto.RegisterUsingBoundKeypairMethodResponse{
 		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
@@ -104,12 +104,19 @@ func (c *mockJoinServiceClient) RegisterUsingBoundKeypairMethod(
 		},
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	c.gotBoundKeypairChallengeResponse = resp
 
-	return c.returnCerts, c.boundKeypairPublicKey, c.returnError
+	if c.returnError != nil {
+		return nil, c.returnError
+	}
+
+	return &client.BoundKeypairRegistrationResponse{
+		Certs:          c.returnCerts,
+		BoundPublicKey: c.boundKeypairPublicKey,
+	}, nil
 }
 
 func (c *mockJoinServiceClient) RegisterUsingOracleMethod(
@@ -129,7 +136,7 @@ func (c *mockJoinServiceClient) RegisterUsingToken(
 }
 
 func ConnectionCountingStreamInterceptor(count *atomic.Int32) grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		count.Add(1)
 		defer count.Add(-1)
 		return handler(srv, ss)
@@ -646,7 +653,7 @@ func TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple(t *testing.
 				"_proxy": testPack.proxyClient,
 			} {
 				t.Run(tc.desc+suffix, func(t *testing.T) {
-					certs, pubKey, err := clt.RegisterUsingBoundKeypairMethod(
+					response, err := clt.RegisterUsingBoundKeypairMethod(
 						context.Background(), tc.req, challengeResponder,
 					)
 					if tc.challengeResponseErr != nil {
@@ -659,7 +666,7 @@ func TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple(t *testing.
 						return
 					}
 					require.NoError(t, err)
-					require.Equal(t, tc.certs, certs)
+					require.Equal(t, tc.certs, response.Certs)
 
 					expectedInitReq := tc.req
 					expectedInitReq.JoinRequest.RemoteAddr = "bufconn"
@@ -671,7 +678,7 @@ func TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple(t *testing.
 						testPack.mockAuthServer.gotBoundKeypairChallengeResponse,
 					)
 
-					require.Equal(t, tc.publicKey, pubKey)
+					require.Equal(t, tc.publicKey, response.BoundPublicKey)
 				})
 			}
 		})

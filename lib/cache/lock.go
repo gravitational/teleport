@@ -37,6 +37,7 @@ func newLockCollection(upstream services.Access, w types.WatchKind) (*collection
 
 	return &collection[types.Lock, lockIndex]{
 		store: newStore(
+			types.KindLock,
 			types.Lock.Clone,
 			map[lockIndex]func(types.Lock) string{
 				lockNameIndex: types.Lock.GetName,

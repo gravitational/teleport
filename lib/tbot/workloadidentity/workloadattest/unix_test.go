@@ -35,7 +35,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestUnixAttestor_Attest(t *testing.T) {
@@ -48,7 +48,7 @@ func TestUnixAttestor_Attest(t *testing.T) {
 
 	attestor := NewUnixAttestor(
 		UnixAttestorConfig{BinaryHashMaxSizeBytes: -1},
-		utils.NewSlogLoggerForTests(),
+		logtest.NewLogger(),
 	)
 	attestor.os = testOS{
 		exePath: func(context.Context, *process.Process) (string, error) {
@@ -83,7 +83,7 @@ func TestUnixAttestor_BinaryTooLarge(t *testing.T) {
 
 	attestor := NewUnixAttestor(
 		UnixAttestorConfig{BinaryHashMaxSizeBytes: 1024},
-		utils.NewSlogLoggerForTests(),
+		logtest.NewLogger(),
 	)
 	attestor.os = testOS{
 		exePath: func(context.Context, *process.Process) (string, error) {

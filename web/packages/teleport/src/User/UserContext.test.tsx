@@ -23,6 +23,9 @@ import { MemoryRouter } from 'react-router';
 
 import '@testing-library/jest-dom';
 
+import { ThemeProvider } from 'styled-components';
+
+import lightTheme from 'design/theme/themes/lightTheme';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
@@ -54,11 +57,13 @@ describe('user context - success state', () => {
 
   it('should render with the settings from the backend', async () => {
     render(
-      <MemoryRouter>
-        <UserContextProvider>
-          <ThemeName />
-        </UserContextProvider>
-      </MemoryRouter>
+      <ThemeProvider theme={lightTheme}>
+        <MemoryRouter>
+          <UserContextProvider>
+            <ThemeName />
+          </UserContextProvider>
+        </MemoryRouter>
+      </ThemeProvider>
     );
 
     const theme = await screen.findByText(/theme: light/i);
@@ -81,11 +86,13 @@ describe('user context - error state', () => {
 
   it('should render with the default settings', async () => {
     render(
-      <MemoryRouter>
-        <UserContextProvider>
-          <ThemeName />
-        </UserContextProvider>
-      </MemoryRouter>
+      <ThemeProvider theme={lightTheme}>
+        <MemoryRouter>
+          <UserContextProvider>
+            <ThemeName />
+          </UserContextProvider>
+        </MemoryRouter>
+      </ThemeProvider>
     );
 
     const theme = await screen.findByText(/theme: light/i);
@@ -102,11 +109,13 @@ describe('user context - error state', () => {
     );
 
     render(
-      <MemoryRouter>
-        <UserContextProvider>
-          <ThemeName />
-        </UserContextProvider>
-      </MemoryRouter>
+      <ThemeProvider theme={lightTheme}>
+        <MemoryRouter>
+          <UserContextProvider>
+            <ThemeName />
+          </UserContextProvider>
+        </MemoryRouter>
+      </ThemeProvider>
     );
 
     const theme = await screen.findByText(/theme: dark/i);

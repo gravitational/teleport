@@ -25,9 +25,10 @@ import {
   useState,
 } from 'react';
 
-import type { NotificationItem } from 'shared/components/Notification';
+import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAsync';
 import { ClipboardData, TdpClient } from 'shared/libs/tdp';
+import { isAbortError } from 'shared/utils/error';
 
 declare global {
   interface Window {
@@ -40,15 +41,34 @@ export default function useDesktopSession(
   aclAttempt: Attempt<{
     clipboardSharingEnabled: boolean;
     directorySharingEnabled: boolean;
-  }>
+  }>,
+  browserSupportsSharing: boolean
 ) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
-  const [directorySharingState, setDirectorySharingState] =
-    useState<DirectorySharingState>(defaultDirectorySharingState);
+  const [directorySharingState, setDirectorySharingState] = useState<{
+    directorySelected: boolean;
+  }>({ directorySelected: false });
 
-  const [clipboardSharingState, setClipboardSharingState] =
-    useState<ClipboardSharingState>(defaultClipboardSharingState);
+  const [clipboardSharingState, setClipboardSharingState] = useState<{
+    readState?: PermissionState;
+    writeState?: PermissionState;
+  }>({});
+
+  const clipboardSharing: ClipboardSharingState = {
+    ...clipboardSharingState,
+    browserSupported: browserSupportsSharing,
+    allowedByAcl:
+      aclAttempt.status === 'success' &&
+      aclAttempt.data.clipboardSharingEnabled,
+  };
+  const directorySharing: DirectorySharingState = {
+    ...directorySharingState,
+    browserSupported: browserSupportsSharing,
+    allowedByAcl:
+      aclAttempt.status === 'success' &&
+      aclAttempt.data.directorySharingEnabled,
+  };
 
   useEffect(() => {
     const clearReadListenerPromise = initClipboardPermissionTracking(
@@ -68,26 +88,11 @@ export default function useDesktopSession(
     };
   }, []);
 
-  //TODO(gzdunek): This is workaround for synchronizing *sharingState with aclAttempt.
-  //Refactor clipboard and directory sharing so that we won't need allowedByAcl fields in state.
-  useEffect(() => {
-    if (aclAttempt.status === 'success') {
-      setClipboardSharingState(prevState => ({
-        ...prevState,
-        allowedByAcl: aclAttempt.data.clipboardSharingEnabled,
-      }));
-      setDirectorySharingState(prevState => ({
-        ...prevState,
-        allowedByAcl: aclAttempt.data.directorySharingEnabled,
-      }));
-    }
-  }, [aclAttempt]);
-
-  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
+  const [alerts, setAlerts] = useState<ToastNotificationItem[]>([]);
   const onRemoveAlert = (id: string) => {
     setAlerts(prevState => prevState.filter(alert => alert.id !== id));
   };
-  const addAlert = useCallback((alert: Omit<NotificationItem, 'id'>) => {
+  const addAlert = useCallback((alert: Omit<ToastNotificationItem, 'id'>) => {
     setAlerts(prevState => [
       ...prevState,
       { ...alert, id: crypto.randomUUID() },
@@ -95,7 +100,7 @@ export default function useDesktopSession(
   }, []);
 
   async function sendLocalClipboardToRemote() {
-    if (!(await sysClipboardGuard(clipboardSharingState, 'read'))) {
+    if (!(await sysClipboardGuard(clipboardSharing, 'read'))) {
       return;
     }
     const text = await navigator.clipboard.readText();
@@ -111,7 +116,7 @@ export default function useDesktopSession(
   async function onClipboardData(clipboardData: ClipboardData) {
     if (
       clipboardData.data &&
-      (await sysClipboardGuard(clipboardSharingState, 'write'))
+      (await sysClipboardGuard(clipboardSharing, 'write'))
     ) {
       await navigator.clipboard.writeText(clipboardData.data);
       latestClipboardDigest.current = await sha256Digest(
@@ -124,15 +129,16 @@ export default function useDesktopSession(
   const onShareDirectory = async () => {
     try {
       await tdpClient.shareDirectory();
-      setDirectorySharingState(prevState => ({
-        ...prevState,
+      setDirectorySharingState({
         directorySelected: true,
-      }));
+      });
     } catch (e) {
-      setDirectorySharingState(prevState => ({
-        ...prevState,
+      if (isAbortError(e)) {
+        return;
+      }
+      setDirectorySharingState({
         directorySelected: false,
-      }));
+      });
       addAlert({
         severity: 'warn',
         content: {
@@ -143,11 +149,17 @@ export default function useDesktopSession(
     }
   };
 
+  /** Clears sharing state. */
+  const clearSharing = useCallback(() => {
+    setDirectorySharingState({
+      directorySelected: false,
+    });
+  }, []);
+
   return {
-    clipboardSharingState,
-    setClipboardSharingState,
-    directorySharingState,
-    setDirectorySharingState,
+    clipboardSharingState: clipboardSharing,
+    directorySharingState: directorySharing,
+    clearSharing,
     onShareDirectory,
     alerts,
     onRemoveAlert,
@@ -310,15 +322,6 @@ export function isSharingDirectory(
     directorySharingState.directorySelected
   );
 }
-
-export const defaultDirectorySharingState: DirectorySharingState = {
-  browserSupported: navigator.userAgent.includes('Chrome'),
-  directorySelected: false,
-};
-
-export const defaultClipboardSharingState: ClipboardSharingState = {
-  browserSupported: navigator.userAgent.includes('Chrome'),
-};
 
 /**
  * To be called before any system clipboard read/write operation.

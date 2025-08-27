@@ -1,6 +1,9 @@
 ---
 title: Teleport Architecture
 description: Provides detailed information about how Teleport works.
+labels:
+ - conceptual
+ - platform-wide
 ---
 
 This guide explains the technical architecture of Teleport. Before reading this
@@ -53,7 +56,7 @@ Read more about [Teleport Proxy Service Architecture](proxy.mdx). You can also
 read about the architecture of Teleport Proxy Service features:
 
 - [TLS Routing](tls-routing.mdx)
-- [Proxy Peering](proxy-peering.mdx)
+- [Proxy Peering](../../zero-trust-access/management/operations/proxy-peering.mdx)
 
 ## Enrolling resources
 
@@ -110,7 +113,7 @@ Instances of the `tbot` binary communicate with the Teleport Auth Service to
 continuously refresh credentials. As with Agents, administrators must deploy
 `tbot` instances on their own infrastructure, including on CI/CD platforms such
 as GitHub Actions, and [join
-them](../../enroll-resources/machine-id/deployment/deployment.mdx) to a cluster.
+them](../../machine-workload-identity/machine-id/deployment/deployment.mdx) to a cluster.
 
 Read more about [Machine ID Architecture](machine-id-architecture.mdx).
 

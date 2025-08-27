@@ -19,10 +19,10 @@ package vnet
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 
@@ -60,7 +60,7 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 	}
 	defer tun.Close()
 
-	networkStackConfig, err := newNetworkStackConfig(tun, clt)
+	networkStackConfig, err := newNetworkStackConfig(ctx, tun, clt)
 	if err != nil {
 		return trace.Wrap(err, "creating network stack config")
 	}
@@ -76,12 +76,13 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
-	osConfigProvider, err := newRemoteOSConfigProvider(
-		clt,
-		tunName,
-		networkStackConfig.ipv6Prefix.String(),
-		networkStackConfig.dnsIPv6.String(),
-	)
+	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
+		clt:           clt,
+		tunName:       tunName,
+		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+		dnsIPv6:       networkStackConfig.dnsIPv6.String(),
+		addDNSAddress: networkStack.addDNSAddress,
+	})
 	if err != nil {
 		return trace.Wrap(err, "creating OS config provider")
 	}
@@ -89,18 +90,21 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "Network stack terminated.")
 		if err := networkStack.run(ctx); err != nil {
 			return trace.Wrap(err, "running network stack")
 		}
 		return errors.New("network stack terminated")
 	})
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "OS configuration loop exited.")
 		if err := osConfigurator.runOSConfigurationLoop(ctx); err != nil {
 			return trace.Wrap(err, "running OS configuration loop")
 		}
 		return errors.New("OS configuration loop terminated")
 	})
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "Ping loop exited.")
 		tick := time.Tick(time.Second)
 		for {
 			select {
@@ -113,23 +117,27 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 			}
 		}
 	})
-	return trace.Wrap(g.Wait(), "running VNet admin process")
-}
 
-func newNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
-	appProvider := newRemoteAppProvider(clt)
-	appResolver := newTCPAppResolver(appProvider, clockwork.NewRealClock())
-	ipv6Prefix, err := newIPv6Prefix()
-	if err != nil {
-		return nil, trace.Wrap(err, "creating new IPv6 prefix")
+	done := make(chan error)
+	go func() {
+		done <- g.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		return trace.Wrap(err, "running VNet admin process")
+	case <-ctx.Done():
 	}
-	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
-	return &networkStackConfig{
-		tunDevice:          tun,
-		ipv6Prefix:         ipv6Prefix,
-		dnsIPv6:            dnsIPv6,
-		tcpHandlerResolver: appResolver,
-	}, nil
+
+	select {
+	case err := <-done:
+		// network stack exited cleanly within timeout
+		return trace.Wrap(err, "running VNet admin process")
+	case <-time.After(10 * time.Second):
+		log.ErrorContext(ctx, "VNet admin process did not exit within 10 seconds, forcing shutdown.")
+		os.Exit(1)
+		return nil
+	}
 }
 
 func createTUNDevice(ctx context.Context) (tun.Device, string, error) {

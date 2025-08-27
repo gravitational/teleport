@@ -33,7 +33,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"binary field": {
 			attributeJSON:      `{ "B": "dGVzdAo=", "BOOL": null, "BS": null, "L": null, "M": null, "N": null, "NS": null, "NULL": null, "S": null, "SS": null }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberB{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberB)
 				// Parsed binaries include line feed character.
@@ -43,7 +43,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"bool field": {
 			attributeJSON:      `{ "B": null, "BOOL": true, "BS": null, "L": null, "M": null, "N": null, "NS": null, "NULL": null, "S": null, "SS": null }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberBOOL{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberBOOL)
 				require.True(t, attr.Value)
@@ -52,7 +52,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"binary set field": {
 			attributeJSON:      `{ "B": null, "BOOL": null, "BS": ["aGVsbG8K", "d29ybGQK"], "L": null, "M": null, "N": null, "NS": null, "NULL": null, "S": null, "SS": null }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberBS{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberBS)
 				// Parsed binaries include line feed character.
@@ -62,7 +62,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"list field": {
 			attributeJSON:      `{ "B": null, "BOOL": null, "BS": null, "L": [{"S": "hello"}, {"S": "world"}], "M": null, "N": null, "NS": null, "NULL": null, "S": null, "SS": null }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberL{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberL)
 				require.Len(t, attr.Value, 2)
@@ -73,7 +73,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"map field": {
 			attributeJSON:      `{ "B": null, "BOOL": null, "BS": null, "L": null, "M": {"name": { "B": null, "BOOL": null, "BS": null, "L": null, "M": null, "N": null, "NS": null, "NULL": null, "S": "test", "SS": null }}, "N": null, "NS": null, "NULL": null, "S": null, "SS": null }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberM{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberM)
 				require.Len(t, attr.Value, 1)
@@ -88,7 +88,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"number field": {
 			attributeJSON:      `{ "B": null, "BOOL": null, "BS": null, "L": null, "M": null, "N": "123.4", "NS": null, "NULL": null, "S": null, "SS": null }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberN{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberN)
 				require.Equal(t, "123.4", attr.Value)
@@ -97,7 +97,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"number set field": {
 			attributeJSON:      `{ "B": null, "BOOL": null, "BS": null, "L": null, "M": null, "N": null, "NS": ["123", "4.5"], "NULL": null, "S": null, "SS": null }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberNS{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberNS)
 				require.ElementsMatch(t, []string{"123", "4.5"}, attr.Value)
@@ -106,7 +106,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"null field": {
 			attributeJSON:      `{ "B": null, "BOOL": null, "BS": null, "L": null, "M": null, "N": null, "NS": null, "NULL": true, "S": null, "SS": null }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberNULL{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberNULL)
 				require.True(t, attr.Value)
@@ -115,7 +115,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"string field": {
 			attributeJSON:      `{ "B": null, "BOOL": null, "BS": null, "L": null, "M": null, "N": null, "NS": null, "NULL": null, "S": "test", "SS": null }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberS{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberS)
 				require.Equal(t, "test", attr.Value)
@@ -124,7 +124,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 		"string set field": {
 			attributeJSON:      `{ "B": null, "BOOL": null, "BS": null, "L": null, "M": null, "N": null, "NS": null, "NULL": null, "S": null, "SS": ["hello", "world"] }`,
 			expectConvertError: require.NoError,
-			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectedAttribute: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &types.AttributeValueMemberSS{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberSS)
 				require.ElementsMatch(t, []string{"hello", "world"}, attr.Value)

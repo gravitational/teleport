@@ -91,7 +91,7 @@ func (x ReportSate_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ReportSate_State.Descriptor instead.
 func (ReportSate_State) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{24, 0}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{26, 0}
 }
 
 // GetAuditQueryResultRequest is a request for GetAuditQueryResult.
@@ -433,7 +433,7 @@ func (x *RunReportRequest) GetDays() uint32 {
 	return 0
 }
 
-// GetStateRequest is a request for GetReportState.
+// GetReportStateRequest is a request for GetReportState.
 type GetReportStateRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name is a name of the security report.
@@ -938,7 +938,62 @@ func (x *ListAuditQueriesRequest) GetPageToken() string {
 	return ""
 }
 
-// ListAuditQueryResponse is audit query list response.
+// ListReportStatesRequest is a security report state list request.
+type ListReportStatesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// page_size is the number of results to return.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// page_token is the next_token value returned from a previous List request if any.
+	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListReportStatesRequest) Reset() {
+	*x = ListReportStatesRequest{}
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListReportStatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListReportStatesRequest) ProtoMessage() {}
+
+func (x *ListReportStatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListReportStatesRequest.ProtoReflect.Descriptor instead.
+func (*ListReportStatesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ListReportStatesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListReportStatesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// ListReportStatesRequest is a security report state list request.
 type ListReportsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// page_size is the number of results to return.
@@ -951,7 +1006,7 @@ type ListReportsRequest struct {
 
 func (x *ListReportsRequest) Reset() {
 	*x = ListReportsRequest{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[16]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -963,7 +1018,7 @@ func (x *ListReportsRequest) String() string {
 func (*ListReportsRequest) ProtoMessage() {}
 
 func (x *ListReportsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[16]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -976,7 +1031,7 @@ func (x *ListReportsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListReportsRequest.ProtoReflect.Descriptor instead.
 func (*ListReportsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{16}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListReportsRequest) GetPageSize() int32 {
@@ -1006,7 +1061,7 @@ type ListAuditQueriesResponse struct {
 
 func (x *ListAuditQueriesResponse) Reset() {
 	*x = ListAuditQueriesResponse{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[17]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1018,7 +1073,7 @@ func (x *ListAuditQueriesResponse) String() string {
 func (*ListAuditQueriesResponse) ProtoMessage() {}
 
 func (x *ListAuditQueriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[17]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1031,7 +1086,7 @@ func (x *ListAuditQueriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAuditQueriesResponse.ProtoReflect.Descriptor instead.
 func (*ListAuditQueriesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{17}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListAuditQueriesResponse) GetQueries() []*AuditQuery {
@@ -1057,7 +1112,7 @@ type GetSchemaRequest struct {
 
 func (x *GetSchemaRequest) Reset() {
 	*x = GetSchemaRequest{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[18]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1069,7 +1124,7 @@ func (x *GetSchemaRequest) String() string {
 func (*GetSchemaRequest) ProtoMessage() {}
 
 func (x *GetSchemaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[18]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1082,7 +1137,7 @@ func (x *GetSchemaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSchemaRequest.ProtoReflect.Descriptor instead.
 func (*GetSchemaRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{18}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{19}
 }
 
 // GetSchemaResponse is a response for GetSchema.
@@ -1096,7 +1151,7 @@ type GetSchemaResponse struct {
 
 func (x *GetSchemaResponse) Reset() {
 	*x = GetSchemaResponse{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[19]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1108,7 +1163,7 @@ func (x *GetSchemaResponse) String() string {
 func (*GetSchemaResponse) ProtoMessage() {}
 
 func (x *GetSchemaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[19]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1121,7 +1176,7 @@ func (x *GetSchemaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSchemaResponse.ProtoReflect.Descriptor instead.
 func (*GetSchemaResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{19}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetSchemaResponse) GetViews() []*GetSchemaResponse_ViewDesc {
@@ -1142,7 +1197,7 @@ type RunAuditQueryResponse struct {
 
 func (x *RunAuditQueryResponse) Reset() {
 	*x = RunAuditQueryResponse{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[20]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1154,7 +1209,7 @@ func (x *RunAuditQueryResponse) String() string {
 func (*RunAuditQueryResponse) ProtoMessage() {}
 
 func (x *RunAuditQueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[20]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1167,7 +1222,7 @@ func (x *RunAuditQueryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunAuditQueryResponse.ProtoReflect.Descriptor instead.
 func (*RunAuditQueryResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{20}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *RunAuditQueryResponse) GetResultId() string {
@@ -1177,7 +1232,7 @@ func (x *RunAuditQueryResponse) GetResultId() string {
 	return ""
 }
 
-// ListReportResponse is security report list response.
+// ListReportsResponse is security report list response.
 type ListReportsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// reports is a list of security reports.
@@ -1190,7 +1245,7 @@ type ListReportsResponse struct {
 
 func (x *ListReportsResponse) Reset() {
 	*x = ListReportsResponse{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[21]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1202,7 +1257,7 @@ func (x *ListReportsResponse) String() string {
 func (*ListReportsResponse) ProtoMessage() {}
 
 func (x *ListReportsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[21]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1215,7 +1270,7 @@ func (x *ListReportsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListReportsResponse.ProtoReflect.Descriptor instead.
 func (*ListReportsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{21}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListReportsResponse) GetReports() []*Report {
@@ -1226,6 +1281,61 @@ func (x *ListReportsResponse) GetReports() []*Report {
 }
 
 func (x *ListReportsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+// ListReportStatesResponse is security report state list response.
+type ListReportStatesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// report_states is a list of security report states.
+	ReportStates []*ReportState `protobuf:"bytes,1,rep,name=report_states,json=reportStates,proto3" json:"report_states,omitempty"`
+	// next_page_token is the next page token. If there are no more results, it will be empty.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListReportStatesResponse) Reset() {
+	*x = ListReportStatesResponse{}
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListReportStatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListReportStatesResponse) ProtoMessage() {}
+
+func (x *ListReportStatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListReportStatesResponse.ProtoReflect.Descriptor instead.
+func (*ListReportStatesResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ListReportStatesResponse) GetReportStates() []*ReportState {
+	if x != nil {
+		return x.ReportStates
+	}
+	return nil
+}
+
+func (x *ListReportStatesResponse) GetNextPageToken() string {
 	if x != nil {
 		return x.NextPageToken
 	}
@@ -1243,7 +1353,7 @@ type GetReportResultResponse struct {
 
 func (x *GetReportResultResponse) Reset() {
 	*x = GetReportResultResponse{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[22]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1255,7 +1365,7 @@ func (x *GetReportResultResponse) String() string {
 func (*GetReportResultResponse) ProtoMessage() {}
 
 func (x *GetReportResultResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[22]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1268,7 +1378,7 @@ func (x *GetReportResultResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReportResultResponse.ProtoReflect.Descriptor instead.
 func (*GetReportResultResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{22}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GetReportResultResponse) GetResult() *ReportResult {
@@ -1278,7 +1388,7 @@ func (x *GetReportResultResponse) GetResult() *ReportResult {
 	return nil
 }
 
-// Report is the result of security report.
+// ReportResult is the result of security report.
 type ReportResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name is a name of the security report.
@@ -1299,7 +1409,7 @@ type ReportResult struct {
 
 func (x *ReportResult) Reset() {
 	*x = ReportResult{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[23]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1311,7 +1421,7 @@ func (x *ReportResult) String() string {
 func (*ReportResult) ProtoMessage() {}
 
 func (x *ReportResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[23]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1324,7 +1434,7 @@ func (x *ReportResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportResult.ProtoReflect.Descriptor instead.
 func (*ReportResult) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{23}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ReportResult) GetName() string {
@@ -1369,7 +1479,7 @@ func (x *ReportResult) GetTotalDataScannedInBytes() int64 {
 	return 0
 }
 
-// Report is a security report.
+// ReportSate is a security report state.
 type ReportSate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// header is a resource header.
@@ -1384,7 +1494,7 @@ type ReportSate struct {
 
 func (x *ReportSate) Reset() {
 	*x = ReportSate{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[24]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1396,7 +1506,7 @@ func (x *ReportSate) String() string {
 func (*ReportSate) ProtoMessage() {}
 
 func (x *ReportSate) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[24]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1409,7 +1519,7 @@ func (x *ReportSate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportSate.ProtoReflect.Descriptor instead.
 func (*ReportSate) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{24}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ReportSate) GetHeader() *v1.ResourceHeader {
@@ -1448,7 +1558,7 @@ type GetSchemaResponse_ViewDesc struct {
 
 func (x *GetSchemaResponse_ViewDesc) Reset() {
 	*x = GetSchemaResponse_ViewDesc{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[25]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1460,7 +1570,7 @@ func (x *GetSchemaResponse_ViewDesc) String() string {
 func (*GetSchemaResponse_ViewDesc) ProtoMessage() {}
 
 func (x *GetSchemaResponse_ViewDesc) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[25]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1473,7 +1583,7 @@ func (x *GetSchemaResponse_ViewDesc) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSchemaResponse_ViewDesc.ProtoReflect.Descriptor instead.
 func (*GetSchemaResponse_ViewDesc) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{19, 0}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{20, 0}
 }
 
 func (x *GetSchemaResponse_ViewDesc) GetName() string {
@@ -1512,7 +1622,7 @@ type GetSchemaResponse_ViewDesc_ColumnDesc struct {
 
 func (x *GetSchemaResponse_ViewDesc_ColumnDesc) Reset() {
 	*x = GetSchemaResponse_ViewDesc_ColumnDesc{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[26]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1524,7 +1634,7 @@ func (x *GetSchemaResponse_ViewDesc_ColumnDesc) String() string {
 func (*GetSchemaResponse_ViewDesc_ColumnDesc) ProtoMessage() {}
 
 func (x *GetSchemaResponse_ViewDesc_ColumnDesc) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[26]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1537,7 +1647,7 @@ func (x *GetSchemaResponse_ViewDesc_ColumnDesc) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use GetSchemaResponse_ViewDesc_ColumnDesc.ProtoReflect.Descriptor instead.
 func (*GetSchemaResponse_ViewDesc_ColumnDesc) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{19, 0, 0}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{20, 0, 0}
 }
 
 func (x *GetSchemaResponse_ViewDesc_ColumnDesc) GetName() string {
@@ -1580,7 +1690,7 @@ type ReportResult_AuditQueryResult struct {
 
 func (x *ReportResult_AuditQueryResult) Reset() {
 	*x = ReportResult_AuditQueryResult{}
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[27]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1592,7 +1702,7 @@ func (x *ReportResult_AuditQueryResult) String() string {
 func (*ReportResult_AuditQueryResult) ProtoMessage() {}
 
 func (x *ReportResult_AuditQueryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[27]
+	mi := &file_teleport_secreports_v1_secreports_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1605,7 +1715,7 @@ func (x *ReportResult_AuditQueryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportResult_AuditQueryResult.ProtoReflect.Descriptor instead.
 func (*ReportResult_AuditQueryResult) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{23, 0}
+	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{25, 0}
 }
 
 func (x *ReportResult_AuditQueryResult) GetAuditQuery() *AuditQuerySpec {
@@ -1697,6 +1807,10 @@ const file_teleport_secreports_v1_secreports_service_proto_rawDesc = "" +
 	"\x17ListAuditQueriesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"U\n" +
+	"\x17ListReportStatesRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"P\n" +
 	"\x12ListReportsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
@@ -1721,6 +1835,9 @@ const file_teleport_secreports_v1_secreports_service_proto_rawDesc = "" +
 	"\tresult_id\x18\x01 \x01(\tR\bresultId\"w\n" +
 	"\x13ListReportsResponse\x128\n" +
 	"\areports\x18\x01 \x03(\v2\x1e.teleport.secreports.v1.ReportR\areports\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x8c\x01\n" +
+	"\x18ListReportStatesResponse\x12H\n" +
+	"\rreport_states\x18\x01 \x03(\v2#.teleport.secreports.v1.ReportStateR\freportStates\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"W\n" +
 	"\x17GetReportResultResponse\x12<\n" +
 	"\x06result\x18\x01 \x01(\v2$.teleport.secreports.v1.ReportResultR\x06result\"\xf3\x04\n" +
@@ -1749,7 +1866,7 @@ const file_teleport_secreports_v1_secreports_service_proto_rawDesc = "" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vSTATE_ERROR\x10\x01\x12\x11\n" +
 	"\rSTATE_SUCCESS\x10\x02\x12\x11\n" +
-	"\rSTATE_RUNNING\x10\x032\x89\v\n" +
+	"\rSTATE_RUNNING\x10\x032\x80\f\n" +
 	"\x11SecReportsService\x12[\n" +
 	"\x10UpsertAuditQuery\x12/.teleport.secreports.v1.UpsertAuditQueryRequest\x1a\x16.google.protobuf.Empty\x12a\n" +
 	"\rGetAuditQuery\x12,.teleport.secreports.v1.GetAuditQueryRequest\x1a\".teleport.secreports.v1.AuditQuery\x12u\n" +
@@ -1763,7 +1880,8 @@ const file_teleport_secreports_v1_secreports_service_proto_rawDesc = "" +
 	"\x13GetAuditQueryResult\x122.teleport.secreports.v1.GetAuditQueryResultRequest\x1a3.teleport.secreports.v1.GetAuditQueryResultResponse\x12M\n" +
 	"\tRunReport\x12(.teleport.secreports.v1.RunReportRequest\x1a\x16.google.protobuf.Empty\x12r\n" +
 	"\x0fGetReportResult\x12..teleport.secreports.v1.GetReportResultRequest\x1a/.teleport.secreports.v1.GetReportResultResponse\x12d\n" +
-	"\x0eGetReportState\x12-.teleport.secreports.v1.GetReportStateRequest\x1a#.teleport.secreports.v1.ReportState\x12`\n" +
+	"\x0eGetReportState\x12-.teleport.secreports.v1.GetReportStateRequest\x1a#.teleport.secreports.v1.ReportState\x12u\n" +
+	"\x10ListReportStates\x12/.teleport.secreports.v1.ListReportStatesRequest\x1a0.teleport.secreports.v1.ListReportStatesResponse\x12`\n" +
 	"\tGetSchema\x12(.teleport.secreports.v1.GetSchemaRequest\x1a).teleport.secreports.v1.GetSchemaResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1;secreportsv1b\x06proto3"
 
 var (
@@ -1779,7 +1897,7 @@ func file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_secreports_v1_secreports_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_secreports_v1_secreports_service_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_teleport_secreports_v1_secreports_service_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_teleport_secreports_v1_secreports_service_proto_goTypes = []any{
 	(ReportSate_State)(0),                         // 0: teleport.secreports.v1.ReportSate.State
 	(*GetAuditQueryResultRequest)(nil),            // 1: teleport.secreports.v1.GetAuditQueryResultRequest
@@ -1798,74 +1916,79 @@ var file_teleport_secreports_v1_secreports_service_proto_goTypes = []any{
 	(*GetReportRequest)(nil),                      // 14: teleport.secreports.v1.GetReportRequest
 	(*GetReportResultRequest)(nil),                // 15: teleport.secreports.v1.GetReportResultRequest
 	(*ListAuditQueriesRequest)(nil),               // 16: teleport.secreports.v1.ListAuditQueriesRequest
-	(*ListReportsRequest)(nil),                    // 17: teleport.secreports.v1.ListReportsRequest
-	(*ListAuditQueriesResponse)(nil),              // 18: teleport.secreports.v1.ListAuditQueriesResponse
-	(*GetSchemaRequest)(nil),                      // 19: teleport.secreports.v1.GetSchemaRequest
-	(*GetSchemaResponse)(nil),                     // 20: teleport.secreports.v1.GetSchemaResponse
-	(*RunAuditQueryResponse)(nil),                 // 21: teleport.secreports.v1.RunAuditQueryResponse
-	(*ListReportsResponse)(nil),                   // 22: teleport.secreports.v1.ListReportsResponse
-	(*GetReportResultResponse)(nil),               // 23: teleport.secreports.v1.GetReportResultResponse
-	(*ReportResult)(nil),                          // 24: teleport.secreports.v1.ReportResult
-	(*ReportSate)(nil),                            // 25: teleport.secreports.v1.ReportSate
-	(*GetSchemaResponse_ViewDesc)(nil),            // 26: teleport.secreports.v1.GetSchemaResponse.ViewDesc
-	(*GetSchemaResponse_ViewDesc_ColumnDesc)(nil), // 27: teleport.secreports.v1.GetSchemaResponse.ViewDesc.ColumnDesc
-	(*ReportResult_AuditQueryResult)(nil),         // 28: teleport.secreports.v1.ReportResult.AuditQueryResult
-	(*AuditQuery)(nil),                            // 29: teleport.secreports.v1.AuditQuery
-	(*Report)(nil),                                // 30: teleport.secreports.v1.Report
-	(*v1.ResourceHeader)(nil),                     // 31: teleport.header.v1.ResourceHeader
-	(*AuditQuerySpec)(nil),                        // 32: teleport.secreports.v1.AuditQuerySpec
-	(*emptypb.Empty)(nil),                         // 33: google.protobuf.Empty
-	(*ReportState)(nil),                           // 34: teleport.secreports.v1.ReportState
+	(*ListReportStatesRequest)(nil),               // 17: teleport.secreports.v1.ListReportStatesRequest
+	(*ListReportsRequest)(nil),                    // 18: teleport.secreports.v1.ListReportsRequest
+	(*ListAuditQueriesResponse)(nil),              // 19: teleport.secreports.v1.ListAuditQueriesResponse
+	(*GetSchemaRequest)(nil),                      // 20: teleport.secreports.v1.GetSchemaRequest
+	(*GetSchemaResponse)(nil),                     // 21: teleport.secreports.v1.GetSchemaResponse
+	(*RunAuditQueryResponse)(nil),                 // 22: teleport.secreports.v1.RunAuditQueryResponse
+	(*ListReportsResponse)(nil),                   // 23: teleport.secreports.v1.ListReportsResponse
+	(*ListReportStatesResponse)(nil),              // 24: teleport.secreports.v1.ListReportStatesResponse
+	(*GetReportResultResponse)(nil),               // 25: teleport.secreports.v1.GetReportResultResponse
+	(*ReportResult)(nil),                          // 26: teleport.secreports.v1.ReportResult
+	(*ReportSate)(nil),                            // 27: teleport.secreports.v1.ReportSate
+	(*GetSchemaResponse_ViewDesc)(nil),            // 28: teleport.secreports.v1.GetSchemaResponse.ViewDesc
+	(*GetSchemaResponse_ViewDesc_ColumnDesc)(nil), // 29: teleport.secreports.v1.GetSchemaResponse.ViewDesc.ColumnDesc
+	(*ReportResult_AuditQueryResult)(nil),         // 30: teleport.secreports.v1.ReportResult.AuditQueryResult
+	(*AuditQuery)(nil),                            // 31: teleport.secreports.v1.AuditQuery
+	(*Report)(nil),                                // 32: teleport.secreports.v1.Report
+	(*ReportState)(nil),                           // 33: teleport.secreports.v1.ReportState
+	(*v1.ResourceHeader)(nil),                     // 34: teleport.header.v1.ResourceHeader
+	(*AuditQuerySpec)(nil),                        // 35: teleport.secreports.v1.AuditQuerySpec
+	(*emptypb.Empty)(nil),                         // 36: google.protobuf.Empty
 }
 var file_teleport_secreports_v1_secreports_service_proto_depIdxs = []int32{
 	2,  // 0: teleport.secreports.v1.QueryResultSet.column_info:type_name -> teleport.secreports.v1.QueryResultColumnInfo
 	3,  // 1: teleport.secreports.v1.QueryResultSet.rows:type_name -> teleport.secreports.v1.QueryRowResult
 	4,  // 2: teleport.secreports.v1.GetAuditQueryResultResponse.result:type_name -> teleport.secreports.v1.QueryResultSet
-	29, // 3: teleport.secreports.v1.UpsertAuditQueryRequest.audit_query:type_name -> teleport.secreports.v1.AuditQuery
-	30, // 4: teleport.secreports.v1.UpsertReportRequest.report:type_name -> teleport.secreports.v1.Report
-	29, // 5: teleport.secreports.v1.ListAuditQueriesResponse.queries:type_name -> teleport.secreports.v1.AuditQuery
-	26, // 6: teleport.secreports.v1.GetSchemaResponse.views:type_name -> teleport.secreports.v1.GetSchemaResponse.ViewDesc
-	30, // 7: teleport.secreports.v1.ListReportsResponse.reports:type_name -> teleport.secreports.v1.Report
-	24, // 8: teleport.secreports.v1.GetReportResultResponse.result:type_name -> teleport.secreports.v1.ReportResult
-	28, // 9: teleport.secreports.v1.ReportResult.audit_query_results:type_name -> teleport.secreports.v1.ReportResult.AuditQueryResult
-	31, // 10: teleport.secreports.v1.ReportSate.header:type_name -> teleport.header.v1.ResourceHeader
-	0,  // 11: teleport.secreports.v1.ReportSate.state:type_name -> teleport.secreports.v1.ReportSate.State
-	27, // 12: teleport.secreports.v1.GetSchemaResponse.ViewDesc.columns:type_name -> teleport.secreports.v1.GetSchemaResponse.ViewDesc.ColumnDesc
-	32, // 13: teleport.secreports.v1.ReportResult.AuditQueryResult.audit_query:type_name -> teleport.secreports.v1.AuditQuerySpec
-	4,  // 14: teleport.secreports.v1.ReportResult.AuditQueryResult.result:type_name -> teleport.secreports.v1.QueryResultSet
-	11, // 15: teleport.secreports.v1.SecReportsService.UpsertAuditQuery:input_type -> teleport.secreports.v1.UpsertAuditQueryRequest
-	13, // 16: teleport.secreports.v1.SecReportsService.GetAuditQuery:input_type -> teleport.secreports.v1.GetAuditQueryRequest
-	16, // 17: teleport.secreports.v1.SecReportsService.ListAuditQueries:input_type -> teleport.secreports.v1.ListAuditQueriesRequest
-	8,  // 18: teleport.secreports.v1.SecReportsService.DeleteAuditQuery:input_type -> teleport.secreports.v1.DeleteAuditQueryRequest
-	12, // 19: teleport.secreports.v1.SecReportsService.UpsertReport:input_type -> teleport.secreports.v1.UpsertReportRequest
-	14, // 20: teleport.secreports.v1.SecReportsService.GetReport:input_type -> teleport.secreports.v1.GetReportRequest
-	17, // 21: teleport.secreports.v1.SecReportsService.ListReports:input_type -> teleport.secreports.v1.ListReportsRequest
-	9,  // 22: teleport.secreports.v1.SecReportsService.DeleteReport:input_type -> teleport.secreports.v1.DeleteReportRequest
-	10, // 23: teleport.secreports.v1.SecReportsService.RunAuditQuery:input_type -> teleport.secreports.v1.RunAuditQueryRequest
-	1,  // 24: teleport.secreports.v1.SecReportsService.GetAuditQueryResult:input_type -> teleport.secreports.v1.GetAuditQueryResultRequest
-	6,  // 25: teleport.secreports.v1.SecReportsService.RunReport:input_type -> teleport.secreports.v1.RunReportRequest
-	15, // 26: teleport.secreports.v1.SecReportsService.GetReportResult:input_type -> teleport.secreports.v1.GetReportResultRequest
-	7,  // 27: teleport.secreports.v1.SecReportsService.GetReportState:input_type -> teleport.secreports.v1.GetReportStateRequest
-	19, // 28: teleport.secreports.v1.SecReportsService.GetSchema:input_type -> teleport.secreports.v1.GetSchemaRequest
-	33, // 29: teleport.secreports.v1.SecReportsService.UpsertAuditQuery:output_type -> google.protobuf.Empty
-	29, // 30: teleport.secreports.v1.SecReportsService.GetAuditQuery:output_type -> teleport.secreports.v1.AuditQuery
-	18, // 31: teleport.secreports.v1.SecReportsService.ListAuditQueries:output_type -> teleport.secreports.v1.ListAuditQueriesResponse
-	33, // 32: teleport.secreports.v1.SecReportsService.DeleteAuditQuery:output_type -> google.protobuf.Empty
-	33, // 33: teleport.secreports.v1.SecReportsService.UpsertReport:output_type -> google.protobuf.Empty
-	30, // 34: teleport.secreports.v1.SecReportsService.GetReport:output_type -> teleport.secreports.v1.Report
-	22, // 35: teleport.secreports.v1.SecReportsService.ListReports:output_type -> teleport.secreports.v1.ListReportsResponse
-	33, // 36: teleport.secreports.v1.SecReportsService.DeleteReport:output_type -> google.protobuf.Empty
-	21, // 37: teleport.secreports.v1.SecReportsService.RunAuditQuery:output_type -> teleport.secreports.v1.RunAuditQueryResponse
-	5,  // 38: teleport.secreports.v1.SecReportsService.GetAuditQueryResult:output_type -> teleport.secreports.v1.GetAuditQueryResultResponse
-	33, // 39: teleport.secreports.v1.SecReportsService.RunReport:output_type -> google.protobuf.Empty
-	23, // 40: teleport.secreports.v1.SecReportsService.GetReportResult:output_type -> teleport.secreports.v1.GetReportResultResponse
-	34, // 41: teleport.secreports.v1.SecReportsService.GetReportState:output_type -> teleport.secreports.v1.ReportState
-	20, // 42: teleport.secreports.v1.SecReportsService.GetSchema:output_type -> teleport.secreports.v1.GetSchemaResponse
-	29, // [29:43] is the sub-list for method output_type
-	15, // [15:29] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	31, // 3: teleport.secreports.v1.UpsertAuditQueryRequest.audit_query:type_name -> teleport.secreports.v1.AuditQuery
+	32, // 4: teleport.secreports.v1.UpsertReportRequest.report:type_name -> teleport.secreports.v1.Report
+	31, // 5: teleport.secreports.v1.ListAuditQueriesResponse.queries:type_name -> teleport.secreports.v1.AuditQuery
+	28, // 6: teleport.secreports.v1.GetSchemaResponse.views:type_name -> teleport.secreports.v1.GetSchemaResponse.ViewDesc
+	32, // 7: teleport.secreports.v1.ListReportsResponse.reports:type_name -> teleport.secreports.v1.Report
+	33, // 8: teleport.secreports.v1.ListReportStatesResponse.report_states:type_name -> teleport.secreports.v1.ReportState
+	26, // 9: teleport.secreports.v1.GetReportResultResponse.result:type_name -> teleport.secreports.v1.ReportResult
+	30, // 10: teleport.secreports.v1.ReportResult.audit_query_results:type_name -> teleport.secreports.v1.ReportResult.AuditQueryResult
+	34, // 11: teleport.secreports.v1.ReportSate.header:type_name -> teleport.header.v1.ResourceHeader
+	0,  // 12: teleport.secreports.v1.ReportSate.state:type_name -> teleport.secreports.v1.ReportSate.State
+	29, // 13: teleport.secreports.v1.GetSchemaResponse.ViewDesc.columns:type_name -> teleport.secreports.v1.GetSchemaResponse.ViewDesc.ColumnDesc
+	35, // 14: teleport.secreports.v1.ReportResult.AuditQueryResult.audit_query:type_name -> teleport.secreports.v1.AuditQuerySpec
+	4,  // 15: teleport.secreports.v1.ReportResult.AuditQueryResult.result:type_name -> teleport.secreports.v1.QueryResultSet
+	11, // 16: teleport.secreports.v1.SecReportsService.UpsertAuditQuery:input_type -> teleport.secreports.v1.UpsertAuditQueryRequest
+	13, // 17: teleport.secreports.v1.SecReportsService.GetAuditQuery:input_type -> teleport.secreports.v1.GetAuditQueryRequest
+	16, // 18: teleport.secreports.v1.SecReportsService.ListAuditQueries:input_type -> teleport.secreports.v1.ListAuditQueriesRequest
+	8,  // 19: teleport.secreports.v1.SecReportsService.DeleteAuditQuery:input_type -> teleport.secreports.v1.DeleteAuditQueryRequest
+	12, // 20: teleport.secreports.v1.SecReportsService.UpsertReport:input_type -> teleport.secreports.v1.UpsertReportRequest
+	14, // 21: teleport.secreports.v1.SecReportsService.GetReport:input_type -> teleport.secreports.v1.GetReportRequest
+	18, // 22: teleport.secreports.v1.SecReportsService.ListReports:input_type -> teleport.secreports.v1.ListReportsRequest
+	9,  // 23: teleport.secreports.v1.SecReportsService.DeleteReport:input_type -> teleport.secreports.v1.DeleteReportRequest
+	10, // 24: teleport.secreports.v1.SecReportsService.RunAuditQuery:input_type -> teleport.secreports.v1.RunAuditQueryRequest
+	1,  // 25: teleport.secreports.v1.SecReportsService.GetAuditQueryResult:input_type -> teleport.secreports.v1.GetAuditQueryResultRequest
+	6,  // 26: teleport.secreports.v1.SecReportsService.RunReport:input_type -> teleport.secreports.v1.RunReportRequest
+	15, // 27: teleport.secreports.v1.SecReportsService.GetReportResult:input_type -> teleport.secreports.v1.GetReportResultRequest
+	7,  // 28: teleport.secreports.v1.SecReportsService.GetReportState:input_type -> teleport.secreports.v1.GetReportStateRequest
+	17, // 29: teleport.secreports.v1.SecReportsService.ListReportStates:input_type -> teleport.secreports.v1.ListReportStatesRequest
+	20, // 30: teleport.secreports.v1.SecReportsService.GetSchema:input_type -> teleport.secreports.v1.GetSchemaRequest
+	36, // 31: teleport.secreports.v1.SecReportsService.UpsertAuditQuery:output_type -> google.protobuf.Empty
+	31, // 32: teleport.secreports.v1.SecReportsService.GetAuditQuery:output_type -> teleport.secreports.v1.AuditQuery
+	19, // 33: teleport.secreports.v1.SecReportsService.ListAuditQueries:output_type -> teleport.secreports.v1.ListAuditQueriesResponse
+	36, // 34: teleport.secreports.v1.SecReportsService.DeleteAuditQuery:output_type -> google.protobuf.Empty
+	36, // 35: teleport.secreports.v1.SecReportsService.UpsertReport:output_type -> google.protobuf.Empty
+	32, // 36: teleport.secreports.v1.SecReportsService.GetReport:output_type -> teleport.secreports.v1.Report
+	23, // 37: teleport.secreports.v1.SecReportsService.ListReports:output_type -> teleport.secreports.v1.ListReportsResponse
+	36, // 38: teleport.secreports.v1.SecReportsService.DeleteReport:output_type -> google.protobuf.Empty
+	22, // 39: teleport.secreports.v1.SecReportsService.RunAuditQuery:output_type -> teleport.secreports.v1.RunAuditQueryResponse
+	5,  // 40: teleport.secreports.v1.SecReportsService.GetAuditQueryResult:output_type -> teleport.secreports.v1.GetAuditQueryResultResponse
+	36, // 41: teleport.secreports.v1.SecReportsService.RunReport:output_type -> google.protobuf.Empty
+	25, // 42: teleport.secreports.v1.SecReportsService.GetReportResult:output_type -> teleport.secreports.v1.GetReportResultResponse
+	33, // 43: teleport.secreports.v1.SecReportsService.GetReportState:output_type -> teleport.secreports.v1.ReportState
+	24, // 44: teleport.secreports.v1.SecReportsService.ListReportStates:output_type -> teleport.secreports.v1.ListReportStatesResponse
+	21, // 45: teleport.secreports.v1.SecReportsService.GetSchema:output_type -> teleport.secreports.v1.GetSchemaResponse
+	31, // [31:46] is the sub-list for method output_type
+	16, // [16:31] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_teleport_secreports_v1_secreports_service_proto_init() }
@@ -1880,7 +2003,7 @@ func file_teleport_secreports_v1_secreports_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_secreports_v1_secreports_service_proto_rawDesc), len(file_teleport_secreports_v1_secreports_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   28,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

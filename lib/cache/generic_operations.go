@@ -70,6 +70,8 @@ type genericLister[T any, I comparable] struct {
 	collection *collection[T, I]
 	// index of the collection to read with.
 	index I
+	// isDesc indicates whether the lister should retrieve items in descending order.
+	isDesc bool
 	// defaultPageSize optionally defines a page size to use if
 	// one is not specified by the caller. If not set then
 	// [defaults.DefaultChunkSize] is used.
@@ -85,10 +87,10 @@ type genericLister[T any, I comparable] struct {
 	filter func(T) bool
 }
 
-// list retrieves a page of items from the configured cache collection.
+// listRange retrieves a page of items from the configured cache collection between the start and end tokens.
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
 // The items returend are cloned and ownership is retained by the caller.
-func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken string) ([]T, string, error) {
+func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startToken, endToken string) ([]T, string, error) {
 	rg, err := acquireReadGuard(l.cache, l.collection)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -109,8 +111,13 @@ func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken 
 		pageSize = defaultPageSize
 	}
 
+	fetchFn := rg.store.cache.Ascend
+	if l.isDesc {
+		fetchFn = rg.store.cache.Descend
+	}
+
 	var out []T
-	for sf := range rg.store.resources(l.index, startToken, "") {
+	for sf := range fetchFn(l.index, startToken, endToken) {
 		if len(out) == pageSize {
 			return out, l.nextToken(sf), nil
 		}
@@ -122,4 +129,12 @@ func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken 
 	}
 
 	return out, "", nil
+}
+
+// list retrieves a page of items from the configured cache collection.
+// If the cache is not healthy, then the items are retrieved from the upstream backend.
+// The items returend are cloned and ownership is retained by the caller.
+func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken string) ([]T, string, error) {
+	out, next, err := l.listRange(ctx, pageSize, startToken, "")
+	return out, next, trace.Wrap(err)
 }

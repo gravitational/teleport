@@ -50,6 +50,13 @@ const (
 	IntegrationAWSOIDCAudienceAWSIdentityCenter = "aws-identity-center"
 )
 
+const (
+	// IntegrationAWSRolesAnywhereProfileSyncStatusSuccess indicates that the profile sync was successful.
+	IntegrationAWSRolesAnywhereProfileSyncStatusSuccess = "SUCCESS"
+	// IntegrationAWSRolesAnywhereProfileSyncStatusError indicates that the profile sync failed.
+	IntegrationAWSRolesAnywhereProfileSyncStatusError = "ERROR"
+)
+
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
 type Integration interface {
 	ResourceWithLabels
@@ -86,6 +93,12 @@ type Integration interface {
 	GetCredentials() PluginCredentials
 	// WithoutCredentials returns a copy without credentials.
 	WithoutCredentials() Integration
+
+	// GetStatus retrieves the integration status.
+	GetStatus() IntegrationStatusV1
+	// SetStatus updates the integration status.
+	SetStatus(IntegrationStatusV1)
+
 	// Clone returns a copy of the integration.
 	Clone() Integration
 }
@@ -467,6 +480,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 			AWSRA       json.RawMessage `json:"aws_ra"`
 			Credentials json.RawMessage `json:"credentials"`
 		} `json:"spec"`
+		Status IntegrationStatusV1 `json:"status,omitempty"`
 	}{}
 
 	err := json.Unmarshal(data, &d)
@@ -475,6 +489,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	}
 
 	integration.ResourceHeader = d.ResourceHeader
+	integration.Status = d.Status
 	if len(d.Spec.Credentials) != 0 {
 		var credentials PluginCredentialsV1
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
@@ -554,9 +569,11 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			AWSRA       AWSRAIntegrationSpecV1     `json:"aws_ra,omitempty"`
 			Credentials json.RawMessage            `json:"credentials,omitempty"`
 		} `json:"spec"`
+		Status IntegrationStatusV1 `json:"status,omitempty"`
 	}{}
 
 	d.ResourceHeader = ig.ResourceHeader
+	d.Status = ig.Status
 	if ig.Spec.Credentials != nil {
 		data, err := protojson.Marshal(protoadapt.MessageV2Of(ig.Spec.Credentials))
 		if err != nil {
@@ -594,6 +611,16 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 
 	out, err := json.Marshal(d)
 	return out, trace.Wrap(err)
+}
+
+// SetStatus updates the integration status.
+func (ig *IntegrationV1) SetStatus(status IntegrationStatusV1) {
+	ig.Status = status
+}
+
+// GetStatus retrieves the integration status.
+func (ig *IntegrationV1) GetStatus() IntegrationStatusV1 {
+	return ig.Status
 }
 
 // SetCredentials updates credentials.

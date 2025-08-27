@@ -253,8 +253,8 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 		{
 			name:    "NOK invalid limit",
 			filter:  types.ListWindowsDesktopsRequest{},
-			assert:  require.Error,
-			wantLen: 0,
+			assert:  require.NoError,
+			wantLen: 3,
 		},
 		{
 			name: "matching host id",
@@ -314,7 +314,6 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			resp, err := service.ListWindowsDesktops(ctx, tc.filter)

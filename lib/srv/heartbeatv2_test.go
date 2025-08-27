@@ -117,10 +117,9 @@ func (h *fakeHeartbeatDriver) newStream(ctx context.Context, t *testing.T) clien
 		t.Fatalf("context canceled during fake stream recv")
 	}
 
-	_, ok := msg.(proto.UpstreamInventoryHello)
-	require.True(t, ok)
+	require.IsType(t, *new(*proto.UpstreamInventoryHello), msg)
 
-	err := upstream.Send(ctx, proto.DownstreamInventoryHello{
+	err := upstream.Send(ctx, &proto.DownstreamInventoryHello{
 		ServerID: "test-auth",
 		Version:  teleport.Version,
 	})
@@ -133,10 +132,10 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 	// streamC is used to pass a fake control stream to the downstream handle's create func.
 	streamC := make(chan client.DownstreamInventoryControlStream)
 
-	hello := proto.UpstreamInventoryHello{
+	hello := &proto.UpstreamInventoryHello{
 		ServerID: "test-node",
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
 	}
 
 	handle, err := inventory.NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
@@ -150,7 +149,7 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 		case stream := <-streamC:
 			return stream, nil
 		}
-	}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return hello, nil })
+	}, func(ctx context.Context) (*proto.UpstreamInventoryHello, error) { return hello, nil })
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -170,8 +169,7 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 func TestHeartbeatV2Basics(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.
@@ -297,8 +295,7 @@ func TestHeartbeatV2Basics(t *testing.T) {
 func TestHeartbeatV2NoFallbackUnchecked(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.
@@ -354,8 +351,7 @@ func TestHeartbeatV2NoFallbackUnchecked(t *testing.T) {
 func TestHeartbeatV2NoFallbackChecked(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.

@@ -20,36 +20,74 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeRecording } from './makeRecording';
-import { RecordingsQuery, RecordingsResponse } from './types';
+import type {
+  RecordingsQuery,
+  RecordingsResponse,
+  SessionRecordingThumbnail,
+} from './types';
+
+const maxFetchLimit = 5000;
 
 export default class RecordingsService {
-  maxFetchLimit = 5000;
-
+  /**
+   * @deprecated Use standalone `fetchRecordings` function defined below this class instead.
+   */
   fetchRecordings(
     clusterId: string,
     params: RecordingsQuery
   ): Promise<RecordingsResponse> {
-    const start = params.from.toISOString();
-    const end = params.to.toISOString();
-
-    const url = cfg.getClusterEventsRecordingsUrl(clusterId, {
-      start,
-      end,
-      limit: this.maxFetchLimit,
-      startKey: params.startKey || undefined,
-    });
-
-    return api.get(url).then(json => {
-      const events = json.events || [];
-
-      return { recordings: events.map(makeRecording), startKey: json.startKey };
-    });
+    return fetchRecordings({ clusterId, params });
   }
 
   fetchRecordingDuration(
     clusterId: string,
     sessionId: string
-  ): Promise<{ durationMs: number }> {
+  ): Promise<{ durationMs: number; recordingType: string }> {
     return api.get(cfg.getSessionDurationUrl(clusterId, sessionId));
   }
+}
+
+interface FetchRecordingsVariables {
+  clusterId: string;
+  params: RecordingsQuery;
+}
+
+export async function fetchRecordings(
+  { clusterId, params }: FetchRecordingsVariables,
+  signal?: AbortSignal
+): Promise<RecordingsResponse> {
+  const start = params.from.toISOString();
+  const end = params.to.toISOString();
+
+  const url = cfg.getClusterEventsRecordingsUrl(clusterId, {
+    start,
+    end,
+    limit: maxFetchLimit,
+    startKey: params.startKey || undefined,
+  });
+
+  const json = await api.get(url, signal);
+
+  const events = json.events || [];
+
+  return { recordings: events.map(makeRecording), startKey: json.startKey };
+}
+
+interface FetchRecordingThumbnailVariables {
+  clusterId: string;
+  sessionId: string;
+}
+
+export async function fetchRecordingThumbnail(
+  { clusterId, sessionId }: FetchRecordingThumbnailVariables,
+  signal?: AbortSignal
+): Promise<SessionRecordingThumbnail> {
+  const url = cfg.getSessionRecordingThumbnailUrl(clusterId, sessionId);
+  const response = await api.get(url, signal);
+
+  if (!response) {
+    throw new Error('Failed to fetch recording thumbnail');
+  }
+
+  return response as SessionRecordingThumbnail;
 }

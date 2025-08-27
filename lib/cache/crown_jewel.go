@@ -25,6 +25,8 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,6 +41,7 @@ func newCrownJewelCollection(upstream services.CrownJewels, w types.WatchKind) (
 
 	return &collection[*crownjewelv1.CrownJewel, crownJewelIndex]{
 		store: newStore(
+			types.KindCrownJewel,
 			proto.CloneOf[*crownjewelv1.CrownJewel],
 			map[crownJewelIndex]func(*crownjewelv1.CrownJewel) string{
 				crownJewelNameIndex: func(r *crownjewelv1.CrownJewel) string {
@@ -46,23 +49,10 @@ func newCrownJewelCollection(upstream services.CrownJewels, w types.WatchKind) (
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*crownjewelv1.CrownJewel, error) {
-			var out []*crownjewelv1.CrownJewel
-			var nextToken string
-			for {
-				var page []*crownjewelv1.CrownJewel
-				var err error
-
-				const defaultPageSize = 0
-				page, nextToken, err = upstream.ListCrownJewels(ctx, defaultPageSize, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
-			}
-			return out, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, i int, nextToken string) ([]*crownjewelv1.CrownJewel, string, error) {
+				return upstream.ListCrownJewels(ctx, int64(i), nextToken)
+			}))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *crownjewelv1.CrownJewel {
 			return &crownjewelv1.CrownJewel{

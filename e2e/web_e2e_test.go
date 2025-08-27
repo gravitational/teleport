@@ -28,15 +28,16 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
-	"github.com/zeebo/assert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestSignup sets up a test instance of Teleport and runs a playwright test against it to test the signup flow.
@@ -97,7 +98,7 @@ func createTeleportTestInstanceForWebTests(t *testing.T) (instance *helpers.Tele
 		ClusterName: "test-cluster",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Host,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 		Priv:        privateKey,
 		Pub:         publicKey,
 	}

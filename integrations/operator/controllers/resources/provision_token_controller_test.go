@@ -192,7 +192,7 @@ github:
 	}
 
 	// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
-	tokenManifest := map[string]interface{}{}
+	tokenManifest := map[string]any{}
 	err := yaml.Unmarshal([]byte(tokenSpecYAML), &tokenManifest)
 	require.NoError(t, err)
 

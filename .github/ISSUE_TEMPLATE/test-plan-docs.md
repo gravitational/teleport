@@ -34,15 +34,35 @@ version of Teleport.
 
 - [ ] Update the submodule configuration in `gravitational/docs-website`.
 
-  Remove the directory of the EOL release. Create a directory for the next
-  release using a command similar to the following:
+  1. Remove the `content` directory for the EOL release. Create a directory for
+     the next release using a command similar to the following:
   
-  ```bash
-  git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
-  ```
+     ```bash
+     git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
+     ```
 
-  Verify that `gravitational/docs-website/.gitmodules` contains the latest
-  release and not the EOL release.
+  1. Verify that `gravitational/docs-website/.gitmodules` contains the latest
+     release and not the EOL release.
+
+  1. In `gravitational/docs-website/.gitmodules`, make sure the major version
+     we're releasing corresponds to the major version's release branch, not
+     `master`.
+
+  1. In `gravitational/docs-website/config.json`, ensure that the EOL version
+     has the `deprecated` key set to `true`. Add the next version and update the
+     `branch` field as needed. 
+
+     **DO NOT** update the `isDefault` field, since we only change the default
+     docs site version when we release the new major version on Teleport Cloud.
+
+  1. Test that you have completed these steps successfully by building and
+     running the docs site locally:
+
+     ```bash
+     rm -rf docs/* versioned_docs/* versioned_sidebars/*
+     yarn build
+     yarn serve
+     ```
 
 - [ ] Verify that Teleport version variables are correct and reflect the upcoming
   release. Check `docs/config.json` for this in all supported branches of
@@ -82,7 +102,7 @@ version of Teleport.
   and verify their accuracy while using the newly released major version of
   Teleport.
 
-  - [ ] General [installation page](../../docs/pages/installation.mdx): ensure
+  - [ ] General [installation page](../../docs/pages/installation/installation.mdx): ensure
     that installation methods support the new release candidate.
   - [ ] [Teleport Community
     Edition](../../docs/pages/admin-guides/deploy-a-cluster/linux-demo.mdx) demo

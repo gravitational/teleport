@@ -22,21 +22,22 @@ export function getConnectCsp(development: boolean) {
     ? 'https://kcwm2is93l.execute-api.us-west-2.amazonaws.com/prod'
     : 'https://usage.teleport.dev';
 
-  let csp = `
+  const scriptEval = development
+    ? // Required to make source maps work in dev mode.
+      "'unsafe-eval' 'unsafe-inline'"
+    : // Enables WASM initialization with a safer alternative to 'unsafe-eval'.
+      // This source expression applies specifically to WASM.
+      "'wasm-unsafe-eval'";
+
+  return `
 default-src 'self';
 connect-src 'self' ${feedbackAddress};
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;
 object-src 'none';
 font-src 'self' data:;
+script-src 'self' ${scriptEval};
 `
     .replaceAll('\n', ' ')
     .trim();
-
-  if (development) {
-    // Required to make source maps work in dev mode.
-    csp += " script-src 'self' 'unsafe-eval' 'unsafe-inline';";
-  }
-
-  return csp;
 }

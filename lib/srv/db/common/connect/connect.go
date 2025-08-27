@@ -304,7 +304,7 @@ func Connect(ctx context.Context, params ConnectParams) (net.Conn, ConnectStats,
 	// group the servers by target health, shuffle each group, and then iterate
 	// over the concatenated groups in order ascending order of health.
 	params.ShuffleFunc(params.Servers)
-	groups := types.GroupByTargetHealth(params.Servers)
+	groups := types.GroupByTargetHealthStatus(params.Servers)
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.

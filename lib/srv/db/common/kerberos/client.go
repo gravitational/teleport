@@ -19,7 +19,6 @@ package kerberos
 import (
 	"context"
 	"log/slog"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/client"
@@ -28,15 +27,16 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos/kinit"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 type clientProvider struct {
-	AuthClient            windows.AuthInterface
-	DataDir               string
-	Logger                *slog.Logger
-	kinitCommandGenerator kinit.CommandGenerator
+	authClient winpki.AuthInterface
+	logger     *slog.Logger
+
+	providerFun func(logger *slog.Logger, auth winpki.AuthInterface, adConfig types.AD) (kinit.ClientProvider, error) // for testing
+	skipLogin   bool                                                                                                  // for testing
 }
 
 // ClientProvider can create Kerberos client appropriate for given database session.
@@ -46,33 +46,34 @@ type ClientProvider interface {
 }
 
 // NewClientProvider returns new instance of ClientProvider.
-func NewClientProvider(authClient windows.AuthInterface, dataDir string, logger *slog.Logger) ClientProvider {
-	return newClientProvider(authClient, dataDir, logger)
+func NewClientProvider(authClient winpki.AuthInterface, logger *slog.Logger) ClientProvider {
+	return newClientProvider(authClient, logger)
 }
 
-func newClientProvider(authClient windows.AuthInterface, dataDir string, logger *slog.Logger) *clientProvider {
+func newClientProvider(authClient winpki.AuthInterface, logger *slog.Logger) *clientProvider {
 	return &clientProvider{
-		AuthClient: authClient,
-		DataDir:    dataDir,
-		Logger:     logger,
+		authClient: authClient,
+		logger:     logger,
 	}
 }
 
 func (c *clientProvider) GetKerberosClient(ctx context.Context, ad types.AD, username string) (*client.Client, error) {
 	switch {
 	case ad.KeytabFile != "":
+		if ad.Krb5File == "" {
+			return nil, trace.BadParameter("no Kerberos configuration file provided")
+		}
 		kt, err := c.keytabClient(ad, username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return kt, nil
-	case ad.KDCHostName != "" && ad.LDAPCert != "":
-		kt, err := c.kinitClient(ctx, ad, username, c.AuthClient, c.DataDir)
+	case ad.KDCHostName != "":
+		kt, err := c.kinitClient(ctx, ad, username, c.authClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return kt, nil
-
 	}
 	return nil, trace.BadParameter("configuration must have either keytab_file or kdc_host_name and ldap_cert")
 }
@@ -100,43 +101,31 @@ func (c *clientProvider) keytabClient(ad types.AD, username string) (*client.Cli
 		// Active Directory does not commonly support FAST negotiation.
 		client.DisablePAFXFAST(true))
 
-	// Login.
+	// skip login during tests when there is no actual AD to connect to.
+	if c.skipLogin {
+		return kbClient, nil
+	}
+
 	err = kbClient.Login()
-	return kbClient, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return kbClient, nil
 }
 
 // kinitClient returns a kerberos client using a kinit ccache
-func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth windows.AuthInterface, dataDir string) (*client.Client, error) {
+func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth winpki.AuthInterface) (*client.Client, error) {
 	if _, err := tlsutils.ParseCertificatePEM([]byte(ad.LDAPCert)); err != nil {
 		return nil, trace.Wrap(err, "invalid certificate was provided via AD configuration")
 	}
-	certGetter := &kinit.DBCertGetter{
-		Auth:     auth,
-		Logger:   c.Logger,
-		ADConfig: ad,
-		UserName: username,
+
+	if c.providerFun == nil {
+		c.providerFun = kinit.NewProviderExternalExecutable
 	}
-
-	realmName := strings.ToUpper(ad.Domain)
-	k := kinit.New(kinit.NewCommandLineInitializer(
-		kinit.CommandConfig{
-			AuthClient:  auth,
-			User:        username,
-			Realm:       realmName,
-			KDCHost:     ad.KDCHostName,
-			AdminServer: ad.Domain,
-			DataDir:     dataDir,
-			LDAPCAPEM:   ad.LDAPCert,
-			Command:     c.kinitCommandGenerator,
-			CertGetter:  certGetter,
-		}))
-
-	// create the kinit credentials cache using the previously prepared cert/key pair
-	cc, conf, err := k.UseOrCreateCredentialsCache(ctx)
+	provider, err := c.providerFun(c.logger, auth, ad)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create Kerberos client from ccache. No need to login, `kinit` will have already done that.
-	return client.NewFromCCache(cc, conf, client.DisablePAFXFAST(true))
+	return provider.CreateClient(ctx, username)
 }

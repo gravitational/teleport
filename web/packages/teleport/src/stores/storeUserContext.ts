@@ -40,6 +40,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.cluster.clusterId;
   }
 
+  getClusterAuthVersion() {
+    return this.state.cluster.authVersion;
+  }
+
   getEventAccess() {
     return this.state.acl.events;
   }
@@ -253,6 +257,10 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getBotsAccess() {
     return this.state.acl.bots;
+  }
+
+  getBotInstancesAccess() {
+    return this.state.acl.botInstances;
   }
 
   getContactsAccess() {

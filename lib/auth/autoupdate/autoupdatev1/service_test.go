@@ -32,11 +32,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -878,12 +880,20 @@ func generateGroups(n int, days []string) []*autoupdatev1pb.AgentAutoUpdateGroup
 }
 
 func TestValidateServerSideAgentConfig(t *testing.T) {
-	cloudModules := &modules.TestModules{
+	cloudModules := modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 		},
 	}
-	selfHostedModules := &modules.TestModules{
+	cloudUnlimitedModules := modulestest.Modules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.UnrestrictedManagedUpdates: {Enabled: true},
+			},
+		},
+	}
+	selfHostedModules := modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: false,
 		},
@@ -891,7 +901,7 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 	tests := []struct {
 		name      string
 		config    *autoupdatev1pb.AutoUpdateConfigSpecAgents
-		modules   modules.Modules
+		modules   modulestest.Modules
 		expectErr require.ErrorAssertionFunc
 	}{
 		{
@@ -926,6 +936,18 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 			expectErr: require.Error,
 		},
 		{
+			name:    "over max groups halt-on-error cloud unlimited",
+			modules: cloudUnlimitedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategy+1, cloudGroupUpdateDays),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
 			name:    "over max groups halt-on-error cloud",
 			modules: cloudModules,
 			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
@@ -948,6 +970,18 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 				},
 			},
 			expectErr: require.Error,
+		},
+		{
+			name:    "cloud unlimited should allow custom weekdays",
+			modules: cloudUnlimitedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
+				},
+			},
+			expectErr: require.NoError,
 		},
 		{
 			name:    "self-hosted should allow custom weekdays",
@@ -977,6 +1011,21 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 			expectErr: require.Error,
 		},
 		{
+			name:    "cloud should allow long rollouts with entitlement",
+			modules: cloudUnlimitedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
+						{Name: "g1", Days: cloudGroupUpdateDays},
+						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
+					},
+				},
+			},
+			expectErr: require.NoError,
+		},
+		{
 			name:    "self-hosted should allow long rollouts",
 			modules: selfHostedModules,
 			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
@@ -1001,7 +1050,7 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 					Agents: tt.config,
 				})
 			require.NoError(t, err)
-			modules.SetTestModules(t, tt.modules)
+			modulestest.SetTestModules(t, tt.modules)
 
 			// Test execution.
 			tt.expectErr(t, validateServerSideAgentConfig(config))

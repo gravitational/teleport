@@ -56,7 +56,9 @@ export class AwsLaunchButton extends React.Component<Props> {
           textTransform="none"
           width={this.props.width || '90px'}
           size="small"
-          setRef={e => (this.anchorEl.current = e)}
+          ref={e => {
+            this.anchorEl.current = e;
+          }}
           onClick={this.onOpen}
         >
           Launch

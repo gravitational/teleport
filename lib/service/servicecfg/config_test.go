@@ -68,6 +68,7 @@ func TestDefaultConfig(t *testing.T) {
 		"aes256-ctr",
 	})
 	require.ElementsMatch(t, config.KEXAlgorithms, []string{
+		"mlkem768x25519-sha256",
 		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
@@ -455,7 +456,7 @@ func TestValidateConfig(t *testing.T) {
 			config: &Config{
 				Version: defaults.TeleportConfigVersionV2,
 			},
-			wantErr: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service ",
+			wantErr: "config: enable at least one of ",
 		},
 		{
 			desc: "no auth_servers or proxy_server specified",
@@ -548,6 +549,11 @@ func TestVerifyEnabledService(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
+			desc:             "relay enabled",
+			config:           &Config{Relay: RelayConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
 			desc:             "kube enabled",
 			config:           &Config{Kube: KubeConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
@@ -592,7 +598,7 @@ func TestVerifyEnabledService(t *testing.T) {
 		{
 			desc:   "nothing enabled",
 			config: &Config{},
-			errAssertionFunc: func(t require.TestingT, err error, _ ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
 				require.True(t, trace.IsBadParameter(err), "err is not a BadParameter error: %T", err)
 			},
 		},
@@ -636,7 +642,6 @@ func TestWebPublicAddr(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -682,23 +687,23 @@ func TestSetLogLevel(t *testing.T) {
 	}
 }
 
-func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...any) {
 	require.NoError(t, err, msgAndArgs...)
 }
 
-func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
 }
 
 func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
 		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }
 
 func hasErrAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }

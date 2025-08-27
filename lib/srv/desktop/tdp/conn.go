@@ -20,7 +20,6 @@ package tdp
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"io"
 	"net"
@@ -37,6 +36,7 @@ import (
 // Teleport Desktop Protocol (TDP) messages.
 type Conn struct {
 	rwc       io.ReadWriteCloser
+	writeMu   sync.Mutex
 	bufr      *bufio.Reader
 	closeOnce sync.Once
 
@@ -91,6 +91,19 @@ func (c *Conn) Close() error {
 	return err
 }
 
+// NextMessageType peaks at the next incoming message without
+// consuming it.
+func (c *Conn) NextMessageType() (MessageType, error) {
+	b, err := c.bufr.ReadByte()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if err := c.bufr.UnreadByte(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return MessageType(b), nil
+}
+
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
 	m, err := decode(c.bufr)
@@ -107,7 +120,10 @@ func (c *Conn) WriteMessage(m Message) error {
 		return trace.Wrap(err)
 	}
 
+	c.writeMu.Lock()
 	_, err = c.rwc.Write(buf)
+	c.writeMu.Unlock()
+
 	if c.OnSend != nil {
 		c.OnSend(m, buf)
 	}
@@ -170,143 +186,83 @@ func IsFatalErr(err error) bool {
 }
 
 // NewConnProxy creates a bidirectional proxy to copy messages between the client and server connection.
-// It accepts an optional serverInterceptor to intercept received messages.
-func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor ServerInterceptor) *ConnProxy {
+// It accepts an optional interceptor to intercept server messages.
+func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor Interceptor) *ConnProxy {
 	return &ConnProxy{
-		client:            client,
-		server:            server,
+		client:            NewConn(client),
+		server:            NewConn(server),
 		serverInterceptor: serverInterceptor,
-		messagesToClient:  make(chan Message),
 	}
 }
 
 // ConnProxy does a bidirectional copy between the connection to the client and the mTLS connection to the server.
 type ConnProxy struct {
 	// client is a connection to the client (browser/Connect).
-	client io.ReadWriteCloser
-	// server io.ReadWriteCloser is a connection to the server (Windows Desktop Service).
-	server io.ReadWriteCloser
-	// serverInterceptor intercepts the incoming messages.
-	// If the returned message is non-nil, it is forwarded to the client.
-	// If an error is returned, the stream is canceled.
-	serverInterceptor ServerInterceptor
-	messagesToClient  chan Message
+	client *Conn
+	// server is a connection to the server (Windows Desktop Service).
+	server *Conn
+	// serverInterceptor intercepts messages received from the serve.
+	serverInterceptor Interceptor
 }
 
-// ServerInterceptor intercepts messages received from the server.
-// If a message returned from the interceptor is nil, it's not sent to the client.
-type ServerInterceptor func(serverTdpConn *Conn, message Message) (Message, error)
+// Interceptor intercepts messages on the connection. It should return
+// the [potentially modified] message in order to pass it on to the
+// other end of the connection, or nil to prevent the message from
+// being forwarded.
+type Interceptor func(conn *Conn, message Message) (Message, error)
 
 // SendToClient sends a message to the client and blocks until the operation completes.
-func (c *ConnProxy) SendToClient(ctx context.Context, message Message) error {
-	select {
-	case c.messagesToClient <- message:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+func (c *ConnProxy) SendToClient(message Message) error {
+	err := c.client.WriteMessage(message)
+	return trace.Wrap(err)
+}
+
+// SendToServer sends a message to the server and blocks until the operation completes.
+func (c *ConnProxy) SendToServer(message Message) error {
+	err := c.server.WriteMessage(message)
+	return trace.Wrap(err)
 }
 
 // Run starts proxying the connection.
-func (c *ConnProxy) Run(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-
-	var closeOnce sync.Once
-	closeAll := func() {
-		cancel()
-		c.client.Close()
-		c.server.Close()
-	}
-	defer closeOnce.Do(closeAll)
-
+func (c *ConnProxy) Run() error {
 	var errs errgroup.Group
 
-	sendTDPAlert := func(err error, severity Severity) error {
-		msg := Alert{Message: err.Error(), Severity: severity}
-		b, err := msg.Encode()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = c.client.Write(b)
-		return trace.Wrap(err)
-	}
-
-	// Run a goroutine to pick TDP messages up from a channel and send
-	// them to the client.
-	errs.Go(func() error {
-		defer closeOnce.Do(closeAll)
-
-		for {
-			select {
-			case msg := <-c.messagesToClient:
-				encoded, err := msg.Encode()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if _, err := c.client.Write(encoded); err != nil {
-					return trace.Wrap(err)
-				}
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
+	closeAll := sync.OnceFunc(func() {
+		c.client.Close()
+		c.server.Close()
 	})
+	defer closeAll()
 
-	// Run a second goroutine to read TDP messages from the Windows
-	// agent and write them to our send channel.
+	// Run a goroutine to read TDP messages from the Windows
+	// agent and write them to client.
 	errs.Go(func() error {
-		defer closeOnce.Do(closeAll)
+		defer closeAll()
 
 		// We avoid using io.Copy here, as we want to make sure
 		// each TDP message is sent as a unit so that a single
 		// 'message' event is emitted in the JS TDP client.
 		// Internal buffer of io.Copy could split one message
 		// into multiple downstreamConn.Send() calls.
-		tdpConn := NewConn(c.server)
-		defer tdpConn.Close()
-
-		// we don't care about the content of the message, we just
+		// We don't care about the content of the message, we just
 		// need to split the stream into individual messages and
 		// write them to the client
 		for {
-			msg, err := tdpConn.ReadMessage()
-			if utils.IsOKNetworkError(err) {
-				return trace.Wrap(err)
-			}
-			if err != nil {
-				isFatal := IsFatalErr(err)
-				severity := SeverityError
-				if !isFatal {
-					severity = SeverityWarning
-				}
-				sendErr := sendTDPAlert(err, severity)
+			msg, err := c.server.ReadMessage()
 
-				// If the error wasn't fatal, and we successfully
-				// sent it back to the client, continue.
-				if !isFatal && sendErr == nil {
-					continue
-				}
-
-				// If the error was fatal, or we failed to send it back
-				// to the client, send it to the errCh channel and end
-				// the session.
-				if sendErr != nil {
-					err = sendErr
-				}
-				return trace.Wrap(err)
+			if err := c.handleError(err); err != nil {
+				return err
 			}
 
 			if c.serverInterceptor != nil {
-				msg, err = c.serverInterceptor(tdpConn, msg)
+				msg, err = c.serverInterceptor(c.server, msg)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 			}
 			if msg != nil {
-				select {
-				case c.messagesToClient <- msg:
-				case <-ctx.Done():
-					return ctx.Err()
+				err := c.SendToClient(msg)
+				if err != nil {
+					return trace.Wrap(err)
 				}
 			}
 		}
@@ -315,9 +271,18 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 	// Run a goroutine to read TDP messages coming from the client
 	// and pass them on to the Windows agent.
 	errs.Go(func() error {
-		defer closeOnce.Do(closeAll)
-		_, err := io.Copy(c.server, c.client)
-		return trace.Wrap(err, "sending TDP message to desktop agent")
+		defer closeAll()
+
+		for {
+			msg, err := c.client.ReadMessage()
+			if err := c.handleError(err); err != nil {
+				return err
+			}
+
+			if err := c.SendToServer(msg); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	})
 
 	// Wait for all goroutines to finish
@@ -326,4 +291,32 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *ConnProxy) handleError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if utils.IsOKNetworkError(err) {
+		return trace.Wrap(err)
+	}
+	isFatal := IsFatalErr(err)
+	severity := SeverityError
+	if !isFatal {
+		severity = SeverityWarning
+	}
+	sendErr := c.SendToClient(Alert{Message: err.Error(), Severity: severity})
+
+	// If the error wasn't fatal, and we successfully
+	// sent it back to the client, continue.
+	if !isFatal && sendErr == nil {
+		return nil
+	}
+
+	// If the error was fatal, or we failed to send it back
+	// to the client, return it and end the session.
+	if sendErr != nil {
+		err = sendErr
+	}
+	return trace.Wrap(err)
 }

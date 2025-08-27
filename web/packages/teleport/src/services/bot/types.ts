@@ -37,6 +37,11 @@ export type ApiBotMetadata = {
 export type ApiBotSpec = {
   roles: string[];
   traits: ApiBotTrait[];
+  max_session_ttl:
+    | {
+        seconds: number;
+      }
+    | undefined;
 };
 
 export type ApiBotTrait = {
@@ -51,6 +56,30 @@ export type ApiBot = {
   status: string;
   subKind: string;
   version: string;
+};
+
+export type ListBotInstancesResponse = {
+  bot_instances: BotInstanceSummary[];
+  next_page_token?: string;
+};
+
+export type BotInstanceSummary = {
+  instance_id: string;
+  bot_name: string;
+  join_method_latest?: string;
+  host_name_latest?: string;
+  version_latest?: string;
+  active_at_latest?: string;
+  os_latest?: string;
+};
+
+export type GetBotInstanceResponse = {
+  bot_instance?: {
+    spec?: {
+      instance_id?: string;
+    } | null;
+  } | null;
+  yaml?: string;
 };
 
 export type BotList = {
@@ -97,5 +126,9 @@ export enum BotUiFlow {
 }
 export type EditBotRequest = {
   // roles is the list of roles to assign to the bot
-  roles: string[];
+  roles?: string[] | null;
+  // traits is the list of traits to assign to the bot
+  traits?: ApiBotTrait[] | null;
+  // max_session_ttl is the maximum session TTL
+  max_session_ttl?: string | null;
 };

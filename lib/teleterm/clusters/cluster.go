@@ -63,6 +63,8 @@ type Cluster struct {
 	clock clockwork.Clock
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
+	// WebProxyAddr is the host:port the web proxy can be accessed at.
+	WebProxyAddr string
 }
 
 type ClusterWithDetails struct {
@@ -384,4 +386,12 @@ func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, err
 		return api.LoggedInUser_USER_TYPE_UNSPECIFIED,
 			trace.BadParameter("unknown user type %q", userType)
 	}
+}
+
+// Server describes an SSH node.
+type Server struct {
+	// URI is the database URI
+	URI uri.ResourceURI
+
+	types.Server
 }

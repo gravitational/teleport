@@ -1,0 +1,5 @@
+Name       Description Type  Allowed Tools       Labels  
+---------- ----------- ----- ------------------- ------- 
+allow-read description stdio [read_*]            env=dev 
+deny-write description stdio [*], except: [wr... env=dev 
+

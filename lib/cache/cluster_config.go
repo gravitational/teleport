@@ -41,6 +41,7 @@ func newClusterNameCollection(c services.ClusterConfiguration, w types.WatchKind
 
 	return &collection[types.ClusterName, clusterNameIndex]{
 		store: newStore(
+			types.KindClusterName,
 			types.ClusterName.Clone,
 			map[clusterNameIndex]func(types.ClusterName) string{
 				clusterNameDefaultIndex: types.ClusterName.GetName,
@@ -79,7 +80,10 @@ func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 
 	if rg.ReadCache() {
 		name, err := rg.store.get(clusterNameDefaultIndex, types.MetaNameClusterName)
-		return name.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return name.Clone(), nil
 	}
 
 	cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
@@ -103,6 +107,7 @@ func newClusterAuditConfigCollection(c services.ClusterConfiguration, w types.Wa
 
 	return &collection[types.ClusterAuditConfig, clusterAuditConfigIndex]{
 		store: newStore(
+			types.KindClusterAuditConfig,
 			types.ClusterAuditConfig.Clone,
 			map[clusterAuditConfigIndex]func(types.ClusterAuditConfig) string{
 				clusterAuditConfigNameIndex: types.ClusterAuditConfig.GetName,
@@ -145,7 +150,10 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditCo
 
 	if rg.ReadCache() {
 		cfg, err := rg.store.get(clusterAuditConfigNameIndex, types.MetaNameClusterAuditConfig)
-		return cfg.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cfg.Clone(), nil
 	}
 
 	cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
@@ -169,6 +177,7 @@ func newClusterNetworkingConfigCollection(c services.ClusterConfiguration, w typ
 
 	return &collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex]{
 		store: newStore(
+			types.KindClusterNetworkingConfig,
 			types.ClusterNetworkingConfig.Clone,
 			map[clusterNetworkingConfigIndex]func(types.ClusterNetworkingConfig) string{
 				clusterNetworkingConfigNameIndex: types.ClusterNetworkingConfig.GetName,
@@ -207,7 +216,10 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNe
 
 	if rg.ReadCache() {
 		cfg, err := rg.store.get(clusterNetworkingConfigNameIndex, types.MetaNameClusterNetworkingConfig)
-		return cfg.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cfg.Clone(), nil
 	}
 
 	cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
@@ -231,6 +243,7 @@ func newAuthPreferenceCollection(c services.ClusterConfiguration, w types.WatchK
 
 	return &collection[types.AuthPreference, authPreferenceIndex]{
 		store: newStore(
+			types.KindClusterAuthPreference,
 			types.AuthPreference.Clone,
 			map[authPreferenceIndex]func(types.AuthPreference) string{
 				authPreferenceNameIndex: types.AuthPreference.GetName,
@@ -269,7 +282,10 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 
 	if rg.ReadCache() {
 		cfg, err := rg.store.get(authPreferenceNameIndex, types.MetaNameClusterAuthPreference)
-		return cfg.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cfg.Clone(), nil
 	}
 
 	cfg, err := c.Config.ClusterConfig.GetAuthPreference(ctx)
@@ -287,6 +303,7 @@ func newSessionRecordingConfigCollection(c services.ClusterConfiguration, w type
 
 	return &collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]{
 		store: newStore(
+			types.KindSessionRecordingConfig,
 			types.SessionRecordingConfig.Clone,
 			map[sessionRecordingConfigIndex]func(types.SessionRecordingConfig) string{
 				sessionRecordingConfigNameIndex: types.SessionRecordingConfig.GetName,
@@ -325,7 +342,10 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRec
 
 	if rg.ReadCache() {
 		cfg, err := rg.store.get(sessionRecordingConfigNameIndex, types.MetaNameSessionRecordingConfig)
-		return cfg.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cfg.Clone(), nil
 	}
 
 	cfg, err := c.Config.ClusterConfig.GetSessionRecordingConfig(ctx)
@@ -343,6 +363,7 @@ func newAccessGraphSettingsCollection(upstream services.ClusterConfiguration, w 
 
 	return &collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]{
 		store: newStore(
+			types.KindAccessGraphSettings,
 			proto.CloneOf[*clusterconfigv1.AccessGraphSettings],
 			map[accessGraphSettingsIndex]func(*clusterconfigv1.AccessGraphSettings) string{
 				accessGraphSettingsNameIndex: func(r *clusterconfigv1.AccessGraphSettings) string {

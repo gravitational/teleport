@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -38,6 +40,7 @@ func newDiscoveryConfigCollection(upstream services.DiscoveryConfigs, w types.Wa
 
 	return &collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]{
 		store: newStore(
+			types.KindDiscoveryConfig,
 			(*discoveryconfig.DiscoveryConfig).Clone,
 			map[discoveryConfigIndex]func(*discoveryconfig.DiscoveryConfig) string{
 				discoveryConfigNameIndex: func(r *discoveryconfig.DiscoveryConfig) string {
@@ -45,24 +48,8 @@ func newDiscoveryConfigCollection(upstream services.DiscoveryConfigs, w types.Wa
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*discoveryconfig.DiscoveryConfig, error) {
-			var discoveryConfigs []*discoveryconfig.DiscoveryConfig
-			var nextToken string
-			for {
-				var page []*discoveryconfig.DiscoveryConfig
-				var err error
-
-				page, nextToken, err = upstream.ListDiscoveryConfigs(ctx, 0 /* default page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				discoveryConfigs = append(discoveryConfigs, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return discoveryConfigs, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListDiscoveryConfigs))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *discoveryconfig.DiscoveryConfig {
 			return &discoveryconfig.DiscoveryConfig{

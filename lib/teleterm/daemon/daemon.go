@@ -672,26 +672,6 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 	return newGateway, nil
 }
 
-// GetServers accepts parameterized input to enable searching, sorting, and pagination.
-func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.GetServers(ctx, req, proxyClient.CurrentCluster())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
-}
-
 func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
 	cluster, _, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
@@ -895,12 +875,12 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	defer s.gatewaysMu.RUnlock()
 	for _, gw := range s.gateways {
 		targetURI := gw.TargetURI()
-		if !targetURI.IsKube() && targetURI.GetRootClusterURI() != cluster.URI {
+		if !targetURI.IsKube() || targetURI.GetRootClusterURI() != cluster.URI {
 			continue
 		}
 		kubeGw, err := gateway.AsKube(gw)
 		if err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+			return trace.Wrap(err)
 		}
 		kubeGw.ClearCerts()
 	}

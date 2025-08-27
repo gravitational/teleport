@@ -42,8 +42,8 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
@@ -263,6 +263,11 @@ type IdentityContext struct {
 	// this identity is associated with, if any.
 	BotInstanceID string
 
+	// JoinToken is the name of the join token used to join this bot identity,
+	// if any, and will not be set for bot instances that joined using the
+	// `token` join method.
+	JoinToken string
+
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this
 	// identity/cert was derived from. It is used to determine a session's hard
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
@@ -297,10 +302,6 @@ type ServerContext struct {
 
 	// term holds PTY if it was requested by the session.
 	term Terminal
-
-	// sessionID holds the session ID that will be used when a new
-	// session is created.
-	sessionID rsession.ID
 
 	// session holds the active session (if there's an active one).
 	session *session
@@ -576,12 +577,7 @@ func (c *ServerContext) ID() int {
 
 // SessionID returns the ID of the session in the context.
 func (c *ServerContext) SessionID() rsession.ID {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if c.session == nil {
-		return c.sessionID
-	}
-	return c.session.id
+	return c.ConnectionContext.GetSessionID()
 }
 
 // GetServer returns the underlying server which this context was created in.
@@ -598,32 +594,29 @@ func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionReg
 	// its ID will be added to the environment
 	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
 	if !found {
-		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Will create new session for SSH connection")
 		return nil
 	}
 
 	// make sure whatever session is requested is a valid session
 	id, err := rsession.ParseID(ssid)
 	if err != nil {
-		return trace.BadParameter("invalid session ID")
+		return trace.BadParameter("invalid session ID %s", ssid)
 	}
 
 	// update ctx with the session if it exists
 	if sess, found := reg.findSession(*id); found {
-		c.sessionID = *id
 		c.session = sess
+		c.ConnectionContext.SetSessionID(*id)
 		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
 	} else {
-		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
+		// TODO(capnspacehook): DELETE IN 19.0.0 - by then all supported
 		// clients should only set TELEPORT_SESSION when they want to
 		// join a session. Always return an error instead of using a
 		// new ID.
 		//
-		// to prevent the user from controlling the session ID, generate
-		// a new one
-		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Creating new SSH session")
+		// The session ID the client sent was not found, ignore it; the
+		// connection's ID will be used as the session ID later.
+		c.Logger.DebugContext(ctx, "Sent session ID not found, using connection ID")
 	}
 
 	return nil
@@ -747,7 +740,7 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 
 	// ensure moderated session policies allow starting an unattended session
 	policySets := c.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
-	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
+	checker := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
 	canStart, _, err := checker.FulfilledFor(nil)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1146,6 +1139,7 @@ func buildEnvironment(ctx *ServerContext) []string {
 		}
 		if session.id != "" {
 			env.AddTrusted(teleport.SSHSessionID, string(session.id))
+			env.AddTrusted(sshutils.SessionEnvVar, string(session.id))
 		}
 	}
 

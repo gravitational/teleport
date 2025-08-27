@@ -25,6 +25,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,6 +41,7 @@ func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*col
 
 	return &collection[types.KubeServer, kubeServerIndex]{
 		store: newStore(
+			types.KindKubeServer,
 			types.KubeServer.Copy,
 			map[kubeServerIndex]func(types.KubeServer) string{
 				kubeServerNameIndex: func(u types.KubeServer) string {
@@ -99,6 +102,7 @@ func newKubernetesClusterCollection(k services.Kubernetes, w types.WatchKind) (*
 
 	return &collection[types.KubeCluster, kubeClusterIndex]{
 		store: newStore(
+			types.KindKubernetesCluster,
 			types.KubeCluster.Copy,
 			map[kubeClusterIndex]func(types.KubeCluster) string{
 				kubeClusterNameIndex: types.KubeCluster.GetName,
@@ -178,6 +182,7 @@ func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContai
 
 	return &collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]{
 		store: newStore(
+			types.KindKubeWaitingContainer,
 			proto.CloneOf[*kubewaitingcontainerv1.KubernetesWaitingContainer],
 			map[kubeWaitingContainerIndex]func(*kubewaitingcontainerv1.KubernetesWaitingContainer) string{
 				kubeWaitingContainerNameIndex: func(u *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
@@ -185,22 +190,8 @@ func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContai
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
-			var startKey string
-			var allConts []*kubewaitingcontainerv1.KubernetesWaitingContainer
-			for {
-				conts, nextKey, err := upstream.ListKubernetesWaitingContainers(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				allConts = append(allConts, conts...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-			return allConts, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListKubernetesWaitingContainers))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *kubewaitingcontainerv1.KubernetesWaitingContainer {
 			return &kubewaitingcontainerv1.KubernetesWaitingContainer{

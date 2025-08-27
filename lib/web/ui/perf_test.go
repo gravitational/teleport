@@ -89,7 +89,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			insertServers(ctx, b, svc, types.KindProxy, proxyCount)
 			insertServers(ctx, b, svc, types.KindAuthServer, authCount)
 
-			site := &mockRemoteSite{
+			site := &mockCluster{
 				accessPoint: &mockAccessPoint{
 					presence: svc,
 				},
@@ -103,10 +103,10 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
-	for i := 0; i < labelCount; i++ {
+	for i := range labelCount {
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
-	for i := 0; i < count; i++ {
+	for range count {
 		name := uuid.New().String()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
 		server := &types.ServerV2{
@@ -137,34 +137,34 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 	}
 }
 
-func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnelclient.RemoteSite, nodes int, opts ...services.MarshalOption) {
-	var cluster *Cluster
+func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, cluster reversetunnelclient.Cluster, nodes int, opts ...services.MarshalOption) {
+	var got *Cluster
 	var err error
 	for b.Loop() {
-		cluster, err = GetClusterDetails(ctx, site, opts...)
+		got, err = GetClusterDetails(ctx, cluster, opts...)
 		require.NoError(b, err)
 	}
-	require.NotNil(b, cluster)
+	require.NotNil(b, got)
 }
 
-type mockRemoteSite struct {
-	reversetunnelclient.RemoteSite
+type mockCluster struct {
+	reversetunnelclient.Cluster
 	accessPoint authclient.ProxyAccessPoint
 }
 
-func (m *mockRemoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
+func (m *mockCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return m.accessPoint, nil
 }
 
-func (m *mockRemoteSite) GetName() string {
+func (m *mockCluster) GetName() string {
 	return clusterName
 }
 
-func (m *mockRemoteSite) GetLastConnected() time.Time {
+func (m *mockCluster) GetLastConnected() time.Time {
 	return time.Now()
 }
 
-func (m *mockRemoteSite) GetStatus() string {
+func (m *mockCluster) GetStatus() string {
 	return teleport.RemoteClusterStatusOnline
 }
 

@@ -144,7 +144,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
 
   const clientOnError = useCallback((error: Error) => {
     setPlayerStatus(StatusEnum.ERROR);
-    setStatusText(error.message || error.toString());
+    setStatusText(error.message);
   }, []);
 
   const clientOnTdpInfo = useCallback((info: string) => {

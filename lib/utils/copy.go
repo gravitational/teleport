@@ -18,18 +18,6 @@
 
 package utils
 
-// CopyStringsMap returns a copy of the strings map
-func CopyStringsMap(in map[string]string) map[string]string {
-	if in == nil {
-		return nil
-	}
-	out := make(map[string]string, len(in))
-	for key, val := range in {
-		out[key] = val
-	}
-	return out
-}
-
 // ReplaceInSlice replaces element old with new and returns a new slice.
 func ReplaceInSlice(s []string, old string, new string) []string {
 	out := make([]string, 0, len(s))

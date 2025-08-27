@@ -42,7 +42,6 @@ const (
 	TerminalService_StartHeadlessWatcher_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher"
 	TerminalService_ListDatabaseUsers_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
 	TerminalService_ListDatabaseServers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseServers"
-	TerminalService_GetServers_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
 	TerminalService_GetAccessRequests_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
 	TerminalService_GetAccessRequest_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest"
 	TerminalService_DeleteAccessRequest_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/DeleteAccessRequest"
@@ -112,11 +111,6 @@ type TerminalServiceClient interface {
 	ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error)
 	// ListDatabaseServers lists allowed users for the given database based on the role set.
 	ListDatabaseServers(ctx context.Context, in *ListDatabaseServersRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error)
-	// Deprecated: Do not use.
-	// GetServers returns filtered, sorted, and paginated servers
-	//
-	// Deprecated: Use ListUnifiedResources instead.
-	GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
 	GetAccessRequests(ctx context.Context, in *GetAccessRequestsRequest, opts ...grpc.CallOption) (*GetAccessRequestsResponse, error)
 	// GetAccessRequest retreives a single Access Request
@@ -295,17 +289,6 @@ func (c *terminalServiceClient) ListDatabaseServers(ctx context.Context, in *Lis
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListDatabaseServersResponse)
 	err := c.cc.Invoke(ctx, TerminalService_ListDatabaseServers_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *terminalServiceClient) GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetServersResponse)
-	err := c.cc.Invoke(ctx, TerminalService_GetServers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -727,11 +710,6 @@ type TerminalServiceServer interface {
 	ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error)
 	// ListDatabaseServers lists allowed users for the given database based on the role set.
 	ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error)
-	// Deprecated: Do not use.
-	// GetServers returns filtered, sorted, and paginated servers
-	//
-	// Deprecated: Use ListUnifiedResources instead.
-	GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
 	GetAccessRequests(context.Context, *GetAccessRequestsRequest) (*GetAccessRequestsResponse, error)
 	// GetAccessRequest retreives a single Access Request
@@ -873,9 +851,6 @@ func (UnimplementedTerminalServiceServer) ListDatabaseUsers(context.Context, *Li
 }
 func (UnimplementedTerminalServiceServer) ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseServers not implemented")
-}
-func (UnimplementedTerminalServiceServer) GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetServers not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetAccessRequests(context.Context, *GetAccessRequestsRequest) (*GetAccessRequestsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequests not implemented")
@@ -1113,24 +1088,6 @@ func _TerminalService_ListDatabaseServers_Handler(srv interface{}, ctx context.C
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListDatabaseServers(ctx, req.(*ListDatabaseServersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_GetServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetServersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetServers(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_GetServers_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetServers(ctx, req.(*GetServersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1802,10 +1759,6 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDatabaseServers",
 			Handler:    _TerminalService_ListDatabaseServers_Handler,
-		},
-		{
-			MethodName: "GetServers",
-			Handler:    _TerminalService_GetServers_Handler,
 		},
 		{
 			MethodName: "GetAccessRequests",

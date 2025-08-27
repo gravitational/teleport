@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { StoryObj } from '@storybook/react';
+import type { StoryObj } from '@storybook/react-vite';
 import { delay } from 'msw';
 
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -77,4 +77,5 @@ const props = {
   username: 'somename',
   onDelete: () => null,
   onClose: () => null,
+  modifyFetchedData: () => null,
 };

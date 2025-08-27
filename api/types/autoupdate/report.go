@@ -17,11 +17,20 @@ limitations under the License.
 package autoupdate
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+)
+
+const (
+	autoUpdateAgentReportTTL = time.Hour
+	maxGroups                = 50
+	maxVersions              = 20
 )
 
 // NewAutoUpdateAgentReport creates a new auto update version resource.
@@ -31,6 +40,8 @@ func NewAutoUpdateAgentReport(spec *autoupdate.AutoUpdateAgentReportSpec, authNa
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: authName,
+			// Validate will fail later if timestamp is zero
+			Expires: timestamppb.New(spec.GetTimestamp().AsTime().Add(autoUpdateAgentReportTTL)),
 		},
 		Spec: spec,
 	}
@@ -51,6 +62,19 @@ func ValidateAutoUpdateAgentReport(v *autoupdate.AutoUpdateAgentReport) error {
 		return trace.BadParameter("Spec is nil")
 	}
 
-	// TODO: see if we need more validation
+	if ts := v.GetSpec().GetTimestamp(); ts.GetSeconds() == 0 && ts.GetNanos() == 0 {
+		return trace.BadParameter("Spec.Timestamp is empty or zero")
+	}
+
+	if numGroups := len(v.GetSpec().GetGroups()); numGroups > maxGroups {
+		return trace.BadParameter("Spec.Groups is too large (%d while the max is %d)", numGroups, maxGroups)
+	}
+
+	for groupName, group := range v.GetSpec().GetGroups() {
+		if numVersions := len(group.GetVersions()); numVersions > maxVersions {
+			return trace.BadParameter("group %q has too many versions (%d while the max is %d)", groupName, numVersions, maxVersions)
+		}
+	}
+
 	return nil
 }

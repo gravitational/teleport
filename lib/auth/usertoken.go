@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"image/png"
 	"net/url"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
@@ -33,10 +34,12 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -287,17 +290,17 @@ func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (strin
 
 // deleteUserTokens deletes all user tokens for the specified user.
 func (a *Server) deleteUserTokens(ctx context.Context, username string) error {
-	tokens, err := a.GetUserTokens(ctx)
+	userTokens, err := stream.Collect(clientutils.Resources(ctx, a.ListUserTokens))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, token := range tokens {
+	for _, token := range userTokens {
 		if token.GetUser() != username {
 			continue
 		}
 
-		err = a.DeleteUserToken(ctx, token.GetName())
+		err := a.DeleteUserToken(ctx, token.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -465,10 +468,8 @@ func (a *Server) verifyUserToken(ctx context.Context, token types.UserToken, all
 		return trace.AccessDenied("invalid token")
 	}
 
-	for _, kind := range allowedKinds {
-		if token.GetSubKind() == kind {
-			return nil
-		}
+	if slices.Contains(allowedKinds, token.GetSubKind()) {
+		return nil
 	}
 
 	a.logger.DebugContext(ctx, "Invalid token",

@@ -1,6 +1,9 @@
 ---
 title: Sigstore Workload Attestation
 description: Using Teleport's integration with Sigstore to ensure workload supply chain security
+labels:
+ - conceptual
+ - mwi
 ---
 
 By using Teleport's integration with [Sigstore](https://sigstore.dev), you can
@@ -49,10 +52,10 @@ When a container-based workload connects to `tbot`'s SPIFFE Workload API, `tbot`
 will discover which container image the workload is running using the platform
 specific attestor (i.e. Kubernetes, Docker, or Podman). It will then query the
 relevant container registry for signatures relating to that specific image digest.
-These signatures will be sent to the Teleport auth server when requesting a SVID.
+These signatures will be sent to the Teleport Auth Service when requesting a SVID.
 
 If your `WorkloadIdentity` rules contain a call to `sigstore.policy_satisfied`,
-the auth server will load and evaluate the named `SigstorePolicy` objects.
+the Auth Service will load and evaluate the named `SigstorePolicy` objects.
 
 These policies will be used to determine the "trusted roots" that will be used
 to verify the signature's authenticity. For keyless signing, this will include

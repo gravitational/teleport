@@ -38,6 +38,7 @@ func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[type
 
 	return &collection[types.Server, nodeIndex]{
 		store: newStore(
+			types.KindNode,
 			types.Server.DeepCopy,
 			map[nodeIndex]func(types.Server) string{
 				nodeNameIndex: types.Server.GetName,

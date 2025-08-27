@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -31,8 +30,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
-	"testing"
 	"unicode"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -54,6 +51,8 @@ const (
 	LoggingForDaemon LoggingPurpose = iota
 	// LoggingForCLI configures logging for user face utilities (tctl, tsh).
 	LoggingForCLI
+	// LoggingForMCP configures logging for MCP servers.
+	LoggingForMCP
 )
 
 // LoggingFormat defines the possible logging output formats.
@@ -100,7 +99,7 @@ func IsTerminal(w io.Writer) bool {
 }
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) error {
+func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) (*slog.Logger, error) {
 	var o logOpts
 
 	for _, opt := range opts {
@@ -110,51 +109,28 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 	// If debug or trace logging is not enabled for CLIs,
 	// then discard all log output.
 	if purpose == LoggingForCLI && level > slog.LevelDebug {
-		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
-		return nil
+		logger := slog.New(slog.DiscardHandler)
+		slog.SetDefault(logger)
+		return logger, nil
 	}
 
 	var output string
-	if o.osLogSubsystem != "" {
+	switch {
+	case o.osLogSubsystem != "":
 		output = logutils.LogOutputOSLog
+	case purpose == LoggingForMCP:
+		output = logutils.LogOutputMCP
+		o.format = LogFormatJSON
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
+	logger, _, err := logutils.Initialize(logutils.Config{
 		Severity:       level.String(),
 		Format:         o.format,
 		EnableColors:   IsTerminal(os.Stderr),
 		Output:         output,
 		OSLogSubsystem: o.osLogSubsystem,
 	})
-	return trace.Wrap(err)
-}
-
-var initTestLoggerOnce = sync.Once{}
-
-// InitLoggerForTests initializes the standard logger for tests.
-func InitLoggerForTests() {
-	initTestLoggerOnce.Do(func() {
-		if !flag.Parsed() {
-			// Parse flags to check testing.Verbose().
-			flag.Parse()
-		}
-
-		if !testing.Verbose() {
-			slog.SetDefault(slog.New(logutils.DiscardHandler{}))
-			return
-		}
-
-		logutils.Initialize(logutils.Config{
-			Severity: slog.LevelDebug.String(),
-			Format:   LogFormatJSON,
-		})
-	})
-}
-
-// NewSlogLoggerForTests creates a new slog logger for test environments.
-func NewSlogLoggerForTests() *slog.Logger {
-	InitLoggerForTests()
-	return slog.Default()
+	return logger, trace.Wrap(err)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -299,7 +275,7 @@ const (
 )
 
 // Color formats the string in a terminal escape color
-func Color(color int, v interface{}) string {
+func Color(color int, v any) string {
 	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", color, v)
 }
 
@@ -319,6 +295,18 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	return app.UsageTemplate(createUsageTemplate())
 }
 
+// InitHiddenCLIParser initializes a `kingpin.Application` that does not terminate the application
+// or write any usage information to os.Stdout. Can be used in scenarios where multiple `kingpin.Application`
+// instances are needed without interfering with subsequent parsing. Usage output is completely suppressed,
+// and the default global `--help` flag is ignored to prevent the application from exiting.
+func InitHiddenCLIParser() (app *kingpin.Application) {
+	app = kingpin.New("", "")
+	app.UsageWriter(io.Discard)
+	app.Terminate(func(i int) {})
+
+	return app
+}
+
 // createUsageTemplate creates an usage template for kingpin applications.
 func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
 	opt := &usageTemplateOptions{
@@ -329,54 +317,6 @@ func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
 		optFunc(opt)
 	}
 	return fmt.Sprintf(defaultUsageTemplate, opt.commandPrintfWidth)
-}
-
-// UpdateAppUsageTemplate updates usage template for kingpin applications by
-// pre-parsing the arguments then applying any changes to the usage template if
-// necessary.
-func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
-	app.UsageTemplate(createUsageTemplate(
-		withCommandPrintfWidth(app, args),
-	))
-}
-
-// withCommandPrintfWidth returns a usage template option that
-// updates command printf width if longer than default.
-func withCommandPrintfWidth(app *kingpin.Application, args []string) func(*usageTemplateOptions) {
-	return func(opt *usageTemplateOptions) {
-		var commands []*kingpin.CmdModel
-
-		// When selected command is "help", skip the "help" arg
-		// so the intended command is selected for calculation.
-		if len(args) > 0 && args[0] == "help" {
-			args = args[1:]
-		}
-
-		appContext, err := app.ParseContext(args)
-		switch {
-		case appContext == nil:
-			slog.WarnContext(context.Background(), "No application context found")
-			return
-
-		// Note that ParseContext may return the current selected command that's
-		// causing the error. We should continue in those cases when appContext is
-		// not nil.
-		case err != nil:
-			slog.InfoContext(context.Background(), "Error parsing application context", "error", err)
-		}
-
-		if appContext.SelectedCommand != nil {
-			commands = appContext.SelectedCommand.Model().FlattenedCommands()
-		} else {
-			commands = app.Model().FlattenedCommands()
-		}
-
-		for _, command := range commands {
-			if !command.Hidden && len(command.FullCommand) > opt.commandPrintfWidth {
-				opt.commandPrintfWidth = len(command.FullCommand)
-			}
-		}
-	}
 }
 
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
@@ -555,4 +495,28 @@ func FormatAlert(alert types.ClusterAlert) string {
 		}
 	}
 	return buf.String()
+}
+
+// FilterArguments filters the input arguments, keeping only those defined in the provided `kingpin.ApplicationModel`.
+// For example, if the model defines only one boolean flag `--insecure`, all other arguments in `args`
+// will be excluded, and only the `--insecure` flag will remain.
+func FilterArguments(args []string, model *kingpin.ApplicationModel) []string {
+	var result []string
+	for _, flag := range model.Flags {
+		for i := range args {
+			if strings.HasPrefix(args[i], fmt.Sprint("--", flag.Name, "=")) {
+				result = append(result, args[i])
+				break
+			}
+			if args[i] == fmt.Sprint("--", flag.Name) {
+				if flag.IsBoolFlag() {
+					result = append(result, args[i])
+				} else if i+2 <= len(args) {
+					result = append(result, args[i], args[i+1])
+				}
+				break
+			}
+		}
+	}
+	return result
 }

@@ -151,6 +151,15 @@ spec:
                       omits prompt. If not specified, it defaults to select_account
                       for backwards compatibility.
                     type: string
+                  request_object_mode:
+                    description: RequestObjectMode determines how JWT-Secured Authorization
+                      Requests will be used for authorization requests. JARs, or request
+                      objects, can provide integrity protection, source authentication,
+                      and confidentiality for authorization request parameters. If
+                      omitted, MFA flows will default to the `RequestObjectMode` behavior
+                      specified in the base OIDC connector. Set this property to 'none'
+                      to explicitly disable request objects for the MFA client.
+                    type: string
                 type: object
               pkce_mode:
                 description: PKCEMode represents the configuration state for PKCE
@@ -174,8 +183,22 @@ spec:
                 items:
                   type: string
                 type: array
+              request_object_mode:
+                description: RequestObjectMode determines how JWT-Secured Authorization
+                  Requests will be used for authorization requests. JARs, or request
+                  objects, can provide integrity protection, source authentication,
+                  and confidentiality for authorization request parameters.
+                type: string
               scope:
                 description: Scope specifies additional scopes set by provider.
+                items:
+                  type: string
+                nullable: true
+                type: array
+              user_matchers:
+                description: UserMatchers is a set of glob patterns to narrow down
+                  which username(s) this auth connector should match for identifier-first
+                  login.
                 items:
                   type: string
                 nullable: true

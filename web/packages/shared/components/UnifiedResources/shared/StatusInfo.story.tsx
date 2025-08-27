@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { SlidingSidePanel } from 'shared/components/SlidingSidePanel';
 import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -25,7 +25,6 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
   DatabaseServer,
-  ResourceStatus,
   SharedResourceServer,
   UnifiedResourceDefinition,
 } from '../types';
@@ -37,7 +36,7 @@ import {
 type StoryProps = {
   attemptState: 'success' | 'processing' | 'failed' | '';
   resourceKind: 'db';
-  healthStatus: ResourceStatus | 'empty';
+  healthStatus: 'unhealthy' | 'unknown' | 'mixed';
   serverLength: 'few' | 'none' | 'many' | 'single';
 };
 
@@ -55,7 +54,8 @@ const meta: Meta<StoryProps> = {
     },
     healthStatus: {
       control: { type: 'select' },
-      options: ['unhealthy', 'unknown', 'empty'],
+      description: 'Specifies the health status of the servers listed',
+      options: ['unhealthy', 'mixed', 'unknown'],
     },
     serverLength: {
       control: { type: 'select' },
@@ -89,17 +89,21 @@ export function UnhealthyStatusInfo(props: StoryProps) {
       protocol: 'postgres',
       labels: [],
       targetHealth: {
-        status: props.healthStatus === 'empty' ? '' : props.healthStatus,
+        status: 'unhealthy',
       },
     };
-    if (props.serverLength === 'many') {
-      servers = manyDbServers;
+
+    if (props.healthStatus === 'unhealthy') {
+      servers = getDbServers(props, unhealthyDbServers);
     }
-    if (props.serverLength === 'few') {
-      servers = fewDbServers;
+    if (props.healthStatus === 'unknown') {
+      servers = getDbServers(props, unknownDbServers);
     }
-    if (props.serverLength === 'single') {
-      servers = [fewDbServers[0]];
+    if (props.healthStatus === 'mixed') {
+      servers = getDbServers(props, [
+        ...unknownDbServers,
+        ...unhealthyDbServers,
+      ]);
     }
   }
 
@@ -132,18 +136,16 @@ const loremTxt =
   quas reiciendis fugiat molestias delectus perspiciatis vero \
   similique minima mollitia accusantium eligendi impedit.';
 
-const fewDbServers: DatabaseServer[] = [
+const unhealthyDbServers: DatabaseServer[] = [
   {
     kind: 'db_server',
     hostId: 'host-id-1',
     hostname: 'hostname-1',
-    targetHealth: { status: 'unhealthy', error: 'error reason 1' },
-  },
-  {
-    kind: 'db_server',
-    hostId: 'host-id-2',
-    hostname: 'hostname-2',
-    targetHealth: { status: 'unhealthy', error: 'error reason 2' },
+    targetHealth: {
+      status: 'unhealthy',
+      error: 'unhealthy error reason 1',
+      message: 'some unhealthy message 1',
+    },
   },
   {
     kind: 'db_server',
@@ -151,14 +153,44 @@ const fewDbServers: DatabaseServer[] = [
       'host-id-long-george-washington-cherry-blossom-apple-banana-orange-chocolate-meow',
     hostname:
       'hostname-long-really-long-like-really-long-longer-pumpkin-pie-halloween',
-    targetHealth: { status: 'unknown', error: loremTxt },
+    targetHealth: { status: 'unhealthy', error: loremTxt },
   },
 ];
 
-const manyDbServers: DatabaseServer[] = [
-  ...fewDbServers,
-  ...fewDbServers,
-  ...fewDbServers,
-  ...fewDbServers,
-  ...fewDbServers,
+const unknownDbServers: DatabaseServer[] = [
+  {
+    kind: 'db_server',
+    hostId: 'host-id-1',
+    hostname: 'hostname-1',
+    targetHealth: {
+      status: 'unknown',
+      error: 'unknown error reason 1',
+      message: 'some unknown message 1',
+    },
+  },
+  {
+    kind: 'db_server',
+    hostId: 'host-id-2',
+    hostname: 'hostname-2',
+    targetHealth: {
+      status: 'unknown',
+      error: 'unknown error reason 2',
+      message: 'some unknown message 2',
+    },
+  },
 ];
+
+function getDbServers(
+  props: Pick<StoryProps, 'serverLength'>,
+  servers: DatabaseServer[]
+) {
+  if (props.serverLength === 'many') {
+    return [...servers, ...servers, ...servers, ...servers];
+  }
+  if (props.serverLength === 'few') {
+    return servers;
+  }
+  if (props.serverLength === 'single') {
+    return [servers[0]];
+  }
+}

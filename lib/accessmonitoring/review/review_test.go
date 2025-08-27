@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	pb "github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -141,6 +142,8 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.Empty(t, cache.Get())
 }
 
+// TestConflictingRules verifies that when there are multiple matching rules
+// with conflicting review decisions, the `DENIED` rule will take precedence.
 func TestConflictingRules(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	t.Cleanup(cancel)
@@ -148,12 +151,14 @@ func TestConflictingRules(t *testing.T) {
 	testReqID := uuid.New().String()
 	withSecretsFalse := false
 	requesterUserName := "requester"
+	approvedRule := newApprovedRule("approved-rule", "true")
+	deniedRule := newDeniedRule("denied-rule", "true")
 
 	// Configure both an approved and denied rule.
 	cache := accessmonitoring.NewCache()
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{
-		newApprovedRule("approved-rule", "true"),
-		newDeniedRule("denied-rule", "true"),
+		approvedRule,
+		deniedRule,
 	})
 
 	requester, err := types.NewUser(requesterUserName)
@@ -162,6 +167,19 @@ func TestConflictingRules(t *testing.T) {
 	client := &mockClient{}
 	client.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
 		Return(requester, nil)
+
+	review, err := newAccessReview(
+		requesterUserName,
+		deniedRule.GetMetadata().GetName(),
+		deniedRule.GetSpec().GetAutomaticReview().GetDecision(),
+		time.Time{},
+	)
+	require.NoError(t, err)
+
+	client.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
+		RequestID: testReqID,
+		Review:    review,
+	}).Return(mock.Anything, nil)
 
 	handler, err := NewHandler(Config{
 		HandlerName: handlerName,
@@ -177,8 +195,7 @@ func TestConflictingRules(t *testing.T) {
 		Type:     types.OpPut,
 		Resource: req,
 	}
-	require.ErrorContains(t, handler.HandleAccessRequest(ctx, event),
-		"conflicting access review rule")
+	require.NoError(t, handler.HandleAccessRequest(ctx, event))
 }
 
 func TestResourceRequest(t *testing.T) {
@@ -186,39 +203,136 @@ func TestResourceRequest(t *testing.T) {
 	t.Cleanup(cancel)
 
 	testReqID := uuid.New().String()
+	testRuleName := "test-rule"
 	withSecretsFalse := false
 	requesterUserName := "requester"
-
-	cache := accessmonitoring.NewCache()
-	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{
-		newApprovedRule("approved-rule", "true"),
-	})
 
 	requester, err := types.NewUser(requesterUserName)
 	require.NoError(t, err)
 
-	client := &mockClient{}
-	client.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-		Return(requester, nil)
+	testRule := newApprovedRule(
+		testRuleName,
+		`access_request.spec.resource_labels_intersection["env"].contains("test")`)
 
-	handler, err := NewHandler(Config{
-		HandlerName: handlerName,
-		Client:      client,
-		Cache:       cache,
-	})
-	require.NoError(t, err)
+	cache := accessmonitoring.NewCache()
+	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{testRule})
 
-	// Create a request for both a role and node.
-	req, err := types.NewAccessRequest(testReqID, "requester", "role")
-	require.NoError(t, err)
-	req.SetRequestedResourceIDs([]types.ResourceID{{Kind: "node"}})
+	tests := []struct {
+		description string
+		setupMock   func(m *mockClient)
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			description: "test 0 requested resources",
+			setupMock: func(m *mockClient) {
+				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
+					Return(requester, nil)
 
-	event := types.Event{
-		Type:     types.OpPut,
-		Resource: req,
+				m.On("ListResources", mock.Anything, mock.Anything).
+					Return(&types.ListResourcesResponse{
+						Resources:  []types.ResourceWithLabels{},
+						TotalCount: 0,
+					}, nil)
+
+				m.AssertNotCalled(t, "SubmitAccessReview")
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "test !matching resource labels",
+			setupMock: func(m *mockClient) {
+				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
+					Return(requester, nil)
+
+				m.On("ListResources", mock.Anything, mock.Anything).
+					Return(&types.ListResourcesResponse{
+						Resources: []types.ResourceWithLabels{
+							&types.ServerV2{
+								Metadata: types.Metadata{
+									Labels: map[string]string{"env": "prod"},
+								},
+							},
+						},
+						TotalCount: 1,
+					}, nil)
+
+				m.AssertNotCalled(t, "SubmitAccessReview")
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "test matching resource labels",
+			setupMock: func(m *mockClient) {
+				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
+					Return(requester, nil)
+
+				m.On("ListResources", mock.Anything, mock.Anything).
+					Return(&types.ListResourcesResponse{
+						Resources: []types.ResourceWithLabels{
+							&types.ServerV2{
+								Metadata: types.Metadata{
+									Labels: map[string]string{"env": "test"},
+								},
+							},
+						},
+						TotalCount: 1,
+					}, nil)
+
+				review, err := newAccessReview(
+					requesterUserName,
+					testRuleName,
+					types.RequestState_APPROVED.String(),
+					time.Time{},
+				)
+				require.NoError(t, err)
+
+				m.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
+					RequestID: testReqID,
+					Review:    review,
+				}).Return(mock.Anything, nil)
+			},
+			assertErr: require.NoError,
+		},
 	}
-	require.ErrorContains(t, handler.HandleAccessRequest(ctx, event),
-		"cannot automatically review access requests for resources other than 'roles")
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			t.Parallel()
+
+			client := &mockClient{}
+			if test.setupMock != nil {
+				test.setupMock(client)
+			}
+
+			handler, err := NewHandler(Config{
+				HandlerName: handlerName,
+				Client:      client,
+				Cache:       cache,
+			})
+			require.NoError(t, err)
+
+			req, err := types.NewAccessRequestWithResources(
+				testReqID,
+				requesterUserName,
+				[]string{"role"},
+				[]types.ResourceID{
+					{
+						ClusterName:     "test-cluster",
+						Kind:            types.KindNode,
+						Name:            "test-node",
+						SubResourceName: types.SubKindTeleportNode,
+					},
+				},
+			)
+			require.NoError(t, err)
+
+			test.assertErr(t, handler.HandleAccessRequest(ctx, types.Event{
+				Type:     types.OpPut,
+				Resource: req,
+			}))
+			client.AssertExpectations(t)
+		})
+	}
 }
 
 func TestHandleAccessRequest(t *testing.T) {
@@ -274,7 +388,7 @@ func TestHandleAccessRequest(t *testing.T) {
 				m.On("GetUser", mock.Anything, "non-existent-user", withSecretsFalse).
 					Return(nil, trace.NotFound("user not found"))
 			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t, err, "user not found")
 			},
 		},
@@ -312,9 +426,13 @@ func TestHandleAccessRequest(t *testing.T) {
 				m.On("GetUser", mock.Anything, approvedUserName, withSecretsFalse).
 					Return(approvedUser, nil)
 
-				review, err := newAccessReview(approvedUserName, testRuleName, types.RequestState_APPROVED.String())
+				review, err := newAccessReview(
+					approvedUserName,
+					testRuleName,
+					types.RequestState_APPROVED.String(),
+					time.Time{},
+				)
 				require.NoError(t, err)
-				review.Created = time.Time{}
 
 				m.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
 					RequestID: testReqID,
@@ -412,6 +530,15 @@ func (m *mockClient) GetUser(ctx context.Context, name string, withSecrets bool)
 	user, ok := args.Get(0).(types.User)
 	if ok {
 		return user, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockClient) ListResources(ctx context.Context, req pb.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	args := m.Called(ctx, req)
+	resp, ok := args.Get(0).(*types.ListResourcesResponse)
+	if ok {
+		return resp, args.Error(1)
 	}
 	return nil, args.Error(1)
 }

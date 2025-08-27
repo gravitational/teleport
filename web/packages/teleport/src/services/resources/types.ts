@@ -42,6 +42,12 @@ export type Kind =
 /** Teleport role in a resource format. */
 export type RoleResource = Resource<KindRole>;
 
+/** Teleport role with only the role name and description, used for displaying requestable roles. */
+export type RequestableRole = {
+  name: string;
+  description?: string;
+};
+
 /**
  * Teleport role in full format, as returned from Teleport API.
  * TODO(bl-nero): Add all fields supported on the UI side.
@@ -115,6 +121,7 @@ export type RoleConditions = {
   windows_desktop_logins?: string[];
 
   github_permissions?: GitHubPermission[];
+  mcp?: MCPPermissions;
 
   rules?: Rule[];
 };
@@ -127,41 +134,12 @@ export type DefaultAuthConnector = {
 };
 
 export type KubernetesResource = {
-  kind?: KubernetesResourceKind;
+  kind?: string;
   name?: string;
   namespace?: string;
   verbs?: KubernetesVerb[];
+  api_group?: string;
 };
-
-/**
- * Supported Kubernetes resource kinds. This type needs to be kept in sync with
- * `KubernetesResourcesKinds` in `api/types/constants.go, as well as
- * `kubernetesResourceKindOptions` in
- * `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
- */
-export type KubernetesResourceKind =
-  | '*'
-  | 'pod'
-  | 'secret'
-  | 'configmap'
-  | 'namespace'
-  | 'service'
-  | 'serviceaccount'
-  | 'kube_node'
-  | 'persistentvolume'
-  | 'persistentvolumeclaim'
-  | 'deployment'
-  | 'replicaset'
-  | 'statefulset'
-  | 'daemonset'
-  | 'clusterrole'
-  | 'kube_role'
-  | 'clusterrolebinding'
-  | 'rolebinding'
-  | 'cronjob'
-  | 'job'
-  | 'certificatesigningrequest'
-  | 'ingress';
 
 /**
  * Supported Kubernetes resource verbs. This type needs to be kept in sync with
@@ -352,7 +330,6 @@ export enum ResourceKind {
   // refer to resource subkind names that are not used for access control.
   //
   // KindAppSession = "app_session"
-  // KindSAMLIdPSession = "saml_idp_session"
   // KindSnowflakeSession = "snowflake_session"
 }
 
@@ -371,6 +348,10 @@ export type Verb =
 
 export type GitHubPermission = {
   orgs?: string[];
+};
+
+export type MCPPermissions = {
+  tools?: string[];
 };
 
 /**

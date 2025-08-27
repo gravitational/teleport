@@ -290,7 +290,6 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -383,7 +382,6 @@ func TestMatchAndFilterKubeClusters(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -475,9 +473,9 @@ func TestMatchResourceByHealthStatus(t *testing.T) {
 			matchedNames:     []string{"db-server-0"},
 		},
 		{
-			name:             "unhealthy db status and message",
+			name:             "unhealthy db status",
 			resources:        dbServers,
-			filterExpression: `health.message == "failed to fizz the buzz" && health.status == "unhealthy"`,
+			filterExpression: `health.status == "unhealthy"`,
 			matchedNames:     []string{"db-server-1"},
 		},
 		{
@@ -495,7 +493,7 @@ func TestMatchResourceByHealthStatus(t *testing.T) {
 		{
 			name:             "server health is empty",
 			resources:        []types.ResourceWithLabels{server},
-			filterExpression: `!exists(health.status) && health.message == ""`,
+			filterExpression: `!exists(health.status)`,
 			matchedNames:     []string{"server"},
 		},
 	}
@@ -661,10 +659,29 @@ func TestMatchResourceByFilters(t *testing.T) {
 				PredicateExpression: filterExpression,
 			},
 		},
+		{
+			name: "MCP server with mcp kind filter",
+			resource: func() types.ResourceWithLabels {
+				return newAppServerFromApp(t, newMCPServerApp(t, "foo"))
+			},
+			filters: MatchResourceFilter{
+				Kinds:               []string{types.KindMCP},
+				PredicateExpression: filterExpression,
+			},
+		},
+		{
+			name: "MCP server with app kind filter",
+			resource: func() types.ResourceWithLabels {
+				return newAppServerFromApp(t, newMCPServerApp(t, "foo"))
+			},
+			filters: MatchResourceFilter{
+				Kinds:               []string{types.KindApp},
+				PredicateExpression: filterExpression,
+			},
+		},
 	}
 
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -730,4 +747,24 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			require.Equal(t, tt.out, ResourceMatchersToTypes(tt.in))
 		})
 	}
+}
+
+func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name: name,
+	}, types.AppSpecV3{
+		MCP: &types.MCP{
+			Command:       "test",
+			RunAsHostUser: "test",
+		},
+	})
+	require.NoError(t, err)
+	return app
+}
+
+func newAppServerFromApp(t *testing.T, app *types.AppV3) types.AppServer {
+	appServer, err := types.NewAppServerV3FromApp(app, "_", "_")
+	require.NoError(t, err)
+	return appServer
 }

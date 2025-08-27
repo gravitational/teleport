@@ -61,6 +61,7 @@ export function makeDatabase(json: any): Database {
     targetHealth: targetHealth && {
       status: targetHealth.status,
       error: targetHealth.transition_error,
+      message: targetHealth.message,
     },
   };
 }
@@ -109,6 +110,7 @@ export function makeDatabaseServer(json: any): DatabaseServer {
     targetHealth: status &&
       status.target_health && {
         status: status.target_health.status,
+        message: status.target_health.message,
         error: status.target_health.transition_error,
       },
   };

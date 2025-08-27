@@ -24,6 +24,8 @@ import (
 
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -38,6 +40,7 @@ func newUserNotificationCollection(upstream services.NotificationGetter, w types
 
 	return &collection[*notificationsv1.Notification, userNotificationIndex]{
 		store: newStore(
+			types.KindNotification,
 			proto.CloneOf[*notificationsv1.Notification],
 			map[userNotificationIndex]func(*notificationsv1.Notification) string{
 				userNotificationNameIndex: func(r *notificationsv1.Notification) string {
@@ -45,22 +48,8 @@ func newUserNotificationCollection(upstream services.NotificationGetter, w types
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*notificationsv1.Notification, error) {
-			var notifications []*notificationsv1.Notification
-			var startKey string
-			for {
-				notifs, nextKey, err := upstream.ListUserNotifications(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				notifications = append(notifications, notifs...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-
-			return notifications, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListUserNotifications))
+			return out, trace.Wrap(err)
 		},
 		watch: w,
 	}, nil
@@ -95,6 +84,7 @@ func newGlobalNotificationCollection(upstream services.NotificationGetter, w typ
 
 	return &collection[*notificationsv1.GlobalNotification, globalNotificationIndex]{
 		store: newStore(
+			types.KindGlobalNotification,
 			proto.CloneOf[*notificationsv1.GlobalNotification],
 			map[globalNotificationIndex]func(*notificationsv1.GlobalNotification) string{
 				globalNotificationNameIndex: func(r *notificationsv1.GlobalNotification) string {
@@ -102,22 +92,8 @@ func newGlobalNotificationCollection(upstream services.NotificationGetter, w typ
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*notificationsv1.GlobalNotification, error) {
-			var notifications []*notificationsv1.GlobalNotification
-			var startKey string
-			for {
-				notifs, nextKey, err := upstream.ListGlobalNotifications(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				notifications = append(notifications, notifs...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-
-			return notifications, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListGlobalNotifications))
+			return out, trace.Wrap(err)
 		},
 		watch: w,
 	}, nil

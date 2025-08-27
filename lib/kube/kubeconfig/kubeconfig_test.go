@@ -326,7 +326,7 @@ func TestUpdateWithExec(t *testing.T) {
 				LocationOfOrigin: kubeconfigPath,
 				Extensions: map[string]runtime.Object{
 					teleportKubeClusterNameExtension: &runtime.Unknown{
-						Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
+						Raw:         fmt.Appendf(nil, "%q", kubeCluster),
 						ContentType: "application/json",
 					},
 				},
@@ -398,7 +398,7 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		LocationOfOrigin: kubeconfigPath,
 		Extensions: map[string]runtime.Object{
 			teleportKubeClusterNameExtension: &runtime.Unknown{
-				Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
+				Raw:         fmt.Appendf(nil, "%q", kubeCluster),
 				ContentType: "application/json",
 			},
 		},

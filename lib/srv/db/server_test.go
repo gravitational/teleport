@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/endpoints"
@@ -159,7 +158,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		})
 
 		// Connect the maximum allowed number of clients.
-		for i := int64(0); i < connLimit; i++ {
+		for range connLimit {
 			pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
 			require.NoError(t, err)
 
@@ -183,7 +182,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 			}
 		})
 		// Connect the maximum allowed number of clients.
-		for i := int64(0); i < connLimit; i++ {
+		for range connLimit {
 			mysqlConn, err := testCtx.mysqlClient(user, "mysql", dbUser)
 			require.NoError(t, err)
 
@@ -208,7 +207,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		})
 		// Mongo driver behave different from MySQL and Postgres. In this case we just want to hit the limit
 		// by creating some DB connections.
-		for i := int64(0); i < 2*connLimit; i++ {
+		for range 2 * connLimit {
 			mongoConn, err := testCtx.mongoClient(ctx, user, "mongo", dbUser)
 
 			if err == nil {
@@ -261,7 +260,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 
 	// advance clock several times, perform query.
 	// the activity should update the idle activity timer.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		advanceInSteps(testCtx.clock, clientIdleTimeout/2)
 		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
 		require.NoErrorf(t, err, "failed on iteration %v", i+1)
@@ -453,7 +452,6 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -527,7 +525,7 @@ func TestTrackActiveConnections(t *testing.T) {
 
 	// Create a few connections, increasing the active connections. Keep track
 	// of the closer functions, so we can close them later.
-	for i := 0; i < numActiveConnections; i++ {
+	for i := range numActiveConnections {
 		expectedActiveConnections := int32(i + 1)
 		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
 		require.NoError(t, err)
@@ -542,7 +540,7 @@ func TestTrackActiveConnections(t *testing.T) {
 	}
 
 	// For each connection we close, the active connections should drop too.
-	for i := 0; i < numActiveConnections; i++ {
+	for i := range numActiveConnections {
 		expectedActiveConnections := int32(numActiveConnections - (i + 1))
 		require.NoError(t, closeFuncs[i]())
 
@@ -715,6 +713,10 @@ func TestHealthCheck(t *testing.T) {
 		withSnowflake("snowflake")(t, ctx, testCtx),
 	}
 	for _, db := range databases {
+		if db.GetProtocol() == defaults.ProtocolMySQL {
+			require.False(t, endpoints.IsRegistered(db), "health checks for MySQL protocol should be disabled")
+			continue
+		}
 		require.True(t, endpoints.IsRegistered(db), "database %v does not have a registered endpoint resolver", db.GetName())
 	}
 	dynamoListenAddr := net.JoinHostPort("localhost", testCtx.dynamodb["dynamodb"].db.Port())
@@ -755,36 +757,19 @@ func TestHealthCheck(t *testing.T) {
 	for _, db := range databases {
 		t.Run(db.GetName(), func(t *testing.T) {
 			t.Parallel()
-			waitForHealthStatus(t, ctx, db.GetName(), testCtx.authServer, types.TargetHealthStatusHealthy)
+			dbServer, err := testCtx.server.getServerInfo(ctx, db)
+			require.NoError(t, err)
+			if db.GetProtocol() == defaults.ProtocolMySQL {
+				require.Equal(t, "unknown", dbServer.GetTargetHealth().Status)
+				require.Equal(t, "disabled", dbServer.GetTargetHealth().TransitionReason)
+				require.Equal(t, `endpoint health checks for database protocol "mysql" are not supported`, dbServer.GetTargetHealth().Message)
+				return
+			}
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				assert.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
+			}, 30*time.Second, time.Millisecond*250, "waiting for database %s to become healthy", db.GetName())
 		})
 	}
-}
-
-func waitForHealthStatus(t *testing.T, ctx context.Context, name string, serverGetter services.DatabaseServersGetter, want types.TargetHealthStatus) {
-	t.Helper()
-	timeout := 15 * time.Second
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		servers, err := serverGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-		var server types.DatabaseServer
-		for _, s := range servers {
-			if s.GetName() == name {
-				server = s
-				break
-			}
-		}
-		if server == nil {
-			assert.FailNowf(t, "failed to find db_server", "db_server=%s", name)
-			return
-		}
-		health := server.GetTargetHealth()
-		assert.Equal(t, string(want), health.Status)
-	}, timeout, time.Millisecond*250, "waiting for database %s to become healthy", name)
 }
 
 func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {

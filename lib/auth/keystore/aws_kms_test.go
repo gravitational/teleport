@@ -20,10 +20,12 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +33,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi"
+	rgttypes "github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -58,6 +62,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		tags map[string]string
+		env  map[string]string
 	}{
 		{
 			name: "delete keys with default tags",
@@ -74,10 +79,20 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 				"TeleportCluster": "test-cluster-2",
 			},
 		},
+		{
+			name: "delete keys with tagging api lookup",
+			env: map[string]string{
+				"TELEPORT_UNSTABLE_SCOPED_KMS_KEY_DELETION": "yes",
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const pageSize int = 4
 			fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", pageSize)
+			fakeRGT := newFakeAWSRGTService(t, clock, "123456789012", "us-west-2", pageSize, fakeKMS)
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
 			cfg := servicecfg.KeystoreConfig{
 				AWSKMS: &servicecfg.AWSKMSConfig{
 					AWSAccount: "123456789012",
@@ -92,6 +107,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 				HostUUID:             "uuid",
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
 				awsKMSClient:         fakeKMS,
+				awsRGTClient:         fakeRGT,
 				awsSTSClient: &fakeAWSSTSClient{
 					account: "123456789012",
 				},
@@ -111,7 +127,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			}
 
 			totalKeys := pageSize * 3
-			for i := 0; i < totalKeys; i++ {
+			for range totalKeys {
 				_, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 				require.NoError(t, err, trace.DebugReport(err))
 			}
@@ -147,7 +163,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			err = keyStore.DeleteUnusedKeys(ctx, nil /*activeKeys*/)
 			require.NoError(t, err)
 			for _, key := range fakeKMS.keys {
-				if key.arn == otherClusterKeyARN {
+				if key.arn.String() == otherClusterKeyARN {
 					assert.Equal(t, kmstypes.KeyStateEnabled, key.state)
 				} else {
 					assert.Equal(t, kmstypes.KeyStatePendingDeletion, key.state)
@@ -262,6 +278,7 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 		HostUUID:             "uuid",
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
 		awsKMSClient:         fakeKMS,
+		mrkClient:            fakeKMS,
 		awsSTSClient: &fakeAWSSTSClient{
 			account: "123456789012",
 		},
@@ -295,7 +312,7 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 				AWSKMS: &servicecfg.AWSKMSConfig{
 					AWSAccount: "123456789012",
 					AWSRegion:  "us-west-2",
-					MultiRegion: struct{ Enabled bool }{
+					MultiRegion: servicecfg.MultiRegionKeyStore{
 						Enabled: tc.multiRegion,
 					},
 					Tags: tc.tags,
@@ -332,6 +349,65 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 	}
 }
 
+type fakeAWSRGTService struct {
+	kms       *fakeAWSKMSService
+	clock     clockwork.Clock
+	account   string
+	region    string
+	pageLimit int
+}
+
+func newFakeAWSRGTService(t *testing.T, clock clockwork.Clock, account string, region string, pageLimit int, kms *fakeAWSKMSService) *fakeAWSRGTService {
+	return &fakeAWSRGTService{
+		clock:     clock,
+		account:   account,
+		region:    region,
+		pageLimit: pageLimit,
+		kms:       kms,
+	}
+}
+
+func (f *fakeAWSRGTService) GetResources(_ context.Context, input *resourcegroupstaggingapi.GetResourcesInput, _ ...func(*resourcegroupstaggingapi.Options)) (*resourcegroupstaggingapi.GetResourcesOutput, error) {
+	pageLimit := min(int(aws.ToInt32(input.ResourcesPerPage)), f.pageLimit)
+	output := &resourcegroupstaggingapi.GetResourcesOutput{}
+	i := 0
+	if input.PaginationToken != nil && *input.PaginationToken != "" {
+		var err error
+		i, err = strconv.Atoi(aws.ToString(input.PaginationToken))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+keys:
+	for ; i < len(f.kms.keys) && len(output.ResourceTagMappingList) < pageLimit; i++ {
+		for _, t := range input.TagFilters {
+			if !f.kms.keys[i].satisfiesFilter(t) {
+				continue keys
+			}
+		}
+		convertedTags := convertKMSTagsToRGT(f.kms.keys[i].tags)
+		output.ResourceTagMappingList = append(output.ResourceTagMappingList, rgttypes.ResourceTagMapping{
+			ResourceARN: aws.String(f.kms.keys[i].arn.String()),
+			Tags:        convertedTags,
+		})
+	}
+	if i < len(f.kms.keys) {
+		output.PaginationToken = aws.String(strconv.Itoa(i))
+	}
+	return output, nil
+}
+
+func convertKMSTagsToRGT(kmsTags []kmstypes.Tag) []rgttypes.Tag {
+	out := make([]rgttypes.Tag, 0, len(kmsTags))
+	for _, t := range kmsTags {
+		out = append(out, rgttypes.Tag{
+			Key:   t.TagKey,
+			Value: t.TagValue,
+		})
+	}
+	return out
+}
+
 type fakeAWSKMSService struct {
 	keys               []*fakeAWSKMSKey
 	clock              clockwork.Clock
@@ -351,11 +427,42 @@ func newFakeAWSKMSService(t *testing.T, clock clockwork.Clock, account string, r
 }
 
 type fakeAWSKMSKey struct {
-	arn          string
+	arn          arn.ARN
 	privKeyPEM   []byte
+	keyUsage     kmstypes.KeyUsageType
 	tags         []kmstypes.Tag
 	creationDate time.Time
 	state        kmstypes.KeyState
+	region       string
+	replicas     []string
+}
+
+func (f fakeAWSKMSKey) replicaArn(region string) string {
+	arn := f.arn
+	arn.Region = region
+	return arn.String()
+}
+
+func (f fakeAWSKMSKey) hasReplica(region string) bool {
+	return region == f.region || slices.Contains(f.replicas, region)
+}
+
+func (f *fakeAWSKMSKey) satisfiesFilter(filter rgttypes.TagFilter) bool {
+	for _, tag := range f.tags {
+		if aws.ToString(tag.TagKey) != aws.ToString(filter.Key) {
+			continue
+		}
+		if len(filter.Values) == 0 {
+			return true
+		}
+		for _, val := range filter.Values {
+			if aws.ToString(tag.TagValue) == aws.ToString(&val) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInput, _ ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
@@ -379,6 +486,8 @@ func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInp
 	switch input.KeySpec {
 	case kmstypes.KeySpecRsa2048:
 		privKeyPEM = testRSA2048PrivateKeyPEM
+	case kmstypes.KeySpecRsa4096:
+		privKeyPEM = testRSA4096PrivateKeyPEM
 	case kmstypes.KeySpecEccNistP256:
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
@@ -392,10 +501,12 @@ func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInp
 		return nil, trace.BadParameter("unsupported KeySpec %v", input.KeySpec)
 	}
 	f.keys = append(f.keys, &fakeAWSKMSKey{
-		arn:          a.String(),
+		arn:          a,
 		privKeyPEM:   privKeyPEM,
+		keyUsage:     input.KeyUsage,
 		tags:         input.Tags,
 		creationDate: f.clock.Now(),
+		region:       f.region,
 		state:        state,
 	})
 	return &kms.CreateKeyOutput{
@@ -435,6 +546,9 @@ func (f *fakeAWSKMSService) Sign(_ context.Context, input *kms.SignInput, _ ...f
 	if key.state != kmstypes.KeyStateEnabled {
 		return nil, trace.NotFound("key %q is not enabled", aws.ToString(input.KeyId))
 	}
+	if key.keyUsage != kmstypes.KeyUsageTypeSignVerify {
+		return nil, trace.BadParameter("key %q is not a signing key", aws.ToString(input.KeyId))
+	}
 	signer, err := keys.ParsePrivateKey(key.privKeyPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -454,6 +568,39 @@ func (f *fakeAWSKMSService) Sign(_ context.Context, input *kms.SignInput, _ ...f
 	}
 	return &kms.SignOutput{
 		Signature: signature,
+	}, nil
+}
+
+func (f *fakeAWSKMSService) Decrypt(_ context.Context, input *kms.DecryptInput, _ ...func(*kms.Options)) (*kms.DecryptOutput, error) {
+	key, err := f.findKey(aws.ToString(input.KeyId))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if key.state != kmstypes.KeyStateEnabled {
+		return nil, trace.NotFound("key %q is not enabled", aws.ToString(input.KeyId))
+	}
+	if key.keyUsage != kmstypes.KeyUsageTypeEncryptDecrypt {
+		return nil, trace.BadParameter("key %q is not a decryption key", aws.ToString(input.KeyId))
+	}
+	signer, err := keys.ParsePrivateKey(key.privKeyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	decrypter, ok := signer.Signer.(crypto.Decrypter)
+	if !ok {
+		return nil, trace.Errorf("private key is not a decrypter")
+	}
+	switch input.EncryptionAlgorithm {
+	case kmstypes.EncryptionAlgorithmSpecRsaesOaepSha256:
+	default:
+		return nil, trace.BadParameter("unsupported EncryptionAlgorithm %q", input.EncryptionAlgorithm)
+	}
+	plaintext, err := decrypter.Decrypt(rand.Reader, input.CiphertextBlob, &rsa.OAEPOptions{Hash: crypto.SHA256})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &kms.DecryptOutput{
+		Plaintext: plaintext,
 	}, nil
 }
 
@@ -478,8 +625,11 @@ func (f *fakeAWSKMSService) ListKeys(_ context.Context, input *kms.ListKeysInput
 		}
 	}
 	for ; i < len(f.keys) && len(output.Keys) < pageLimit; i++ {
+		if !f.keys[i].hasReplica(f.region) {
+			continue
+		}
 		output.Keys = append(output.Keys, kmstypes.KeyListEntry{
-			KeyArn: aws.String(f.keys[i].arn),
+			KeyArn: aws.String(f.keys[i].arn.String()),
 		})
 	}
 	if i < len(f.keys) {
@@ -504,17 +654,36 @@ func (f *fakeAWSKMSService) DescribeKey(_ context.Context, input *kms.DescribeKe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &kms.DescribeKeyOutput{
+	out := &kms.DescribeKeyOutput{
 		KeyMetadata: &kmstypes.KeyMetadata{
+			KeyId:        aws.String(key.arn.Resource),
+			Arn:          aws.String(key.replicaArn(f.region)),
 			CreationDate: aws.Time(key.creationDate),
 			KeyState:     key.state,
 		},
-	}, nil
+	}
+	if strings.HasPrefix(key.arn.Resource, "mrk-") {
+		out.KeyMetadata.MultiRegionConfiguration = &kmstypes.MultiRegionConfiguration{
+			PrimaryKey: &kmstypes.MultiRegionKey{
+				Arn:    aws.String(key.arn.String()),
+				Region: &key.arn.Region,
+			},
+		}
+		var replicas []kmstypes.MultiRegionKey
+		for _, replica := range key.replicas {
+			replicas = append(replicas, kmstypes.MultiRegionKey{
+				Arn:    aws.String(key.replicaArn(replica)),
+				Region: aws.String(replica),
+			})
+		}
+		out.KeyMetadata.MultiRegionConfiguration.ReplicaKeys = replicas
+	}
+	return out, nil
 }
 
 func (f *fakeAWSKMSService) findKey(arn string) (*fakeAWSKMSKey, error) {
-	i := slices.IndexFunc(f.keys, func(k *fakeAWSKMSKey) bool { return k.arn == arn })
-	if i < 0 {
+	i := slices.IndexFunc(f.keys, func(k *fakeAWSKMSKey) bool { return k.arn.String() == arn || k.arn.Resource == arn })
+	if i < 0 || !f.keys[i].hasReplica(f.region) {
 		return nil, &kmstypes.NotFoundException{
 			Message: aws.String(fmt.Sprintf("key %q not found", arn)),
 		}
@@ -532,6 +701,51 @@ func (f *fakeAWSKMSService) findKey(arn string) (*fakeAWSKMSKey, error) {
 	return key, nil
 }
 
+func (f *fakeAWSKMSService) ReplicateKey(ctx context.Context, in *kms.ReplicateKeyInput, _ ...func(*kms.Options)) (*kms.ReplicateKeyOutput, error) {
+	key, err := f.findKey(*in.KeyId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if key.region != f.region {
+		return nil, &kmstypes.InvalidKeyUsageException{
+			Message: aws.String("must use primary key for key replication"),
+		}
+	}
+	if key.hasReplica(*in.ReplicaRegion) {
+		return nil, &kmstypes.AlreadyExistsException{
+			Message: aws.String(fmt.Sprintf("replicas %s already exists", *in.ReplicaRegion)),
+		}
+	}
+	key.replicas = append(key.replicas, *in.ReplicaRegion)
+	return &kms.ReplicateKeyOutput{
+		ReplicaKeyMetadata: &kmstypes.KeyMetadata{
+			Arn: aws.String(key.replicaArn(*in.ReplicaRegion)),
+		},
+	}, nil
+}
+
+func (f *fakeAWSKMSService) UpdatePrimaryRegion(ctx context.Context, in *kms.UpdatePrimaryRegionInput, _ ...func(*kms.Options)) (*kms.UpdatePrimaryRegionOutput, error) {
+	key, err := f.findKey(*in.KeyId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if key.region != f.region {
+		return nil, &kmstypes.InvalidKeyUsageException{
+			Message: aws.String("must use primary key for updating primary region"),
+		}
+	}
+	i := slices.Index(key.replicas, *in.PrimaryRegion)
+	if i == -1 {
+		return nil, &kmstypes.InvalidKeyUsageException{
+			Message: aws.String("replica does not exist"),
+		}
+	}
+	key.replicas[i] = key.region
+	key.region = *in.PrimaryRegion
+	key.arn.Region = *in.PrimaryRegion
+	return &kms.UpdatePrimaryRegionOutput{}, nil
+}
+
 type fakeAWSSTSClient struct {
 	account, arn, userID string
 }
@@ -541,5 +755,190 @@ func (f *fakeAWSSTSClient) GetCallerIdentity(_ context.Context, _ *sts.GetCaller
 		Account: aws.String(f.account),
 		Arn:     aws.String(f.arn),
 		UserId:  aws.String(f.userID),
+	}, nil
+}
+
+func TestMultiRegionKeyReplication(t *testing.T) {
+	testAccount := "123456789"
+	testPrimary := "us-west-2"
+	testSecondary := "us-east-1"
+	testReplicas := []string{testSecondary, "us-east-2"}
+
+	tests := []struct {
+		name             string
+		config           servicecfg.AWSKMSConfig
+		existingPrimary  string
+		existingReplicas []string
+		expectedReplicas []string
+		expectedPrimary  string
+	}{
+		{
+			name: "backwards compatibility when no primary/replicas are configured",
+			config: servicecfg.AWSKMSConfig{
+				AWSAccount: testAccount,
+				AWSRegion:  testPrimary,
+				MultiRegion: servicecfg.MultiRegionKeyStore{
+					Enabled: true,
+				},
+			},
+			existingReplicas: nil,
+			expectedReplicas: []string{},
+			expectedPrimary:  testPrimary,
+		},
+		{
+			name: "replicas are created when specified from the primary region",
+			config: servicecfg.AWSKMSConfig{
+				AWSAccount: testAccount,
+				AWSRegion:  testPrimary,
+				MultiRegion: servicecfg.MultiRegionKeyStore{
+					Enabled:        true,
+					PrimaryRegion:  testPrimary,
+					ReplicaRegions: testReplicas,
+				},
+			},
+			existingReplicas: nil,
+			expectedReplicas: testReplicas,
+			expectedPrimary:  testPrimary,
+		},
+		{
+			name: "replicas are not created from outside primary region",
+			config: servicecfg.AWSKMSConfig{
+				AWSAccount: testAccount,
+				AWSRegion:  testSecondary,
+				MultiRegion: servicecfg.MultiRegionKeyStore{
+					Enabled:        true,
+					PrimaryRegion:  testPrimary,
+					ReplicaRegions: testReplicas,
+				},
+			},
+			existingReplicas: []string{testSecondary},
+			expectedReplicas: []string{testSecondary},
+			expectedPrimary:  testPrimary,
+		},
+		{
+			name: "primary region is updated from the existing primary region",
+			config: servicecfg.AWSKMSConfig{
+				AWSAccount: testAccount,
+				AWSRegion:  testPrimary,
+				MultiRegion: servicecfg.MultiRegionKeyStore{
+					Enabled:        true,
+					PrimaryRegion:  testSecondary,
+					ReplicaRegions: []string{testPrimary},
+				},
+			},
+			existingPrimary:  testPrimary,
+			existingReplicas: []string{testSecondary},
+			expectedReplicas: []string{testPrimary},
+			expectedPrimary:  testSecondary,
+		},
+		{
+			name: "primary region is not updated from a non-primary region",
+			config: servicecfg.AWSKMSConfig{
+				AWSAccount: testAccount,
+				AWSRegion:  testSecondary,
+				MultiRegion: servicecfg.MultiRegionKeyStore{
+					Enabled:        true,
+					PrimaryRegion:  testSecondary,
+					ReplicaRegions: testReplicas,
+				},
+			},
+			existingPrimary:  testPrimary,
+			existingReplicas: testReplicas,
+			expectedReplicas: testReplicas,
+			expectedPrimary:  testPrimary,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			clock := clockwork.NewFakeClock()
+			fakeKMS := newFakeAWSKMSService(t, clock, testAccount, tc.config.AWSRegion, 1)
+			cluster, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+			require.NoError(t, err)
+			opts := &Options{
+				ClusterName:          cluster,
+				HostUUID:             "uuid",
+				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
+				awsKMSClient:         fakeKMS,
+				mrkClient:            fakeKMS,
+				awsSTSClient: &fakeAWSSTSClient{
+					account: testAccount,
+				},
+				clockworkOverride: clock,
+			}
+
+			existingPrimary := tc.existingPrimary
+			if existingPrimary == "" {
+				existingPrimary = testPrimary
+			}
+			fakeKMS.region = existingPrimary
+			primary, err := NewManager(ctx, &servicecfg.KeystoreConfig{
+				AWSKMS: &servicecfg.AWSKMSConfig{
+					AWSAccount: tc.config.AWSAccount,
+					AWSRegion:  testPrimary,
+					MultiRegion: servicecfg.MultiRegionKeyStore{
+						Enabled:        true,
+						PrimaryRegion:  existingPrimary,
+						ReplicaRegions: tc.existingReplicas,
+					},
+				},
+			}, opts)
+			require.NoError(t, err)
+
+			kp, err := primary.NewTLSKeyPair(ctx, cluster.GetName(), cryptosuites.HostCATLS)
+			require.NoError(t, err, trace.DebugReport(err))
+			key, err := parseAWSKMSKeyID(kp.Key)
+			require.NoError(t, err)
+			require.Equal(t, key.region, existingPrimary)
+			require.Contains(t, key.arn, "mrk-")
+			require.ElementsMatch(t, tc.existingReplicas, fakeKMS.keys[0].replicas)
+
+			fakeKMS.region = tc.config.AWSRegion
+			mgr, err := NewManager(ctx, &servicecfg.KeystoreConfig{
+				AWSKMS: &tc.config,
+			}, opts)
+			require.NoError(t, err)
+
+			id, err := mgr.ApplyMultiRegionConfig(ctx, kp.Key)
+			require.NoError(t, err)
+
+			key, err = parseAWSKMSKeyID(id)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedPrimary, key.region)
+
+			out, err := fakeKMS.DescribeKey(ctx, &kms.DescribeKeyInput{
+				KeyId: &key.id,
+			})
+			require.NoError(t, err)
+
+			mrc := out.KeyMetadata.MultiRegionConfiguration
+			if tc.expectedPrimary != "" {
+				require.Equal(t,
+					tc.expectedPrimary,
+					*mrc.PrimaryKey.Region,
+				)
+			}
+			for _, replica := range tc.expectedReplicas {
+				require.True(t, slices.ContainsFunc(mrc.ReplicaKeys, func(key kmstypes.MultiRegionKey) bool {
+					return *key.Region == replica
+				}), "expected %s found in replicas %v", replica, mrc.ReplicaKeys)
+			}
+			for _, replica := range mrc.ReplicaKeys {
+				require.Contains(t, tc.expectedReplicas, *replica.Region)
+			}
+		})
+	}
+}
+
+type fakeAuthPreferenceGetter struct {
+	suite types.SignatureAlgorithmSuite
+}
+
+func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SignatureAlgorithmSuite: f.suite,
+		},
 	}, nil
 }

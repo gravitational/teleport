@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
@@ -38,6 +40,7 @@ func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (
 
 	return &collection[types.TunnelConnection, tunnelConnectionIndex]{
 		store: newStore(
+			types.KindTunnelConnection,
 			types.TunnelConnection.Clone,
 			map[tunnelConnectionIndex]func(types.TunnelConnection) string{
 				tunnelConnectionNameIndex: func(tc types.TunnelConnection) string {
@@ -125,28 +128,14 @@ func newRemoteClusterCollection(upstream services.Trust, w types.WatchKind) (*co
 
 	return &collection[types.RemoteCluster, remoteClusterIndex]{
 		store: newStore(
+			types.KindRemoteCluster,
 			types.RemoteCluster.Clone,
 			map[remoteClusterIndex]func(types.RemoteCluster) string{
 				remoteClusterNameIndex: types.RemoteCluster.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.RemoteCluster, error) {
-			var out []types.RemoteCluster
-			var startKey string
-
-			for {
-				clusters, next, err := upstream.ListRemoteClusters(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				out = append(out, clusters...)
-				startKey = next
-				if next == "" {
-					break
-				}
-			}
-
-			return out, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListRemoteClusters))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.RemoteCluster {
 			return &types.RemoteClusterV3{

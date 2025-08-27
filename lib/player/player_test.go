@@ -184,7 +184,7 @@ func TestRewind(t *testing.T) {
 	require.NoError(t, p.Play())
 
 	// play through 7 events at regular speed
-	for i := 0; i < 7; i++ {
+	for range 7 {
 		clk.BlockUntil(1)                    // player is now waiting to emit event
 		clk.Advance(1000 * time.Millisecond) // unblock event
 		<-p.C()                              // read event
@@ -327,7 +327,7 @@ func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID sess
 					// to access without a type assertion
 					Code: strconv.FormatInt((i+1)*s.delay, 10),
 				},
-				Data:              []byte(fmt.Sprintf("event %d\n", i)),
+				Data:              fmt.Appendf(nil, "event %d\n", i),
 				ChunkIndex:        i, // TODO(zmb3) deprecate this
 				DelayMilliseconds: (i + 1) * s.delay,
 			}:

@@ -24,6 +24,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -259,8 +260,7 @@ func TestSSHAccessLockTargets(t *testing.T) {
 func TestCreateOrJoinSession(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newMockServer(t)
 	registry, err := NewSessionRegistry(SessionRegistryConfig{
@@ -271,7 +271,7 @@ func TestCreateOrJoinSession(t *testing.T) {
 	require.NoError(t, err)
 
 	runningSessionID := rsession.NewID()
-	sess, _, err := newSession(ctx, runningSessionID, registry, newTestServerContext(t, srv, nil, nil), newMockSSHChannel(), sessionTypeInteractive)
+	sess, _, err := newSession(ctx, runningSessionID, registry, newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{}), newMockSSHChannel(), sessionTypeInteractive)
 	require.NoError(t, err)
 
 	t.Cleanup(sess.Stop)
@@ -281,13 +281,12 @@ func TestCreateOrJoinSession(t *testing.T) {
 	tests := []struct {
 		name              string
 		sessionID         string
+		expectedErr       bool
 		wantSameSessionID bool
 	}{
 		{
-			name:              "no session ID",
-			wantSameSessionID: false,
+			name: "no session ID",
 		},
-		// TODO(capnspacehook): Check that an error is returned in v17
 		{
 			name:              "new session ID",
 			sessionID:         string(rsession.NewID()),
@@ -306,7 +305,6 @@ func TestCreateOrJoinSession(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -326,12 +324,20 @@ func TestCreateOrJoinSession(t *testing.T) {
 			}
 
 			err = scx.CreateOrJoinSession(ctx, registry)
-			require.NoError(t, err)
-			require.False(t, scx.sessionID.IsZero())
-			if tt.wantSameSessionID {
-				require.Equal(t, parsedSessionID.String(), scx.sessionID.String())
+			if tt.expectedErr {
+				require.True(t, trace.IsNotFound(err))
 			} else {
-				require.NotEqual(t, parsedSessionID.String(), scx.sessionID.String())
+				require.NoError(t, err)
+			}
+
+			sessID := scx.GetSessionID()
+			require.False(t, sessID.IsZero())
+			if tt.wantSameSessionID {
+				require.Equal(t, parsedSessionID.String(), sessID.String())
+				require.Equal(t, *parsedSessionID, scx.GetSessionID())
+			} else {
+				require.NotEqual(t, parsedSessionID.String(), sessID.String())
+				require.NotEqual(t, *parsedSessionID, scx.GetSessionID())
 			}
 		})
 	}

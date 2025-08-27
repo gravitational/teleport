@@ -17,7 +17,7 @@
  */
 
 import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
-import { AccessRequest } from 'shared/services/accessRequests';
+import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
 
 import { makeUiAccessRequest } from './useAccessRequests';
 
@@ -89,6 +89,8 @@ test('makeUiAccessRequest', async () => {
       seconds: 1709853650n,
       nanos: 520000000,
     },
+    reasonMode: 'optional',
+    reasonPrompts: [],
   };
 
   const processedRequest: AccessRequest = {
@@ -155,6 +157,10 @@ test('makeUiAccessRequest', async () => {
     user: 'sevy',
     assumeStartTime: new Date('2024-03-07T23:20:50.520Z'),
     assumeStartTimeDuration: 'now',
+    reasonMode: 'optional',
+    reasonPrompts: [],
+    requestKind: RequestKind.Undefined,
+    longTermResourceGrouping: undefined,
   };
 
   expect(makeUiAccessRequest(request)).toStrictEqual(processedRequest);

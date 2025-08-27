@@ -289,7 +289,7 @@ func TestListAccessMonitoringRules(t *testing.T) {
 	require.NoError(t, err)
 
 	var insertedAccessMonitoringRules []*accessmonitoringrulesv1.AccessMonitoringRule
-	for i := 0; i < numAccessMonitoringRules; i++ {
+	for i := range numAccessMonitoringRules {
 		AccessMonitoringRule := &accessmonitoringrulesv1.AccessMonitoringRule{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,

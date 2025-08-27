@@ -44,7 +44,7 @@ import (
 // about current session, e.g. current user
 type RuleContext interface {
 	// GetIdentifier returns identifier defined in a context
-	GetIdentifier(fields []string) (interface{}, error)
+	GetIdentifier(fields []string) (any, error)
 	// GetResource returns resource if specified in the context,
 	// if unspecified, returns error.
 	GetResource() (types.Resource, error)
@@ -61,7 +61,7 @@ var (
 // predicateAllEndWith is a custom function to test if a string ends with a
 // particular suffix. If given a `[]string` as the first argument, all values
 // must have the given suffix (2nd argument).
-func predicateAllEndWith(a interface{}, b interface{}) predicate.BoolPredicate {
+func predicateAllEndWith(a any, b any) predicate.BoolPredicate {
 	return func() bool {
 		// bval is the suffix and must always be a plain string.
 		bval, ok := b.(string)
@@ -88,7 +88,7 @@ func predicateAllEndWith(a interface{}, b interface{}) predicate.BoolPredicate {
 // predicateAllEqual is a custom function to test if all entries in a []string
 // are equal to a certain value. This is primarily useful for comparing string
 // fields that are only expected to contain a single, specific value.
-func predicateAllEqual(a interface{}, b interface{}) predicate.BoolPredicate {
+func predicateAllEqual(a any, b any) predicate.BoolPredicate {
 	return func() bool {
 		// bval is the suffix and must always be a plain string.
 		bval, ok := b.(string)
@@ -115,7 +115,7 @@ func predicateAllEqual(a interface{}, b interface{}) predicate.BoolPredicate {
 // predicateIsSubset determines if the first parameter is contained within the
 // variadic args. The first argument may either by `string` or `[]string`, and
 // the variadic args may only be `string`.
-func predicateIsSubset(a interface{}, b ...interface{}) predicate.BoolPredicate {
+func predicateIsSubset(a any, b ...any) predicate.BoolPredicate {
 	return func() bool {
 		// Populate the set.
 		set := map[string]bool{}
@@ -153,7 +153,7 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 			OR:  predicate.Or,
 			NOT: predicate.Not,
 		},
-		Functions: map[string]interface{}{
+		Functions: map[string]any{
 			"equals":       predicate.Equals,
 			"contains":     predicate.Contains,
 			"all_end_with": predicateAllEndWith,
@@ -162,7 +162,7 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 			// system.catype is a function that returns cert authority type,
 			// it returns empty values for unrecognized values to
 			// pass static rule checks.
-			"system.catype": func() (interface{}, error) {
+			"system.catype": func() (any, error) {
 				resource, err := ctx.GetResource()
 				if err != nil {
 					if trace.IsNotFound(err) {
@@ -176,7 +176,7 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 				}
 				return string(ca.GetType()), nil
 			},
-			"has_prefix": func(a, b interface{}) predicate.BoolPredicate {
+			"has_prefix": func(a, b any) predicate.BoolPredicate {
 				return func() bool {
 					aval, ok := a.(string)
 					if !ok {
@@ -199,7 +199,7 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 // from map[string]string or map[string][]string
 // the function returns empty value in case if key not found
 // In case if map is nil, returns empty value as well
-func GetStringMapValue(mapVal, keyVal interface{}) (interface{}, error) {
+func GetStringMapValue(mapVal, keyVal any) (any, error) {
 	key, ok := keyVal.(string)
 	if !ok {
 		return nil, trace.BadParameter("only string keys are supported")
@@ -234,7 +234,7 @@ func GetStringMapValue(mapVal, keyVal interface{}) (interface{}, error) {
 func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
 	return predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{},
-		Functions: map[string]interface{}{
+		Functions: map[string]any{
 			"log": NewLogActionFn(ctx),
 		},
 		GetIdentifier: ctx.GetIdentifier,
@@ -243,7 +243,7 @@ func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
 }
 
 // NewLogActionFn creates logger functions
-func NewLogActionFn(ctx RuleContext) interface{} {
+func NewLogActionFn(ctx RuleContext) any {
 	l := &LogAction{ctx: ctx}
 
 	return l.Log
@@ -317,8 +317,6 @@ const (
 	ResourceIdentifier = "resource"
 	// ResourceLabelsIdentifier refers to the static and dynamic labels in a resource.
 	ResourceLabelsIdentifier = "labels"
-	// ResourceHealthIdentifier refers to the resource's endpoint target health.
-	ResourceHealthIdentifier = "health"
 	// ResourceNameIdentifier refers to two different fields depending on the kind of resource:
 	//   - KindNode will refer to its resource.spec.hostname field
 	//   - All other kinds will refer to its resource.metadata.name field
@@ -357,7 +355,7 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 }
 
 // GetIdentifier returns identifier defined in a context
-func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
+func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	switch fields[0] {
 	case UserIdentifier:
 		var user UserState
@@ -637,8 +635,8 @@ func (r *EmptyResource) CheckAndSetDefaults() error { return nil }
 // `contains(session.participants, "user")`. With another RuleContext the
 // largest such subcondition is the empty expression.
 func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (predicate.Parser, error) {
-	binaryPred := func(predFn func(a, b interface{}) predicate.BoolPredicate, exprFn func(a, b types.WhereExpr) types.WhereExpr) func(a, b interface{}) types.WhereExpr {
-		return func(a, b interface{}) types.WhereExpr {
+	binaryPred := func(predFn func(a, b any) predicate.BoolPredicate, exprFn func(a, b types.WhereExpr) types.WhereExpr) func(a, b any) types.WhereExpr {
+		return func(a, b any) types.WhereExpr {
 			an, aOK := a.(types.WhereExpr)
 			if !aOK {
 				an = types.WhereExpr{Literal: a}
@@ -694,7 +692,7 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 				return types.WhereExpr{Not: &expr}
 			},
 		},
-		Functions: map[string]interface{}{
+		Functions: map[string]any{
 			"equals": binaryPred(predicate.Equals, func(a, b types.WhereExpr) types.WhereExpr {
 				return types.WhereExpr{Equals: types.WhereExpr2{L: &a, R: &b}}
 			}),
@@ -702,7 +700,7 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 				return types.WhereExpr{Contains: types.WhereExpr2{L: &a, R: &b}}
 			}),
 		},
-		GetIdentifier: func(fields []string) (interface{}, error) {
+		GetIdentifier: func(fields []string) (any, error) {
 			if fields[0] == identifier {
 				// TODO: Session events have only one level of attributes. Support for
 				// more nested levels may be added when needed for other objects.
@@ -714,7 +712,7 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			lit, err := ctx.GetIdentifier(fields)
 			return types.WhereExpr{Literal: lit}, trace.Wrap(err)
 		},
-		GetProperty: func(mapVal, keyVal interface{}) (interface{}, error) {
+		GetProperty: func(mapVal, keyVal any) (any, error) {
 			mapExpr, mapOK := mapVal.(types.WhereExpr)
 			if !mapOK {
 				mapExpr = types.WhereExpr{Literal: mapVal}
@@ -765,6 +763,12 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 
 				return r.GetName(), nil
 			}),
+			"health.status": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
+				if r, ok := r.(types.TargetHealthStatusGetter); ok {
+					return string(r.GetTargetHealthStatus()), nil
+				}
+				return "", nil
+			}),
 		},
 		Functions: map[string]typical.Function{
 			"hasPrefix": typical.BinaryFunction[types.ResourceWithLabels](func(s, suffix string) (bool, error) {
@@ -787,17 +791,8 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 			}),
 		},
 		GetUnknownIdentifier: func(env types.ResourceWithLabels, fields []string) (any, error) {
-			switch fields[0] {
-			case ResourceIdentifier:
+			if fields[0] == ResourceIdentifier {
 				if f, err := predicate.GetFieldByTag(env, teleport.JSON, fields[1:]); err == nil {
-					return f, nil
-				}
-			case ResourceHealthIdentifier:
-				var resourceHealth types.TargetHealth
-				if h, ok := env.(types.TargetHealthGetter); ok {
-					resourceHealth = h.GetTargetHealth()
-				}
-				if f, err := predicate.GetFieldByTag(resourceHealth, teleport.JSON, fields[1:]); err == nil {
 					return f, nil
 				}
 			}

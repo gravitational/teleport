@@ -36,6 +36,7 @@ func newPluginStaticCredentialsCollection(upstream services.PluginStaticCredenti
 
 	return &collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]{
 		store: newStore(
+			types.KindPluginStaticCredentials,
 			types.PluginStaticCredentials.Clone,
 			map[pluginStaticCredentialsIndex]func(types.PluginStaticCredentials) string{
 				pluginStaticCredentialsNameIndex: types.PluginStaticCredentials.GetName,

@@ -127,7 +127,7 @@ func (e *Engine) handleClientServerConn(ctx context.Context, clientConn *protoco
 	}()
 
 	var errs []error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())

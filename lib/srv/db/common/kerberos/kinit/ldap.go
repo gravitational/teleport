@@ -20,164 +20,132 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 	"time"
 
-	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
-type ldapConfig struct {
-	Address string
+type ldapConnectionConfig struct {
+	address string
 
-	TLSServerName string
-	TLSCACert     *x509.Certificate
+	tlsServerName string
+	tlsCACert     *x509.Certificate
 
-	Domain            string
-	ServiceAccount    string
-	ServiceAccountSID string
-}
-
-type ldapConnectorConfig struct {
-	logger     *slog.Logger
-	authClient windows.AuthInterface
-
-	ldapConfig  ldapConfig
-	clusterName string
+	domain            string
+	serviceAccount    string
+	serviceAccountSID string
 }
 
 type ldapConnector struct {
-	ldapConnectorConfig
+	logger     *slog.Logger
+	authClient winpki.AuthInterface
 
-	dialLDAPServerFunc func(ctx context.Context) (ldap.Client, error) // only used in tests.
+	ldapConfig ldapConnectionConfig
 }
 
-func newLDAPConnector(cfg ldapConnectorConfig) *ldapConnector {
-	if cfg.logger == nil {
-		cfg.logger = slog.Default()
-	}
-
-	cfg.logger = cfg.logger.With("domain", cfg.ldapConfig.Domain, "service_account", cfg.ldapConfig.ServiceAccount)
-
-	conn := &ldapConnector{
-		ldapConnectorConfig: cfg,
-	}
-	return conn
+type LDAPConnector interface {
+	GetActiveDirectorySID(ctx context.Context, username string) (sid string, err error)
 }
 
-const (
-	// ldapDialTimeout is the timeout for dialing the LDAP server
-	// when making an initial connection
-	ldapDialTimeout = 15 * time.Second
-	// ldapRequestTimeout is the timeout for making LDAP requests.
-	// It is larger than the dial timeout because LDAP queries in large
-	// Active Directory environments may take longer to complete.
-	ldapRequestTimeout = 45 * time.Second
-
-	// attrSAMAccountName is the SAM Account name of an LDAP object.
-	attrSAMAccountName = "sAMAccountName"
-	// attrSAMAccountType is the SAM Account type for an LDAP object.
-	attrSAMAccountType = "sAMAccountType"
-	// AccountTypeUser is the SAM account type for user accounts.
-	// See https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype
-	// (SAM_USER_OBJECT)
-	AccountTypeUser = "805306368"
-)
-
-func (s *ldapConnector) dialLDAPServer(ctx context.Context) (ldap.Client, error) {
-	if s.dialLDAPServerFunc != nil {
-		return s.dialLDAPServerFunc(ctx)
+func newLDAPConnector(logger *slog.Logger, authClient winpki.AuthInterface, adConfig types.AD) (*ldapConnector, error) {
+	if authClient == nil {
+		return nil, trace.BadParameter("auth client is missing")
+	}
+	if adConfig.LDAPServiceAccountName == "" {
+		return nil, trace.BadParameter("missing LDAP service account name")
+	}
+	if adConfig.LDAPServiceAccountSID == "" {
+		return nil, trace.BadParameter("missing LDAP service account SID")
+	}
+	if adConfig.Domain == "" {
+		return nil, trace.BadParameter("missing AD domain")
+	}
+	if adConfig.KDCHostName == "" {
+		return nil, trace.BadParameter("missing KDC host name / LDAP address")
 	}
 
-	tc, err := s.tlsConfigForLDAP(ctx)
+	ldapCert, err := tlsca.ParseCertificatePEM([]byte(adConfig.LDAPCert))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "cannot find valid LDAP certificate block in AD configuration")
 	}
 
-	ldapURL := "ldaps://" + s.ldapConfig.Address
-	s.logger.DebugContext(ctx, "Dialing LDAP server", "url", ldapURL)
-
-	conn, err := ldap.DialURL(
-		ldapURL,
-		ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
-		ldap.DialWithTLSConfig(tc),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	cfg := ldapConnectionConfig{
+		address:           adConfig.KDCHostName,
+		tlsServerName:     adConfig.KDCHostName,
+		domain:            adConfig.Domain,
+		serviceAccount:    adConfig.LDAPServiceAccountName,
+		serviceAccountSID: adConfig.LDAPServiceAccountSID,
+		tlsCACert:         ldapCert,
 	}
-	conn.SetTimeout(ldapRequestTimeout)
 
-	return conn, nil
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger = logger.With("domain", cfg.domain, "service_account", cfg.serviceAccount)
+
+	return &ldapConnector{
+		logger:     logger,
+		authClient: authClient,
+		ldapConfig: cfg,
+	}, nil
 }
 
 // GetActiveDirectorySID queries LDAP to get SID of a given username.
 func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username string) (sid string, err error) {
-	var activeDirectorySID string
-	// Find the user's SID
-	filter := windows.CombineLDAPFilters([]string{
-		fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
-		fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
-	})
-
-	domainDN := windows.DomainDN(s.ldapConfig.Domain)
-
-	s.logger.DebugContext(ctx, "Querying LDAP for objectSid of Windows user", "username", username, "filter", filter, "domain", domainDN)
-
-	ldapConn, err := s.dialLDAPServer(ctx)
+	clusterName, err := s.authClient.GetClusterName(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	lc := windows.NewLDAPClient(ldapConn)
+	tc, err := s.tlsConfigForLDAP(ctx, clusterName.GetClusterName())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 
-	entries, err := lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+	s.logger.DebugContext(ctx, "Querying LDAP for objectSid of Windows user", "username", username)
+	client, err := winpki.DialLDAP(ctx, &winpki.LDAPConfig{
+		Addr:   s.ldapConfig.address,
+		Domain: s.ldapConfig.domain,
+		Logger: s.logger,
+	}, tc)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if len(entries) == 0 {
-		return "", trace.NotFound("could not find Windows account %q", username)
-	} else if len(entries) > 1 {
-		s.logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
-	}
-	activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	s.logger.DebugContext(ctx, "Found objectSid Windows user", "username", username, "sid", activeDirectorySID)
-	return activeDirectorySID, nil
+
+	defer client.Close()
+
+	return client.GetActiveDirectorySID(ctx, username)
 }
 
-func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context) (*tls.Config, error) {
+func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string) (*tls.Config, error) {
 	// trim NETBIOS name from username
-	user := s.ldapConfig.ServiceAccount
-	if i := strings.LastIndex(s.ldapConfig.ServiceAccount, `\`); i != -1 {
+	user := s.ldapConfig.serviceAccount
+	if i := strings.LastIndex(s.ldapConfig.serviceAccount, `\`); i != -1 {
 		user = user[i+1:]
 	}
 
-	s.logger.DebugContext(ctx, "Requesting certificate for LDAP access", "user", user, "sid", s.ldapConfig.ServiceAccountSID, "domain", s.ldapConfig.Domain)
+	s.logger.DebugContext(ctx, "Requesting certificate for LDAP access", "user", user, "sid", s.ldapConfig.serviceAccountSID, "domain", s.ldapConfig.domain)
 
-	if s.ldapConfig.ServiceAccountSID == "" {
+	if s.ldapConfig.serviceAccountSID == "" {
 		s.logger.WarnContext(ctx, "LDAP configuration is missing service account SID; querying LDAP may fail.")
 	}
 
-	req := &windows.GenerateCredentialsRequest{
+	req := &winpki.GenerateCredentialsRequest{
 		Username:           user,
 		CAType:             types.DatabaseClientCA,
 		TTL:                time.Hour,
-		ClusterName:        s.clusterName,
-		AuthClient:         s.authClient,
-		Domain:             s.ldapConfig.Domain,
-		ActiveDirectorySID: s.ldapConfig.ServiceAccountSID,
-		OmitCDP:            true,
+		ClusterName:        clusterName,
+		Domain:             s.ldapConfig.domain,
+		ActiveDirectorySID: s.ldapConfig.serviceAccountSID,
 	}
 
-	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, req)
+	certPEM, keyPEM, caCerts, err := winpki.DatabaseCredentials(ctx, s.authClient, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -191,11 +159,11 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context) (*tls.Config, erro
 
 	tc := &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		ServerName:   s.ldapConfig.TLSServerName,
+		ServerName:   s.ldapConfig.tlsServerName,
 	}
-	if s.ldapConfig.TLSCACert != nil {
+	if s.ldapConfig.tlsCACert != nil {
 		pool := x509.NewCertPool()
-		pool.AddCert(s.ldapConfig.TLSCACert)
+		pool.AddCert(s.ldapConfig.tlsCACert)
 		tc.RootCAs = pool
 	}
 

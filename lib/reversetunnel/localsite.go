@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -47,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/srv/git"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
@@ -302,7 +301,7 @@ func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialPa
 func (s *localSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, error) {
 	ctx := s.srv.ctx
 	logger := s.logger.With("dial_params", logutils.StringerAttr(params))
-	logger.DebugContext(ctx, "Initiating dia request")
+	logger.DebugContext(ctx, "Initiating dial request")
 
 	conn, useTunnel, err := s.getConn(params)
 	if err != nil {
@@ -413,7 +412,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	)
 
 	// request user agent connection if a SSH user agent is set
-	var userAgent teleagent.Agent
+	var userAgent sshagent.Client
 	if params.GetUserAgent != nil {
 		ua, err := params.GetUserAgent()
 		if err != nil {
@@ -472,6 +471,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		TargetHostname:           params.Address,
 		TargetServer:             params.TargetServer,
 		Clock:                    s.clock,
+		EICESigner:               s.srv.EICESigner,
 	}
 	// Ensure the hostname is set correctly if we have details of the target
 	if params.TargetServer != nil {
@@ -596,61 +596,33 @@ func stringOrEmpty(addr net.Addr) string {
 	return addr.String()
 }
 
-func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetServer types.Server) (*awsoidc.OpenTunnelEC2Response, error) {
-	awsInfo := targetServer.GetAWSInfo()
-	if awsInfo == nil {
-		return nil, trace.BadParameter("missing aws cloud metadata")
-	}
-
-	token, err := s.client.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
-	if err != nil {
-		return nil, trace.BadParameter("failed to generate aws token: %v", err)
-	}
-
-	integration, err := s.client.GetIntegration(ctx, awsInfo.Integration)
-	if err != nil {
-		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
-	}
-
-	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
-	}
-
-	openTunnelClt, err := awsoidc.NewOpenTunnelEC2Client(ctx, &awsoidc.AWSClientRequest{
-		Token:   token,
-		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:  awsInfo.Region,
-	})
-	if err != nil {
-		return nil, trace.BadParameter("failed to create the ec2 open tunnel client: %v", err)
-	}
-
-	openTunnelResp, err := awsoidc.OpenTunnelEC2(ctx, openTunnelClt, awsoidc.OpenTunnelEC2Request{
-		Region:        awsInfo.Region,
-		VPCID:         awsInfo.VPCID,
-		EC2InstanceID: awsInfo.InstanceID,
-		EC2Address:    targetServer.GetAddr(),
-	})
-	if err != nil {
-		return nil, trace.BadParameter("failed to open AWS EC2 Instance Connect Endpoint tunnel: %v", err)
-	}
-
-	// OpenTunnelResp has the tcp connection that should be used to access the EC2 instance directly.
-	return openTunnelResp, nil
-}
-
 func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Conn, useTunnel bool, err error) {
 	dialStart := s.srv.Clock.Now()
 
 	// Creates a connection to the target EC2 instance using its private IP.
 	// This relies on EC2 Instance Connect Endpoint service.
 	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-		eiceTunnelConn, err := s.setupTunnelForOpenSSHEICENode(s.srv.Context, params.TargetServer)
-		if err != nil {
-			return nil, false, trace.Wrap(err)
+		awsInfo := params.TargetServer.GetAWSInfo()
+		if awsInfo == nil {
+			return nil, false, trace.BadParameter("missing aws cloud metadata")
 		}
 
-		return newMetricConn(eiceTunnelConn.Tunnel, dialTypeDirect, dialStart, s.srv.Clock), false, nil
+		token, err := s.client.GenerateAWSOIDCToken(s.srv.ctx, awsInfo.Integration)
+		if err != nil {
+			return nil, false, trace.BadParameter("failed to generate aws token: %v", err)
+		}
+
+		integration, err := s.client.GetIntegration(s.srv.ctx, awsInfo.Integration)
+		if err != nil {
+			return nil, false, trace.BadParameter("failed to fetch integration details: %v", err)
+		}
+
+		conn, err := s.srv.EICEDialer(s.srv.ctx, params.TargetServer, integration, token)
+		if err != nil {
+			return nil, false, trace.Wrap(err, "failed dialing instance")
+		}
+
+		return newMetricConn(conn, dialTypeDirect, dialStart, s.srv.Clock), false, nil
 	}
 
 	dreq := &sshutils.DialReq{
@@ -1056,10 +1028,7 @@ func (s *localSite) sshTunnelStats() error {
 	if len(missing) > 0 {
 		// Don't show all the missing nodes, thousands could be missing, just show
 		// the first 10.
-		n := len(missing)
-		if n > 10 {
-			n = 10
-		}
+		n := min(len(missing), 10)
 		s.logger.DebugContext(s.srv.ctx, "Cluster is missing some tunnels. A small number of missing tunnels is normal, for example, a node could have just been shut down, the proxy restarted, etc. However, if this error persists with an elevated number of missing tunnels, it often indicates nodes can not discover all registered proxies. Check that all of your proxies are behind a load balancer and the load balancer is using a round robin strategy",
 			"cluster", s.domainName,
 			"missing_count", len(missing),

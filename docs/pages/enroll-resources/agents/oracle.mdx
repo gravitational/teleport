@@ -1,18 +1,27 @@
 ---
 title: Join Services with Oracle Cloud
 description: Use the Oracle join method to add services to your Teleport cluster.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 This guide will explain how to use the **Oracle join method** to configure
 Teleport processes to join your Teleport cluster without sharing any secrets
 when they are running in an Oracle Cloud Infrastructure (OCI) Compute instance.
 
+## How it works
+
 The Oracle join method is available to any Teleport process running on an
 OCI Compute instance.
 
+Under the hood, services prove that they are running in your OCI tenant by
+sending a presigned self-authentication request to the OCI API for the Auth
+Service to execute.
+
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx version="17.3.0"!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v17.3.0 or higher)"!)
 
 - An OCI Compute instance to host a Teleport service.
 - (!docs/pages/includes/tctl.mdx!)
@@ -21,10 +30,6 @@ OCI Compute instance.
 
 Configure your Teleport Auth Service with a special dynamic token which will
 allow services from your OCI tenants to join your Teleport cluster.
-
-Under the hood, services will prove that they are running in your OCI
-tenant by sending a presigned self-authentication request to the OCI API
-for the Auth Service to execute.
 
 Create the following `token.yaml` file with an `oracle.allow` rule specifying
 the Oracle tenant(s), compartment(s), and region(s) in which your OCI
@@ -47,7 +52,7 @@ Oracle Cloud API so the presigned request can succeed.
 
 In the OCI console, navigate to
 [Identity/Domains](https://cloud.oracle.com/identity/domains).
-Select your domain, then select **Dynamic groups**. Click **Create dynamic
+Select the currently active domain, then select **Dynamic groups**. Click **Create dynamic
 group**. Create a group with the following matching rule, assigning 
 <Var name="compartment-id" /> to the OCID of the compartment your instance is
 in:
@@ -116,3 +121,11 @@ proxy_service:
 
 Once you have started Teleport, confirm that your service is able to connect to
 and join your cluster.
+
+## Troubleshooting
+
+### Join fails with error `oci api error: Not Found`
+
+This error likely means that the instance does not have the required permissions.
+Check if the identity domain you created the dynamic group in has the Compute
+service active; if it doesn't, try creating the group in a domain that does.

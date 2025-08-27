@@ -325,6 +325,7 @@ export enum CtaEvent {
   CTA_OKTA_USER_SYNC = 11,
   CTA_ENTRA_ID = 12,
   CTA_OKTA_SCIM = 13,
+  CTA_IDENTITY_SECURITY = 14,
 }
 
 export type CtaEventRequest = UserEventWithData<

@@ -521,7 +521,7 @@ func (a *App) sendResolution(ctx context.Context, reqID string, resolution Resol
 // Indeed, this limitation is not that ultimate at least if you know what you're doing.
 func (a *App) modifyPluginData(ctx context.Context, reqID string, fn func(data *PluginData) (PluginData, bool)) (bool, error) {
 	var lastErr error
-	for i := 0; i < maxModifyPluginDataTries; i++ {
+	for range maxModifyPluginDataTries {
 		oldData, err := a.getPluginData(ctx, reqID)
 		if err != nil && !trace.IsNotFound(err) {
 			return false, trace.Wrap(err)

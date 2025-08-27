@@ -42,8 +42,7 @@ import (
 
 func TestUpdateCertAuthorityCondActs(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// setup closure creates our initial state and returns its components
 	setup := func(active bool) (types.TrustedCluster, types.CertAuthority, *CA) {
@@ -445,7 +444,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	require.Empty(t, rcs)
 
 	// Create a few remote clusters
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		rc, err := types.NewRemoteCluster(fmt.Sprintf("rc-%d", i))
 		require.NoError(t, err)
 		_, err = trustService.CreateRemoteCluster(ctx, rc)
@@ -462,7 +461,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	// behaves correctly.
 	rcs = []types.RemoteCluster{}
 	pageToken = ""
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		var got []types.RemoteCluster
 		got, pageToken, err = trustService.ListRemoteClusters(ctx, 1, pageToken)
 		require.NoError(t, err)

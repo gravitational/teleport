@@ -83,10 +83,11 @@ export function DocumentDesktopSession(props: {
             logger
           );
         },
-        makeTshdFileSystem(appCtx.mainProcessClient, {
-          desktopUri,
-          login,
-        })
+        () =>
+          shareDirectoryInTshd(appCtx.mainProcessClient, {
+            desktopUri,
+            login,
+          })
       )
   );
 
@@ -130,6 +131,7 @@ export function DocumentDesktopSession(props: {
         client={client}
         username={login}
         aclAttempt={acl}
+        browserSupportsSharing
       />
     );
   }
@@ -176,7 +178,7 @@ async function adaptGRPCStreamToTdpTransport(
 }
 
 /**
- * The tshd daemon is responsible for handling directory sharing.
+ * Opens a directory picker and then shares the selected directory using tsh daemon.
  *
  * The process begins when the Electron main process opens a directory picker.
  * Once a path is selected, it is passed to tshd via the SetSharedDirectoryForDesktopSession API.
@@ -188,19 +190,16 @@ async function adaptGRPCStreamToTdpTransport(
  * This message is safe to send from the renderer because it only provides
  * a display name for the mounted drive on the remote machine and has no effect on local file system operations.
  */
-function makeTshdFileSystem(
+async function shareDirectoryInTshd(
   mainProcessClient: MainProcessClient,
   target: {
     desktopUri: string;
     login: string;
   }
-): SharedDirectoryAccess {
-  let directoryName = '';
+): Promise<SharedDirectoryAccess> {
+  const directoryName =
+    await mainProcessClient.selectDirectoryForDesktopSession(target);
   return {
-    selectDirectory: async () => {
-      directoryName =
-        await mainProcessClient.selectDirectoryForDesktopSession(target);
-    },
     getDirectoryName: () => directoryName,
     // These functions are unimplemented because all file system operations
     // are handled exclusively by the tsh daemon.

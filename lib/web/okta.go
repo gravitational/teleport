@@ -27,6 +27,6 @@ import (
 // jwksOkta returns public keys used to verify JWT tokens signed for use with Okta API Service App
 // machine-to-machine authentication.
 // https://developer.okta.com/docs/guides/implement-oauth-for-okta-serviceapp/main/
-func (h *Handler) jwksOkta(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+func (h *Handler) jwksOkta(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
 	return h.jwks(r.Context(), types.OktaCA, false /* includeBlankKeyID */)
 }

@@ -40,7 +40,7 @@ func TestMultiIntervalReset(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -58,7 +58,7 @@ func TestMultiIntervalReset(t *testing.T) {
 
 			start := time.Now()
 
-			for i := 0; i < 6; i++ {
+			for range 6 {
 				select {
 				case <-interval.Next():
 					failure.Add(1)
@@ -114,7 +114,7 @@ func TestMultiIntervalBasics(t *testing.T) {
 
 	var fast, slow, once int
 	var prevT time.Time
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		require.False(t, tick.Time.IsZero())
 		require.True(t, tick.Time.After(prevT) || tick.Time.Equal(prevT))
@@ -169,7 +169,7 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 
 	var fooct, barct int
 	var prevT time.Time
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		require.False(t, tick.Time.IsZero())
 		require.True(t, tick.Time.After(prevT) || tick.Time.Equal(prevT))
@@ -197,7 +197,7 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 
 	fooct = 0
 	barct = 0
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		switch tick.Key {
 		case "foo":
@@ -230,7 +230,7 @@ func TestMultiIntervalPush(t *testing.T) {
 	defer interval.Stop()
 
 	// verify that single-interval is working
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		tick := <-interval.Next()
 		require.Equal(t, "foo", tick.Key)
 	}
@@ -243,7 +243,7 @@ func TestMultiIntervalPush(t *testing.T) {
 
 	// aggregate rates of both sub-intervals
 	var foo, bar int
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		switch tick.Key {
 		case "foo":
@@ -272,7 +272,7 @@ func TestMultiIntervalPush(t *testing.T) {
 	// aggregate new rates for both sub-intervals
 	foo = 0
 	bar = 0
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		switch tick.Key {
 		case "foo":
@@ -308,7 +308,7 @@ func TestMultiIntervalFireNow(t *testing.T) {
 	defer interval.Stop()
 
 	// verify that only the 'fast' interval is firing
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tick := <-interval.Next()
 		require.Equal(t, "fast", tick.Key)
 	}
@@ -318,7 +318,7 @@ func TestMultiIntervalFireNow(t *testing.T) {
 
 	// make sure that we observe slow interval firing
 	var seenSlow bool
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		if tick.Key == "slow" {
 			seenSlow = true

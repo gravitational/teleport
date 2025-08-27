@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -706,9 +706,9 @@ func (s *SessionRegistry) broadcastResult(sid rsession.ID, r ExecResult) error {
 // in order to start and join sessions.
 type SessionAccessEvaluator interface {
 	IsModerated() bool
-	FulfilledFor(participants []auth.SessionAccessContext) (bool, auth.PolicyOptions, error)
+	FulfilledFor(participants []moderation.SessionAccessContext) (bool, moderation.PolicyOptions, error)
 	PrettyRequirementsList() string
-	CanJoin(user auth.SessionAccessContext) []types.SessionParticipantMode
+	CanJoin(user moderation.SessionAccessContext) []types.SessionParticipantMode
 }
 
 // session struct describes an active (in progress) SSH session. These sessions
@@ -804,6 +804,16 @@ const (
 
 // newSession creates a new session with a given ID within a given context.
 func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *ServerContext, ch ssh.Channel, sessType sessionType) (*session, *party, error) {
+	var sessionRecordingMode constants.SessionRecordingMode
+	switch {
+	case scx.Identity.AccessPermit != nil:
+		sessionRecordingMode = constants.SessionRecordingMode(scx.Identity.AccessPermit.SessionRecordingMode)
+	case scx.Identity.ProxyingPermit != nil:
+		sessionRecordingMode = scx.Identity.ProxyingPermit.SessionRecordingMode
+	default:
+		return nil, nil, trace.BadParameter("session creation only supported in context of ssh access or proxying permit")
+	}
+
 	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
@@ -834,7 +844,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	}
 
 	policySets := scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
-	access := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
+	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		logger: slog.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, r.Srv.Component()),
@@ -859,7 +869,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		serverMeta:                     scx.srv.TargetMetadata(),
 	}
 
-	sess.io.OnWriteError = sess.onWriteError
+	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
 
 	go func() {
 		if _, open := <-sess.io.TerminateNotifier(); open {
@@ -1009,14 +1019,14 @@ func (s *session) Close() error {
 	return nil
 }
 
-func (s *session) BroadcastMessage(format string, args ...interface{}) {
+func (s *session) BroadcastMessage(format string, args ...any) {
 	if s.access.IsModerated() && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
 		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 }
 
 // BroadcastSystemMessage sends a message to all parties.
-func (s *session) BroadcastSystemMessage(format string, args ...interface{}) {
+func (s *session) BroadcastSystemMessage(format string, args ...any) {
 	s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 }
 
@@ -1041,7 +1051,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			Protocol:   events.EventProtocolSSH,
 		},
-		SessionRecording: s.sessionRecordingMode(),
+		SessionRecording: s.sessionRecordingLocation(),
 		InitialCommand:   initialCommand,
 		Reason:           s.scx.env[teleport.EnvSSHSessionReason],
 	}
@@ -1213,7 +1223,7 @@ func (s *session) emitSessionEndEvent() {
 		Interactive:       s.term != nil,
 		StartTime:         start,
 		EndTime:           end,
-		SessionRecording:  s.sessionRecordingMode(),
+		SessionRecording:  s.sessionRecordingLocation(),
 	}
 
 	for _, p := range s.participants {
@@ -1239,7 +1249,7 @@ func (s *session) emitSessionEndEvent() {
 	}
 }
 
-func (s *session) sessionRecordingMode() string {
+func (s *session) sessionRecordingLocation() string {
 	sessionRecMode := s.scx.SessionRecordingConfig.GetMode()
 	subKind := s.serverMeta.ServerSubKind
 
@@ -1513,6 +1523,19 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 // newRecorder creates a new [events.SessionPreparerRecorder] to be used as the recorder
 // of the passed in session.
 func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder, error) {
+	// determine session recording mode. in theory we could choose to only do this in the unhappy
+	// path since thats the only place we use it, but we do it here to ensure that any test coverage
+	// we have for this code will always enforce its permit requirements.
+	var sessionRecordingMode constants.SessionRecordingMode
+	switch {
+	case ctx.Identity.AccessPermit != nil:
+		sessionRecordingMode = constants.SessionRecordingMode(ctx.Identity.AccessPermit.SessionRecordingMode)
+	case ctx.Identity.ProxyingPermit != nil:
+		sessionRecordingMode = ctx.Identity.ProxyingPermit.SessionRecordingMode
+	default:
+		return nil, trace.BadParameter("session recorder creation only supported in context of ssh access or proxying permit")
+	}
+
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
@@ -1540,7 +1563,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 		Context: ctx.srv.Context(),
 	})
 	if err != nil {
-		switch constants.SessionRecordingMode(ctx.Identity.AccessPermit.SessionRecordingMode) {
+		switch sessionRecordingMode {
 		case constants.SessionRecordingModeBestEffort:
 			s.logger.WarnContext(
 				s.serverCtx, "Failed to initialize session recording, disabling it for this session.",
@@ -1829,14 +1852,14 @@ type FileTransferRequest struct {
 }
 
 func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, error) {
-	var participants []auth.SessionAccessContext
+	var participants []moderation.SessionAccessContext
 
 	for _, party := range req.approvers {
 		if party.ctx.Identity.TeleportUser == s.initiator {
 			continue
 		}
 
-		participants = append(participants, auth.SessionAccessContext{
+		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
 			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
 			Mode:     party.mode,
@@ -2012,15 +2035,15 @@ func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionP
 // checkIfStartUnderLock determines if any moderation policies associated with
 // the session are satisfied.
 // Must be called under session Lock.
-func (s *session) checkIfStartUnderLock() (bool, auth.PolicyOptions, error) {
-	var participants []auth.SessionAccessContext
+func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error) {
+	var participants []moderation.SessionAccessContext
 
 	for _, party := range s.parties {
 		if party.ctx.Identity.TeleportUser == s.initiator {
 			continue
 		}
 
-		participants = append(participants, auth.SessionAccessContext{
+		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
 			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
 			Mode:     party.mode,
@@ -2029,7 +2052,7 @@ func (s *session) checkIfStartUnderLock() (bool, auth.PolicyOptions, error) {
 
 	shouldStart, policyOptions, err := s.access.FulfilledFor(participants)
 	if err != nil {
-		return false, auth.PolicyOptions{}, trace.Wrap(err)
+		return false, moderation.PolicyOptions{}, trace.Wrap(err)
 	}
 
 	return shouldStart, policyOptions, nil
@@ -2155,7 +2178,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
 	if scx.Identity.TeleportUser != s.initiator {
-		accessContext := auth.SessionAccessContext{
+		accessContext := moderation.SessionAccessContext{
 			Username: scx.Identity.TeleportUser,
 			Roles:    scx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
 		}
@@ -2403,22 +2426,24 @@ func (s *session) recordEvent(ctx context.Context, event apievents.PreparedSessi
 	}
 }
 
-// onWriteError defines the `OnWriteError` `TermManager` callback.
-func (s *session) onWriteError(idString string, err error) {
-	if idString == sessionRecorderID {
-		switch constants.SessionRecordingMode(s.scx.Identity.AccessPermit.SessionRecordingMode) {
-		case constants.SessionRecordingModeBestEffort:
-			s.logger.WarnContext(s.serverCtx, "Failed to write to session recorder, disabling session recording.")
-			// Send inside a goroutine since the callback is called from inside
-			// the writer.
-			go s.BroadcastSystemMessage(sessionRecordingWarningMessage)
-		default:
-			s.logger.ErrorContext(s.serverCtx, "Failed to write to session recorder, stopping session.")
-			// stop in goroutine to avoid deadlock
-			go func() {
-				s.BroadcastSystemMessage(sessionRecordingErrorMessage)
-				s.Stop()
-			}()
+// onWriteErrorCallback builds the `OnWriteError` `TermManager` callback.
+func (s *session) onWriteErrorCallback(sessionRecordingMode constants.SessionRecordingMode) func(idString string, err error) {
+	return func(idString string, err error) {
+		if idString == sessionRecorderID {
+			switch sessionRecordingMode {
+			case constants.SessionRecordingModeBestEffort:
+				s.logger.WarnContext(s.serverCtx, "Failed to write to session recorder, disabling session recording.")
+				// Send inside a goroutine since the callback is called from inside
+				// the writer.
+				go s.BroadcastSystemMessage(sessionRecordingWarningMessage)
+			default:
+				s.logger.ErrorContext(s.serverCtx, "Failed to write to session recorder, stopping session.")
+				// stop in goroutine to avoid deadlock
+				go func() {
+					s.BroadcastSystemMessage(sessionRecordingErrorMessage)
+					s.Stop()
+				}()
+			}
 		}
 	}
 }

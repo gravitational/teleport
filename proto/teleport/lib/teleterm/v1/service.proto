@@ -66,12 +66,6 @@ service TerminalService {
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
   // ListDatabaseServers lists allowed users for the given database based on the role set.
   rpc ListDatabaseServers(ListDatabaseServersRequest) returns (ListDatabaseServersResponse);
-  // GetServers returns filtered, sorted, and paginated servers
-  //
-  // Deprecated: Use ListUnifiedResources instead.
-  rpc GetServers(GetServersRequest) returns (GetServersResponse) {
-    option deprecated = true;
-  }
   // GetAccessRequests lists filtered AccessRequests
   rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
   // GetAccessRequest retreives a single Access Request
@@ -530,22 +524,6 @@ message SetGatewayTargetSubresourceNameRequest {
 message SetGatewayLocalPortRequest {
   string gateway_uri = 1;
   string local_port = 2;
-}
-
-message GetServersRequest {
-  string cluster_uri = 1;
-  int32 limit = 2;
-  string start_key = 3;
-  string search = 4;
-  string query = 5;
-  string sort_by = 6;
-  string search_as_roles = 7;
-}
-
-message GetServersResponse {
-  repeated Server agents = 1;
-  int32 total_count = 2;
-  string start_key = 3;
 }
 
 message GetAuthSettingsRequest {

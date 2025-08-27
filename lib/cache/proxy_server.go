@@ -36,6 +36,7 @@ func newProxyServerCollection(p services.Presence, w types.WatchKind) (*collecti
 
 	return &collection[types.Server, proxyServerIndex]{
 		store: newStore(
+			types.KindProxy,
 			types.Server.DeepCopy,
 			map[proxyServerIndex]func(types.Server) string{
 				proxyServerNameIndex: types.Server.GetName,

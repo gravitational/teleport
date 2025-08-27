@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -51,8 +52,8 @@ import (
 // onProxyCommandSSH creates a local ssh proxy, dialing a node and transferring
 // data through stdin and stdout, to be used as an OpenSSH and PuTTY proxy
 // command.
-func onProxyCommandSSH(cf *CLIConf) error {
-	tc, err := makeClient(cf)
+func onProxyCommandSSH(cf *CLIConf, initFunc ClientInitFunc) error {
+	tc, err := initFunc(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -173,9 +174,22 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if cf.LocalProxyAddr != "" && cf.LocalProxyPort != "" {
+		return trace.BadParameter("either the address or port for the local proxy can be specified, not both")
+	}
 	addr := "localhost:0"
 	randomPort := true
-	if cf.LocalProxyPort != "" {
+	if cf.LocalProxyAddr != "" {
+		host, _, err := net.SplitHostPort(cf.LocalProxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !cf.InsecureListenAnywhere && !apiutils.IsLoopback(host) {
+			return trace.BadParameter("only loopback addresses are allowed for listener without --insecure-listen-anywhere switch, got %q", cf.LocalProxyAddr)
+		}
+		randomPort = false
+		addr = cf.LocalProxyAddr
+	} else if cf.LocalProxyPort != "" {
 		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
@@ -501,6 +515,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if app.IsMCP() {
+		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
+	}
+
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
 	if err != nil {
 		return trace.Wrap(err)
@@ -511,7 +529,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	appName := cf.AppName
 	if portMapping.TargetPort != 0 {
-		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
+		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
 	}
 	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.
@@ -572,7 +590,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]interface{}{
+	templateData := map[string]any{
 		"envVars":    envVars,
 		"format":     cf.Format,
 		"randomPort": cf.LocalProxyPort == "",
@@ -867,7 +885,7 @@ func envVarFormatFlagDescription() string {
 
 func awsProxyFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"%s Or specify a service format, one of: %s",
+		"%s Or specify a service format, one of: %s.",
 		envVarFormatFlagDescription(),
 		strings.Join(awsProxyServiceFormats, ", "),
 	)
@@ -981,7 +999,7 @@ jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SEC
 `
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
-	templateData := map[string]interface{}{
+	templateData := map[string]any{
 		"envVars":    envVars,
 		"format":     format,
 		"randomPort": randomPort,

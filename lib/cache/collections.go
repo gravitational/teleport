@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -31,14 +32,18 @@ import (
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // collectionHandler is used by the [Cache] to seed the initial
@@ -105,7 +110,6 @@ type collections struct {
 	oktaImportRules                    *collection[types.OktaImportRule, oktaImportRuleIndex]
 	oktaAssignments                    *collection[types.OktaAssignment, oktaAssignmentIndex]
 	samlIdPServiceProviders            *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
-	samlIdPSessions                    *collection[types.WebSession, samlIdPSessionIndex]
 	webSessions                        *collection[types.WebSession, webSessionIndex]
 	appSessions                        *collection[types.WebSession, appSessionIndex]
 	snowflakeSessions                  *collection[types.WebSession, snowflakeSessionIndex]
@@ -132,6 +136,13 @@ type collections struct {
 	discoveryConfigs                   *collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]
 	provisioningStates                 *collection[*provisioningv1.PrincipalState, principalStateIndex]
 	identityCenterPrincipalAssignments *collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]
+	auditQueries                       *collection[*secreports.AuditQuery, auditQueryIndex]
+	secReports                         *collection[*secreports.Report, securityReportIndex]
+	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
+	relayServers                       *collection[*presencev1.RelayServer, relayServerIndex]
+	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
+	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
+	plugins                            *collection[types.Plugin, pluginIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -139,7 +150,7 @@ type collections struct {
 // resources events can be processed by downstream watchers.
 func isKnownUncollectedKind(kind string) bool {
 	switch kind {
-	case types.KindAccessRequest, types.KindHeadlessAuthentication:
+	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment:
 		return true
 	default:
 		return false
@@ -149,7 +160,7 @@ func isKnownUncollectedKind(kind string) bool {
 // setupCollections ensures that the appropriate [collection] is
 // initialized for all provided [types.WatcKind]s. An error is
 // returned if a [types.WatchKind] has no associated [collection].
-func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollection) (*collections, error) {
+func setupCollections(c Config) (*collections, error) {
 	out := &collections{
 		byKind: make(map[resourceKind]collectionHandler, 1),
 	}
@@ -507,15 +518,6 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 				out.snowflakeSessions = collect
 				out.byKind[resourceKind] = out.snowflakeSessions
-			case types.KindSAMLIdPSession:
-				collect, err := newSAMLIdPSessionCollection(c.SAMLIdPSession, watch)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				out.samlIdPSessions = collect
-				out.byKind[resourceKind] = out.samlIdPSessions
-
 			case types.KindWebSession:
 				collect, err := newWebSessionCollection(c.WebSession, watch)
 				if err != nil {
@@ -702,14 +704,109 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 			out.identityCenterPrincipalAssignments = collect
 			out.byKind[resourceKind] = out.identityCenterPrincipalAssignments
+		case types.KindAuditQuery:
+			collect, err := newAuditQueryCollection(c.SecReports, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.auditQueries = collect
+			out.byKind[resourceKind] = out.auditQueries
+		case types.KindSecurityReport:
+			collect, err := newSecurityReportCollection(c.SecReports, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.secReports = collect
+			out.byKind[resourceKind] = out.secReports
+		case types.KindSecurityReportState:
+			collect, err := newSecurityReportStateCollection(c.SecReports, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.secReportsStates = collect
+			out.byKind[resourceKind] = out.secReportsStates
+		case types.KindRelayServer:
+			collect, err := newRelayServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.relayServers = collect
+			out.byKind[resourceKind] = out.relayServers
+		case types.KindBotInstance:
+			collect, err := newBotInstanceCollection(c.BotInstanceService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.botInstances = collect
+			out.byKind[resourceKind] = out.botInstances
+		case types.KindRecordingEncryption:
+			collect, err := newRecordingEncryptionCollection(c.RecordingEncryption, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.recordingEncryption = collect
+			out.byKind[resourceKind] = out.recordingEncryption
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
 		default:
-			_, legacyOk := legacyCollections[resourceKind]
-			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {
+			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 			}
-		}
 
+		}
 	}
 
 	return out, nil
+}
+
+func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
+	switch wk.Kind {
+	case types.KindWebSession:
+		// Web sessions use subkind to differentiate between
+		// the types of sessions
+		return resourceKind{
+			kind:    wk.Kind,
+			subkind: wk.SubKind,
+		}
+	}
+	return resourceKind{
+		kind: wk.Kind,
+	}
+}
+
+func resourceKindFromResource(res types.Resource) resourceKind {
+	switch res.GetKind() {
+	case types.KindWebSession:
+		// Web sessions use subkind to differentiate between
+		// the types of sessions
+		return resourceKind{
+			kind:    res.GetKind(),
+			subkind: res.GetSubKind(),
+		}
+	}
+	return resourceKind{
+		kind: res.GetKind(),
+	}
+}
+
+type resourceKind struct {
+	kind    string
+	subkind string
+}
+
+func (r resourceKind) String() string {
+	if r.subkind == "" {
+		return r.kind
+	}
+	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }

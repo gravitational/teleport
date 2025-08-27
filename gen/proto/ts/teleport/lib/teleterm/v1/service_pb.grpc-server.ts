@@ -86,8 +86,6 @@ import { GetAccessRequestResponse } from "./service_pb";
 import { GetAccessRequestRequest } from "./service_pb";
 import { GetAccessRequestsResponse } from "./service_pb";
 import { GetAccessRequestsRequest } from "./service_pb";
-import { GetServersResponse } from "./service_pb";
-import { GetServersRequest } from "./service_pb";
 import { ListDatabaseServersResponse } from "./service_pb";
 import { ListDatabaseServersRequest } from "./service_pb";
 import { ListDatabaseUsersResponse } from "./service_pb";
@@ -154,15 +152,6 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
      */
     listDatabaseServers: grpc.handleUnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse>;
-    /**
-     * GetServers returns filtered, sorted, and paginated servers
-     *
-     * Deprecated: Use ListUnifiedResources instead.
-     *
-     * @deprecated
-     * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
-     */
-    getServers: grpc.handleUnaryCall<GetServersRequest, GetServersResponse>;
     /**
      * GetAccessRequests lists filtered AccessRequests
      *
@@ -497,16 +486,6 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => ListDatabaseServersRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ListDatabaseServersResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListDatabaseServersRequest.toBinary(value))
-    },
-    getServers: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/GetServers",
-        originalName: "GetServers",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => GetServersResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetServersRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetServersResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetServersRequest.toBinary(value))
     },
     getAccessRequests: {
         path: "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests",

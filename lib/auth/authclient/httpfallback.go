@@ -18,43 +18,5 @@
 
 package authclient
 
-import (
-	"context"
-	"net/url"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-)
-
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
-
-// GetClusterName returns a cluster name
-// TODO(noah): DELETE IN 19.0.0
-func (c *Client) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	cn, err := c.APIClient.GetClusterName(ctx)
-	if err == nil {
-		return cn, nil
-	}
-	if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
-	}
-	return c.getClusterName(ctx)
-}
-
-// getClusterName returns a cluster name
-func (c *HTTPClient) getClusterName(ctx context.Context) (types.ClusterName, error) {
-	out, err := c.Get(ctx, c.Endpoint("configuration", "name"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cn, err := services.UnmarshalClusterName(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cn, err
-}
