@@ -38,7 +38,7 @@ import {
   type TimelineRenderContext,
 } from './TimelineCanvasRenderer';
 
-interface ThumbnailWithId extends SessionRecordingThumbnail {
+export interface ThumbnailWithId extends SessionRecordingThumbnail {
   id: string;
 }
 
