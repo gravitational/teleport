@@ -51,13 +51,14 @@ type AccessListAndMembersGetter interface {
 
 // GetMembersFor returns a flattened list of Members for an Access List, including inherited Members.
 //
-// Returned Members are not validated for expiration or other requirements – use IsAccessListMember
-// to validate a Member's membership status.
-func GetMembersFor(ctx context.Context, accessListName string, g AccessListAndMembersGetter) ([]*accesslist.AccessListMember, error) {
-	return getMembersFor(ctx, accessListName, g, make(map[string]struct{}))
+// Members of type List are validated for expiration before recursing into their members, but Members
+// of type User are returned as-is without validation of expiration or MembershipRequires.
+// Use IsAccessListMember to validate a Member's membership status.
+func GetMembersFor(ctx context.Context, accessListName string, g AccessListAndMembersGetter, c clockwork.Clock) ([]*accesslist.AccessListMember, error) {
+	return getMembersFor(ctx, accessListName, g, c, make(map[string]struct{}))
 }
 
-func getMembersFor(ctx context.Context, accessListName string, g AccessListAndMembersGetter, visited map[string]struct{}) ([]*accesslist.AccessListMember, error) {
+func getMembersFor(ctx context.Context, accessListName string, g AccessListAndMembersGetter, c clockwork.Clock, visited map[string]struct{}) ([]*accesslist.AccessListMember, error) {
 	if _, ok := visited[accessListName]; ok {
 		return nil, nil
 	}
@@ -74,7 +75,12 @@ func getMembersFor(ctx context.Context, accessListName string, g AccessListAndMe
 			allMembers = append(allMembers, member)
 			continue
 		}
-		childMembers, err := getMembersFor(ctx, member.GetName(), g, visited)
+		// Check validity of member list here, along w/ in IsAccessListMember, to avoid
+		// unnecessary recursion, and returning branches that are implicitly invalid.
+		if !member.Spec.Expires.IsZero() && !c.Now().Before(member.Spec.Expires) {
+			continue
+		}
+		childMembers, err := getMembersFor(ctx, member.GetName(), g, c, visited)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -107,7 +113,7 @@ func fetchMembers(ctx context.Context, accessListName string, g AccessListAndMem
 }
 
 // collectOwners is a helper to recursively collect all Owners for an Access List, including inherited Owners.
-func collectOwners(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter, owners map[string]*accesslist.Owner, visited map[string]struct{}) error {
+func collectOwners(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter, c clockwork.Clock, owners map[string]*accesslist.Owner, visited map[string]struct{}) error {
 	if _, ok := visited[accessList.GetName()]; ok {
 		return nil
 	}
@@ -121,7 +127,7 @@ func collectOwners(ctx context.Context, accessList *accesslist.AccessList, g Acc
 		}
 
 		// For owner lists, we need to collect their members as owners
-		ownerMembers, err := collectMembersAsOwners(ctx, owner.Name, g, visited)
+		ownerMembers, err := collectMembersAsOwners(ctx, owner.Name, g, c, visited)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -134,14 +140,14 @@ func collectOwners(ctx context.Context, accessList *accesslist.AccessList, g Acc
 }
 
 // collectMembersAsOwners is a helper to collect all nested members of an AccessList and return them cast as Owners.
-func collectMembersAsOwners(ctx context.Context, accessListName string, g AccessListAndMembersGetter, visited map[string]struct{}) ([]*accesslist.Owner, error) {
+func collectMembersAsOwners(ctx context.Context, accessListName string, g AccessListAndMembersGetter, c clockwork.Clock, visited map[string]struct{}) ([]*accesslist.Owner, error) {
 	owners := make([]*accesslist.Owner, 0)
 	if _, ok := visited[accessListName]; ok {
 		return owners, nil
 	}
 	visited[accessListName] = struct{}{}
 
-	listMembers, err := GetMembersFor(ctx, accessListName, g)
+	listMembers, err := GetMembersFor(ctx, accessListName, g, c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +156,7 @@ func collectMembersAsOwners(ctx context.Context, accessListName string, g Access
 		owners = append(owners, &accesslist.Owner{
 			Name:             member.GetName(),
 			Description:      member.Metadata.Description,
-			IneligibleStatus: "",
+			IneligibleStatus: member.Spec.IneligibleStatus,
 			MembershipKind:   accesslist.MembershipKindUser,
 		})
 	}
@@ -162,9 +168,9 @@ func collectMembersAsOwners(ctx context.Context, accessListName string, g Access
 //
 // Returned Owners are not validated for expiration or other requirements – use IsAccessListOwner
 // to validate an Owner's ownership status.
-func GetOwnersFor(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) ([]*accesslist.Owner, error) {
+func GetOwnersFor(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter, c clockwork.Clock) ([]*accesslist.Owner, error) {
 	ownersMap := make(map[string]*accesslist.Owner)
-	if err := collectOwners(ctx, accessList, g, ownersMap, make(map[string]struct{})); err != nil {
+	if err := collectOwners(ctx, accessList, g, c, ownersMap, make(map[string]struct{})); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	owners := make([]*accesslist.Owner, 0, len(ownersMap))
@@ -295,21 +301,26 @@ func IsAccessListOwner(
 				ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 				continue
 			}
+
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
 		}
+
 		// Is user an inherited owner through any potential owner AccessLists?
 		if owner.MembershipKind == accesslist.MembershipKindList {
+			// Ownership can't expire so no validation here unlike for Members.
 			ownerAccessList, err := g.GetAccessList(ctx, owner.Name)
 			if err != nil {
 				ownershipErr = trace.Wrap(err)
 				continue
 			}
+
 			// Since we already verified that the user is not locked, don't provide lockGetter here
 			membershipType, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock)
 			if err != nil {
 				ownershipErr = trace.Wrap(err)
 				continue
 			}
+
 			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 				if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
 					ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
@@ -361,25 +372,36 @@ func IsAccessListMember(
 				membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 				continue
 			}
+
 			if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
 				membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
 				continue
 			}
+
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
 		}
+
 		// Is user an inherited member through any potential member AccessLists?
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
+			// Is this list edge expired?
+			if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
+				// Skip any error; it's not the user that's expired so should behave as if not a member at all.
+				continue
+			}
+
 			memberAccessList, err := g.GetAccessList(ctx, member.GetName())
 			if err != nil {
 				membershipErr = trace.Wrap(err)
 				continue
 			}
+
 			// Since we already verified that the user is not locked, don't provide lockGetter here
 			membershipType, err := IsAccessListMember(ctx, user, memberAccessList, g, nil, clock)
 			if err != nil {
 				membershipErr = trace.Wrap(err)
 				continue
 			}
+
 			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 				if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
 					membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
