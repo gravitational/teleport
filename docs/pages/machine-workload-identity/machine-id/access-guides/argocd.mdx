@@ -57,7 +57,7 @@ When configuring this in a production environment, you should consider:
   rather than using a pre-existing general Role such as `edit`.
 
 To bind the `editor` group to the `edit` Cluster Role, run the following command
-against both the source and target clusters:
+against both the **source and target clusters**:
 
 ```code
 $ kubectl create clusterrolebinding teleport-editor-edit \
@@ -152,8 +152,8 @@ Service (EKS), Google Kubernetes Engine (GKE), and Azure Kubernetes Service
 instead.
 </Admonition>
 
-First, run the following command against the source cluster, to determine the
-JWKS-formatted public key:
+First, run the following command against the **source cluster**, to determine
+the JWKS-formatted public key:
 
 ```code
 $ kubectl get --raw /openid/v1/jwks
@@ -298,8 +298,8 @@ impersonate many users, it's ambiguous which one Teleport should use by default.
 When `kubernetes_users` contains a wildcard, and no specific user is being
 impersonated, Kubernetes Access will fall back to sending your bot's Teleport
 username by default. You should therefore create a RoleBinding or
-ClusterRoleBinding, in the target cluster, granting your bot user the broader
-permissions needed by the Argo CD control plane.
+ClusterRoleBinding, in the **target cluster**, granting your bot user the
+broader permissions needed by the Argo CD control plane.
 
 ```code
 $ kubectl create clusterrolebinding example-bot-edit \
