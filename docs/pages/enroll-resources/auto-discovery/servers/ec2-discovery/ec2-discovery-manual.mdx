@@ -9,6 +9,18 @@ labels:
 This guide shows you how to configure Teleport to automatically enroll EC2
 instances in your cluster, with permissions configured manually.
 
+## How it works
+
+The Teleport Discovery Service runs on an EC2 instance and queries the AWS API
+to list instances in your AWS account. For any new EC2 instance that you deploy,
+the Discovery Service uses AWS Systems Manager (SSM) to install Teleport on the
+instance and join it to the cluster as a Teleport-protected server. In addition
+to deploying the Teleport Discovery Service, the procedure shown in this guide
+includes manually editing IAM policies and SSM documents.
+
+To automatically bootstrap IAM policies instead, read [Guided EC2 Auto-Discovery
+Configuration](ec2-discovery-guided.mdx).
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
