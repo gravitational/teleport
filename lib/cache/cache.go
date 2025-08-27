@@ -2779,6 +2779,19 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	return rg.reader.GetDatabases(ctx)
 }
 
+// ListDatabases returns a page of database resources.
+func (c *Cache) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabases")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databases)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListDatabases(ctx, limit, startKey)
+}
+
 func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
 	defer span.End()
