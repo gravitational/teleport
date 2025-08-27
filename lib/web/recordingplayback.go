@@ -137,7 +137,7 @@ type sessionEvent struct {
 	data       []byte
 }
 
-func (h *Handler) recordingPlaybackWs(
+func (h *Handler) recordingPlaybackWS(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
