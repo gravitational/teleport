@@ -19,7 +19,10 @@
 import React, { memo } from 'react';
 import styled from 'styled-components';
 
+import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
+import { Layout } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 
 import Slider from './Slider';
 
@@ -31,9 +34,18 @@ export default function ProgressBar(props: ProgressBarProps) {
       id={props.id}
       disabled={props.disabled}
     >
-      <ActionButton onClick={props.toggle} disabled={props.disabled}>
-        <Icon />
-      </ActionButton>
+      <Flex gap={3}>
+        {props.onToggleSidebar && (
+          <HoverTooltip tipContent="Toggle Sidebar">
+            <ActionButton onClick={props.onToggleSidebar}>
+              <Layout />
+            </ActionButton>
+          </HoverTooltip>
+        )}
+        <ActionButton onClick={props.toggle} disabled={props.disabled}>
+          <Icon />
+        </ActionButton>
+      </Flex>
       <PlaySpeedSelector
         onChange={props.onPlaySpeedChange}
         disabled={props.disabled}
@@ -88,6 +100,7 @@ export type ProgressBarProps = {
   onStartMove?: () => void;
   onPlaySpeedChange?: (newSpeed: number) => void;
   onRestart?: () => void;
+  onToggleSidebar?: () => void;
 };
 
 const PlaySpeedSelector = memo(
