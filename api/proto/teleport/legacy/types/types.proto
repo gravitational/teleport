@@ -7590,6 +7590,24 @@ message AWSICUserSyncFilter {
   map<string, string> labels = 8 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
+// AWSICUserProvisioningMode indicates how an AWS Identity Center integration will
+// handle provisioning users
+enum AWSICUserProvisioningMode {
+  // AWSIC_USER_PROVISIONING_MODE_UNKNOWN is the default, zero value. Will be treated
+  // as AWSIC_USER_PROVISIONING_MODE_INTERNAL in practice.
+  AWSIC_USER_PROVISIONING_MODE_UNKNOWN = 0;
+
+  // AWSIC_USER_PROVISIONING_MODE_INTERNAL indicates that the Identity Center
+  // integration should manage downstream user provisioning mode itself, directly
+  // provisioning users into the downstream AWS IC instance.
+  AWSIC_USER_PROVISIONING_MODE_INTERNAL = 1;
+
+  // AWSIC_USER_PROVISIONING_MODE_EXTERNAL indicates that the Identity Center integration
+  // shold rely on an external system for provisioning users into the downstream
+  // Identity Center instance. Teleport will still control Access List provisioning.
+  AWSIC_USER_PROVISIONING_MODE_EXTERNAL = 2;
+}
+
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings
 message AWSICProvisioningSpec {
   option (gogoproto.equal) = true;
@@ -7602,6 +7620,10 @@ message AWSICProvisioningSpec {
   // actual credential is stored separetely ain a PluginStaticCredentials
   // service, and populated at runtime as necessary.
   string bearer_token = 2;
+
+  // UserProvisioningMode indicates how the Identity Center integration's SCIM
+  // provisioner will provision users into the downstream Identity Center instance.
+  AWSICUserProvisioningMode user_provisioning_mode = 3;
 }
 
 // PluginAWSICStatusV1 defines AWS Identity Center plugin sub-process status.
