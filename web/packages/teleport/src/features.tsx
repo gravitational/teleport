@@ -46,6 +46,7 @@ import {
   NavigationCategory,
   NavigationCategory as SideNavigationCategory,
 } from 'teleport/Navigation/categories';
+import { ListSessionRecordingsRoute } from 'teleport/SessionRecordings/list/ListSessionRecordingsRoute';
 
 import { LockedAccessRequests } from './AccessRequests';
 import { AccountPage } from './Account';
@@ -63,7 +64,6 @@ import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
 import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
-import { RecordingsContainer as Recordings } from './Recordings';
 import { RolesContainer as Roles } from './Roles';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
@@ -591,7 +591,7 @@ export class FeatureRecordings implements TeleportFeature {
     title: 'Session Recordings',
     path: cfg.routes.recordings,
     exact: true,
-    component: Recordings,
+    component: ListSessionRecordingsRoute,
   };
 
   hasAccess(flags: FeatureFlags) {
