@@ -140,13 +140,14 @@ export function createViteConfig(
           secure: false,
           ws: true,
         },
-        // /webapi/sites/:site/desktopplayback/:sid
-        '^(\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/(desktopplayback|session-recording)\\/(.*?))(\\/ws)?':
+        // /webapi/sites/:site/(desktopplayback|sessionrecording|ttyplayback)/:sid
+        '^(\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/(desktopplayback|sessionrecording|ttyplayback)\\/(.*?))(\\/ws)?':
           {
             target: `wss://${target}`,
             changeOrigin: true,
             secure: false,
             ws: true,
+            rewriteWsOrigin: true, // rewrite the origin so Teleport doesn't reject the connection
           },
         '^\\/v[0-9]+\\/webapi\\/assistant\\/(.*?)': {
           target: `https://${target}`,
