@@ -75,7 +75,7 @@ export function generateTerminalSVGStyleTag(theme: DefaultTheme): string {
 
 // svgToDataURIBase64 converts an SVG string to a Base64-encoded data URI, providing
 // a way to load SVG images in the code.
-function svgToDataURIBase64(svg: string) {
+export function svgToDataURIBase64(svg: string) {
   const encoded = encodeURIComponent(svg.replace('<?xml version="1.0"?>', ''));
 
   return `data:image/svg+xml;charset=utf-8,${encoded}`;

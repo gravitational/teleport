@@ -16,18 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { type RefObject } from 'react';
 import styled from 'styled-components';
 
 import type { RecordingType } from 'teleport/services/recordings';
 import { DesktopPlayer } from 'teleport/SessionRecordings/view/DesktopPlayer';
-import SshPlayer from 'teleport/SessionRecordings/view/SshPlayer';
+import SshPlayer, {
+  type PlayerHandle,
+} from 'teleport/SessionRecordings/view/SshPlayer';
 
 interface RecordingPlayerProps {
   clusterId: string;
   durationMs: number;
+  onTimeChange?: (time: number) => void;
   recordingType: RecordingType;
   sessionId: string;
   onToggleSidebar?: () => void;
+  onToggleTimeline?: () => void;
+  ref?: RefObject<PlayerHandle>;
 }
 
 const Container = styled.div`
@@ -41,9 +47,12 @@ const Container = styled.div`
 export function RecordingPlayer({
   clusterId,
   durationMs,
+  onTimeChange,
+  onToggleSidebar,
   recordingType,
   sessionId,
-  onToggleSidebar,
+  onToggleTimeline,
+  ref,
 }: RecordingPlayerProps) {
   if (recordingType === 'desktop') {
     return (
@@ -60,10 +69,13 @@ export function RecordingPlayer({
   return (
     <Container>
       <SshPlayer
+        ref={ref}
+        onTimeChange={onTimeChange}
+        onToggleSidebar={onToggleSidebar}
         sid={sessionId}
         clusterId={clusterId}
         durationMs={durationMs}
-        onToggleSidebar={onToggleSidebar}
+        onToggleTimeline={onToggleTimeline}
       />
     </Container>
   );
