@@ -23,7 +23,7 @@ import { darkTheme } from 'design/theme';
 import { SessionRecordingThumbnail } from 'teleport/services/recordings';
 import type { TimelineRenderContext } from 'teleport/SessionRecordings/view/Timeline/renderers/TimelineCanvasRenderer';
 
-import { FramesRenderer } from './FramesRenderer';
+import { FramesRenderer, type ThumbnailWithId } from './FramesRenderer';
 
 // Mock the SVG utilities
 jest.mock('teleport/SessionRecordings/svg', () => ({
@@ -109,9 +109,7 @@ async function createRenderer(
       // hack to be able to spy on a private method
       // jest cannot load images in tests so we mock this method
       renderer as unknown as {
-        loadImage: (
-          frame: SessionRecordingThumbnail
-        ) => Promise<OffscreenCanvas>;
+        loadImage: (frame: ThumbnailWithId) => Promise<OffscreenCanvas>;
       },
       'loadImage'
     )
