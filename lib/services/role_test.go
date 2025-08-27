@@ -10357,7 +10357,7 @@ func TestNewEnumerationResultFromEntities(t *testing.T) {
 	}
 }
 
-func TestAuditSessionRBAC(t *testing.T) {
+func TestSessionRecordingRBAC(t *testing.T) {
 	newUser := func(name string, traits map[string][]string, roles []string) types.User {
 		user, err := types.NewUser(name)
 		require.NoError(t, err)

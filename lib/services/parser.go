@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/set"
+	utilsslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -259,15 +260,10 @@ func canViewResourceFunc(ctx RuleContext) func() predicate.BoolPredicate {
 				return false
 			}
 
-			roleNames := make([]string, len(roles))
-			for i, role := range roles {
-				roleNames[i] = role.GetName()
-			}
-
 			// Create an access checker with a static role set containing
 			// the roles from the context.
 			checker := NewAccessCheckerWithRoleSet(&AccessInfo{
-				Roles:    roleNames,
+				Roles:    utilsslices.Map(roles, (types.Role).GetName),
 				Traits:   nil,
 				Username: "",
 			},

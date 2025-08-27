@@ -1333,7 +1333,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 	})
 }
 
-func (s *Server) authorize(ctx context.Context, ipAddr net.Addr) (*common.Session, error) {
+func (s *Server) authorize(ctx context.Context, clientIP net.Addr) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
 	userType, err := authz.UserFromContext(ctx)
 	if err != nil {
@@ -1382,7 +1382,7 @@ func (s *Server) authorize(ctx context.Context, ipAddr net.Addr) (*common.Sessio
 		Log:                s.log.With("id", id, "db", database.GetName()),
 		LockTargets:        authContext.LockTargets(),
 		StartTime:          s.cfg.Clock.Now(),
-		ClientIP:           ipAddr.String(),
+		ClientIP:           clientIP.String(),
 	}
 
 	s.log.DebugContext(ctx, "Created session context.", "session", sessionCtx)
