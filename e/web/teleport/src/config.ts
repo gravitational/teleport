@@ -193,6 +193,9 @@ const cfg = {
     },
 
     contacts: '/v1/enterprise/sites/:clusterId/contact',
+
+    sessionRecordingSummary:
+      '/v1/webapi/sites/:clusterId/session-summaries/:sessionId',
   },
 
   getNonExactRoutes() {
@@ -468,6 +471,13 @@ const cfg = {
   getContactsUrl(clusterId: string) {
     return generatePath(cfg.api.contacts, {
       clusterId,
+    });
+  },
+
+  getSessionRecordingSummaryUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecordingSummary, {
+      clusterId,
+      sessionId,
     });
   },
 

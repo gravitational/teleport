@@ -34,6 +34,7 @@ import Integrations from 'e-teleport/Integrations';
 import { IntegrationEnroll } from 'e-teleport/Integrations/IntegrationEnroll';
 import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus';
 import { NewLock } from 'e-teleport/NewLockV2';
+import { ListSessionRecordingsRouteE } from 'e-teleport/SessionRecordings/list/ListSessionRecordingsRouteE';
 import { SSOConfirm } from 'e-teleport/SSOConfirm/SSOConfirm';
 import SupportE from 'e-teleport/Support';
 import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
@@ -610,6 +611,19 @@ class FeatureAccessGraphIntegrations extends FeatureAccessGraph {
   };
 }
 
+class FeatureRecordings extends OSS.FeatureRecordings {
+  route = {
+    title: 'Session Recordings',
+    path: cfg.oss.routes.recordings,
+    exact: true,
+    component: ListSessionRecordingsRouteE,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.recordings;
+  }
+}
+
 export function getEnterpriseFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -655,7 +669,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Audit
     new OSS.FeatureAudit(),
     new OSS.FeatureSessions(),
-    new OSS.FeatureRecordings(),
+    new FeatureRecordings(),
 
     // - Policy
     new FeatureAccessGraph(),

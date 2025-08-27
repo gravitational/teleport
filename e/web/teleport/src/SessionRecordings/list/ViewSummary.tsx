@@ -1,0 +1,329 @@
+import {
+  arrow,
+  autoUpdate,
+  offset,
+  shift,
+  size,
+  useDismiss,
+  useFloating,
+  useInteractions,
+} from '@floating-ui/react';
+import { formatDuration, intervalToDuration, isValid } from 'date-fns';
+import { useCallback, useState, type MouseEvent, type ReactNode } from 'react';
+import type { FallbackProps } from 'react-error-boundary';
+import styled from 'styled-components';
+
+import Box from 'design/Box';
+import { ButtonSecondary } from 'design/Button';
+import Flex from 'design/Flex';
+import { ChatCircleSparkle } from 'design/Icon';
+import { Indicator } from 'design/Indicator';
+import Modal from 'design/Modal';
+import { StyledPopover } from 'design/Popover';
+import Text from 'design/Text';
+import { HoverTooltip } from 'design/Tooltip';
+import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
+import { Markdown } from 'shared/components/Markdown/Markdown';
+import { getErrorMessage } from 'shared/utils/error';
+
+import { useSuspenseGetRecordingSummary } from 'e-teleport/services/recordings/hooks';
+import { RecordingSummaryState } from 'e-teleport/services/recordings/types';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+
+interface ViewSummaryProps {
+  sessionId: string;
+}
+
+const ViewSummaryButton = styled.button<{ active: boolean }>`
+  background: ${p =>
+    p.active ? p.theme.colors.spotBackground[0] : 'transparent'};
+  border: 1px solid ${p => p.theme.colors.spotBackground[1]};
+  border-radius: calc(${p => p.theme.radii[3]}px + ${p => p.theme.radii[2]}px);
+  line-height: 1;
+  padding: ${p => p.theme.space[2]}px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background: ${p => p.theme.colors.spotBackground[0]};
+  }
+`;
+
+const Arrow = styled.div<{ placement: string }>`
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: ${p => p.theme.colors.levels.elevated};
+  transform: rotate(45deg);
+  z-index: -1;
+  right: -4px;
+  border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
+  border-top: 1px solid ${p => p.theme.colors.spotBackground[1]};
+`;
+
+export function ViewSummary({ sessionId }: ViewSummaryProps) {
+  const [open, setOpen] = useState(false);
+
+  const [arrowEl, setArrowEl] = useState<HTMLDivElement>(null);
+
+  const handleClick = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    setOpen(true);
+  }, []);
+
+  const { context, floatingStyles, middlewareData, refs } = useFloating({
+    open,
+    onOpenChange: setOpen,
+    middleware: [
+      offset(8),
+      shift({ padding: 8 }),
+      size({
+        apply({ availableWidth, availableHeight, elements }) {
+          elements.floating.style.maxWidth = `${Math.min(500, availableWidth)}px`;
+          elements.floating.style.maxHeight = `${Math.min(
+            700,
+            availableHeight
+          )}px`;
+        },
+        padding: 8,
+      }),
+      arrow({
+        element: arrowEl,
+        padding: 8,
+      }),
+    ],
+    placement: 'left',
+    whileElementsMounted: autoUpdate,
+  });
+
+  const dismiss = useDismiss(context);
+
+  const { getReferenceProps, getFloatingProps } = useInteractions([dismiss]);
+
+  return (
+    <>
+      <HoverTooltip tipContent="View session summary">
+        <ViewSummaryButton
+          aria-label="View session summary"
+          active={open}
+          onClick={handleClick}
+          ref={refs.setReference}
+          {...getReferenceProps()}
+        >
+          <ChatCircleSparkle size="small" />
+        </ViewSummaryButton>
+      </HoverTooltip>
+
+      {open && (
+        <Modal open={true} BackdropProps={{ invisible: true }}>
+          <StyledPopover
+            shadow={true}
+            ref={refs.setFloating}
+            style={{ ...floatingStyles, overflow: 'visible' }}
+            {...getFloatingProps()}
+          >
+            <Arrow
+              ref={setArrowEl}
+              placement={context.placement}
+              style={{
+                left: middlewareData.arrow?.x ?? '',
+                top: middlewareData.arrow?.y ?? '',
+              }}
+            />
+
+            <Box
+              px={3}
+              style={{ overflowY: 'auto' }}
+              maxHeight="700px"
+              width="500px"
+              data-scrollbar="default"
+            >
+              <ErrorSuspenseWrapper
+                errorComponent={SummaryErrorWrapper}
+                loadingComponent={SummaryLoadingWrapper}
+              >
+                <SessionSummary sessionId={sessionId} />
+              </ErrorSuspenseWrapper>
+            </Box>
+          </StyledPopover>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+const SessionSummaryContainer = styled(Flex)`
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  gap: ${p => p.theme.space[2]}px;
+  padding: ${p => p.theme.space[3]}px;
+`;
+
+function SummaryErrorWrapper({ error, resetErrorBoundary }: FallbackProps) {
+  return (
+    <SessionSummaryContainer>
+      <SessionSummaryError
+        error={error}
+        resetErrorBoundary={resetErrorBoundary}
+      />
+    </SessionSummaryContainer>
+  );
+}
+
+function SummaryLoadingWrapper() {
+  return (
+    <SessionSummaryContainer>
+      <SessionSummaryLoading />
+    </SessionSummaryContainer>
+  );
+}
+
+export function SessionSummaryError({
+  error,
+  resetErrorBoundary,
+}: FallbackProps) {
+  return (
+    <>
+      <Text color="error.main">Error loading session summary</Text>
+
+      <Text>{getErrorMessage(error)}</Text>
+
+      <Flex justifyContent="center">
+        <ButtonSecondary onClick={resetErrorBoundary}>Retry</ButtonSecondary>
+      </Flex>
+    </>
+  );
+}
+
+export function SessionSummaryLoading() {
+  return (
+    <>
+      <Text color="text.slightlyMuted">Loading session summary...</Text>
+
+      <Indicator delay="none" />
+    </>
+  );
+}
+
+interface SessionSummaryProps {
+  sessionId: string;
+}
+
+const MarkdownContainer = styled.div`
+  h1 {
+    font-size: 20px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  h3 {
+    font-size: 16px;
+  }
+`;
+
+const SummaryInfo = styled(Box)`
+  background: ${p => p.theme.colors.levels.elevated};
+  border-radius: ${p => p.theme.radii[3]}px;
+  color: ${p => p.theme.colors.text.slightlyMuted};
+  font-size: 13px;
+  padding: ${p => p.theme.space[2]}px;
+  margin-bottom: ${p => p.theme.space[3]}px;
+  line-height: 1.4;
+  border: 1px solid ${p => p.theme.colors.spotBackground[1]};
+`;
+
+export function SessionSummary({ sessionId }: SessionSummaryProps) {
+  const { clusterId } = useStickyClusterId();
+
+  const { data, isRefetching, refetch } = useSuspenseGetRecordingSummary({
+    clusterId,
+    sessionId,
+  });
+
+  const handleRefetch = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+
+  if (data.state === RecordingSummaryState.Pending) {
+    const inferenceStartedAt = new Date(data.inferenceStartedAt);
+
+    let content: ReactNode | null = null;
+    if (isValid(inferenceStartedAt)) {
+      const duration = intervalToDuration({
+        start: inferenceStartedAt,
+        end: new Date(),
+      });
+
+      content = (
+        <Text color="text.slightlyMuted">
+          Started summarizing {formatDuration(duration)} ago
+        </Text>
+      );
+    }
+
+    return (
+      <SessionSummaryContainer>
+        <Text fontWeight="bold">
+          Session summary is currently being generated
+        </Text>
+
+        {content}
+
+        <ButtonSecondary onClick={handleRefetch} disabled={isRefetching} mt={1}>
+          {isRefetching ? 'Reloading...' : 'Reload'}
+        </ButtonSecondary>
+      </SessionSummaryContainer>
+    );
+  }
+
+  if (data.state === RecordingSummaryState.Error) {
+    return (
+      <SessionSummaryContainer>
+        <Text color="error.main" fontWeight="bold">
+          There was an error generating the session summary
+        </Text>
+
+        <Text>{data.errorMessage}</Text>
+      </SessionSummaryContainer>
+    );
+  }
+
+  if (data.state === RecordingSummaryState.Success) {
+    const inferenceStartedAt = new Date(data.inferenceStartedAt);
+    const inferenceFinishedAt = new Date(data.inferenceFinishedAt);
+
+    let content: ReactNode | null = null;
+    if (isValid(inferenceStartedAt) && isValid(inferenceFinishedAt)) {
+      const duration = intervalToDuration({
+        start: inferenceStartedAt,
+        end: inferenceFinishedAt,
+      });
+
+      content = (
+        <>
+          Inference took <strong>{formatDuration(duration)}</strong>
+        </>
+      );
+    }
+
+    return (
+      <MarkdownContainer>
+        <Markdown text={data.content} />
+
+        <SummaryInfo>
+          <strong>AI can make mistakes.</strong> {content}
+        </SummaryInfo>
+      </MarkdownContainer>
+    );
+  }
+
+  return null;
+}
