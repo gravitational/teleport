@@ -173,8 +173,6 @@ type Server struct {
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
 
-	targetID, targetAddr, targetHostname string
-
 	// targetServer is the host that the connection is being established for.
 	// It **MUST** only be populated when the target is a teleport ssh server
 	// or an agentless server.
@@ -253,16 +251,10 @@ type ServerConfig struct {
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
 
-	TargetID, TargetAddr, TargetHostname string
-
 	// TargetServer is the host that the connection is being established for.
 	// It **MUST** only be populated when the target is a teleport ssh server
 	// or an agentless server.
 	TargetServer types.Server
-
-	// IsAgentlessNode indicates whether the targetServer is a Node with an OpenSSH server (no teleport agent).
-	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEphemeralKey.
-	IsAgentlessNode bool
 
 	// EICESigner is used to upload credentials and get a signer to use for the client connection
 	// to the EC2 instance.
@@ -280,18 +272,17 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
-	if s.IsAgentlessNode {
-		if s.TargetServer == nil {
-			return trace.BadParameter("target server is required for agentless nodes")
-		}
-
-		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHNode && s.AgentlessSigner == nil {
+	if s.TargetServer == nil {
+		return trace.BadParameter("target server is required")
+	}
+	if s.TargetServer.IsOpenSSHNode() {
+		if s.AgentlessSigner == nil {
 			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
 		}
-	}
-
-	if s.UserAgent == nil && !s.IsAgentlessNode {
-		return trace.BadParameter("user agent required for teleport nodes (agentless)")
+	} else {
+		if s.UserAgent == nil {
+			return trace.BadParameter("user agent required for teleport nodes")
+		}
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -367,9 +358,6 @@ func New(c ServerConfig) (*Server, error) {
 		parentContext:   c.ParentContext,
 		lockWatcher:     c.LockWatcher,
 		tracerProvider:  c.TracerProvider,
-		targetID:        c.TargetID,
-		targetAddr:      c.TargetAddr,
-		targetHostname:  c.TargetHostname,
 		targetServer:    c.TargetServer,
 		eiceSigner:      c.EICESigner,
 	}
@@ -418,19 +406,14 @@ func New(c ServerConfig) (*Server, error) {
 
 // TargetMetadata returns metadata about the forwarding target.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
-	var subKind string
-	if s.targetServer != nil {
-		subKind = s.targetServer.GetSubKind()
-	}
-
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
-		ServerID:        s.targetID,
-		ServerAddr:      s.targetAddr,
-		ServerHostname:  s.targetHostname,
+		ServerID:        s.targetServer.GetName(),
+		ServerAddr:      s.targetServer.GetName(),
+		ServerHostname:  s.targetServer.GetHostname(),
 		ForwardedBy:     s.hostUUID,
-		ServerSubKind:   subKind,
+		ServerSubKind:   s.targetServer.GetSubKind(),
 	}
 }
 
@@ -624,7 +607,7 @@ func (s *Server) Serve() {
 		return
 	}
 
-	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+	if s.targetServer.IsOpenSSHNode() {
 		// OpenSSH nodes don't support moderated sessions, send an error to
 		// the user and gracefully fail if the user is attempting to create one.
 		policySets := s.identityContext.UnstableSessionJoiningAccessChecker.SessionPolicySets()
@@ -1005,7 +988,7 @@ func (s *Server) checkTCPIPForwardRequest(ctx context.Context, r *ssh.Request) e
 	}
 
 	// RBAC checks are only necessary when connecting to an agentless node
-	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+	if s.targetServer.IsOpenSSHNode() {
 		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
 		if err != nil {
 			return err
@@ -1088,7 +1071,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	ch = scx.TrackActivity(ch)
 
 	// RBAC checks are only necessary when connecting to an agentless node
-	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+	if s.targetServer.IsOpenSSHNode() {
 		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL)
 		if err != nil {
 			s.stderrWrite(ctx, ch, err.Error())
