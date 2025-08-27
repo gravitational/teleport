@@ -221,11 +221,7 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		servicesCtx.Session = sessionEnd
-		servicesCtx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
-		// AccessCheker is set here to allow access checks to other resources
-		// in the where clause.
-		servicesCtx.AccessChecker = a.context.Checker
+		servicesCtx.ExtendWithSessionEnd(sessionEnd, a.context.Checker)
 		return nil
 	}
 
