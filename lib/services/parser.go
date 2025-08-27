@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/set"
-	utilsslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -50,9 +49,9 @@ type RuleContext interface {
 	// GetResource returns resource if specified in the context,
 	// if unspecified, returns error.
 	GetResource() (types.Resource, error)
-	// GetRoles returns the set of roles that can be used to check access
-	// to other resources.
-	GetRoles() []types.Role
+	// GetAccessChecker returns access checker if specified in the context,
+	// if unspecified, returns error.
+	GetAccessChecker() (AccessChecker, error)
 }
 
 var (
@@ -255,21 +254,11 @@ func canViewResourceFunc(ctx RuleContext) func() predicate.BoolPredicate {
 				return false
 			}
 
-			roles := ctx.GetRoles()
-			if len(roles) == 0 {
+			checker, err := ctx.GetAccessChecker()
+			if err != nil {
 				return false
 			}
 
-			// Create an access checker with a static role set containing
-			// the roles from the context.
-			checker := NewAccessCheckerWithRoleSet(&AccessInfo{
-				Roles:    utilsslices.Map(roles, (types.Role).GetName),
-				Traits:   nil,
-				Username: "",
-			},
-				"",
-				RoleSet(roles),
-			)
 			// We do not enforce MFA or Device Trust for this check because
 			// we don't have a way of checking it from the context.
 			return checker.CheckAccess(accessCheckableResource, AccessState{
@@ -388,9 +377,9 @@ type Context struct {
 	HostCert *HostCertContext
 	// SessionTracker is an optional session tracker, in case if the rule checks access to the tracker.
 	SessionTracker types.SessionTracker
-	// Roles is the set of roles that can be used to check access
-	// to other resources.
-	Roles []types.Role
+	// AccessChecker is an optional access checker that can be used
+	// to check access to other resources.
+	AccessChecker AccessChecker
 }
 
 // String returns user friendly representation of this context
@@ -442,8 +431,11 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 	}
 }
 
-func (ctx *Context) GetRoles() []types.Role {
-	return ctx.Roles
+func (ctx *Context) GetAccessChecker() (AccessChecker, error) {
+	if ctx.AccessChecker == nil {
+		return nil, trace.NotFound("access checker is not set in the context")
+	}
+	return ctx.AccessChecker, nil
 }
 
 // GetIdentifier returns identifier defined in a context

@@ -804,9 +804,9 @@ func TestCanView(t *testing.T) {
 			for j, check := range tc.checks {
 				comment := fmt.Sprintf("check #%v:  server: %v, should access: %v", j, check.server.GetName(), check.hasAccess)
 				serviceCtx := &Context{
-					User:     user,
-					Roles:    accessChecker.Roles(),
-					Resource: check.server,
+					User:          user,
+					AccessChecker: accessChecker,
+					Resource:      check.server,
 				}
 				err := accessChecker.CheckAccessToRule(
 					serviceCtx,

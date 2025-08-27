@@ -93,8 +93,8 @@ type SessionAccessContext struct {
 	Mode     types.SessionParticipantMode
 }
 
-func (ctx *SessionAccessContext) GetRoles() []types.Role {
-	return ctx.Roles
+func (ctx *SessionAccessContext) GetAccessChecker() (services.AccessChecker, error) {
+	return nil, trace.NotImplemented("access checker is not implemented for session access context")
 }
 
 // GetIdentifier is used by the `predicate` library to evaluate variable expressions when

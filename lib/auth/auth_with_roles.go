@@ -223,9 +223,9 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 		}
 		servicesCtx.Session = sessionEnd
 		servicesCtx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
-		// Also add the roles of the user to the context so that they can be used
-		// in the `where` by `can_view` function.
-		servicesCtx.Roles = a.context.Checker.Roles()
+		// AccessCheker is set here to allow access checks to other resources
+		// in the where clause.
+		servicesCtx.AccessChecker = a.context.Checker
 		return nil
 	}
 

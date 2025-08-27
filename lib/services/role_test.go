@@ -10397,18 +10397,18 @@ func TestSessionRecordingRBAC(t *testing.T) {
 		}
 	}
 
-	newServer := func(labels map[string]string) types.Server {
-		server, err := types.NewServer("my-server", types.KindNode, types.ServerSpecV2{})
+	newServer := func(name string, labels map[string]string) types.Server {
+		server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
 		require.NoError(t, err)
 		server.SetStaticLabels(labels)
 		return server
 	}
 
-	serverWithAccess := newServer(map[string]string{
+	serverWithAccess := newServer("server-with-access", map[string]string{
 		"env": "prod",
 	})
 
-	serverWithoutAccess := newServer(map[string]string{
+	serverWithoutAccess := newServer("server-without-access", map[string]string{
 		"env": "dev",
 	})
 
@@ -10434,10 +10434,11 @@ func TestSessionRecordingRBAC(t *testing.T) {
 		}, []string{"role2"})
 
 	testCases := []struct {
-		name     string
-		roles    RoleSet
-		context  Context
-		errCheck require.ErrorAssertionFunc
+		name                     string
+		roles                    RoleSet
+		accessRequestResourceIds []types.ResourceID
+		context                  Context
+		errCheck                 require.ErrorAssertionFunc
 	}{
 		{
 			name:  "0 - empty role set has access to nothing",
@@ -10823,10 +10824,56 @@ func TestSessionRecordingRBAC(t *testing.T) {
 			},
 			errCheck: requireAccessDenied,
 		},
+		{
+			name: "20 - bob can read session because he has access request for the server",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `can_view()`,
+				}, nil),
+			},
+			accessRequestResourceIds: []types.ResourceID{
+				{
+					ClusterName: "local",
+					Kind:        types.KindNode,
+					Name:        serverWithAccess.GetName(),
+				},
+			},
+			context: Context{
+				User:     bob,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "21 - bob can't read session because he has access request for a different server",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `can_view()`,
+				}, nil),
+			},
+			accessRequestResourceIds: []types.ResourceID{
+				{
+					ClusterName: "local",
+					Kind:        types.KindNode,
+					Name:        serverWithoutAccess.GetName(),
+				},
+			},
+			context: Context{
+				User:     bob,
+				Session:  newSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.context.Roles = tc.roles
+			tc.context.AccessChecker = NewAccessCheckerWithRoleSet(&AccessInfo{AllowedResourceIDs: tc.accessRequestResourceIds}, "local", tc.roles)
 			result := tc.roles.CheckAccessToRule(&tc.context, apidefaults.Namespace, types.KindSession, types.VerbRead)
 			tc.errCheck(t, result)
 		})
