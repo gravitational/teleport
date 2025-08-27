@@ -6,15 +6,22 @@ labels:
  - zero-trust
 ---
 
+<Admonition type="tip">
+You can access AWS APIs (e.g., CLI, SDKs) through Teleport using two methods:
+- using an Application Service which proxies and audits every AWS API request
+- using short-lived credentials stored in your local system
+Accessing the AWS Web Console works the same in both methods.
+
+This guide focus on the second method, which is the recommend one.
+
+If you want to audit AWS API requests, then use the method[first method](aws-console.mdx).
+
+Access Requests, Access Lists and other RBAC access controls features work the same in both methods.
+</Admonition>
+
 You can protect the AWS Management Console and AWS APIs with Teleport.
 This allows you to manage access to AWS infrastructure with Teleport features like Access Requests, Access Lists, and identity locking.
 You can also configure Teleport to provide different levels of AWS access automatically when users authenticate using your single sign-on solution.
-
-<Admonition type="tip">
-When compared with the [AWS Console and CLI access via Teleport Agent](aws-console.mdx) method,
-this guide does not require a Teleport Agent to be installed and provides 100% compatibility with AWS SDK based tools (e.g., terraform).
-However, it does not record the requests in Teleport's audit logs, only that a session was started by a given user.
-</Admonition>
 
 This guide will explain how to:
 
@@ -31,7 +38,7 @@ Access is managed through Teleport's RBAC policies, ensuring credentials are onl
 
 For web console access, you can navigate to the resources page in Teleport Web UI and click on the AWS Application which is named after the Roles Anywhere Profile.
 
-For CLI and SDK based access, you must use `tsh` to obtain the credentials
+For CLI and SDK based access, you must use `tsh` to obtain AWS credentials.
 
 ## Prerequisites
 
