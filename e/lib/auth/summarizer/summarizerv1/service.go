@@ -478,11 +478,11 @@ func (s *Service) GetSummary(
 		ctx, session.ID(req.GetSessionId()),
 	)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
 		// The user hasn't been fully authorized yet, so we don't return this
 		// error, as it may leak details about the accessed object.
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("a recording summary for session %v was not found", sid)
+		}
 		s.logger.ErrorContext(
 			ctx, "Unable to read session summary recording", "session_id", sid, "error", err,
 		)
