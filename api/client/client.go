@@ -3645,6 +3645,29 @@ func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	return databases, nil
 }
 
+// ListDatabases returns a page of database resources.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]types.Database, string, error) {
+	resp, err := c.grpc.ListDatabases(ctx, &proto.ListDatabasesRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	databases := make([]types.Database, len(resp.Databases))
+	for i := range resp.Databases {
+		databases[i] = resp.Databases[i]
+	}
+	return databases, resp.NextPageToken, nil
+}
+
 // DeleteDatabase deletes specified database resource.
 func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteDatabase(ctx, &types.ResourceRequest{Name: name})
