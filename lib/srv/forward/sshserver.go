@@ -405,9 +405,19 @@ func New(c ServerConfig) (*Server, error) {
 	return s, nil
 }
 
-// TargetMetadata returns metadata about the forwarding target.
-func (s *Server) TargetMetadata() apievents.ServerMetadata {
-	return srv.GetTargetMetadata(s)
+// EventMetadata returns metadata about the forwarding target.
+func (s *Server) EventMetadata() apievents.ServerMetadata {
+	serverInfo := s.GetInfo()
+	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
+		ServerNamespace: serverInfo.GetNamespace(),
+		ServerID:        serverInfo.GetName(),
+		ServerAddr:      serverInfo.GetAddr(),
+		ServerLabels:    serverInfo.GetAllLabels(),
+		ServerHostname:  serverInfo.GetHostname(),
+		ServerSubKind:   serverInfo.GetSubKind(),
+		ForwardedBy:     s.proxyUUID,
+	}
 }
 
 // Context returns parent context, used to signal
@@ -1469,7 +1479,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),
-				ServerMetadata: serverContext.GetServer().TargetMetadata(),
+				ServerMetadata: serverContext.GetServer().EventMetadata(),
 				Error:          err.Error(),
 			})
 			return trace.Wrap(err)
