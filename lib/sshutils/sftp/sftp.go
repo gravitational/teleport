@@ -79,7 +79,7 @@ const (
 
 type FileTransferRequest struct {
 	Sources        Sources
-	Destination    Destination
+	Destination    Target
 	DialHost       func(ctx context.Context, login, addr string) (*ssh.Client, error)
 	Recursive      bool
 	PreserveAttrs  bool
@@ -88,8 +88,8 @@ type FileTransferRequest struct {
 	ProgressWriter io.Writer
 	Log            *slog.Logger
 	Size           int64
-	Reader         io.ReadCloser
-	Writer         http.ResponseWriter
+	HTTPReader     io.ReadCloser
+	HTTPWriter     http.ResponseWriter
 
 	srcFS FileSystem
 	dstFS FileSystem
@@ -188,9 +188,9 @@ type FileSystem interface {
 // HTTPTransferRequest describes file transfer request over HTTP.
 type HTTPTransferRequest struct {
 	// Src is the source file name
-	Src Destination
+	Src Target
 	// Dst is the destination file name
-	Dst Destination
+	Dst Target
 	// HTTPRequest is where the source file will be read from for
 	// file upload transfers
 	HTTPRequest *http.Request
@@ -224,7 +224,7 @@ func CreateHTTPUploadRequest(req HTTPTransferRequest) (FileTransferRequest, erro
 		},
 		Destination: req.Dst,
 		DialHost:    req.DialHost,
-		Reader:      req.HTTPRequest.Body,
+		HTTPReader:  req.HTTPRequest.Body,
 		Size:        fileSize,
 	}, nil
 }
@@ -247,7 +247,7 @@ func CreateHTTPDownloadRequest(req HTTPTransferRequest) (FileTransferRequest, er
 		},
 		Destination: req.Dst,
 		DialHost:    req.DialHost,
-		Writer:      req.HTTPResponse,
+		HTTPWriter:  req.HTTPResponse,
 	}, nil
 }
 
@@ -270,12 +270,12 @@ func TransferFiles(ctx context.Context, req FileTransferRequest) error {
 	// Set up file systems
 	switch {
 	case req.srcFS != nil:
-	case req.Reader != nil:
+	case req.HTTPReader != nil:
 		if len(req.Sources.Paths) > 1 {
 			return trace.BadParameter("only one source allowed for http filesystems")
 		}
 		req.srcFS = &httpFS{
-			reader:   req.Reader,
+			reader:   req.HTTPReader,
 			fileName: req.Sources.Paths[0],
 			fileSize: req.Size,
 		}
@@ -302,9 +302,9 @@ func TransferFiles(ctx context.Context, req FileTransferRequest) error {
 
 	switch {
 	case req.dstFS != nil:
-	case req.Writer != nil:
+	case req.HTTPWriter != nil:
 		req.dstFS = &httpFS{
-			writer:   req.Writer,
+			writer:   req.HTTPWriter,
 			fileName: req.Destination.Path,
 			fileSize: req.Size,
 		}

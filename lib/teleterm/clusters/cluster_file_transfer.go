@@ -33,33 +33,28 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
 
 func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, request *api.FileTransferRequest, sendProgress FileTransferProgressSender) error {
-	sftpReq, err := getSftpRequest(request, sendProgress)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = AddMetadataToRetryableError(ctx, func() error {
-		err := c.clusterClient.TransferFiles(ctx, sftpReq)
-		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
-			return trace.Errorf("transferring directories through Teleport Connect is not supported at the moment, please use tsh scp -r")
-		}
-		return trace.Wrap(err)
-	})
-	return trace.Wrap(err)
-}
-
-func getSftpRequest(request *api.FileTransferRequest, sendProgress FileTransferProgressSender) (sftp.FileTransferRequest, error) {
 	sftpReq := sftp.FileTransferRequest{
 		Sources: sftp.Sources{
 			Paths: []string{request.GetSource()},
 		},
-		Destination: sftp.Destination{
+		Destination: sftp.Target{
 			Path: request.GetDestination(),
+		},
+		DialHost: func(ctx context.Context, login, addr string) (*ssh.Client, error) {
+			nodeClient, err := c.clusterClient.ConnectToNode(ctx, clt, client.NodeDetails{
+				Addr:    addr,
+				Cluster: c.Name,
+			}, request.Login)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nodeClient.Client.Client, nil
 		},
 		ProgressStream: func(fileInfo os.FileInfo) io.ReadWriter {
 			return newFileTransferProgress(fileInfo.Size(), sendProgress)
@@ -70,7 +65,7 @@ func getSftpRequest(request *api.FileTransferRequest, sendProgress FileTransferP
 	serverURI := uri.New(request.GetServerUri())
 	serverUUID := serverURI.GetServerUUID()
 	if serverUUID == "" {
-		return sftp.FileTransferRequest{}, trace.BadParameter("server URI does not include server UUID")
+		return trace.BadParameter("server URI does not include server UUID")
 	}
 	host := &utils.NetAddr{Addr: serverUUID + ":0"}
 	switch request.GetDirection() {
@@ -81,9 +76,17 @@ func getSftpRequest(request *api.FileTransferRequest, sendProgress FileTransferP
 		sftpReq.Destination.Host = host
 		sftpReq.Destination.Login = request.GetLogin()
 	default:
-		return sftp.FileTransferRequest{}, trace.BadParameter("Unexpected file transfer direction: %q", request.GetDirection())
+		return trace.BadParameter("Unexpected file transfer direction: %q", request.GetDirection())
 	}
-	return sftpReq, nil
+
+	err := AddMetadataToRetryableError(ctx, func() error {
+		err := c.clusterClient.TransferFiles(ctx, sftpReq)
+		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
+			return trace.Errorf("transferring directories through Teleport Connect is not supported at the moment, please use tsh scp -r")
+		}
+		return trace.Wrap(err)
+	})
+	return trace.Wrap(err)
 }
 
 func newFileTransferProgress(fileSize int64, sendProgress FileTransferProgressSender) io.ReadWriter {

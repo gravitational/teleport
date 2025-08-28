@@ -28,11 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Destination is a remote SFTP destination to copy to or from.
-type Destination struct {
-	// Login is an optional login username
+// Target is an SFTP destination to copy to or from.
+type Target struct {
+	// Login is a login username.
 	Login string
-	// Host is a host to copy to/from
+	// Host is a host to copy to/from. If nil, target is a local path.
 	Host net.Addr
 	// Path is a path to copy to/from.
 	// An empty path name is valid, and it refers to the user's default directory (usually
@@ -41,28 +41,28 @@ type Destination struct {
 	Path string
 }
 
-// ParseDestination takes a string representing a remote resource for SFTP
+// ParseTarget takes a string representing a remote resource for SFTP
 // to download/upload in the form "[user@]host:[path]" and parses it into
 // a structured form.
 //
 // See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
 // section about details on file names.
-func ParseDestination(input string, port int) (Destination, error) {
+func ParseTarget(input string, port int) (Target, error) {
 	firstColonIdx := strings.Index(input, ":")
 	// if there are no colons, no path is specified
 	if firstColonIdx == -1 {
 		if !strings.Contains(input, "@") {
-			return Destination{
+			return Target{
 				Path: input,
 			}, nil
 		}
-		return Destination{}, trace.BadParameter("%q is missing a path, use form [user@]host:[path]", input)
+		return Target{}, trace.BadParameter("%q is missing a path, use form [user@]host:[path]", input)
 	}
 	hostStartIdx := strings.LastIndex(input[:firstColonIdx], "@")
 	// if a login exists and the path begins right after the login ends,
 	// no host is specified
 	if hostStartIdx != -1 && hostStartIdx+1 == firstColonIdx {
-		return Destination{}, trace.BadParameter("%q is missing a host, use form [user@]host:[path]", input)
+		return Target{}, trace.BadParameter("%q is missing a host, use form [user@]host:[path]", input)
 	}
 
 	var login string
@@ -88,7 +88,7 @@ func ParseDestination(input string, port int) (Destination, error) {
 	if afterLogin[0] == '[' {
 		ipv6Host, hostEndIdx, err := parseIPv6Host(input, hostStartIdx)
 		if err != nil {
-			return Destination{}, trace.Wrap(err)
+			return Target{}, trace.Wrap(err)
 		}
 		if ipv6Host != nil {
 			host = ipv6Host
@@ -101,7 +101,7 @@ func ParseDestination(input string, port int) (Destination, error) {
 		var err error
 		host, err = utils.ParseAddr(input[hostStartIdx:firstColonIdx])
 		if err != nil {
-			return Destination{}, trace.Wrap(err)
+			return Target{}, trace.Wrap(err)
 		}
 	}
 	host.Addr = fmt.Sprintf("%s:%d", host.Addr, port)
@@ -112,7 +112,7 @@ func ParseDestination(input string, port int) (Destination, error) {
 		path = input[pathStartIdx:]
 	}
 
-	return Destination{
+	return Target{
 		Login: login,
 		Host:  host,
 		Path:  path,
@@ -160,7 +160,7 @@ func ParseSources(rawSources []string, port int) (Sources, error) {
 	if len(rawSources) == 0 {
 		return Sources{}, trace.BadParameter("at least one source requred")
 	}
-	firstSource, err := ParseDestination(rawSources[0], port)
+	firstSource, err := ParseTarget(rawSources[0], port)
 	if err != nil {
 		return Sources{}, trace.Wrap(err)
 	}
@@ -170,7 +170,7 @@ func ParseSources(rawSources []string, port int) (Sources, error) {
 		Paths: []string{firstSource.Path},
 	}
 	for _, rawSource := range rawSources[1:] {
-		source, err := ParseDestination(rawSource, port)
+		source, err := ParseTarget(rawSource, port)
 		if err != nil {
 			return Sources{}, trace.Wrap(err)
 		}

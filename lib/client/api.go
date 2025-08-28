@@ -200,13 +200,9 @@ type Config struct {
 
 	SrcHost string
 
-	SrcPort int
-
 	SrcLogin string
 
 	DestHost string
-
-	DestPort int
 
 	DestLogin string
 
@@ -1726,14 +1722,14 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 
 func (tc *TeleportClient) GetSCPTargetNodes() (src, dst *TargetNode, err error) {
 	if tc.SrcHost != "" {
-		srcTarget, err := parseTargetNode(tc.SrcHost, tc.SrcPort)
+		srcTarget, err := parseTargetNode(tc.SrcHost, tc.HostPort)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		src = &srcTarget
 	}
 	if tc.DestHost != "" {
-		dstTarget, err := parseTargetNode(tc.DestHost, tc.DestPort)
+		dstTarget, err := parseTargetNode(tc.DestHost, tc.HostPort)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -2651,14 +2647,14 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error)
 	}
 	defer clt.Close()
 
-	sources, err := sftp.ParseSources(req.Sources, tc.SrcPort)
+	sources, err := sftp.ParseSources(req.Sources, tc.HostPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if sources.Login == "" {
 		sources.Login = tc.HostLogin
 	}
-	dest, err := sftp.ParseDestination(req.Destination, tc.DestPort)
+	dest, err := sftp.ParseTarget(req.Destination, tc.HostPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
