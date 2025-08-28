@@ -145,7 +145,7 @@ test('renders the duration correctly', async () => {
 });
 
 test('renders non-SSH recordings correctly', async () => {
-  server.use(createMetadataHandler({ ...mockMetadata, type: 'k8s' }, []));
+  server.use(createMetadataHandler({ ...mockMetadata, type: 'desktop' }, []));
 
   setupTest(
     cfg.getPlayerRoute(
