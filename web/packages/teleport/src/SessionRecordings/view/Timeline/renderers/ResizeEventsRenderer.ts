@@ -326,7 +326,7 @@ export class ResizeEventsRenderer extends TimelineCanvasRenderer {
         event.startPosition < viewEnd + buffer
     );
 
-    const sortedEvents = [...activeEvents].toSorted(
+    const sortedEvents = activeEvents.toSorted(
       (a, b) => a.startPosition - b.startPosition
     );
 
