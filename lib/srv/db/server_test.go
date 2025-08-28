@@ -708,6 +708,7 @@ func TestHealthCheck(t *testing.T) {
 		withSQLServer("sqlserver")(t, ctx, testCtx),
 		withAzureRedis("redis-azure", azureRedisToken)(t, ctx, testCtx),
 		withElastiCacheRedis("redis-elasticache", elastiCacheRedisToken, "7.0.0")(t, ctx, testCtx),
+		withElastiCacheServerlessRedis("redis-serverless-elasticache", elastiCacheServerlessRedisToken, "8.0.0")(t, ctx, testCtx),
 		withMemoryDBRedis("redis-memorydb", memorydbToken, "7.0")(t, ctx, testCtx),
 		withSelfHostedRedis("redis-self-hosted")(t, ctx, testCtx),
 		withSnowflake("snowflake")(t, ctx, testCtx),
