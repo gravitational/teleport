@@ -6,13 +6,35 @@ labels:
  - mwi
 ---
 
-Teleport Machine & Workload Identity streamlines hybrid and multi-cloud operations while reducing management costs. It integrates with Terraform, Pulumi, AWS, GCP, Azure, and also provides solutions for on-premises environments.
+Teleport Machine & Workload Identity streamlines hybrid and multi-cloud operations while reducing management costs. 
+It integrates with Terraform, Pulumi, AWS, GCP, Azure, and also provides solutions for on-premises environments.
 
 ## Choose your cloud provider
 
-- [AWS](/machine-workload-identity/workload-identity/aws-roles-anywhere.mdx)
-- [GCP](/machine-workload-identity/workload-identity/gcp-workload-identity-federation-jwt.mdx) 
-- [Azure](/machine-workload-identity/workload-identity/azure-federated-credentials.mdx)
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="awsIdentity" size="xl" />,
+      to: "/machine-workload-identity/workload-identity/aws-roles-anywhere",
+      name: "AWS Roles Anywhere and Workload Identity",
+    },
+    {
+      icon: <Icon name="googleCloud" size="xl" />,
+      to: "/machine-workload-identity/workload-identity/gcp-workload-identity-federation-jwt",
+      name: "Google Cloud Workload Identity Federation",
+    },
+    {
+      icon: <Icon name="azure" size="xl" />,
+      to: "/machine-workload-identity/workload-identity/azure-federated-credentials",
+      name: "Azure Federated Credentials",
+    },
+    {
+      icon: <Icon name="oracle" size="xl" />,
+      to: "",
+      name: "Oracle Cloud Infrastructure and Workload Identity (Guide coming soon!)",
+    }
+  ]}
+/>
 
 ## Manage access for all clouds with one credential
 
