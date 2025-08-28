@@ -226,7 +226,6 @@ const SupportSectionsWrapper = styled(Box)<{ isCloud?: boolean }>`
 export const SupportSectionCard = styled(Card)`
   padding: ${props => props.theme.space[4]}px;
   box-shadow: ${props => props.theme.boxShadow[0]};
-  overflow-wrap: anywhere;
 
   @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     padding: ${props => props.theme.space[3]}px;
