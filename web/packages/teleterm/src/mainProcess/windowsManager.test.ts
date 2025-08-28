@@ -21,6 +21,7 @@
 
 import { BrowserWindow } from 'electron';
 
+import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
 import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
 
 import { makeRuntimeSettings } from './fixtures/mocks';
@@ -73,7 +74,8 @@ describe('waitForWindowFocus', () => {
 const makeWindowsManager = () => {
   const windowsManager = new WindowsManager(
     createMockFileStorage(),
-    makeRuntimeSettings()
+    makeRuntimeSettings(),
+    createMockConfigService({})
   );
 
   let isFocused = false;

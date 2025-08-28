@@ -22,6 +22,7 @@ import * as url from 'node:url';
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   Menu,
   nativeTheme,
@@ -36,10 +37,15 @@ import {
   RuntimeSettings,
   WindowsManagerIpc,
 } from 'teleterm/mainProcess/types';
+import { ConfigService } from 'teleterm/services/config';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 type WindowState = Rectangle;
+
+interface RunInBackgroundState {
+  notified?: boolean;
+}
 
 export class WindowsManager {
   private storageKey = 'windowState';
@@ -57,10 +63,12 @@ export class WindowsManager {
     reject: (error: Error) => void;
   };
   private readonly windowUrl: string;
+  private isHidden: boolean;
 
   constructor(
     private fileStorage: FileStorage,
-    private settings: RuntimeSettings
+    private settings: RuntimeSettings,
+    private configService: ConfigService
   ) {
     this.selectionContextMenu = Menu.buildFromTemplate([{ role: 'copy' }]);
     this.frontendAppInit = {
@@ -125,11 +133,34 @@ export class WindowsManager {
       },
     });
 
-    window.once('close', () => {
+    let isAppQuitting = false;
+    // Triggered when the app itself initiates shutdown (e.g., via app.quit()),
+    // not when the user manually closes the window.
+    app.on('before-quit', () => {
+      isAppQuitting = true;
+    });
+
+    window.on('close', async e => {
       this.saveWindowState(window);
-      this.frontendAppInit.reject(
-        new Error('Window was closed before frontend app got initialized')
-      );
+
+      if (isAppQuitting || !this.configService.get('runInBackground').value) {
+        this.frontendAppInit.reject(
+          new Error('Window was closed before frontend app got initialized')
+        );
+        return;
+      }
+
+      e.preventDefault();
+
+      const shouldRun = await this.confirmIfShouldRunInTrayOnce();
+      if (shouldRun) {
+        this.hideWindow();
+        return;
+      }
+
+      this.configService.set('runInBackground', false);
+      // Retry closing.
+      window.close();
     });
 
     // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
@@ -198,6 +229,39 @@ export class WindowsManager {
     );
   }
 
+  /** Shows the window when it's hidden or minimized. */
+  showWindow(): void {
+    if (this.window.isMinimized()) {
+      this.window.restore();
+    }
+
+    if (!this.isHidden) {
+      this.window.focus();
+      return;
+    }
+
+    this.window.show();
+    this.isHidden = false;
+    void app.dock?.show();
+  }
+
+  /** Hides the window. */
+  hideWindow(): void {
+    if (this.isHidden) {
+      return;
+    }
+
+    this.window.hide();
+    this.isHidden = true;
+    // One side effect to be aware of:
+    // If you close the app window in one macOS space, switch to another space,
+    // and then show the app again, macOS will return you to the original space.
+    // If you close the window again, macOS automatically switches back
+    // to the space where you requested showing the window.
+    // This behavior can feel a bit awkward.
+    app.dock?.hide();
+  }
+
   /**
    * focusWindow is for situations where the app has privileges to do so, for example in a scenario
    * where the user attempts to launch a second instance of the app – the same process that the user
@@ -208,10 +272,7 @@ export class WindowsManager {
       return;
     }
 
-    if (this.window.isMinimized()) {
-      this.window.restore();
-    }
-
+    this.showWindow();
     this.window.focus();
   }
 
@@ -263,12 +324,10 @@ export class WindowsManager {
     // https://github.com/electron/electron/issues/2867#issuecomment-142480964
     // https://github.com/electron/electron/issues/2867#issuecomment-142511956
 
+    this.showWindow();
+
     app.dock?.bounce('informational');
 
-    // app.focus() alone doesn't un-minimize the window if the window is minimized.
-    if (this.window.isMinimized()) {
-      this.window.restore();
-    }
     app.focus({ steal: true });
   }
 
@@ -384,6 +443,31 @@ export class WindowsManager {
       ...getDefaults(),
       ...getPositionAndSize(),
     };
+  }
+
+  private async confirmIfShouldRunInTrayOnce(): Promise<boolean> {
+    const runInBackgroundState = this.fileStorage.get(
+      'runInBackground'
+    ) as RunInBackgroundState;
+    if (runInBackgroundState?.notified) {
+      return true;
+    }
+
+    const isMac = this.settings.platform === 'darwin';
+
+    const { response } = await dialog.showMessageBox(this.window, {
+      type: 'info',
+      message: isMac
+        ? 'Teleport Connect will continue running in the menu bar'
+        : 'Teleport Connect will continue running in the system tray',
+      detail:
+        'VNet and connections to database, kube clusters and apps will remain active.',
+      buttons: ["Don't run in background and quit", 'OK'],
+      defaultId: 1,
+    });
+    const state: RunInBackgroundState = { notified: true };
+    this.fileStorage.put('runInBackground', state);
+    return response !== 0; // true if 'OK'
   }
 }
 
