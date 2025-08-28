@@ -143,6 +143,44 @@ describe('useResourceLock', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.locks).toHaveLength(2);
     expect(result.current.isLocked).toBe(true);
+    expect(result.current.canUnlock).toBe(true);
+  });
+
+  it('handles lock with other targets', async () => {
+    withListLocksSuccess({
+      locks: [
+        {
+          name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+          message: 'This is a test message',
+          expires: '2023-12-31T23:59:59Z',
+          targets: {
+            user: 'test-user',
+            role: 'test-role', // This target means the lock cannot be removed.
+          },
+          createdAt: '2023-01-01T00:00:00Z',
+          createdBy: 'admin',
+        },
+      ],
+    });
+
+    const { result } = renderHook(
+      () =>
+        useResourceLock({
+          targetKind: 'user',
+          targetName: 'test-user',
+        }),
+      {
+        wrapper: makeWrapper(),
+      }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.locks).toHaveLength(1);
+    expect(result.current.isLocked).toBe(true);
     expect(result.current.canUnlock).toBe(false);
   });
 
