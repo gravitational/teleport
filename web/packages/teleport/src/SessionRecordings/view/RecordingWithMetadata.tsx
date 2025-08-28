@@ -110,7 +110,7 @@ export function RecordingWithMetadata({
           clusterId={clusterId}
           sessionId={sessionId}
           durationMs={data.metadata.duration}
-          recordingType="ssh"
+          recordingType={data.metadata.recordingType}
           onToggleSidebar={toggleSidebar}
           onToggleTimeline={toggleTimeline}
           onTimeChange={handleTimeChange}
