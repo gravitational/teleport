@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"time"
@@ -33,17 +34,43 @@ import (
 )
 
 type iterateConfig struct {
-	Filter string
-	Top    int
-	Select string
-	Header http.Header
-	Count  bool
+	// filter is the $filter query param.
+	// https://learn.microsoft.com/en-us/graph/filter-query-parameter?tabs=http
+	filter string
+	// top is the $top query param.
+	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#top
+	top int
+	// selector is the $select query param.
+	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#select
+	selector string
+	// header includes headers that are going to be set during iteration.
+	header http.Header
+	// count is the $count query param.
+	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#count
+	count bool
+}
+
+func (ic *iterateConfig) query() url.Values {
+	q := make(url.Values)
+	if ic.filter != "" {
+		q.Set("$filter", ic.filter)
+	}
+	if ic.top > 0 {
+		q.Set("$top", strconv.Itoa(ic.top))
+	}
+	if ic.selector != "" {
+		q.Set("$select", ic.selector)
+	}
+	if ic.count {
+		q.Set("$count", "true")
+	}
+	return q
 }
 
 func (c *Client) newIterateConfig() *iterateConfig {
 	return &iterateConfig{
-		Top:    c.pageSize,
-		Header: make(http.Header),
+		top:    c.pageSize,
+		header: make(http.Header),
 	}
 }
 
@@ -51,31 +78,31 @@ type IterateOpt func(*iterateConfig)
 
 func WithFilter(filter string) IterateOpt {
 	return func(ic *iterateConfig) {
-		ic.Filter = filter
+		ic.filter = filter
 	}
 }
 
 func WithTop(top int) IterateOpt {
 	return func(ic *iterateConfig) {
-		ic.Top = top
+		ic.top = top
 	}
 }
 
 func WithSelect(s string) IterateOpt {
 	return func(ic *iterateConfig) {
-		ic.Select = s
+		ic.selector = s
 	}
 }
 
 func WithCount() IterateOpt {
 	return func(ic *iterateConfig) {
-		ic.Count = true
+		ic.count = true
 	}
 }
 
 func WithHeader(key, value string) IterateOpt {
 	return func(ic *iterateConfig) {
-		ic.Header.Set(key, value)
+		ic.header.Set(key, value)
 	}
 }
 
@@ -86,7 +113,7 @@ func WithLastSyncDateTimeGt(lastSyncDateTime time.Time) IterateOpt {
 		}
 		// As noted in the docs, DateTimeOffset values aren't enclosed in quotes in $filter expressions.
 		// https://learn.microsoft.com/en-us/graph/filter-query-parameter
-		ic.Filter = fmt.Sprintf("lastSyncDateTime gt %s", lastSyncDateTime.UTC().Format(time.RFC3339))
+		ic.filter = fmt.Sprintf("lastSyncDateTime gt %s", lastSyncDateTime.UTC().Format(time.RFC3339))
 	}
 }
 
@@ -139,24 +166,11 @@ func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 	uri := *c.baseURL
 	uri.Path = path.Join(uri.Path, endpoint)
 
-	query := uri.Query()
-	if ic.Select != "" {
-		query.Set("$select", ic.Select)
-	}
-	if ic.Filter != "" {
-		query.Set("$filter", ic.Filter)
-	}
-	if ic.Top > 0 {
-		query.Set("$top", strconv.Itoa(ic.Top))
-	}
-	if ic.Count {
-		query.Set("$count", "true")
-	}
-	uri.RawQuery = query.Encode()
+	uri.RawQuery = ic.query().Encode()
 
 	uriString := uri.String()
 	for uriString != "" {
-		resp, err := c.request(ctx, http.MethodGet, uriString, ic.Header, nil /* payload */)
+		resp, err := c.request(ctx, http.MethodGet, uriString, ic.header, nil /* payload */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
