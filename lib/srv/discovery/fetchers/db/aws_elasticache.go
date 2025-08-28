@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/gravitational/trace"
@@ -37,8 +38,14 @@ type ElastiCacheClient interface {
 	elasticache.DescribeCacheClustersAPIClient
 	elasticache.DescribeCacheSubnetGroupsAPIClient
 	elasticache.DescribeReplicationGroupsAPIClient
+	elasticache.DescribeServerlessCachesAPIClient
 
 	ListTagsForResource(ctx context.Context, in *elasticache.ListTagsForResourceInput, optFns ...func(*elasticache.Options)) (*elasticache.ListTagsForResourceOutput, error)
+}
+
+// EC2Client is a subset of the AWS EC2 API.
+type EC2Client interface {
+	ec2.DescribeSubnetsAPIClient
 }
 
 // newElastiCacheFetcher returns a new AWS fetcher for ElastiCache databases.
@@ -115,9 +122,8 @@ func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherCon
 
 	var databases types.Databases
 	for _, cluster := range eligibleClusters {
-		// Resource tags are not found in ectypes.ReplicationGroup but can
-		// be on obtained by ectypes.ListTagsForResource (one call per
-		// resource).
+		// Resource tags are not found in ectypes.ServerlessCache but can
+		// be obtained via ectypes.ListTagsForResource (one call per resource).
 		tags, err := getElastiCacheResourceTags(ctx, clt, cluster.ARN)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
