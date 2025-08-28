@@ -67,7 +67,7 @@ const Canvas = styled.canvas`
   bottom: 0;
   width: 100%;
   will-change: transform;
-  transform: translateZ(0);
+  transform: translateZ(0); // force the browser to use the GPU for rendering
 `;
 
 const Cursor = styled.div`
