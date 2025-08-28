@@ -49,10 +49,11 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// remoteSite is a remote site that established the inbound connection to
-// the local reverse tunnel server, and now it can provide access to the
-// cluster behind it.
-type remoteSite struct {
+// leafCluster is a leaf cluster is a Teleport cluster that has established
+// trust with the local Teleport cluster. Access to resources in the
+// leaf cluster can be facilitated by the local cluster via the inbound connection
+// to the local reverse tunnel server
+type leafCluster struct {
 	sync.RWMutex
 
 	logger      *slog.Logger
@@ -76,17 +77,16 @@ type remoteSite struct {
 	// localClient provides access to the Auth Server API of the cluster
 	// within which reversetunnelclient.Server is running.
 	localClient authclient.ClientI
-	// remoteClient provides access to the Auth Server API of the remote cluster that
-	// this site belongs to.
-	remoteClient authclient.ClientI
-	// localAccessPoint provides access to a cached subset of the Auth Server API of
+	// leafClient provides access to the Auth Server API of the associated leaf cluster.
+	leafClient authclient.ClientI
+	// localCache provides access to a cached subset of the Auth Server API of
 	// the local cluster.
-	localAccessPoint authclient.ProxyAccessPoint
-	// remoteAccessPoint provides access to a cached subset of the Auth Server API of
-	// the remote cluster this site belongs to.
-	remoteAccessPoint authclient.RemoteProxyAccessPoint
+	localCache authclient.ProxyAccessPoint
+	// leafCache provides access to a cached subset of the Auth Server API of
+	// the remote cluster.
+	leafCache authclient.RemoteProxyAccessPoint
 
-	// nodeWatcher provides access the node set for the remote site
+	// nodeWatcher provides access the node set for the leaf cluster.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// remoteCA is the last remote certificate authority recorded by the client.
@@ -104,7 +104,7 @@ type remoteSite struct {
 	proxySyncInterval time.Duration
 }
 
-func (s *remoteSite) getRemoteClient() (authclient.ClientI, bool, error) {
+func (s *leafCluster) getLeafClient() (authclient.ClientI, bool, error) {
 	// check if all cert authorities are initiated and if everything is OK
 	ca, err := s.srv.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
 	if err != nil {
@@ -116,10 +116,10 @@ func (s *remoteSite) getRemoteClient() (authclient.ClientI, bool, error) {
 	// The fact that cluster has keys to remote CA means that the key exchange
 	// has completed.
 
-	s.logger.DebugContext(s.ctx, "Using TLS client to remote cluster")
+	s.logger.DebugContext(s.ctx, "Using TLS client to leaf cluster")
 	tlsConfig := utils.TLSConfig(s.srv.ClientTLSCipherSuites)
 	// encode the name of this cluster to identify this cluster,
-	// connecting to the remote one (it is used to find the right certificate
+	// connecting to the leaf cluster (it is used to find the right certificate
 	// authority to verify)
 	tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
 	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
@@ -151,45 +151,45 @@ func (s *remoteSite) getRemoteClient() (authclient.ClientI, bool, error) {
 	return clt, false, nil
 }
 
-func (s *remoteSite) authServerContextDialer(ctx context.Context, network, address string) (net.Conn, error) {
+func (s *leafCluster) authServerContextDialer(ctx context.Context, network, address string) (net.Conn, error) {
 	conn, err := s.DialAuthServer(reversetunnelclient.DialParams{})
 	return conn, err
 }
 
 // GetTunnelsCount always returns 0 for local cluster
-func (s *remoteSite) GetTunnelsCount() int {
+func (s *leafCluster) GetTunnelsCount() int {
 	return s.connectionCount()
 }
 
-func (s *remoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
-	return s.remoteAccessPoint, nil
+func (s *leafCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
+	return s.leafCache, nil
 }
 
-// NodeWatcher returns the services.NodeWatcher for the remote cluster.
-func (s *remoteSite) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+// NodeWatcher returns the services.NodeWatcher for the leaf cluster.
+func (s *leafCluster) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return s.nodeWatcher, nil
 }
 
-// GitServerWatcher returns the Git server watcher for the remote cluster.
-func (s *remoteSite) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	return nil, trace.NotImplemented("GitServerWatcher not implemented for remoteSite")
+// GitServerWatcher returns the Git server watcher for the leaf cluster.
+func (s *leafCluster) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+	return nil, trace.NotImplemented("GitServerWatcher not implemented for leafCluster")
 }
 
-func (s *remoteSite) GetClient() (authclient.ClientI, error) {
-	return s.remoteClient, nil
+func (s *leafCluster) GetClient() (authclient.ClientI, error) {
+	return s.leafClient, nil
 }
 
-func (s *remoteSite) String() string {
-	return fmt.Sprintf("remoteSite(%v)", s.domainName)
+func (s *leafCluster) String() string {
+	return fmt.Sprintf("leafCluster(%v)", s.domainName)
 }
 
-func (s *remoteSite) connectionCount() int {
+func (s *leafCluster) connectionCount() int {
 	s.RLock()
 	defer s.RUnlock()
 	return len(s.connections)
 }
 
-func (s *remoteSite) HasValidConnections() bool {
+func (s *leafCluster) HasValidConnections() bool {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -201,8 +201,8 @@ func (s *remoteSite) HasValidConnections() bool {
 	return false
 }
 
-// Close closes remote cluster connections
-func (s *remoteSite) Close() error {
+// Close closes leaf cluster connections
+func (s *leafCluster) Close() error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -215,8 +215,8 @@ func (s *remoteSite) Close() error {
 		}
 	}
 	s.connections = []*remoteConn{}
-	if s.remoteAccessPoint != nil {
-		if err := s.remoteAccessPoint.Close(); err != nil {
+	if s.leafCache != nil {
+		if err := s.leafCache.Close(); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -224,15 +224,15 @@ func (s *remoteSite) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
-// IsClosed reports whether this remoteSite has been closed.
-func (s *remoteSite) IsClosed() bool {
+// IsClosed reports whether this leafCluster has been closed.
+func (s *leafCluster) IsClosed() bool {
 	return s.ctx.Err() != nil
 }
 
 // nextConn returns next connection that is ready
 // and has not been marked as invalid
 // it will close connections marked as invalid
-func (s *remoteSite) nextConn() (*remoteConn, error) {
+func (s *leafCluster) nextConn() (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -259,7 +259,7 @@ func (s *remoteSite) nextConn() (*remoteConn, error) {
 
 // removeInvalidConns removes connections marked as invalid,
 // it should be called only under write lock
-func (s *remoteSite) removeInvalidConns() {
+func (s *leafCluster) removeInvalidConns() {
 	// for first pass, do nothing if no connections are marked
 	count := 0
 	for _, conn := range s.connections {
@@ -286,9 +286,9 @@ func (s *remoteSite) removeInvalidConns() {
 	s.connections = conns
 }
 
-// addConn helper adds a new active remote cluster connection to the list
+// addConn helper adds a new active leaf cluster connection to the list
 // of such connections
-func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
+func (s *leafCluster) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -306,7 +306,7 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	return rconn, nil
 }
 
-func (s *remoteSite) adviseReconnect(ctx context.Context) {
+func (s *leafCluster) adviseReconnect(ctx context.Context) {
 	wg := &sync.WaitGroup{}
 
 	s.RLock()
@@ -335,7 +335,7 @@ func (s *remoteSite) adviseReconnect(ctx context.Context) {
 	}
 }
 
-func (s *remoteSite) GetStatus() string {
+func (s *leafCluster) GetStatus() string {
 	connInfo, err := s.getLastConnInfo()
 	if err != nil {
 		return teleport.RemoteClusterStatusOffline
@@ -343,19 +343,19 @@ func (s *remoteSite) GetStatus() string {
 	return services.TunnelConnectionStatus(s.clock, connInfo, s.offlineThreshold)
 }
 
-func (s *remoteSite) copyConnInfo() types.TunnelConnection {
+func (s *leafCluster) copyConnInfo() types.TunnelConnection {
 	s.RLock()
 	defer s.RUnlock()
 	return s.connInfo.Clone()
 }
 
-func (s *remoteSite) setLastConnInfo(connInfo types.TunnelConnection) {
+func (s *leafCluster) setLastConnInfo(connInfo types.TunnelConnection) {
 	s.Lock()
 	defer s.Unlock()
 	s.lastConnInfo = connInfo.Clone()
 }
 
-func (s *remoteSite) getLastConnInfo() (types.TunnelConnection, error) {
+func (s *leafCluster) getLastConnInfo() (types.TunnelConnection, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.lastConnInfo == nil {
@@ -364,12 +364,12 @@ func (s *remoteSite) getLastConnInfo() (types.TunnelConnection, error) {
 	return s.lastConnInfo.Clone(), nil
 }
 
-func (s *remoteSite) registerHeartbeat(t time.Time) {
+func (s *leafCluster) registerHeartbeat(t time.Time) {
 	connInfo := s.copyConnInfo()
 	connInfo.SetLastHeartbeat(t)
 	connInfo.SetExpiry(s.clock.Now().Add(s.offlineThreshold))
 	s.setLastConnInfo(connInfo)
-	err := s.localAccessPoint.UpsertTunnelConnection(connInfo)
+	err := s.localCache.UpsertTunnelConnection(connInfo)
 	if err != nil {
 		s.logger.WarnContext(s.ctx, "Failed to register heartbeat", "error", err)
 	}
@@ -377,8 +377,8 @@ func (s *remoteSite) registerHeartbeat(t time.Time) {
 
 // deleteConnectionRecord deletes connection record to let know peer proxies
 // that this node lost the connection and needs to be discovered
-func (s *remoteSite) deleteConnectionRecord() {
-	if err := s.localAccessPoint.DeleteTunnelConnection(s.connInfo.GetClusterName(), s.connInfo.GetName()); err != nil {
+func (s *leafCluster) deleteConnectionRecord() {
+	if err := s.localCache.DeleteTunnelConnection(s.connInfo.GetClusterName(), s.connInfo.GetName()); err != nil {
 		s.logger.WarnContext(s.ctx, "Failed to delete tunnel connection", "error", err)
 	}
 }
@@ -386,7 +386,7 @@ func (s *remoteSite) deleteConnectionRecord() {
 // fanOutProxies is a non-blocking call that puts the new proxies
 // list so that remote connection can notify the remote agent
 // about the list update
-func (s *remoteSite) fanOutProxies(proxies []types.Server) {
+func (s *leafCluster) fanOutProxies(proxies []types.Server) {
 	s.Lock()
 	defer s.Unlock()
 	for _, conn := range s.connections {
@@ -397,7 +397,7 @@ func (s *remoteSite) fanOutProxies(proxies []types.Server) {
 // handleHeartbeat receives heartbeat messages from the connected agent
 // if the agent has missed several heartbeats in a row, Proxy marks
 // the connection as invalid.
-func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
+func (s *leafCluster) handleHeartbeat(ctx context.Context, conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	logger := s.logger.With(
 		"server_id", conn.nodeID,
 		"addr", logutils.StringerAttr(conn.conn.RemoteAddr()),
@@ -419,11 +419,11 @@ func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch s
 		logger.InfoContext(ctx, "Cluster connection closed")
 
 		if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-			logger.WarnContext(ctx, "Failed to close remote connection for remote site", "error", err)
+			logger.WarnContext(ctx, "Failed to close connection for leaf cluster", "error", err)
 		}
 
-		if err := s.srv.onSiteTunnelClose(s); err != nil {
-			logger.WarnContext(ctx, "Failed to close remote site", "error", err)
+		if err := s.srv.onClusterTunnelClose(s); err != nil {
+			logger.WarnContext(ctx, "Failed to clean up leaf cluster resources", "error", err)
 		}
 	}()
 
@@ -522,11 +522,11 @@ func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch s
 	}
 }
 
-func (s *remoteSite) GetName() string {
+func (s *leafCluster) GetName() string {
 	return s.domainName
 }
 
-func (s *remoteSite) GetLastConnected() time.Time {
+func (s *leafCluster) GetLastConnected() time.Time {
 	connInfo, err := s.getLastConnInfo()
 	if err != nil {
 		return time.Time{}
@@ -534,7 +534,7 @@ func (s *remoteSite) GetLastConnected() time.Time {
 	return connInfo.GetLastHeartbeat()
 }
 
-func (s *remoteSite) compareAndSwapCertAuthority(ca types.CertAuthority) error {
+func (s *leafCluster) compareAndSwapCertAuthority(ca types.CertAuthority) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -549,26 +549,26 @@ func (s *remoteSite) compareAndSwapCertAuthority(ca types.CertAuthority) error {
 		return nil
 	}
 	s.remoteCA = ca
-	return trace.CompareFailed("remote certificate authority rotation has been updated")
+	return trace.CompareFailed("leaf cluster certificate authority rotation has been updated")
 }
 
-func (s *remoteSite) updateCertAuthorities(retry retryutils.Retry, remoteWatcher *services.CertAuthorityWatcher, remoteVersion string) {
-	defer remoteWatcher.Close()
+func (s *leafCluster) updateCertAuthorities(retry retryutils.Retry, leafClusterWatcher *services.CertAuthorityWatcher, leafClusterVersion string) {
+	defer leafClusterWatcher.Close()
 
 	for {
-		err := s.watchCertAuthorities(remoteWatcher, remoteVersion)
+		err := s.watchCertAuthorities(leafClusterWatcher, leafClusterVersion)
 		if err != nil {
 			switch {
 			case trace.IsNotFound(err):
-				s.logger.DebugContext(s.ctx, "Remote cluster does not support cert authorities rotation yet")
+				s.logger.DebugContext(s.ctx, "Leaf cluster does not support cert authorities rotation yet")
 			case trace.IsCompareFailed(err):
-				s.logger.InfoContext(s.ctx, "Remote cluster has updated certificate authorities, going to force reconnect")
-				if err := s.srv.onSiteTunnelClose(&alwaysClose{Cluster: s}); err != nil {
-					s.logger.WarnContext(s.ctx, "Failed to close remote site", "error", err)
+				s.logger.InfoContext(s.ctx, "Leaf cluster has updated certificate authorities, going to force reconnect")
+				if err := s.srv.onClusterTunnelClose(&alwaysClose{Cluster: s}); err != nil {
+					s.logger.WarnContext(s.ctx, "Failed to clean up leaf cluster resources", "error", err)
 				}
 				return
 			case trace.IsConnectionProblem(err):
-				s.logger.DebugContext(s.ctx, "Remote cluster is offline")
+				s.logger.DebugContext(s.ctx, "Leaf cluster is offline")
 			default:
 				s.logger.WarnContext(s.ctx, "Could not perform cert authorities update", "error", err)
 			}
@@ -585,7 +585,7 @@ func (s *remoteSite) updateCertAuthorities(retry retryutils.Retry, remoteWatcher
 	}
 }
 
-func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityWatcher, remoteVersion string) error {
+func (s *leafCluster) watchCertAuthorities(leafClusterWatcher *services.CertAuthorityWatcher, leafClusterVersion string) error {
 	filter := types.CertAuthorityFilter{
 		types.HostCA:     s.srv.ClusterName,
 		types.UserCA:     s.srv.ClusterName,
@@ -602,7 +602,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 		}
 	}()
 
-	remoteWatch, err := remoteWatcher.Subscribe(
+	leafWatch, err := leafClusterWatcher.Subscribe(
 		s.ctx,
 		types.CertAuthorityFilter{
 			types.HostCA: s.domainName,
@@ -612,8 +612,8 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 		return trace.Wrap(err)
 	}
 	defer func() {
-		if err := remoteWatch.Close(); err != nil {
-			s.logger.WarnContext(s.ctx, "Failed to close remote ca watcher subscription", "error", err)
+		if err := leafWatch.Close(); err != nil {
+			s.logger.WarnContext(s.ctx, "Failed to close leaf cluster ca watcher subscription", "error", err)
 		}
 	}()
 
@@ -623,54 +623,54 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 			Type:       caType,
 			DomainName: clusterName,
 		}
-		ca, err := s.localAccessPoint.GetCertAuthority(s.ctx, caID, false)
+		ca, err := s.localCache.GetCertAuthority(s.ctx, caID, false)
 		if err != nil {
 			return trace.Wrap(err, "failed to get local cert authority")
 		}
-		if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, ca); err != nil {
+		if err := s.leafClient.RotateExternalCertAuthority(s.ctx, ca); err != nil {
 			return trace.Wrap(err, "failed to push local cert authority")
 		}
 		s.logger.DebugContext(s.ctx, "Pushed local cert authority", "cert_authority", logutils.StringerAttr(caID))
 		localCAs[caType] = ca
 	}
 
-	remoteCA, err := s.remoteAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{
+	remoteCA, err := s.leafCache.GetCertAuthority(s.ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: s.domainName,
 	}, false)
 	if err != nil {
-		return trace.Wrap(err, "failed to get remote cert authority")
+		return trace.Wrap(err, "failed to get leaf cluster cert authority")
 	}
 	if remoteCA.GetName() != s.domainName || remoteCA.GetType() != types.HostCA {
-		return trace.BadParameter("received wrong CA, expected remote host CA, got %v", remoteCA.GetID())
+		return trace.BadParameter("received wrong CA, expected leaf cluster host CA, got %v", remoteCA.GetID())
 	}
 
-	maybeUpsertRemoteCA := func(remoteCA types.CertAuthority) error {
-		oldRemoteCA, err := s.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{
+	maybeUpsertLeafClusterCA := func(leafClusterCA types.CertAuthority) error {
+		oldLeafClusterCA, err := s.localCache.GetCertAuthority(s.ctx, types.CertAuthID{
 			Type:       types.HostCA,
-			DomainName: remoteCA.GetClusterName(),
+			DomainName: leafClusterCA.GetClusterName(),
 		}, false)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 
 		// if CA is changed or does not exist, update backend
-		if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
-			s.logger.DebugContext(s.ctx, "Ingesting remote cert authority", "cert_authority", logutils.StringerAttr(remoteCA.GetID()))
-			if err := s.localClient.UpsertCertAuthority(s.ctx, remoteCA); err != nil {
+		if err != nil || !services.CertAuthoritiesEquivalent(oldLeafClusterCA, leafClusterCA) {
+			s.logger.DebugContext(s.ctx, "Ingesting leaf cluster cert authority", "cert_authority", logutils.StringerAttr(leafClusterCA.GetID()))
+			if err := s.localClient.UpsertCertAuthority(s.ctx, leafClusterCA); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		// keep track of when the remoteSite needs to reconnect
-		if err := s.compareAndSwapCertAuthority(remoteCA); err != nil {
+		// keep track of when the leaf cluster should reconnect
+		if err := s.compareAndSwapCertAuthority(leafClusterCA); err != nil {
 			return trace.Wrap(err)
 		}
 
 		return nil
 	}
 
-	if err := maybeUpsertRemoteCA(remoteCA); err != nil {
+	if err := maybeUpsertLeafClusterCA(remoteCA); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -682,9 +682,9 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 		case <-localWatch.Done():
 			s.logger.WarnContext(s.ctx, "Local CertAuthority watcher subscription has closed")
 			return fmt.Errorf("local ca watcher for cluster %s has closed", s.srv.ClusterName)
-		case <-remoteWatch.Done():
-			s.logger.WarnContext(s.ctx, "Remote CertAuthority watcher subscription has closed")
-			return fmt.Errorf("remote ca watcher for cluster %s has closed", s.domainName)
+		case <-leafWatch.Done():
+			s.logger.WarnContext(s.ctx, "Leaf Cluster CertAuthority watcher subscription has closed")
+			return fmt.Errorf("leaf cluster ca watcher for cluster %s has closed", s.domainName)
 		case evt := <-localWatch.Events():
 			switch evt.Type {
 			case types.OpPut:
@@ -703,14 +703,14 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 				// CheckAndSetDefaults
 				// TODO(espadolini): figure out who should be responsible for validating the CA *once*
 				newCA = newCA.Clone()
-				if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, newCA); err != nil {
+				if err := s.leafClient.RotateExternalCertAuthority(s.ctx, newCA); err != nil {
 					s.logger.WarnContext(s.ctx, "Failed to rotate external ca", "error", err)
 					return trace.Wrap(err)
 				}
 
 				localCAs[newCA.GetType()] = newCA
 			}
-		case evt := <-remoteWatch.Events():
+		case evt := <-leafWatch.Events():
 			switch evt.Type {
 			case types.OpPut:
 				remoteCA, ok := evt.Resource.(types.CertAuthority)
@@ -720,7 +720,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 
 				// the CA might not be trusted but the watcher's fanout logic is
 				// local, so this is ok
-				if err := maybeUpsertRemoteCA(remoteCA); err != nil {
+				if err := maybeUpsertLeafClusterCA(remoteCA); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -728,8 +728,8 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 	}
 }
 
-func (s *remoteSite) updateLocks(retry retryutils.Retry) {
-	s.logger.DebugContext(s.ctx, "Watching for remote lock changes")
+func (s *leafCluster) updateLocks(retry retryutils.Retry) {
+	s.logger.DebugContext(s.ctx, "Watching for leaf cluster lock changes")
 
 	for {
 		startedWaiting := s.clock.Now()
@@ -744,17 +744,17 @@ func (s *remoteSite) updateLocks(retry retryutils.Retry) {
 		if err := s.watchLocks(); err != nil {
 			switch {
 			case trace.IsNotImplemented(err):
-				s.logger.DebugContext(s.ctx, "Remote cluster does not support locks yet", "cluster", s.domainName)
+				s.logger.DebugContext(s.ctx, "Leaft cluster does not support locks yet", "cluster", s.domainName)
 			case trace.IsConnectionProblem(err):
-				s.logger.DebugContext(s.ctx, "Remote cluster is offline", "cluster", s.domainName)
+				s.logger.DebugContext(s.ctx, "Leaf cluster is offline", "cluster", s.domainName)
 			default:
-				s.logger.WarnContext(s.ctx, "Could not update remote locks", "error", err)
+				s.logger.WarnContext(s.ctx, "Could not update leaf cluster locks", "error", err)
 			}
 		}
 	}
 }
 
-func (s *remoteSite) watchLocks() error {
+func (s *leafCluster) watchLocks() error {
 	watcher, err := s.srv.LockWatcher.Subscribe(s.ctx)
 	if err != nil {
 		s.logger.ErrorContext(s.ctx, "Failed to subscribe to LockWatcher", "error", err)
@@ -777,7 +777,7 @@ func (s *remoteSite) watchLocks() error {
 			switch evt.Type {
 			case types.OpPut, types.OpDelete:
 				locks := s.srv.LockWatcher.GetCurrent()
-				if err := s.remoteClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
+				if err := s.leafClient.ReplaceRemoteLocks(s.ctx, s.srv.ClusterName, locks); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -785,7 +785,7 @@ func (s *remoteSite) watchLocks() error {
 	}
 }
 
-func (s *remoteSite) DialAuthServer(params reversetunnelclient.DialParams) (net.Conn, error) {
+func (s *leafCluster) DialAuthServer(params reversetunnelclient.DialParams) (net.Conn, error) {
 	conn, err := s.connThroughTunnel(&sshutils.DialReq{
 		Address:       constants.RemoteAuthServer,
 		ClientSrcAddr: stringOrEmpty(params.From),
@@ -795,14 +795,14 @@ func (s *remoteSite) DialAuthServer(params reversetunnelclient.DialParams) (net.
 }
 
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
-// located in a remote connected site, the connection goes through the
+// located in a leaf cluster, the connection goes through the
 // reverse proxy tunnel.
-func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+func (s *leafCluster) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
 	if params.TargetServer == nil && params.ConnType == types.NodeTunnel {
 		return nil, trace.BadParameter("target server is required for teleport nodes")
 	}
 
-	localRecCfg, err := s.localAccessPoint.GetSessionRecordingConfig(s.ctx)
+	localRecCfg, err := s.localCache.GetSessionRecordingConfig(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -812,15 +812,15 @@ func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, erro
 	}
 
 	if params.ConnType == types.NodeTunnel {
-		// If the remote cluster is recording at the proxy we need to respect
+		// If the leaf cluster is recording at the proxy we need to respect
 		// that and forward and record the session. We will be connecting
-		// to the node without connecting through the remote proxy, so the
-		// session won't have a chance to get recorded at the remote proxy.
-		remoteRecCfg, err := s.remoteAccessPoint.GetSessionRecordingConfig(s.ctx)
+		// to the node without connecting through the leaf proxy, so the
+		// session won't have a chance to get recorded at the leaf proxy.
+		leafClusterRecCfg, err := s.leafCache.GetSessionRecordingConfig(s.ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if services.IsRecordAtProxy(remoteRecCfg.GetMode()) {
+		if services.IsRecordAtProxy(leafClusterRecCfg.GetMode()) {
 			return s.dialAndForward(params)
 		}
 	}
@@ -829,7 +829,7 @@ func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, erro
 	return s.DialTCP(params)
 }
 
-func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, error) {
+func (s *leafCluster) DialTCP(params reversetunnelclient.DialParams) (net.Conn, error) {
 	s.logger.DebugContext(s.ctx, "Initiating dial request",
 		"source_addr", logutils.StringerAttr(params.From),
 		"target_addr", logutils.StringerAttr(params.To),
@@ -852,7 +852,7 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 	return conn, nil
 }
 
-func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
+func (s *leafCluster) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
 	if params.GetUserAgent == nil && !params.TargetServer.IsOpenSSHNode() {
 		return nil, trace.BadParameter("user agent getter is required for teleport nodes")
 	}
@@ -899,7 +899,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 	// once conn is closed.
 	serverConfig := forward.ServerConfig{
 		LocalAuthClient:          s.localClient,
-		TargetClusterAccessPoint: s.remoteAccessPoint,
+		TargetClusterAccessPoint: s.leafCache,
 		UserAgent:                userAgent,
 		AgentlessSigner:          params.AgentlessSigner,
 		TargetConn:               targetConn,
@@ -924,14 +924,14 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 		Clock:                    s.clock,
 		EICESigner:               s.srv.EICESigner,
 	}
-	remoteServer, err := forward.New(serverConfig)
+	forwardingServer, err := forward.New(serverConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go remoteServer.Serve()
+	go forwardingServer.Serve()
 
 	// Return a connection to the forwarding server.
-	conn, err := remoteServer.Dial()
+	conn, err := forwardingServer.Dial()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -963,13 +963,13 @@ func UseTunnel(logger *slog.Logger, c *sshutils.ChConn) bool {
 	}
 }
 
-func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn, error) {
-	s.logger.DebugContext(s.ctx, "Requesting connection in remote cluster.",
+func (s *leafCluster) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn, error) {
+	s.logger.DebugContext(s.ctx, "Requesting connection in leaf cluster.",
 		"target_address", req.Address,
 		"target_server_id", req.ServerID,
 	)
 
-	// Loop through existing remote connections and try and establish a
+	// Loop through existing leaf cluster connections and try and establish a
 	// connection over the "reverse tunnel".
 	var conn *sshutils.ChConn
 	var err error
@@ -978,7 +978,7 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 		if err == nil {
 			return conn, nil
 		}
-		s.logger.WarnContext(s.ctx, "Request for connection to remote site failed", "error", err)
+		s.logger.WarnContext(s.ctx, "Request for connection to leaf cluster failed", "error", err)
 	}
 
 	// Didn't connect and no error? This means we didn't have any connected
@@ -994,7 +994,7 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 	return nil, err
 }
 
-func (s *remoteSite) chanTransportConn(req *sshutils.DialReq) (*sshutils.ChConn, error) {
+func (s *leafCluster) chanTransportConn(req *sshutils.DialReq) (*sshutils.ChConn, error) {
 	rconn, err := s.nextConn()
 	if err != nil {
 		return nil, trace.Wrap(err)
