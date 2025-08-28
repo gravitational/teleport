@@ -220,7 +220,7 @@ loop:
 				metadata.ClusterName = e.ClusterName
 				metadata.User = e.User
 
-				switch e.Protcol {
+				switch e.Protocol {
 				case events.EventProtocolSSH:
 					metadata.ResourceName = e.ServerHostname
 					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH
