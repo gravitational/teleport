@@ -53,7 +53,8 @@ const integrations: IntegrationTileSpec[] = [
     kind: IntegrationKind.AwsOidc,
     icon: 'aws',
     name: 'AWS OIDC Identity Provider',
-    description: 'Use an AWS OIDC integration to interact with AWS.',
+    description:
+      'Set up Teleport as AWS OIDC IdP to support AWS resource enrollment.',
     tags: ['idp'],
   },
   {
