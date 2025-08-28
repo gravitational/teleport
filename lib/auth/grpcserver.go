@@ -2277,6 +2277,21 @@ func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest
 	return rsp, nil
 }
 
+// ListRequestableRoles is a paginated requestable role getter.
+func (g *GRPCServer) ListRequestableRoles(ctx context.Context, req *authpb.ListRequestableRolesRequest) (*authpb.ListRequestableRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+}
+
 // CreateRole creates a new role.
 func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
@@ -4008,6 +4023,34 @@ func (g *GRPCServer) GetDatabases(ctx context.Context, _ *emptypb.Empty) (*types
 	return &types.DatabaseV3List{
 		Databases: databasesV3,
 	}, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (g *GRPCServer) ListDatabases(ctx context.Context, req *authpb.ListDatabasesRequest) (*authpb.ListDatabasesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, next, err := auth.ListDatabases(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListDatabasesResponse{
+		Databases:     make([]*types.DatabaseV3, 0, len(databases)),
+		NextPageToken: next,
+	}
+
+	for _, database := range databases {
+		databaseV3, ok := database.(*types.DatabaseV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported database type %T", database)
+		}
+		resp.Databases = append(resp.Databases, databaseV3)
+	}
+
+	return resp, nil
 }
 
 // DeleteDatabase removes the specified database.

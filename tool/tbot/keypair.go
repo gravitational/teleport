@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
@@ -106,7 +107,7 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 		return trace.Wrap(err, "initializing storage")
 	}
 
-	fsAdapter := config.NewBoundkeypairDestinationAdapter(dest)
+	fsAdapter := destination.NewBoundkeypairDestinationAdapter(dest)
 
 	// Check for existing client state.
 	state, err := boundkeypair.LoadClientState(ctx, fsAdapter)

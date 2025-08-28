@@ -237,6 +237,14 @@ func (r *remoteSFTPSubsystem) Wait() error {
 		err = trace.ConnectionProblem(nil, "context is closing")
 	}
 
+	var exitStatus int
+	if err != nil {
+		exitStatus = 1
+	}
+	r.subsystem.serverContext.SendExecResult(r.subsystem.ctx, srv.ExecResult{
+		Code: exitStatus,
+	})
+
 	// emit an event to the audit log with the result of execution
 	r.subsystem.emitAuditEvent(r.subsystem.ctx, err)
 	return trace.Wrap(err)

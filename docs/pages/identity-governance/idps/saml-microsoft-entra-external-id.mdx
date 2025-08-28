@@ -11,6 +11,28 @@ labels:
 This guide explains how to integrate the Teleport SAML IdP with [Microsoft Entra External ID](https://learn.microsoft.com/en-us/entra/external-id/)
 so that users can access Azure Portal and the Azure CLI by authenticating with Teleport.
 
+## How it works
+
+An administrator configures the [Teleport SAML IdP](saml-guide.mdx) as an
+external IdP in Microsoft Entra External ID, and configures users who are to be
+granted access to Azure as external users. As long as the accounts of these
+users are associated with a domain that is assigned to the Teleport SAML IdP,
+these users can access Azure portal and CLI tools by authenticating with
+Teleport.
+
+Authentication is based on the [interactive sign-in](
+https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively) 
+process. User audit events in Azure are tagged on behalf of Teleport user account,
+providing better audit visibility.
+
+Alternatively, you can also manage access to Azure API and CLI by deploying the 
+[Teleport Application Service](../../enroll-resources/application-access/cloud-apis/azure.mdx). 
+This approach supports access based on [managed identity](
+https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-managed-identity), 
+which may be suitable for automated access. The downside to this approach is that it cannot
+be used to provision access to Azure portal and the audit logs are not tied to the 
+Teleport user account, limiting user account visibility on the the audit events.
+
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v17.5.1 or higher. If you

@@ -1805,6 +1805,16 @@ func (c *Client) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*p
 	return rsp, nil
 }
 
+// ListRequestableRoles is a paginated requestable role getter.
+func (c *Client) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	rsp, err := c.grpc.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+}
+
 // CreateRole creates a new role.
 func (c *Client) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
 	r, ok := role.(*types.RoleV6)
@@ -3507,6 +3517,58 @@ func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
 		databases[i] = items.Databases[i]
 	}
 	return databases, nil
+}
+
+// ListDatabases returns a page of database resources.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]types.Database, string, error) {
+	resp, err := c.grpc.ListDatabases(ctx, &proto.ListDatabasesRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	databases := make([]types.Database, len(resp.Databases))
+	for i := range resp.Databases {
+		databases[i] = resp.Databases[i]
+	}
+	return databases, resp.NextPageToken, nil
+}
+
+// RangeDatabases returns database resources within the range [start, end).
+func (c *Client) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+	return func(yield func(types.Database, error) bool) {
+		for {
+			databases, next, err := c.ListDatabases(ctx, 0, start)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			for _, db := range databases {
+				if end != "" && db.GetName() >= end {
+					return
+				}
+
+				if !yield(db, nil) {
+					return
+				}
+			}
+
+			if next == "" {
+				return
+			}
+
+			start = next
+		}
+	}
 }
 
 // DeleteDatabase deletes specified database resource.

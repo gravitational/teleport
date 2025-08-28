@@ -804,6 +804,16 @@ const (
 
 // newSession creates a new session with a given ID within a given context.
 func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *ServerContext, ch ssh.Channel, sessType sessionType) (*session, *party, error) {
+	var sessionRecordingMode constants.SessionRecordingMode
+	switch {
+	case scx.Identity.AccessPermit != nil:
+		sessionRecordingMode = constants.SessionRecordingMode(scx.Identity.AccessPermit.SessionRecordingMode)
+	case scx.Identity.ProxyingPermit != nil:
+		sessionRecordingMode = scx.Identity.ProxyingPermit.SessionRecordingMode
+	default:
+		return nil, nil, trace.BadParameter("session creation only supported in context of ssh access or proxying permit")
+	}
+
 	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
@@ -859,7 +869,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		serverMeta:                     scx.srv.TargetMetadata(),
 	}
 
-	sess.io.OnWriteError = sess.onWriteError
+	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
 
 	go func() {
 		if _, open := <-sess.io.TerminateNotifier(); open {
@@ -1041,7 +1051,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			Protocol:   events.EventProtocolSSH,
 		},
-		SessionRecording: s.sessionRecordingMode(),
+		SessionRecording: s.sessionRecordingLocation(),
 		InitialCommand:   initialCommand,
 		Reason:           s.scx.env[teleport.EnvSSHSessionReason],
 	}
@@ -1213,7 +1223,7 @@ func (s *session) emitSessionEndEvent() {
 		Interactive:       s.term != nil,
 		StartTime:         start,
 		EndTime:           end,
-		SessionRecording:  s.sessionRecordingMode(),
+		SessionRecording:  s.sessionRecordingLocation(),
 	}
 
 	for _, p := range s.participants {
@@ -1239,7 +1249,7 @@ func (s *session) emitSessionEndEvent() {
 	}
 }
 
-func (s *session) sessionRecordingMode() string {
+func (s *session) sessionRecordingLocation() string {
 	sessionRecMode := s.scx.SessionRecordingConfig.GetMode()
 	subKind := s.serverMeta.ServerSubKind
 
@@ -1513,6 +1523,19 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 // newRecorder creates a new [events.SessionPreparerRecorder] to be used as the recorder
 // of the passed in session.
 func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder, error) {
+	// determine session recording mode. in theory we could choose to only do this in the unhappy
+	// path since thats the only place we use it, but we do it here to ensure that any test coverage
+	// we have for this code will always enforce its permit requirements.
+	var sessionRecordingMode constants.SessionRecordingMode
+	switch {
+	case ctx.Identity.AccessPermit != nil:
+		sessionRecordingMode = constants.SessionRecordingMode(ctx.Identity.AccessPermit.SessionRecordingMode)
+	case ctx.Identity.ProxyingPermit != nil:
+		sessionRecordingMode = ctx.Identity.ProxyingPermit.SessionRecordingMode
+	default:
+		return nil, trace.BadParameter("session recorder creation only supported in context of ssh access or proxying permit")
+	}
+
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
@@ -1540,7 +1563,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 		Context: ctx.srv.Context(),
 	})
 	if err != nil {
-		switch constants.SessionRecordingMode(ctx.Identity.AccessPermit.SessionRecordingMode) {
+		switch sessionRecordingMode {
 		case constants.SessionRecordingModeBestEffort:
 			s.logger.WarnContext(
 				s.serverCtx, "Failed to initialize session recording, disabling it for this session.",
@@ -2403,22 +2426,24 @@ func (s *session) recordEvent(ctx context.Context, event apievents.PreparedSessi
 	}
 }
 
-// onWriteError defines the `OnWriteError` `TermManager` callback.
-func (s *session) onWriteError(idString string, err error) {
-	if idString == sessionRecorderID {
-		switch constants.SessionRecordingMode(s.scx.Identity.AccessPermit.SessionRecordingMode) {
-		case constants.SessionRecordingModeBestEffort:
-			s.logger.WarnContext(s.serverCtx, "Failed to write to session recorder, disabling session recording.")
-			// Send inside a goroutine since the callback is called from inside
-			// the writer.
-			go s.BroadcastSystemMessage(sessionRecordingWarningMessage)
-		default:
-			s.logger.ErrorContext(s.serverCtx, "Failed to write to session recorder, stopping session.")
-			// stop in goroutine to avoid deadlock
-			go func() {
-				s.BroadcastSystemMessage(sessionRecordingErrorMessage)
-				s.Stop()
-			}()
+// onWriteErrorCallback builds the `OnWriteError` `TermManager` callback.
+func (s *session) onWriteErrorCallback(sessionRecordingMode constants.SessionRecordingMode) func(idString string, err error) {
+	return func(idString string, err error) {
+		if idString == sessionRecorderID {
+			switch sessionRecordingMode {
+			case constants.SessionRecordingModeBestEffort:
+				s.logger.WarnContext(s.serverCtx, "Failed to write to session recorder, disabling session recording.")
+				// Send inside a goroutine since the callback is called from inside
+				// the writer.
+				go s.BroadcastSystemMessage(sessionRecordingWarningMessage)
+			default:
+				s.logger.ErrorContext(s.serverCtx, "Failed to write to session recorder, stopping session.")
+				// stop in goroutine to avoid deadlock
+				go func() {
+					s.BroadcastSystemMessage(sessionRecordingErrorMessage)
+					s.Stop()
+				}()
+			}
 		}
 	}
 }

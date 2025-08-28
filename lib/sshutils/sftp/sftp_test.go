@@ -1079,6 +1079,19 @@ func TestHandleFilelist(t *testing.T) {
 		}
 	}
 
+	// Add a broken symlink.
+	brokenSymlinkName := "broken-symlink"
+	brokenSymlink := filepath.Join(root, brokenSymlinkName)
+	brokenTarget := filepath.Join(root, "this-file-does-not-exist")
+	require.NoError(t, os.Symlink(brokenTarget, brokenSymlink))
+	symlinkStat, err := os.Lstat(brokenSymlink)
+	require.NoError(t, err)
+	statMap[brokenSymlinkName] = fileInfo{
+		name: brokenSymlinkName,
+		mode: symlinkStat.Mode(),
+		size: int64(len(brokenTarget)),
+	}
+
 	tests := []struct {
 		name           string
 		req            *sftp.Request
@@ -1136,7 +1149,7 @@ func TestHandleFilelist(t *testing.T) {
 				if assert.True(t, ok, "unexpected file %q", fi.Name()) {
 					assert.Equal(t, entry.Name(), fi.Name())
 					assert.Equal(t, entry.Size(), fi.Size(), fi.Name())
-					assert.Equal(t, entry.Mode(), fi.Mode(), fi.Name())
+					assert.Equal(t, entry.Mode(), fi.Mode(), "%s: expected mode 0o%o, got mode 0o%o", fi.Name(), entry.Mode(), fi.Mode())
 				}
 			}
 		})

@@ -199,6 +199,14 @@ func (s *Server) onUpdate(ctx context.Context, database, _ types.Database) error
 	if s.monitoredDatabases.isResource_Locked(database) {
 		s.applyAWSResourceMatcherSettings(databaseCopy)
 	}
+
+	// Run DiscoveryResourceChecker after resource matchers are applied to make
+	// sure the correct AssumeRoleARN is used.
+	if s.monitoredDatabases.isDiscoveryResource_Locked(database) {
+		if err := s.cfg.discoveryResourceChecker.Check(ctx, databaseCopy); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return s.updateDatabase(ctx, databaseCopy)
 }
 

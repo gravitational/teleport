@@ -1,5 +1,40 @@
 # Changelog
 
+## 18.1.7 (08/27/25)
+
+* Fixed an issue where VNet could not start because of "VNet is already running" error. [#58388](https://github.com/gravitational/teleport/pull/58388)
+* Fix MCP icon displaying as white/black blocks. [#58347](https://github.com/gravitational/teleport/pull/58347)
+* Fix crash when running 'teleport backend clone' on non-Linux platforms. [#58332](https://github.com/gravitational/teleport/pull/58332)
+* Disabled MySQL database health checks to avoid MySQL blocking the Teleport Database Service for too many connection errors. MySQL health checks can be re-enabled by setting max_connect_errors on MySQL to its maximum value and setting the environment variable TELEPORT_ENABLE_MYSQL_DB_HEALTH_CHECKS=1 on the Teleport Database Service instance. [#58331](https://github.com/gravitational/teleport/pull/58331)
+* Fixed incorrect scp exit status between OpenSSH clients and servers. [#58327](https://github.com/gravitational/teleport/pull/58327)
+* Fixed sftp readdir failing due to broken symlinks. [#58320](https://github.com/gravitational/teleport/pull/58320)
+* Added "MCP Servers" filter in resources view for Web UI and Teleport Connect. [#58309](https://github.com/gravitational/teleport/pull/58309)
+* Enable separate request_object_mode setting for MFA flow in OIDC connectors. [#58281](https://github.com/gravitational/teleport/pull/58281)
+* Allow a namespace to be specified for the `tbot` Kubernetes Secret destination. [#58203](https://github.com/gravitational/teleport/pull/58203)
+* MWI: `tbot` now supports managing Argo CD clusters via the `kubernetes/argo-cd` output service. [#58200](https://github.com/gravitational/teleport/pull/58200)
+* Fixed failure to close user accounting session. [#58163](https://github.com/gravitational/teleport/pull/58163)
+* Add paginated API ListDatabases, deprecate GetDatabases. [#58105](https://github.com/gravitational/teleport/pull/58105)
+* Prevent modifier keys from getting stuck during remote desktop sessions. [#58103](https://github.com/gravitational/teleport/pull/58103)
+* Fixed AWS app access signature verification for AWS requests that use an unsigned payload. [#58085](https://github.com/gravitational/teleport/pull/58085)
+* Windows desktop LDAP discovery now auto-populates the resource's description field. [#58082](https://github.com/gravitational/teleport/pull/58082)
+
+Enterprise:
+* For OIDC SSO, the IdP app/client configured for MFA checks is no longer expected to return claims that map to Teleport roles. Valid claim to role mappings are only required for login flows.
+* Fix SSO MFA method for applications when Teleport is the SAML identity provider and Per-Session MFA is enabled.
+* Added an optional session recording summarizer that uses OpenAI or a compatible API.
+
+## 18.1.6 (08/20/25)
+
+* Fixed an uncaught exception in Teleport Connect on Windows when closing the app while the `TELEPORT_TOOLS_VERSION` environment variable is set. [#58131](https://github.com/gravitational/teleport/pull/58131)
+* Fixed a Teleport Connect crash that occurred when assuming an access request while an application or database connection was active. [#58109](https://github.com/gravitational/teleport/pull/58109)
+* Enable Azure joining with VMSS. [#58094](https://github.com/gravitational/teleport/pull/58094)
+* Add support for JWT-Secured Authorization Requests to OIDC Connector. [#58063](https://github.com/gravitational/teleport/pull/58063)
+* Fixed an issue that could cause some hosts not to register dynamic Windows desktops. [#58061](https://github.com/gravitational/teleport/pull/58061)
+* TBot now emits a log message stating the current version on startup. [#58056](https://github.com/gravitational/teleport/pull/58056)
+* Improve error message when a User without any MFA devices enrolled attempts to access a resource that requires MFA. [#58042](https://github.com/gravitational/teleport/pull/58042)
+* Web assets are now pre-compressed with Brotli. [#58039](https://github.com/gravitational/teleport/pull/58039)
+* Add TELEPORT_UNSTABLE_GRPC_RECV_SIZE env var which can be set to overwrite client side max grpc message size. [#58029](https://github.com/gravitational/teleport/pull/58029)
+
 ## 18.1.5 (08/18/25)
 
 * Fix AWS CLI access using AWS OIDC integration. [#57977](https://github.com/gravitational/teleport/pull/57977)
@@ -255,7 +290,7 @@ databases, making it user-friendly for ad-hoc user and script-friendly for
 automation.
 
 For more details, see the *database access examples* in the [per-session MFA
-guide](docs/pages/zero-trust-access/access-controls/guides/per-session-mfa.mdx).
+guide](docs/pages/zero-trust-access/authentication/per-session-mfa.mdx).
 
 #### RBAC and device trust for SAML applications
 
@@ -2205,7 +2240,7 @@ material on Yubikey devices instead of filesystem which helps prevent
 credentials exfiltration attacks.
 
 See how to enable it in the
-[documentation](docs/pages/zero-trust-access/access-controls/guides/hardware-key-support.mdx):
+[documentation](docs/pages/zero-trust-access/authentication/hardware-key-support.mdx):
 
 Hardware-backed private keys is an enterprise only feature, and is currently
 supported for server access only.
@@ -2385,7 +2420,7 @@ Teleport 10 introduces passwordless support to your clusters. To use passwordles
 users may register a security key with resident credentials or use a built-in
 authenticator, like Touch ID.
 
-See the [documentation](docs/pages/zero-trust-access/access-controls/guides/passwordless.mdx).
+See the [documentation](docs/pages/zero-trust-access/authentication/passwordless.mdx).
 
 ### Resource Access Requests (Preview)
 
@@ -2540,7 +2575,7 @@ sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the [Moderated Sessions
-guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx) for more
+guide](docs/pages/zero-trust-access/authentication/joining-sessions.mdx) for more
 details.
 
 #### GitHub connectors
@@ -2999,7 +3034,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-[Moderated Sessions guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx)
+[Moderated Sessions guide](docs/pages/zero-trust-access/authentication/joining-sessions.mdx)
 
 ### Breaking Changes
 
@@ -3339,7 +3374,7 @@ Teleport 6.1 contains multiple new features, improvements, and bug fixes.
 Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 For more details see [Per-Session
-MFA](docs/pages/zero-trust-access/access-controls/guides/per-session-mfa.mdx) documentation or
+MFA](docs/pages/zero-trust-access/authentication/per-session-mfa.mdx) documentation or
 [RFD
 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md)
 and [RFD
@@ -3711,7 +3746,7 @@ We've added two new RBAC resources; these provide the ability to limit token cre
   verbs: [list,create,read,update,delete]
 ```
 
-Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/access-controls/access-controls.mdx)
+Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/authentication/authentication.mdx)
 
 ##### Cluster Labels
 
@@ -4931,7 +4966,7 @@ available Teleport clusters with ease.
 #### Configuration Changes
 
 * Role templates (depreciated in Teleport 2.3) were fully removed. We recommend
-  migrating to role variables which are documented [here](docs/pages/zero-trust-access/access-controls/guides/role-templates.mdx)
+  migrating to role variables which are documented [here](docs/pages/zero-trust-access/rbac-get-started/role-templates.mdx)
 
 * Resource names (like roles, connectors, trusted clusters) can no longer
   contain unicode or other special characters. Update the names of all user
