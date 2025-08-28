@@ -156,6 +156,7 @@ type Server interface {
 	GetClock() clockwork.Clock
 
 	// GetInfo returns a services.Server that represents this server.
+	// In the case of the Proxy forwarder, this will is the node target.
 	GetInfo() types.Server
 
 	// UseTunnel used to determine if this node has connected to this cluster
@@ -192,6 +193,27 @@ type Server interface {
 
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
+}
+
+// GetTargetMetadata returns metadata about the session target node.
+func GetTargetMetadata(s Server) apievents.ServerMetadata {
+	serverInfo := s.GetInfo()
+
+	var forwardedBy string
+	if s.ID() != s.HostUUID() {
+		forwardedBy = s.HostUUID()
+	}
+
+	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
+		ServerNamespace: s.GetNamespace(),
+		ServerID:        serverInfo.GetName(),
+		ServerAddr:      serverInfo.GetAddr(),
+		ServerLabels:    serverInfo.GetAllLabels(),
+		ServerHostname:  serverInfo.GetHostname(),
+		ServerSubKind:   serverInfo.GetSubKind(),
+		ForwardedBy:     forwardedBy,
+	}
 }
 
 // IdentityContext holds all identity information associated with the user

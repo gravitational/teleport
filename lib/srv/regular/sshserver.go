@@ -255,14 +255,7 @@ type Server struct {
 
 // TargetMetadata returns metadata about the server.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
-	return apievents.ServerMetadata{
-		ServerVersion:   teleport.Version,
-		ServerNamespace: s.GetNamespace(),
-		ServerID:        s.ID(),
-		ServerAddr:      s.Addr(),
-		ServerLabels:    s.getAllLabels(),
-		ServerHostname:  s.hostname,
-	}
+	return srv.GetTargetMetadata(s)
 }
 
 // GetClock returns server clock implementation
