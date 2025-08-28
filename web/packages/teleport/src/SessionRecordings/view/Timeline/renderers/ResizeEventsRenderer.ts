@@ -119,8 +119,6 @@ export class ResizeEventsRenderer extends TimelineCanvasRenderer {
       containerHeight
     );
 
-    console.log('Rendering resize events:', eventsWithPositions);
-
     for (const { event, row, y } of eventsWithPositions) {
       this.renderEvent(
         event,
@@ -345,8 +343,6 @@ export class ResizeEventsRenderer extends TimelineCanvasRenderer {
       for (let i = 0; i < baseRow; i++) {
         const rowEnd = rowEndPositions.get(i) ?? -Infinity;
 
-        console.log('checking row', i, 'end', rowEnd);
-
         // Check if the event can fit in this row without overlapping
         if (event.startPosition >= rowEnd + padding) {
           targetRow = i;
@@ -356,8 +352,6 @@ export class ResizeEventsRenderer extends TimelineCanvasRenderer {
       }
 
       const y = this.getYForRow(targetRow, containerHeight);
-
-      console.log('setting row to', targetRow, 'y:', y);
 
       eventsWithPositions.push({
         event,
