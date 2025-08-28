@@ -82,13 +82,15 @@ secret](https://learn.microsoft.com/en-us/graph/auth-register-app-v2#option-2-ad
 
 ## Step 3/3. Configure the Intune integration in Teleport
 
-1. In the Web UI, navigate to Add New > Integration and select "Microsoft Intune".
-2. Fill in the required information:
-   - Primary domain or Microsoft Entra tenant ID: Enter your [tenant identifier](https://learn.microsoft.com/en-us/partner-center/account-settings/find-ids-and-domain-names#find-the-microsoft-entra-tenant-id-and-primary-domain-name)
-     (e.g., `contoso.onmicrosoft.com` or the tenant GUID).
+1. Follow [the official docs to find your tenant
+   identifier](https://learn.microsoft.com/en-us/partner-center/account-settings/find-ids-and-domain-names#find-the-microsoft-entra-tenant-id-and-primary-domain-name)
+   (e.g., `contoso.onmicrosoft.com` or the tenant GUID).
+2. In the Web UI, navigate to Add New > Integration and select "Microsoft Intune".
+3. Fill in the required information:
+   - Primary domain or Microsoft Entra tenant ID: enter your tenant identifier.
    - Application (client) ID: Paste the Application ID you copied in Step 1.
    - Client secret value: Paste the client secret value you copied in Step 2.
-3. Click "Connect Microsoft Intune" to complete the setup.
+4. Click "Connect Microsoft Intune" to complete the setup.
 
 The integration will begin syncing devices from your Intune inventory within two minutes. Depending
 on the size of your inventory, the initial sync may take a few minutes to complete.
