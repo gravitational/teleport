@@ -8478,7 +8478,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		AccessPoint:    client,
 		LockWatcher:    proxyLockWatcher,
 		Clock:          clock,
-		ServerID:       proxyID,
+		ServerID:       node.ID(),
 		Emitter:        client,
 		EmitterContext: ctx,
 		Logger:         logtest.NewLogger(),

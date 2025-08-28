@@ -30,7 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -81,8 +80,6 @@ import (
 //	}
 type Server struct {
 	logger *slog.Logger
-
-	id string
 
 	// targetConn is the TCP connection to the remote host.
 	targetConn net.Conn
@@ -154,9 +151,9 @@ type Server struct {
 
 	clock clockwork.Clock
 
-	// hostUUID is the UUID of the underlying proxy that the forwarding server
+	// proxyUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
-	hostUUID string
+	proxyUUID string
 
 	// closeContext and closeCancel are used to signal to the outside
 	// world that this server is closed
@@ -234,9 +231,9 @@ type ServerConfig struct {
 	// configuration.
 	FIPS bool
 
-	// HostUUID is the UUID of the underlying proxy that the forwarding server
+	// ProxyUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
-	HostUUID string
+	ProxyUUID string
 
 	// Emitter is audit events emitter
 	Emitter events.StreamEmitter
@@ -342,7 +339,6 @@ func New(c ServerConfig) (*Server, error) {
 			"src_addr", c.SrcAddr.String(),
 			"dst_addr", c.DstAddr.String(),
 		),
-		id:              uuid.New().String(),
 		targetConn:      c.TargetConn,
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
@@ -355,7 +351,7 @@ func New(c ServerConfig) (*Server, error) {
 		authService:     c.LocalAuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
-		hostUUID:        c.HostUUID,
+		proxyUUID:       c.ProxyUUID,
 		StreamEmitter:   c.Emitter,
 		parentContext:   c.ParentContext,
 		lockWatcher:     c.LockWatcher,
@@ -417,7 +413,7 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 		ServerID:        s.targetID,
 		ServerAddr:      s.targetAddr,
 		ServerHostname:  s.targetHostname,
-		ForwardedBy:     s.hostUUID,
+		ForwardedBy:     s.proxyUUID,
 		ServerSubKind:   s.targetServer.GetSubKind(),
 	}
 }
@@ -433,15 +429,15 @@ func (s *Server) GetDataDir() string {
 	return s.dataDir
 }
 
-// ID returns the ID of the proxy that creates the in-memory forwarding server.
+// ID returns the UUID of the server targeted by the forwarding server.
 func (s *Server) ID() string {
-	return s.id
+	return s.targetServer.GetName()
 }
 
 // HostUUID is the UUID of the underlying proxy that the forwarding server
 // is running in.
 func (s *Server) HostUUID() string {
-	return s.hostUUID
+	return s.proxyUUID
 }
 
 // GetNamespace returns the namespace the forwarding server resides in.
