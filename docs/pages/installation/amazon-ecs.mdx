@@ -11,14 +11,16 @@ Using Amazon ECS and Terraform allows you to easily deploy and manage Teleport A
 This flow is ideal when you want to automatically discover and secure access to your EKS clusters, RDS databases or other supported AWS resources.
 
 ## How it works
-Using Terraform, a Teleport Agent is deployed and kept up to date in Amazon ECS.
+A Terraform module deploys a Teleport Agent on Amazon ECS and keeps it up to date.
+Re-applying the Terraform configuration ensures the Teleport Agent's version stays up to date.
+
 You have to create or re-use an IAM Join Token so the Agent is able to join the cluster.
 
-You will need to configure which Teleport services you want to run (e.g., discovery, database and kube services), and then pick the subnets and security groups which allow access to the resources you want to access.
+You will need to configure the Teleport services you want to run (e.g., the Discovery Service or Database Service), and then pick the subnets and security groups which allow access to the resources you want to access.
 
-After deploying, the Agent is part of your cluster and starts discovering or proxying requests.
+After deploying, the Agent is part of your cluster and starts discovering resources or proxying requests.
 
-You can customize the Agent configuration and re-deploying it as needed.
+You can customize the Agent configuration and re-deploy it as needed.
 
 ## Prerequisites
 The following set up is required:
@@ -130,4 +132,4 @@ Navigate to the Amazon ECS console, select the Cluster and Service, and look for
 ## Next steps
 Use this guide as a starting point for implementing Auto Discovery for AWS resources:
 - [for EKS clusters](../enroll-resources/auto-discovery/kubernetes/aws.mdx)
-- [for AWS databases](../enroll-resources/database-access/enroll-aws-databases/)
+- [for AWS databases](../enroll-resources/database-access/enroll-aws-databases/enroll-aws-databases.mdx)
