@@ -470,7 +470,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		DataDir:                  s.srv.Config.DataDir,
 		Address:                  params.Address,
 		UseTunnel:                useTunnel,
-		HostUUID:                 s.srv.ID,
+		ProxyUUID:                s.srv.ID,
 		Emitter:                  s.srv.Config.Emitter,
 		ParentContext:            s.srv.Context,
 		LockWatcher:              s.srv.LockWatcher,
