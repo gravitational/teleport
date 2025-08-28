@@ -92,13 +92,11 @@ async function createRenderer(
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
 
-  function imageLoader() {
-    return new Promise<LoadedImageResult>(resolve => {
-      const canvas = new OffscreenCanvas(frameWidth, frameHeight);
-      const img = new Image();
+  function imageLoader(): Promise<LoadedImageResult> {
+    const canvas = new OffscreenCanvas(frameWidth, frameHeight);
+    const img = new Image();
 
-      resolve({ canvas, img });
-    });
+    return Promise.resolve({ canvas, img });
   }
 
   const renderer = new FramesRenderer(
