@@ -77,7 +77,11 @@ export class FramesRenderer extends TimelineCanvasRenderer {
     duration: number,
     frames: SessionRecordingThumbnail[],
     initialHeight: number,
-    eventsHeight: number
+    eventsHeight: number,
+    private imageLoader: (frame: ThumbnailWithId) => Promise<{
+      canvas: OffscreenCanvas;
+      img: HTMLImageElement;
+    }> = defaultImageLoader
   ) {
     super(ctx, theme, duration);
 
@@ -143,8 +147,8 @@ export class FramesRenderer extends TimelineCanvasRenderer {
 
     const framesAtZoom: ThumbnailWithPosition[] = [];
 
-    for (const frame of framesWithPositions) {
-      if (framesAtZoom.length === 0) {
+    for (const [index, frame] of framesWithPositions.entries()) {
+      if (index === 0) {
         framesAtZoom.push(frame);
 
         continue;
@@ -172,7 +176,7 @@ export class FramesRenderer extends TimelineCanvasRenderer {
 
   // loadNonVisibleFrames loads all frames that are not currently visible.
   // This is useful for preloading frames in the background.
-  loadNonVisibleFrames(): Promise<OffscreenCanvas[]> {
+  loadNonVisibleFrames() {
     const nonVisibleFrames = this.frames.filter(
       frame => !this.loadedImages.has(frame.id)
     );
@@ -181,10 +185,7 @@ export class FramesRenderer extends TimelineCanvasRenderer {
   }
 
   // loadVisibleFrames loads only the frames that are currently visible in the viewport.
-  loadVisibleFrames(
-    offset: number,
-    containerWidth: number
-  ): Promise<OffscreenCanvas[]> {
+  loadVisibleFrames(offset: number, containerWidth: number) {
     const visibleFrames = this.getVisibleFrames(offset, containerWidth);
 
     return Promise.all(visibleFrames.map(frame => this.loadImage(frame)));
@@ -391,29 +392,38 @@ export class FramesRenderer extends TimelineCanvasRenderer {
     this.loadedImages.set(frame.id, canvas);
   }
 
-  // loadImage loads a data URI SVG string and draws it onto an offscreen canvas.
-  private loadImage(frame: ThumbnailWithId): Promise<OffscreenCanvas> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
+  // loadImage loads a data URI SVG through the provided image loader and draws the result onto an offscreen canvas.
+  private async loadImage(frame: ThumbnailWithId) {
+    const { canvas, img } = await this.imageLoader(frame);
 
-      img.onload = () => {
-        try {
-          const offscreen = new OffscreenCanvas(img.width, img.height);
-
-          this.drawFrame(frame, offscreen, img);
-          this.loadedImageElements.set(frame.id, img);
-
-          resolve(offscreen);
-        } catch {
-          reject(new Error(`Failed to process image for frame ${frame.id}`));
-        }
-      };
-
-      img.onerror = () => {
-        reject(new Error(`Failed to load image for frame ${frame.id}`));
-      };
-
-      img.src = frame.svg;
-    });
+    this.drawFrame(frame, canvas, img);
+    this.loadedImageElements.set(frame.id, img);
   }
+}
+
+export interface LoadedImageResult {
+  canvas: OffscreenCanvas;
+  img: HTMLImageElement;
+}
+
+function defaultImageLoader(frame: ThumbnailWithId) {
+  return new Promise<LoadedImageResult>((resolve, reject) => {
+    const img = new Image();
+
+    img.onload = () => {
+      try {
+        const canvas = new OffscreenCanvas(img.width, img.height);
+
+        resolve({ canvas, img });
+      } catch {
+        reject(new Error(`Failed to process image for frame ${frame.id}`));
+      }
+    };
+
+    img.onerror = () => {
+      reject(new Error(`Failed to load image for frame ${frame.id}`));
+    };
+
+    img.src = frame.svg;
+  });
 }
