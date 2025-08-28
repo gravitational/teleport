@@ -27,6 +27,7 @@ import { CatchError } from 'teleport/components/CatchError';
 import { Route, Router, Switch } from 'teleport/components/Router';
 import { getOSSFeatures } from 'teleport/features';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { ViewSessionRecordingRoute } from 'teleport/SessionRecordings/view/ViewSessionRecordingRoute';
 import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
@@ -42,7 +43,6 @@ import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
 import { Main } from './Main';
-import { Player } from './Player';
 import { SingleLogoutFailed } from './SingleLogoutFailed';
 import TeleportContext from './teleportContext';
 import TeleportContextProvider from './TeleportContextProvider';
@@ -197,6 +197,11 @@ function privateOSSRoutes() {
     <Switch>
       {getSharedPrivateRoutes()}
       <Route
+        key="player"
+        path={cfg.routes.player}
+        component={ViewSessionRecordingRoute}
+      />
+      <Route
         path={cfg.routes.root}
         render={() => <Main features={getOSSFeatures()} />}
       />
@@ -212,7 +217,6 @@ export function getSharedPrivateRoutes() {
       component={DesktopSession}
     />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
-    <Route key="player" path={cfg.routes.player} component={Player} />,
     <Route
       key="headlessSSO"
       path={cfg.routes.headlessSso}

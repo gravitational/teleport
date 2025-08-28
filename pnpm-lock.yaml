@@ -10,6 +10,9 @@ patchedDependencies:
   '@types/wicg-file-system-access@2023.10.6':
     hash: d78cdc47c763f4a23344955ac2c09be11b33372d0f77eb4d6384f1286a75ece8
     path: web/patches/@types__wicg-file-system-access@2023.10.6.patch
+  jest-canvas-mock@2.5.2:
+    hash: 8329a68f6b8f930f6204c405a071859893962d4a6641b6c2c2bb33122c0441b1
+    path: web/patches/jest-canvas-mock@2.5.2.patch
 
 importers:
 
@@ -108,6 +111,9 @@ importers:
       use-immer:
         specifier: ^0.11.0
         version: 0.11.0(immer@10.1.1)(react@19.1.1)
+      usehooks-ts:
+        specifier: ^3.1.1
+        version: 3.1.1(react@19.1.1)
       whatwg-fetch:
         specifier: ^3.6.20
         version: 3.6.20
@@ -169,6 +175,9 @@ importers:
       jest:
         specifier: ^30.0.5
         version: 30.0.5(@types/node@22.17.1)(babel-plugin-macros@3.1.0)(esbuild-register@3.6.0(esbuild@0.25.8))
+      jest-canvas-mock:
+        specifier: ^2.5.2
+        version: 2.5.2(patch_hash=8329a68f6b8f930f6204c405a071859893962d4a6641b6c2c2bb33122c0441b1)
       jsdom-testing-mocks:
         specifier: ^1.15.2
         version: 1.15.2(typescript@5.9.2)
@@ -423,9 +432,6 @@ importers:
       babel-plugin-transform-vite-meta-env:
         specifier: ^1.0.3
         version: 1.0.3
-      jest-canvas-mock:
-        specifier: ^2.5.2
-        version: 2.5.2
       jest-websocket-mock:
         specifier: ^2.5.0
         version: 2.5.0
@@ -505,9 +511,6 @@ importers:
       events:
         specifier: 3.3.0
         version: 3.3.0
-      jest-canvas-mock:
-        specifier: ^2.5.2
-        version: 2.5.2
       react-dnd:
         specifier: ^14.0.4
         version: 14.0.5(@types/node@22.17.1)(@types/react@19.1.9)(react@19.1.1)
@@ -6642,6 +6645,12 @@ packages:
       '@types/react':
         optional: true
 
+  usehooks-ts@3.1.1:
+    resolution: {integrity: sha512-I4diPp9Cq6ieSUH2wu+fDAVQO43xwtulo+fKEidHUwZPnYImbtkTjzIJYcDcJqxgmX31GVqNFURodvcgHcW0pA==}
+    engines: {node: '>=16.15.0'}
+    peerDependencies:
+      react: ^16.8.0  || ^17 || ^18 || ^19 || ^19.0.0-rc
+
   utf8-byte-length@1.0.5:
     resolution: {integrity: sha512-Xn0w3MtiQ6zoz2vFyUVruaCL53O/DwUvkEeOvj+uulMm0BkUGYWmBYVyElqZaSLhY6ZD0ulfU3aBra2aVT4xfA==}
 
@@ -12118,7 +12127,7 @@ snapshots:
       filelist: 1.0.4
       minimatch: 3.1.2
 
-  jest-canvas-mock@2.5.2:
+  jest-canvas-mock@2.5.2(patch_hash=8329a68f6b8f930f6204c405a071859893962d4a6641b6c2c2bb33122c0441b1):
     dependencies:
       cssfontparser: 1.2.1
       moo-color: 1.0.2
@@ -14255,6 +14264,11 @@ snapshots:
       react: 19.1.1
     optionalDependencies:
       '@types/react': 19.1.9
+
+  usehooks-ts@3.1.1(react@19.1.1):
+    dependencies:
+      lodash.debounce: 4.0.8
+      react: 19.1.1
 
   utf8-byte-length@1.0.5: {}
 

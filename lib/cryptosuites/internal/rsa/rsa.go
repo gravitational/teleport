@@ -36,7 +36,7 @@ var (
 	PrecomputedKeys = make(chan *rsa.PrivateKey, 25)
 
 	// PrecomputedKeys4096 is a queue of cached 4096-bit keys ready for usage.
-	PrecomputedKeys4096 = make(chan *rsa.PrivateKey, 3)
+	PrecomputedKeys4096 = make(chan *rsa.PrivateKey, 10)
 
 	// StartPrecomputeOnce is used to start the background task that precomputes key pairs.
 	StartPrecomputeOnce sync.Once

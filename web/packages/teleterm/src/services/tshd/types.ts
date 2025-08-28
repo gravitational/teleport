@@ -16,10 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { SortType } from 'design/DataTable/types';
-
-import type * as uri from 'teleterm/ui/uri';
-
 /*
  *
  * Do not add new imports to this file, we're trying to get rid of types.ts files.
@@ -78,12 +74,6 @@ export {
   /**
    * @deprecated Import directly from gen-proto-ts instead.
    */
-  AuthProvider,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
-export {
-  /**
-   * @deprecated Import directly from gen-proto-ts instead.
-   */
   AccessRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 export {
@@ -115,19 +105,3 @@ export type GatewayProtocol =
   | 'cockroachdb'
   | 'redis'
   | 'sqlserver';
-
-/** @deprecated Move to a better suited file. */
-export type GetResourcesParams = {
-  clusterUri: uri.ClusterUri;
-  // sort is a required field because it has direct implications on performance of ListResources.
-  sort: SortType | null;
-  // limit cannot be omitted and must be greater than zero, otherwise ListResources is going to
-  // return an error.
-  limit: number;
-  // search is used for regular search.
-  search?: string;
-  searchAsRoles?: string;
-  startKey?: string;
-  // query is used for advanced search.
-  query?: string;
-};

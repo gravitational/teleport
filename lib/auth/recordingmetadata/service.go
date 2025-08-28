@@ -1,6 +1,5 @@
 /**
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,4 +15,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Player } from './Player';
+package recordingmetadata
+
+import (
+	"context"
+
+	"github.com/gravitational/teleport/lib/session"
+)
+
+// Service defines an interface for processing session recordings.
+type Service interface {
+	// ProcessSessionRecording processes the session recording associated with the
+	// provided session ID.
+	ProcessSessionRecording(ctx context.Context, sessionID session.ID) error
+}

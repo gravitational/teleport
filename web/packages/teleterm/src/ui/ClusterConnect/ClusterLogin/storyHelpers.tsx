@@ -54,7 +54,7 @@ export function makeProps(
   storyProps: StoryProps
 ): ClusterLoginPresentationProps {
   const props: ClusterLoginPresentationProps = {
-    shouldPromptSsoStatus: false,
+    ssoPrompt: 'no-prompt',
     title: 'localhost',
     loginAttempt: {
       status: '',
