@@ -12,7 +12,7 @@ By default, the AWS Identity Center integration will create a Teleport role for
 every possible combination of AWS Account and Permission Set managed by your AWS
 Identity Center instance. If your Identity Center controls a large number of AWS
 Accounts and/or Permission Sets, this may end up creating so many roles that it
-becomes an irritant, and even start to affect Teleport's performance.
+starts to affect Teleport's performance.
 
 To avoid creating these Account Assignment roles, you can create the AWS IC 
 integration with this feature disabled by specifying `--roles-sync-mode NONE`
@@ -47,7 +47,7 @@ Teleport enforces this restriction, preventing the accidental creation of an inv
 configuration.
 </Admonition>
 
-### Switching Modes
+### Switching Roles Sync Modes
 
 After installation you can switch the Roles Sync Mode from `NONE` to `ALL` using
 `tctl plugins edit`.
