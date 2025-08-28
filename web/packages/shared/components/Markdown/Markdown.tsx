@@ -107,7 +107,6 @@ const headerRegex = /^(?<hashes>#{1,6})\s*(?<content>.*)$/;
 
 const MAX_ITERATIONS = 10000;
 
-
 function processMarkdown(text: string) {
   const lines = text.split('\n');
 
@@ -119,7 +118,9 @@ function processMarkdown(text: string) {
   while (i < lines.length) {
     if (++iterations > MAX_ITERATIONS) {
       // eslint-disable-next-line no-console
-      console.error(`processMarkdown: Exceeded max iterations (${MAX_ITERATIONS})`);
+      console.error(
+        `processMarkdown: Exceeded max iterations (${MAX_ITERATIONS})`
+      );
       return items;
     }
 
