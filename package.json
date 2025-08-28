@@ -49,6 +49,7 @@
     "@types/wicg-file-system-access": "^2023.10.6",
     "cspell": "^9.2.0",
     "jest": "^30.0.5",
+    "jest-canvas-mock": "^2.5.2",
     "jsdom-testing-mocks": "^1.15.2",
     "msw": "2.10.1",
     "msw-storybook-addon": "^2.0.5",

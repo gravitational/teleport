@@ -17,12 +17,17 @@
  */
 
 import userEvent from '@testing-library/user-event';
+import { act } from 'react';
 
 import { render, screen } from 'design/utils/testing';
 import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 
+import { TshdClient } from 'teleterm/services/tshd';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeAuthSettings,
+  makeRootCluster,
+} from 'teleterm/services/tshd/testHelpers';
 import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -142,4 +147,64 @@ it('shows go to updates button in compatibility warning if there are clusters pr
   expect(
     await screen.findByRole('button', { name: 'Go to Auto Updates' })
   ).toBeVisible();
+});
+
+it('shows two separate prompt texts during SSO login', async () => {
+  const user = userEvent.setup();
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(cluster);
+
+  jest.spyOn(appContext.tshd, 'getAuthSettings').mockReturnValue(
+    new MockedUnaryCall(
+      makeAuthSettings({
+        authType: 'github',
+        authProviders: [
+          { displayName: 'GitHub', name: 'github', type: 'github' },
+        ],
+      })
+    )
+  );
+
+  const { resolve: resolveLoginPromise, promise: loginPromise } =
+    Promise.withResolvers<ReturnType<TshdClient['login']>>();
+  jest
+    .spyOn(appContext.tshd, 'login')
+    .mockImplementation(async () => loginPromise);
+
+  const { resolve: resolveGetClusterPromise, promise: getClusterPromise } =
+    Promise.withResolvers<ReturnType<TshdClient['getCluster']>>();
+  jest
+    .spyOn(appContext.tshd, 'getCluster')
+    .mockImplementation(async () => getClusterPromise);
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <AppUpdaterContextProvider>
+        <ClusterLogin
+          clusterUri={cluster.uri}
+          onCancel={() => {}}
+          prefill={{ username: 'alice' }}
+          reason={undefined}
+        />
+      </AppUpdaterContextProvider>
+    </MockAppContextProvider>
+  );
+
+  await user.click(await screen.findByText('GitHub'));
+
+  expect(
+    screen.getByText(/follow the steps in the browser/)
+  ).toBeInTheDocument();
+
+  await act(async () => {
+    resolveLoginPromise(new MockedUnaryCall({}));
+  });
+
+  expect(screen.getByText(/Login successful/)).toBeInTheDocument();
+
+  await act(async () => {
+    // Resolve the promise to avoid leaving a hanging promise around.
+    resolveGetClusterPromise(new MockedUnaryCall(cluster));
+  });
 });
