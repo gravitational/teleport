@@ -19,9 +19,27 @@
 import { createQueryHook } from 'teleport/services/queryHelpers';
 
 import { fetchSessionRecordingMetadata } from './metadata';
+import {
+  fetchRecordings,
+  fetchRecordingThumbnail,
+  fetchSessionRecordingDuration,
+} from './recordings';
+
+export const { useSuspenseInfiniteQuery: useSuspenseInfiniteListRecordings } =
+  createQueryHook(
+    ['recordings', 'list'],
+    fetchRecordings,
+    (startKey, variables) => ({
+      ...variables,
+      params: { ...variables.params, startKey },
+    })
+  );
 
 export const { useSuspenseQuery: useSuspenseGetRecordingMetadata } =
   createQueryHook(['recording', 'metadata'], fetchSessionRecordingMetadata);
 
 export const { useSuspenseQuery: useSuspenseGetRecordingThumbnail } =
-  createQueryHook(['recording', 'thumbnail'], fetchSessionRecordingMetadata);
+  createQueryHook(['recording', 'thumbnail'], fetchRecordingThumbnail);
+
+export const { useSuspenseQuery: useSuspenseGetRecordingDuration } =
+  createQueryHook(['recording', 'duration'], fetchSessionRecordingDuration);

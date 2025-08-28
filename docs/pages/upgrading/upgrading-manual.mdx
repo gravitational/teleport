@@ -1,0 +1,173 @@
+---
+title: Manual Upgrades
+description: Provides detailed information on upgrading Teleport without Managed Updates.
+tocDepth: 3
+labels:
+ - conceptual
+ - platform-wide
+---
+
+To ensure that your Teleport cluster remains up to date with the lowest amount
+of manual overhead, we recommend [signing up](https://goteleport.com/signup) for
+a cloud-hosted Teleport Enterprise account and following [Enroll Agents in
+Managed Updates](./agent-managed-updates.mdx).
+
+Before reading this guide, become familiar with the [Upgrading Compatibility
+Overview](./overview.mdx) guide, which describes the sequence in which to
+upgrade components in your cluster.
+
+This guide shows you how to upgrade Teleport manually. You can perform manual
+upgrades on Teleport Auth Service and Proxy Service instances running in
+self-hosted clusters, as well as all Teleport Agents.
+
+## Teleport Agents
+
+Note that all Linux servers with SystemD should use Managed Updates for Agents
+instead of this workflow, including on self-hosted clusters. Otherwise, agents
+may be disconnected when the cluster is upgraded.
+
+1. Identify the latest compatible Teleport Agent version by querying the
+   `webapi` endpoint of the Teleport Proxy Service, replacing 
+   <Var name="teleport.example.com:443" /> with the host and port of your
+   Teleport account or Teleport Proxy Service:
+
+   ```code
+   $ curl https://<Var name="teleport.example.com:443" />/webapi/find
+     ...
+     "auto_update": {
+       "tools_version": "(=teleport.version=)",
+       "tools_auto_update": true,
+       "agent_version": "(=teleport.version=)",
+       "agent_auto_update": true,
+       "agent_update_jitter_seconds": 60
+     },
+     ...
+   ```
+
+1. Use the `tctl inventory ls` command to list connected agents along with their
+   current version. Use the `--older-than` flag to list agents that are
+   upgradable:
+
+   ```code
+   $ tctl inventory ls --older-than=v(=teleport.version=)
+   Server ID                            Hostname       Services       Version Upgrader
+   ------------------------------------ -------------- -------------- ------- --------
+   00000000-0000-0000-0000-000000000000 ip-10-1-6-130  Node           v14.4.5 none
+   00000000-0000-0000-0000-000000000001 teleport-proxy Proxy          v15.2.0 none
+   00000000-0000-0000-0000-000000000002 teleport-auth  Auth,Discovery v15.2.0 none
+   ...
+   ```
+
+1. For each agent ID returned by the `tctl inventory ls` command, copy the ID
+   and run the following `tctl` command to access the host via `tsh`:
+
+   ```code
+   $ HOST=00000000-0000-0000-0000-000000000000
+   $ USER=root
+   $ tsh ssh "${USER?}@${HOST?}"
+   ```
+
+1. On each Linux server, follow the instructions in the [next
+   section](#single-teleport-binaries-on-linux-servers) to install the new
+   version of the `teleport` binary.
+
+1. If you have deployed any agents on Kubernetes using the `teleport-kube-agent`
+   Helm chart, [follow the instructions](#teleport-agents-running-on-kubernetes)
+   to upgrade the Helm release.
+
+## Single Teleport binaries on Linux servers
+
+You can upgrade a single Teleport binary running on a Linux host by running the
+one-line installation script with a higher version than the current one.
+
+Before upgrading Teleport across a self-hosted cluster, read the [Compatibility
+Overview](./overview.mdx) to ensure you are upgrading components in
+the correct order.
+
+Complete the following steps on all servers that run the Auth Service and Proxy
+Service, then on each of your agents:
+
+1. Get the current version:
+
+   ```code
+   $ teleport version
+   ```
+
+1. Assign <Var name="edition" /> to one of the following, depending on your
+   Teleport edition:
+
+   | Edition                           | Value        |
+   |-----------------------------------|--------------|
+   | Teleport Enterprise (Cloud)       | `cloud`      |
+   | Teleport Enterprise (Self-Hosted) | `enterprise` |
+   | Teleport Community Edition        | `oss`        |
+
+1. Assign <Var name="version" /> to the version you want to install.
+
+1. Install the new Teleport version on your Linux server:
+
+   ```code
+   $ curl (=teleport.teleport_install_script_url=) | bash -s <Var name="version" /> <Var name="edition" />
+   ```
+
+   The installation script detects the package manager on your Linux server and
+   uses it to install Teleport binaries. To customize your installation, learn
+   about the Teleport package repositories in the [installation
+   guide](../installation/linux.mdx).
+
+1. Confirm that the version of the `teleport` binary is the one you expect:
+
+   ```code
+   $ teleport version
+   ```
+
+1. Now that you have installed a more recent `teleport` binary on your Auth
+   Service and Proxy Service instances, restart Teleport on these servers to run
+   the new version.
+
+   (!docs/pages/includes/start-teleport.mdx!)
+
+## Self-hosted Teleport clusters on Kubernetes
+
+The instructions in this section assume that you have configured the
+`teleport-cluster` Helm chart with a values file called `values.yaml`, and that
+your `teleport-cluster` release is called `teleport-cluster`. The Auth Service instances
+are restarted simultaneously during the upgrade so there is no need to shrink 
+the number of replicas.
+
+1. Update the Teleport Helm chart repository so you can install the latest
+   version of the `teleport-cluster` chart:
+
+   (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+1. Upgrade the `teleport-cluster` Helm release:
+
+   ```code
+   $ helm upgrade teleport-cluster teleport/teleport-cluster \
+     --version=<Var name="(=teleport.version=)" /> \
+     --values=values.yaml
+   ```
+
+   The `teleport-cluster` Helm chart automatically waits for the previous
+   version of the Proxy Service to stop responding to requests before running a
+   new version of the Auth Service.
+
+## Teleport Agents running on Kubernetes
+
+The instructions in this section assume that you have configured the
+`teleport-kube-agent` Helm chart with a values file called `values.yaml`, and
+that your `teleport-kube-agent` release is called `teleport-agent`.
+
+1. Update the Teleport Helm chart repository so you can install the latest
+   version of the `teleport-kube-agent` chart:
+
+   (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+1. Upgrade the Helm release:
+
+   ```code
+   $ helm -n "teleport" upgrade teleport-agent teleport/teleport-kube-agent \
+     --values=values.yaml \
+     --version=<Var name="(=teleport.version=)" />
+   ```
+

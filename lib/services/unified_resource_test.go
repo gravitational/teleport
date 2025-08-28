@@ -348,7 +348,8 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		switch kind {
 		case types.KindAppServer:
 			kind = types.KindApp
-			if r.GetSubKind() == types.KindIdentityCenterAccount {
+			switch r.GetSubKind() {
+			case types.KindIdentityCenterAccount:
 				kind = types.KindIdentityCenterAccount
 			}
 		case types.KindDatabaseServer:
@@ -1125,5 +1126,142 @@ func requireHealthStatusIfGiven(t *testing.T, r any, want types.TargetHealthStat
 	t.Helper()
 	if r, ok := r.(types.TargetHealthStatusGetter); ok {
 		require.Equal(t, want, r.GetTargetHealthStatus(), "resource %v", r)
+	}
+}
+
+func newAppServerFromApp(t *testing.T, app *types.AppV3) *types.AppServerV3 {
+	t.Helper()
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{
+			Name: app.GetName(),
+		},
+		types.AppServerSpecV3{
+			HostID: fmt.Sprintf("%s-host-id", app.GetName()),
+			App:    app,
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
+func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name: name,
+	}, types.AppSpecV3{
+		MCP: &types.MCP{
+			Command:       "test",
+			RunAsHostUser: "test",
+		},
+	})
+	require.NoError(t, err)
+	return app
+}
+
+func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clt := newClient(t)
+
+	app, err := types.NewAppServerV3(
+		types.Metadata{Name: "app1"},
+		types.AppServerSpecV3{
+			HostID: "app1-host-id",
+			App:    newApp(t, "app1"),
+		},
+	)
+	require.NoError(t, err)
+	_, err = clt.UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	mcpServer := newAppServerFromApp(t, newMCPServerApp(t, "mcp1"))
+	_, err = clt.UpsertApplicationServer(ctx, mcpServer)
+	require.NoError(t, err)
+
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    clt,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return w.IsInitialized()
+	}, 5*time.Second, 10*time.Millisecond, "unified resource watcher never initialized")
+
+	compareResourceOpts := []cmp.Option{cmpopts.EquateEmpty(),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+
+		// Ignore order.
+		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
+	}
+
+	collect := func(t *testing.T, iter iter.Seq2[types.ResourceWithLabels, error]) (collected []types.ResourceWithLabels) {
+		for r, err := range iter {
+			require.NoError(t, err)
+			collected = append(collected, r)
+		}
+		return collected
+	}
+
+	tests := []struct {
+		name       string
+		inputKinds []string
+		expected   []types.ResourceWithLabels
+	}{
+		{
+			name: "no kinds provided",
+			expected: []types.ResourceWithLabels{
+				app, mcpServer,
+			},
+		},
+		{
+			name: "app kind",
+			inputKinds: []string{
+				types.KindApp, types.KindDatabaseServer,
+			},
+			expected: []types.ResourceWithLabels{
+				app, mcpServer,
+			},
+		},
+		{
+			name: "mcp kind",
+			inputKinds: []string{
+				types.KindMCP, types.KindDatabase,
+			},
+			expected: []types.ResourceWithLabels{
+				mcpServer,
+			},
+		},
+		{
+			name: "mcp and app kind",
+			inputKinds: []string{
+				types.KindMCP, types.KindApp,
+			},
+			expected: []types.ResourceWithLabels{
+				app, mcpServer,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := collect(t, w.Resources(
+				ctx,
+				"",
+				types.SortBy{Field: services.SortByKind},
+				test.inputKinds...,
+			))
+			require.Empty(t, cmp.Diff(
+				test.expected,
+				actual,
+				compareResourceOpts...,
+			))
+
+		})
 	}
 }

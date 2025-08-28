@@ -1,0 +1,46 @@
+---
+title: Machine & Workload Identity Use Cases
+description: Common use cases with Machine ID & Workload Identity
+labels:
+ - conceptual
+ - mwi
+---
+
+Machine & Workload Identity can work together to create a comprehensive security model. Machines can securely access resources while workloads communicate securely with each other and external services, 
+all managed through Teleport's infrastructure identity platform.
+
+## CI/CD pipeline with end-to-end authentication
+
+A [CI/CD system](../mwi-use-cases/mwi-ci-cd.mdx) securely deploys services to Kubernetes and establishes secure communication channels between them.
+The pipeline authenticates through the [Teleport Proxy Service](../../reference/architecture/architecture.mdx#teleport-proxy-service) to deploy to Kubernetes and receives credentials to interact with cloud APIs (e.g., to push container images)
+
+## Cloud-native application with third-party API access
+
+These examples illustrate how Machine & Workload Identity enable secure, scalable API access for cloud-native applications running in Kubernetes:
+
+- **Monitoring and observability exporters**:
+  Custom exporters or telemetry agents in the cluster send metrics and traces to platforms like Datadog, New Relic, or Grafana Cloud. Machine & Workload Identity replaces static 
+  API keys with short-lived credentials tied to the exporter's identity, improving security and auditability.
+- **Data processing pipelines**:
+  A Kubernetes-based ETL application pulls data from external sources like AWS S3, processes it, and pushes results to third-party analytics or storage platforms. 
+  Each workload uses a SPIFFE identity to authenticate securely via JWT or mTLS, eliminating static credentials.
+- **Customer support automation**:
+  A Kubernetes-based support app consumes internal service data and interacts with systems like Zendesk or Salesforce. 
+  Machine ID uses short-lived certificates to ensure API calls originate only from authorized workloads, enabling fine-grained access control and complete auditability.
+
+## Zero Trust security implementation
+
+A [Zero Trust strategy](../workload-identity/getting-started.mdx) is applied across workloads and automation:
+
+- Automation scripts authenticate through the Teleport Proxy Service to perform infrastructure tasks
+- Workloads authenticate using short-lived, cryptographically verifiable identities
+- Security teams use Teleport's unified audit logs to trace all identity activity
+
+## Identity-based communication without shared secrets
+
+Zero-trust, identity-based communication without shared secrets are rotated automatically without human involvement.
+
+Instead of managing static credentials (e.g., API keys, database passwords), workloads authenticate using short-lived X.509 certificates or JWTs compatible with the SPIFFE/SPIRE standard.
+
+- The service issues new identities to workloads on a regular schedule, dynamically issued by Teleport's Auth Service and rotate automatically
+- All identity issuance and usage is recorded in audit logs

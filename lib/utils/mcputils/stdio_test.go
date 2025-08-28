@@ -70,8 +70,7 @@ func TestStdioHelpers(t *testing.T) {
 	serverMessageWriter := NewStdioMessageWriter(writeToServer)
 
 	clientMessageReader, err := NewMessageReader(MessageReaderConfig{
-		ParentContext: context.Background(),
-		Transport:     NewStdioReader(readFromClient),
+		Transport: NewStdioReader(readFromClient),
 		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
 			atomic.AddInt32(&readClientNotifications, 1)
 			return trace.Wrap(serverMessageWriter.WriteMessage(ctx, notification))
@@ -90,8 +89,7 @@ func TestStdioHelpers(t *testing.T) {
 	}()
 
 	serverMessageReader, err := NewMessageReader(MessageReaderConfig{
-		ParentContext: context.Background(),
-		Transport:     NewStdioReader(readFromServer),
+		Transport: NewStdioReader(readFromServer),
 		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
 			atomic.AddInt32(&readServerNotifications, 1)
 			return trace.Wrap(clientMessageWriter.WriteMessage(ctx, notification))

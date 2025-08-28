@@ -494,6 +494,49 @@ const colors: ThemeColors = {
     caribbean: dataVisualisationColors.primary.caribbean,
   },
 
+  sessionRecording: {
+    resource: '#004570',
+    user: '#311C79',
+  },
+
+  sessionRecordingTimeline: {
+    background: '#FBFBFC',
+    headerBackground: 'rgba(0, 0, 0, 0.05)',
+    frameBorder: 'rgba(0, 0, 0, 0.2)',
+    progressLine: '#E53E3E',
+    border: {
+      default: '#4c516e',
+      hover: '#5f659e',
+    },
+    cursor: 'rgba(0, 0, 0, 0.4)',
+    events: {
+      inactivity: {
+        background: 'rgba(81,47,201, 0.25)',
+        text: 'rgba(0, 0, 0, 0.6)',
+      },
+      resize: {
+        semiBackground: 'rgba(0, 0, 0, 0.8)',
+        border: '#26323c',
+        background: '#86c4ed',
+        text: '#26323c',
+      },
+      join: {
+        background: '#0073BA',
+        text: 'rgba(255, 255, 255, 0.8)',
+      },
+      default: {
+        background: 'rgba(0, 0, 0, 0.54)',
+        text: '#000',
+      },
+    },
+    timeMarks: {
+      primary: 'rgba(0,0,0,0.54)',
+      secondary: 'rgba(0,0,0,0.36)',
+      absolute: 'rgba(0,0,0,0.87)',
+      text: 'rgba(0,0,0,0.87)',
+    },
+  },
+
   link: '#0073BA',
 
   highlightedNavigationItem: blue[200],

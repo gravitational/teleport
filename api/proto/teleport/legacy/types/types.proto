@@ -1252,6 +1252,8 @@ enum PrivateKeyType {
 
 // SSHKeyPair is an SSH CA key pair.
 message SSHKeyPair {
+  option (gogoproto.equal) = true;
+
   // PublicKey is the SSH public key.
   bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
   // PrivateKey is the SSH private key.
@@ -1282,11 +1284,11 @@ message JWTKeyPair {
   PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
 }
 
-// EncryptionKeyPair is a PEM encoded keypair used for encrypting and decrypting data.
+// EncryptionKeyPair is a PKIX ASN.1 DER encoded keypair used for encrypting and decrypting data.
 message EncryptionKeyPair {
-  // PublicKey is a PEM encoded public key.
+  // PublicKey is a PKIX ASN.1 DER encoded public key.
   bytes public_key = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
-  // PrivateKey is a PEM encoded private key.
+  // PrivateKey is a PKCS#8 ASN.1 DER encoded private key.
   bytes private_key = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
   // PrivateKeyType is the type of the PrivateKey.
   PrivateKeyType private_key_type = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
@@ -1297,7 +1299,7 @@ message EncryptionKeyPair {
 
 // A public key to be used as a recipient during age encryption of session recordings.
 message AgeEncryptionKey {
-  // A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
+  // A PKIX ASN.1 DER encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
   bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
 }
 
@@ -2483,9 +2485,9 @@ message ManualKeyManagementConfig {
   // Enabled controls whether or recording encryption keys should be managed externally.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // ActiveKeys describe which keys should be queried for active recording encryption and replay.
-  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_key,omitempty"];
+  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_keys,omitempty"];
   // RotatedKeys describe which keys should be queried for historical replay.
-  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_key,omitempty"];
+  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_keys,omitempty"];
 }
 
 // SessionRecordingEncryptionConfig configures if and how session recordings
@@ -5405,6 +5407,12 @@ message OIDCConnectorMFASettings {
   // 0 to always force re-authentication for MFA checks. This should only be set to a non-zero
   // value if the IdP is setup to perform MFA checks on top of active user sessions.
   int64 max_age = 6 [(gogoproto.casttype) = "Duration"];
+  // RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization
+  // requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
+  // for authorization request parameters. If omitted, MFA flows will default to the `RequestObjectMode` behavior
+  // specified in the base OIDC connector. Set this property to 'none' to explicitly disable request objects for
+  // the MFA client.
+  string RequestObjectMode = 7 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -7702,6 +7710,7 @@ message PluginBootstrapCredentialsV1 {
 
 // PluginIdSecretCredential can be OAuth2-like client_id and client_secret or username and password.
 message PluginIdSecretCredential {
+  option (gogoproto.equal) = true;
   string id = 1;
   string secret = 2;
 }
@@ -8001,6 +8010,7 @@ message PluginOktaStatusSystemLogExporter {
 // PluginCredentialsV1 represents "live" credentials
 // that are used by the plugin to authenticate to the 3rd party API.
 message PluginCredentialsV1 {
+  option (gogoproto.equal) = true;
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
@@ -8010,6 +8020,8 @@ message PluginCredentialsV1 {
 }
 
 message PluginOAuth2AccessTokenCredentials {
+  option (gogoproto.equal) = true;
+
   string access_token = 1;
   string refresh_token = 2;
   google.protobuf.Timestamp expires = 3 [
@@ -8019,6 +8031,8 @@ message PluginOAuth2AccessTokenCredentials {
 }
 
 message PluginBearerTokenCredentials {
+  option (gogoproto.equal) = true;
+
   // Token is the literal bearer token to be submitted to the 3rd-party API provider.
   string token = 1;
 
@@ -8057,6 +8071,7 @@ message PluginStaticCredentialsV1 {
 
 // PluginStaticCredentialsSpecV1 is the specification for the static credentials object.
 message PluginStaticCredentialsSpecV1 {
+  option (gogoproto.equal) = true;
   oneof credentials {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
@@ -8068,6 +8083,8 @@ message PluginStaticCredentialsSpecV1 {
 
 // PluginStaticCredentialsBasicAuth represents username and password credentials for a plugin.
 message PluginStaticCredentialsBasicAuth {
+  option (gogoproto.equal) = true;
+
   // Username is the username to use for basic auth.
   string Username = 1 [(gogoproto.jsontag) = "username"];
 
@@ -8077,6 +8094,8 @@ message PluginStaticCredentialsBasicAuth {
 
 // PluginStaticCredentialsOAuthClientSecret represents an oauth client id and secret.
 message PluginStaticCredentialsOAuthClientSecret {
+  option (gogoproto.equal) = true;
+
   // ClientId is the client ID to use for OAuth client secret.
   string ClientId = 1 [(gogoproto.jsontag) = "client_id"];
 
@@ -8087,6 +8106,8 @@ message PluginStaticCredentialsOAuthClientSecret {
 // PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
 // for the integration or plugin.
 message PluginStaticCredentialsSSHCertAuthorities {
+  option (gogoproto.equal) = true;
+
   // CertAuthorities contains the active SSH CAs used for the integration or
   // plugin.
   repeated SSHKeyPair cert_authorities = 1;

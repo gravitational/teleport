@@ -26,6 +26,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
@@ -370,14 +371,18 @@ func TestManager(t *testing.T) {
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
 
 			decrypter, err := manager.GetDecrypter(ctx, encKeyPair)
-
 			require.NoError(t, err)
 			require.NotNil(t, decrypter)
 
 			// Try encrypting and decrypting some data
 			msg := []byte("teleport")
 			require.NoError(t, err)
-			ciphertext, err := encKeyPair.EncryptOAEP(msg)
+			pubKey, err := x509.ParsePKIXPublicKey(encKeyPair.PublicKey)
+			require.NoError(t, err)
+			pubKeyRSA, ok := pubKey.(*rsa.PublicKey)
+			require.True(t, ok, "expected RSA public key")
+
+			ciphertext, err := rsa.EncryptOAEP(crypto.Hash(encKeyPair.Hash).New(), rand.Reader, pubKeyRSA, msg, nil)
 			require.NoError(t, err)
 
 			plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)

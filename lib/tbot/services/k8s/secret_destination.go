@@ -48,15 +48,20 @@ type SecretDestination struct {
 	// When configured, these labels will overwrite any existing labels on the
 	// secret.
 	Labels map[string]string `yaml:"labels,omitempty"`
+	// Namespace to write the Kubernetes Secret to. If not specified, it
+	// defaults to the value of the POD_NAMESPACE environment variable.
+	//
+	// When using the Helm chart, you'll need to additionally grant the tbot
+	// service account permissions to read/write to the other namespace.
+	Namespace string `yaml:"namespace,omitempty"`
 
 	mu          sync.Mutex
-	namespace   string
 	k8s         kubernetes.Interface
 	initialized bool
 }
 
 func (dks *SecretDestination) getSecret(ctx context.Context) (*corev1.Secret, error) {
-	secret, err := dks.k8s.CoreV1().Secrets(dks.namespace).Get(ctx, dks.Name, v1.GetOptions{})
+	secret, err := dks.k8s.CoreV1().Secrets(dks.Namespace).Get(ctx, dks.Name, v1.GetOptions{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +79,7 @@ func (dks *SecretDestination) secretTemplate() *corev1.Secret {
 		Type: corev1.SecretTypeOpaque,
 		ObjectMeta: v1.ObjectMeta{
 			Name:      dks.Name,
-			Namespace: dks.namespace,
+			Namespace: dks.Namespace,
 			Labels:    dks.Labels,
 		},
 		Data: map[string][]byte{},
@@ -82,7 +87,7 @@ func (dks *SecretDestination) secretTemplate() *corev1.Secret {
 }
 
 func (dks *SecretDestination) upsertSecret(ctx context.Context, secret *corev1.Secret, dryRun bool) error {
-	apply := applyconfigv1.Secret(dks.Name, dks.namespace).
+	apply := applyconfigv1.Secret(dks.Name, dks.Namespace).
 		WithData(secret.Data).
 		WithResourceVersion(secret.ResourceVersion).
 		WithType(secret.Type)
@@ -100,7 +105,7 @@ func (dks *SecretDestination) upsertSecret(ctx context.Context, secret *corev1.S
 		applyOpts.DryRun = []string{"All"}
 	}
 
-	_, err := dks.k8s.CoreV1().Secrets(dks.namespace).Apply(ctx, apply, applyOpts)
+	_, err := dks.k8s.CoreV1().Secrets(dks.Namespace).Apply(ctx, apply, applyOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -132,9 +137,13 @@ func (dks *SecretDestination) Init(ctx context.Context, subdirs []string) error 
 		return trace.BadParameter("destination has already been initialized")
 	}
 
-	if dks.namespace == "" {
-		dks.namespace = os.Getenv(kubernetesNamespaceEnv)
-		if dks.namespace == "" {
+	if dks.Namespace == "" {
+		log.DebugContext(
+			ctx,
+			"No explicit namespace provided for Kubernetes secret destination, attempting to detect from environment",
+		)
+		dks.Namespace = os.Getenv(kubernetesNamespaceEnv)
+		if dks.Namespace == "" {
 			return trace.BadParameter("unable to detect namespace from %s environment variable", kubernetesNamespaceEnv)
 		}
 	}
@@ -194,7 +203,7 @@ func (dks *SecretDestination) Write(ctx context.Context, name string, data []byt
 			ctx,
 			"Kubernetes secret missing on attempt to write data. One will be created.",
 			"secret_name", dks.Name,
-			"secret_namespace", dks.namespace,
+			"secret_namespace", dks.Namespace,
 		)
 		// If the secret doesn't exist, we create it on write - this is ensures
 		// that we can recover if the secret is deleted between renewal loops.
@@ -232,7 +241,7 @@ func (dks *SecretDestination) WriteMany(ctx context.Context, toWrite map[string]
 			ctx,
 			"Kubernetes secret missing on attempt to write data. One will be created.",
 			"secret_name", dks.Name,
-			"secret_namespace", dks.namespace,
+			"secret_namespace", dks.Namespace,
 		)
 		// If the secret doesn't exist, we create it on write - this is ensures
 		// that we can recover if the secret is deleted between renewal loops.
@@ -276,7 +285,12 @@ func (dks *SecretDestination) Read(ctx context.Context, name string) ([]byte, er
 }
 
 func (dks *SecretDestination) String() string {
-	return fmt.Sprintf("%s: %s", SecretDestinationType, dks.Name)
+	return fmt.Sprintf(
+		"%s: %s/%s",
+		SecretDestinationType,
+		dks.Namespace,
+		dks.Name,
+	)
 }
 
 func (dks *SecretDestination) MarshalYAML() (any, error) {
