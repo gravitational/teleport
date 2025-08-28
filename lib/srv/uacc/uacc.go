@@ -31,8 +31,8 @@
 // # wtmpdb
 //
 // [wtmpdb] is the Y2038-safe successor to utmp. Session history is logged in the
-// wtmp.db sqlite database. Teleport writes to wtmpdb with sqlite directly (to
-// avoid unnecessary cgo).
+// wtmp.db sqlite database. Teleport writes to wtmpdb with sqlite directly instead
+// of using libwtmpdb.
 //
 // [wtmpdb]: https://github.com/thkukuk/wtmpdb
 package uacc
