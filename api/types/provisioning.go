@@ -1052,6 +1052,9 @@ func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
 }
 
 func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
+	// Note: don't attempt to initialize onboarding - at least for now - as it
+	// has required keys. This behavior may be relaxed when we add
+	// server-generated joining secrets.
 	if a.Onboarding == nil {
 		return trace.BadParameter("spec.bound_keypair.onboarding is required")
 	}
@@ -1060,6 +1063,17 @@ func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
 		return trace.BadParameter("at least one of [initial_join_secret, " +
 			"initial_public_key] is required in spec.bound_keypair.onboarding")
 	}
+
+	if a.Recovery == nil {
+		a.Recovery = &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
+	}
+
+	if a.Recovery.Limit == 0 {
+		a.Recovery.Limit = 1
+	}
+
+	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
+	// ("") is mapped to RecoveryModeStandard.
 
 	return nil
 }

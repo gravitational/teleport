@@ -1472,6 +1472,10 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Onboarding: &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
 							InitialPublicKey: "asdf",
 						},
+						Recovery: &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+							Limit: 1,
+							Mode:  "",
+						},
 					},
 				},
 			},

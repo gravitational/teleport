@@ -161,21 +161,9 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 		return nil, trace.BadParameter("can not sign token with non-signing key")
 	}
 
-	// Create a signer with configured private key and algorithm.
-	var signer interface{}
-	switch k.config.PrivateKey.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		signer = k.config.PrivateKey
-	default:
-		signer = cryptosigner.Opaque(k.config.PrivateKey)
-	}
-	algorithm, err := AlgorithmForPublicKey(k.config.PrivateKey.Public())
+	signingKey, err := SigningKeyFromPrivateKey(k.config.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	signingKey := jose.SigningKey{
-		Algorithm: algorithm,
-		Key:       signer,
 	}
 
 	if opts == nil {
