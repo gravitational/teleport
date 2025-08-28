@@ -4925,9 +4925,6 @@ func parseCopySpec(cf *CLIConf, config *client.Config) error {
 		return trace.BadParameter("all source targets must be on the same user/host")
 	}
 	src := uniqueSources[0]
-	if src == dest {
-		return trace.BadParameter("source and destination must be on different hosts")
-	}
 
 	config.SrcHost = src.host
 	config.SrcLogin = src.user

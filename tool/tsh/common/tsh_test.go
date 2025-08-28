@@ -7736,9 +7736,11 @@ func TestParseCopySpec(t *testing.T) {
 			assertErr: assert.Error,
 		},
 		{
-			name:      "same source and destination host",
-			copySpec:  []string{"foo:/path", "foo:/other/path"},
-			assertErr: assert.Error,
+			name:             "same source and destination host",
+			copySpec:         []string{"foo:/path", "foo:/other/path"},
+			assertErr:        assert.NoError,
+			expectedSrcHost:  "foo",
+			expectedDestHost: "foo",
 		},
 	}
 	for _, tc := range tests {
