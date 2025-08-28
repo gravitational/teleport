@@ -38,6 +38,8 @@ import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 import * as types from 'teleterm/types';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
+import { setTray } from './tray';
+
 if (!app.isPackaged) {
   // Sets app name and data directories to Electron.
   // Allows running packaged and non-packaged Connect at the same time.
@@ -195,6 +197,10 @@ async function initializeApp(): Promise<void> {
       enableWebHandlersProtection();
 
       windowsManager.createWindow();
+
+      if (configService.get('runInBackground').value) {
+        setTray(settings, { show: () => windowsManager.showWindow() });
+      }
     })
     .catch(error => {
       const message = 'Could not create the main app window';
