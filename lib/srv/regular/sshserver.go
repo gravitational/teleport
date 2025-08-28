@@ -253,9 +253,18 @@ type Server struct {
 	enableSELinux bool
 }
 
-// TargetMetadata returns metadata about the server.
-func (s *Server) TargetMetadata() apievents.ServerMetadata {
-	return srv.GetTargetMetadata(s)
+// EventMetadata returns metadata about the server.
+func (s *Server) EventMetadata() apievents.ServerMetadata {
+	serverInfo := s.GetInfo()
+	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
+		ServerNamespace: serverInfo.GetNamespace(),
+		ServerID:        serverInfo.GetName(),
+		ServerAddr:      serverInfo.GetAddr(),
+		ServerLabels:    serverInfo.GetAllLabels(),
+		ServerHostname:  serverInfo.GetHostname(),
+		ServerSubKind:   serverInfo.GetSubKind(),
+	}
 }
 
 // GetClock returns server clock implementation
@@ -2438,7 +2447,7 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),
-				ServerMetadata: serverContext.GetServer().TargetMetadata(),
+				ServerMetadata: serverContext.GetServer().EventMetadata(),
 				Error:          err.Error(),
 			})
 			return nil, trace.Wrap(err)

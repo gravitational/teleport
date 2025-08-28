@@ -191,29 +191,8 @@ type Server interface {
 	// support or not.
 	GetSELinuxEnabled() bool
 
-	// TargetMetadata returns metadata about the session target node.
-	TargetMetadata() apievents.ServerMetadata
-}
-
-// GetTargetMetadata returns metadata about the session target node.
-func GetTargetMetadata(s Server) apievents.ServerMetadata {
-	serverInfo := s.GetInfo()
-
-	var forwardedBy string
-	if s.ID() != s.HostUUID() {
-		forwardedBy = s.HostUUID()
-	}
-
-	return apievents.ServerMetadata{
-		ServerVersion:   teleport.Version,
-		ServerNamespace: s.GetNamespace(),
-		ServerID:        serverInfo.GetName(),
-		ServerAddr:      serverInfo.GetAddr(),
-		ServerLabels:    serverInfo.GetAllLabels(),
-		ServerHostname:  serverInfo.GetHostname(),
-		ServerSubKind:   serverInfo.GetSubKind(),
-		ForwardedBy:     forwardedBy,
-	}
+	// EventMetadata returns [events.ServerMetadata] for this server.
+	EventMetadata() apievents.ServerMetadata
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -506,7 +485,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		clientIdleTimeout:      clientIdleTimeout,
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
-		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
+		ServerSubKind:          srv.GetInfo().GetSubKind(),
 	}
 
 	child.Logger = slog.With(
@@ -924,7 +903,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			Type:  events.SessionDataEvent,
 			Code:  events.SessionDataCode,
 		},
-		ServerMetadata:  c.srv.TargetMetadata(),
+		ServerMetadata:  c.srv.EventMetadata(),
 		SessionMetadata: c.GetSessionMetadata(),
 		UserMetadata:    c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
