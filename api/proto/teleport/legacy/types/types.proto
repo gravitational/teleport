@@ -5376,12 +5376,12 @@ message OIDCConnectorSpecV3 {
 // It works by following through the groups claim source, which is sent for
 // "groups" claim when the user's group membership exceeds 200 max item limit.
 message EntraIDGroupsProvider {
-  // ForceDisable specifies groups provider should be disabled, even if
-  // Entra ID responds with a groups claim source.
+  // Disabled specifies that the groups provider should be disabled
+  // even when Entra ID responds with a groups claim source.
   // User may choose to disable it if they are using
   // integrations such as SCIM or similar groups importer as
   // connector based role mapping may be not needed in such a scenario.
-  bool force_disable = 1;
+  bool disabled = 1;
   // GroupType is a user group type filter. Defaults to "security-groups".
   // Value can be "security-groups", "directory-roles", "all-groups".
   string group_type = 2;

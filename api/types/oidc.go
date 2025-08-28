@@ -680,5 +680,5 @@ func (o *OIDCConnectorV3) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
 // IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
 func (o *OIDCConnectorV3) IsEntraIDGroupsProviderDisabled() bool {
 	entra := o.Spec.EntraIdGroupsProvider
-	return entra != nil && entra.ForceDisable
+	return entra != nil && entra.Disabled
 }

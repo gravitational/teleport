@@ -51,7 +51,7 @@ func TestOIDCValidate(t *testing.T) {
 		{
 			name: "disabled state should not skip invalid configuration",
 			entra: &EntraIDGroupsProvider{
-				ForceDisable:  true,
+				Disabled:      true,
 				GroupType:     "all-groups",
 				GraphEndpoint: "https://example.com",
 			},
@@ -60,7 +60,7 @@ func TestOIDCValidate(t *testing.T) {
 		{
 			name: "valid",
 			entra: &EntraIDGroupsProvider{
-				ForceDisable:  false,
+				Disabled:      false,
 				GroupType:     "all-groups",
 				GraphEndpoint: "https://graph.microsoft.com",
 			},
