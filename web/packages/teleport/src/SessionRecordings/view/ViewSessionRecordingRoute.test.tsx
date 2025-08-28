@@ -162,7 +162,7 @@ test('renders non-SSH recordings correctly', async () => {
 
   expect(
     await screen.findByText(
-      'RecordingPlayer: test-cluster/test-session/3600000/k8s'
+      'RecordingPlayer: test-cluster/test-session/3600000/desktop'
     )
   ).toBeInTheDocument();
 });
