@@ -136,10 +136,10 @@ function processMarkdown(text: string) {
       }
     }
 
-    if (line.startsWith('- ')) {
+    if (line.trimStart().startsWith('- ')) {
       const listItems: ReactNode[] = [];
 
-      while (i < lines.length && lines[i].startsWith('- ')) {
+      while (i < lines.length && lines[i].trimStart().startsWith('- ')) {
         listItems.push(<li key={i}>{parseLine(lines[i].substring(2))}</li>);
 
         i += 1;
