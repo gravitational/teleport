@@ -9,6 +9,11 @@ overrides:
 
 pnpmfileChecksum: sha256-UhbfH9wqbTOi0Lx+Gm0eQ8EkqLSQxYCWXAFDAbl28uo=
 
+patchedDependencies:
+  jest-canvas-mock@2.5.2:
+    hash: 8329a68f6b8f930f6204c405a071859893962d4a6641b6c2c2bb33122c0441b1
+    path: web/patches/jest-canvas-mock@2.5.2.patch
+
 importers:
 
   .:
@@ -170,6 +175,9 @@ importers:
       jest:
         specifier: ^29.7.0
         version: 29.7.0(@types/node@22.15.16)(babel-plugin-macros@3.1.0)
+      jest-canvas-mock:
+        specifier: ^2.5.2
+        version: 2.5.2(patch_hash=8329a68f6b8f930f6204c405a071859893962d4a6641b6c2c2bb33122c0441b1)
       jsdom-testing-mocks:
         specifier: ^1.13.1
         version: 1.13.1
@@ -424,9 +432,6 @@ importers:
       babel-plugin-transform-vite-meta-env:
         specifier: ^1.0.3
         version: 1.0.3
-      jest-canvas-mock:
-        specifier: ^2.5.2
-        version: 2.5.2
       jest-websocket-mock:
         specifier: ^2.5.0
         version: 2.5.0
@@ -506,9 +511,6 @@ importers:
       events:
         specifier: 3.3.0
         version: 3.3.0
-      jest-canvas-mock:
-        specifier: ^2.5.2
-        version: 2.5.2
       react-dnd:
         specifier: ^14.0.4
         version: 14.0.5(@types/node@22.15.16)(@types/react@19.1.2)(react@19.1.0)
@@ -12405,7 +12407,7 @@ snapshots:
       filelist: 1.0.4
       minimatch: 3.1.2
 
-  jest-canvas-mock@2.5.2:
+  jest-canvas-mock@2.5.2(patch_hash=8329a68f6b8f930f6204c405a071859893962d4a6641b6c2c2bb33122c0441b1):
     dependencies:
       cssfontparser: 1.2.1
       moo-color: 1.0.2

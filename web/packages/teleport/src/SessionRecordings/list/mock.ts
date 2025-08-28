@@ -100,8 +100,8 @@ export const MOCK_THUMBNAIL: SessionRecordingThumbnail = {
   cursorVisible: true,
   cols: 100,
   rows: 100,
-  startTime: 0,
-  endTime: 0,
+  startOffset: 0,
+  endOffset: 0,
 };
 
 export function getThumbnail(thumbnail: SessionRecordingThumbnail) {

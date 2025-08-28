@@ -147,7 +147,7 @@ export function createViteConfig(
             changeOrigin: true,
             secure: false,
             ws: true,
-            rewriteWsOrigin: true,
+            rewriteWsOrigin: true, // rewrite the origin so Teleport doesn't reject the connection
           },
         '^\\/v[0-9]+\\/webapi\\/assistant\\/(.*?)': {
           target: `https://${target}`,
