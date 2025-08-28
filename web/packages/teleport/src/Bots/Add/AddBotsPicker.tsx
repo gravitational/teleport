@@ -53,7 +53,7 @@ export type BotIntegration = {
 export const integrations: BotIntegration[] = [
   {
     title: 'GitHub Actions + SSH',
-    description: 'Use Machine ID to power GitHub CI/CD workflows',
+    description: 'Use Machine ID to power GitHub CI/CD workflows.',
     link: cfg.getBotsNewRoute(BotFlowType.GitHubActions),
     icon: 'github',
     kind: IntegrationEnrollKind.MachineIDGitHubActions,
@@ -63,7 +63,7 @@ export const integrations: BotIntegration[] = [
   },
   {
     title: 'CircleCI',
-    description: 'Use Machine ID to power CircleCI CI/CD workflows',
+    description: 'Use Machine ID to power CircleCI CI/CD workflows.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/circleci/',
     icon: 'circleci',
     kind: IntegrationEnrollKind.MachineIDCircleCI,
@@ -73,7 +73,7 @@ export const integrations: BotIntegration[] = [
   },
   {
     title: 'GitLab CI/CD',
-    description: 'Use Machine ID to power GitLab CI/CD workflows',
+    description: 'Use Machine ID to power GitLab CI/CD workflows.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/gitlab/',
     icon: 'gitlab',
     kind: IntegrationEnrollKind.MachineIDGitLab,
@@ -105,7 +105,8 @@ export const integrations: BotIntegration[] = [
   },
   {
     title: 'Spacelift',
-    description: '',
+    description:
+      'Use Machine ID to authenticate workloads running in Spacelift with Teleport.',
     link: 'https://goteleport.com/docs/admin-guides/infrastructure-as-code/terraform-provider/spacelift/',
     icon: 'spacelift',
     kind: IntegrationEnrollKind.MachineIDSpacelift,
@@ -124,7 +125,7 @@ export const integrations: BotIntegration[] = [
     tags: ['bot', 'resourceaccess'],
   },
   {
-    title: 'GCP',
+    title: 'Google Cloud',
     description: 'Connect GCE instances and CloudSQL databases seamlessly.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/gcp/',
     icon: 'googlecloud',
@@ -136,7 +137,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'Azure',
     description:
-      'Use Machine ID to eliminate long-lived credentials on Azure VMs',
+      'Use Machine ID to eliminate long-lived credentials on Azure VMs.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/azure/',
     icon: 'azure',
     kind: IntegrationEnrollKind.MachineIDAzure,
@@ -147,7 +148,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'Kubernetes',
     description:
-      'Use Machine ID to eliminate long-lived credentials for Kubernetes workloads',
+      'Use Machine ID to eliminate long-lived credentials for Kubernetes workloads.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/kubernetes/',
     icon: 'kube',
     kind: IntegrationEnrollKind.MachineIDKubernetes,
@@ -242,7 +243,7 @@ function ExternalLinkTile({ integration }: { integration: BotIntegration }) {
 
   return (
     <Tile
-      title={integration.title}
+      title={`Machine ID: ${integration.title}`}
       description={integration.description}
       tags={integration.tags}
       link={{ external: true, url: integration.link, onClick: onBotClick }}
@@ -289,7 +290,7 @@ function GuidedTile({
 
   return (
     <Tile
-      title={integration.title}
+      title={`Machine ID: ${integration.title}`}
       description={integration.description}
       tags={integration.tags}
       hasAccess={true}
