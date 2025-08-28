@@ -76,7 +76,13 @@ export function RecordingWithMetadata({
 
       {sidebarVisible && (
         <Sidebar>
-          <Flex flexDirection="column" gap={4} pt={3}>
+          <Flex
+            flexDirection="column"
+            gap={4}
+            pt={3}
+            minHeight={0}
+            height="100%"
+          >
             <Flex pl={3} pr={2} justifyContent="space-between">
               <BackLink to={cfg.getRecordingsRoute(clusterId)}>
                 <ChevronLeft size="small" />
@@ -160,10 +166,18 @@ const Player = styled.div`
 const Sidebar = styled.div`
   grid-area: sidebar;
   border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 `;
 
 const Summary = styled.div`
   border-top: 1px solid ${p => p.theme.colors.spotBackground[1]};
+  overflow-y: auto;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  padding: ${p => p.theme.space[3]}px ${p => p.theme.space[3]}px 0;
 `;
 
 const InfoGridLabel = styled.div`
