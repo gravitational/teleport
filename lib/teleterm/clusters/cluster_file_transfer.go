@@ -32,30 +32,19 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
 
 func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, request *api.FileTransferRequest, sendProgress FileTransferProgressSender) error {
-	config, err := getSftpConfig(request)
+	sftpReq, err := getSftpRequest(request, sendProgress)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	config.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
-		return newFileTransferProgress(fileInfo.Size(), sendProgress)
-	}
-
-	// TODO(ravicious): Move URI parsing to the outermost layer.
-	// https://github.com/gravitational/teleport/issues/15953
-	serverURI := uri.New(request.GetServerUri())
-	serverUUID := serverURI.GetServerUUID()
-	if serverUUID == "" {
-		return trace.BadParameter("server URI does not include server UUID")
-	}
-
 	err = AddMetadataToRetryableError(ctx, func() error {
-		err := c.clusterClient.TransferFiles(ctx, clt, request.GetLogin(), serverUUID+":0", config)
+		err := c.clusterClient.TransferFiles(ctx, sftpReq)
 		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
 			return trace.Errorf("transferring directories through Teleport Connect is not supported at the moment, please use tsh scp -r")
 		}
@@ -64,15 +53,37 @@ func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, r
 	return trace.Wrap(err)
 }
 
-func getSftpConfig(request *api.FileTransferRequest) (*sftp.Config, error) {
+func getSftpRequest(request *api.FileTransferRequest, sendProgress FileTransferProgressSender) (sftp.FileTransferRequest, error) {
+	sftpReq := sftp.FileTransferRequest{
+		Sources: sftp.Sources{
+			Paths: []string{request.GetSource()},
+		},
+		Destination: sftp.Destination{
+			Path: request.GetDestination(),
+		},
+		ProgressStream: func(fileInfo os.FileInfo) io.ReadWriter {
+			return newFileTransferProgress(fileInfo.Size(), sendProgress)
+		},
+	}
+	// TODO(ravicious): Move URI parsing to the outermost layer.
+	// https://github.com/gravitational/teleport/issues/15953
+	serverURI := uri.New(request.GetServerUri())
+	serverUUID := serverURI.GetServerUUID()
+	if serverUUID == "" {
+		return sftp.FileTransferRequest{}, trace.BadParameter("server URI does not include server UUID")
+	}
+	host := &utils.NetAddr{Addr: serverUUID + ":0"}
 	switch request.GetDirection() {
 	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD:
-		return sftp.CreateDownloadConfig(request.GetSource(), request.GetDestination(), sftp.Options{})
+		sftpReq.Sources.Host = host
+		sftpReq.Sources.Login = request.GetLogin()
 	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UPLOAD:
-		return sftp.CreateUploadConfig([]string{request.GetSource()}, request.GetDestination(), sftp.Options{})
+		sftpReq.Destination.Host = host
+		sftpReq.Destination.Login = request.GetLogin()
 	default:
-		return nil, trace.BadParameter("Unexpected file transfer direction: %q", request.GetDirection())
+		return sftp.FileTransferRequest{}, trace.BadParameter("Unexpected file transfer direction: %q", request.GetDirection())
 	}
+	return sftpReq, nil
 }
 
 func newFileTransferProgress(fileSize int64, sendProgress FileTransferProgressSender) io.ReadWriter {

@@ -92,7 +92,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -4400,9 +4399,9 @@ func onSCP(cf *CLIConf) error {
 	err = executor(cf.Context, tc, func() error {
 		return trace.Wrap(tc.SFTP(
 			cf.Context,
-			cf.CopySpec[:len(cf.CopySpec)-1],
-			cf.CopySpec[len(cf.CopySpec)-1],
-			sftp.Options{
+			client.SFTPRequest{
+				Sources:        cf.CopySpec[:len(cf.CopySpec)-1],
+				Destination:    cf.CopySpec[len(cf.CopySpec)-1],
 				Recursive:      cf.RecursiveCopy,
 				PreserveAttrs:  cf.PreserveAttrs,
 				Quiet:          cf.Quiet,
@@ -4538,11 +4537,15 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			hostUser = c.SrcHost
 			if c.SrcLogin != "" {
 				hostLogin = c.SrcLogin
+			} else {
+				c.SrcLogin = hostLogin
 			}
 		} else {
 			hostUser = c.DestHost
 			if c.DestLogin != "" {
 				hostLogin = c.DestLogin
+			} else {
+				c.DestLogin = hostLogin
 			}
 		}
 	}

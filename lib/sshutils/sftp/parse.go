@@ -19,6 +19,8 @@
 package sftp
 
 import (
+	"fmt"
+	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -31,7 +33,7 @@ type Destination struct {
 	// Login is an optional login username
 	Login string
 	// Host is a host to copy to/from
-	Host *utils.NetAddr
+	Host net.Addr
 	// Path is a path to copy to/from.
 	// An empty path name is valid, and it refers to the user's default directory (usually
 	// the user's home directory).
@@ -45,17 +47,22 @@ type Destination struct {
 //
 // See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
 // section about details on file names.
-func ParseDestination(input string) (*Destination, error) {
+func ParseDestination(input string, port int) (Destination, error) {
 	firstColonIdx := strings.Index(input, ":")
 	// if there are no colons, no path is specified
 	if firstColonIdx == -1 {
-		return nil, trace.BadParameter("%q is missing a path, use form [user@]host:[path]", input)
+		if !strings.Contains(input, "@") {
+			return Destination{
+				Path: input,
+			}, nil
+		}
+		return Destination{}, trace.BadParameter("%q is missing a path, use form [user@]host:[path]", input)
 	}
 	hostStartIdx := strings.LastIndex(input[:firstColonIdx], "@")
 	// if a login exists and the path begins right after the login ends,
 	// no host is specified
 	if hostStartIdx != -1 && hostStartIdx+1 == firstColonIdx {
-		return nil, trace.BadParameter("%q is missing a host, use form [user@]host:[path]", input)
+		return Destination{}, trace.BadParameter("%q is missing a host, use form [user@]host:[path]", input)
 	}
 
 	var login string
@@ -81,7 +88,7 @@ func ParseDestination(input string) (*Destination, error) {
 	if afterLogin[0] == '[' {
 		ipv6Host, hostEndIdx, err := parseIPv6Host(input, hostStartIdx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return Destination{}, trace.Wrap(err)
 		}
 		if ipv6Host != nil {
 			host = ipv6Host
@@ -94,9 +101,10 @@ func ParseDestination(input string) (*Destination, error) {
 		var err error
 		host, err = utils.ParseAddr(input[hostStartIdx:firstColonIdx])
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return Destination{}, trace.Wrap(err)
 		}
 	}
+	host.Addr = fmt.Sprintf("%s:%d", host.Addr, port)
 
 	// if there is nothing after the host the path defaults to "."
 	path := "."
@@ -104,7 +112,7 @@ func ParseDestination(input string) (*Destination, error) {
 		path = input[pathStartIdx:]
 	}
 
-	return &Destination{
+	return Destination{
 		Login: login,
 		Host:  host,
 		Path:  path,
@@ -140,4 +148,36 @@ func parseIPv6Host(input string, start int) (*utils.NetAddr, int, error) {
 	// the host ends after the login + the IPv6 address
 	// (including the trailing ']') and a ':'
 	return host, start + rbraceIdx + 1 + 1, nil
+}
+
+type Sources struct {
+	Login string
+	Host  net.Addr
+	Paths []string
+}
+
+func ParseSources(rawSources []string, port int) (Sources, error) {
+	if len(rawSources) == 0 {
+		return Sources{}, trace.BadParameter("at least one source requred")
+	}
+	firstSource, err := ParseDestination(rawSources[0], port)
+	if err != nil {
+		return Sources{}, trace.Wrap(err)
+	}
+	sources := Sources{
+		Login: firstSource.Login,
+		Host:  firstSource.Host,
+		Paths: []string{firstSource.Path},
+	}
+	for _, rawSource := range rawSources[1:] {
+		source, err := ParseDestination(rawSource, port)
+		if err != nil {
+			return Sources{}, trace.Wrap(err)
+		}
+		if source.Login != sources.Login || source.Host.String() != sources.Host.String() {
+			return Sources{}, trace.BadParameter("multiple users/hosts not allowed")
+		}
+		sources.Paths = append(sources.Paths, source.Path)
+	}
+	return sources, nil
 }
