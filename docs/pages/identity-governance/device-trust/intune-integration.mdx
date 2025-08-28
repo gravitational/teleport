@@ -36,8 +36,8 @@ Teleport Web UI. Running it as a standalone service is not currently supported.
 
 ## Step 1/3. Register an application in Microsoft Entra ID
 
-[Create and configure an application](https://learn.microsoft.com/en-us/graph/auth-register-app-v2)
-in Microsoft Entra ID that Teleport will use to access your Intune data:
+Create and configure an application in Microsoft Entra ID that Teleport will use to access your
+Intune data:
 
 1. Sign in to the [Microsoft Entra admin center](https://entra.microsoft.com) with an account
    that has Global Administrator or Application Administrator permissions.
@@ -49,28 +49,36 @@ in Microsoft Entra ID that Teleport will use to access your Intune data:
 4. Once created, copy the Application (client) ID from the Overview page. You'll need this
    when configuring the integration in Teleport.
 
+In case of problems with the above instructions, follow [the official docs for registering an
+application](https://learn.microsoft.com/en-us/graph/auth-register-app-v2).
+
 ## Step 2/3. Configure API permissions and create client secret
 
-[Grant the application permission](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-access-web-apis#application-permission-to-microsoft-graph)
-to read Intune managed devices:
+Grant the application permission to read Intune managed devices:
 
 1. In your registered application, navigate to API permissions > Add a permission.
 2. Select Microsoft Graph > Application permissions.
 3. Search for and add the `DeviceManagementManagedDevices.Read.All` permission.
 4. Click "Grant admin consent" for your organization and confirm.
 
+In case of problems with the above instructions, follow [the official docs for granting application
+permission](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-access-web-apis#application-permission-to-microsoft-graph).
+
 <Admonition type="note">
 The consent must be granted by a Global Administrator or Privileged Role Administrator. Failure to
 grant this permission will result in 401 Forbidden errors from the Graph API.
 </Admonition>
 
-To [create a client secret](https://learn.microsoft.com/en-us/graph/auth-register-app-v2#option-2-add-a-client-secret):
+To create a client secret:
 
 1. In your registered application, navigate to Certificates & secrets > Client secrets.
 2. Click New client secret.
 3. Add a description and select an expiration period (we recommend setting a reminder to rotate
    the secret before it expires).
 4. Click "Add" and copy the Value (not the Secret ID).
+
+In case of problems with the above instructions, follow [the official docs for adding a client
+secret](https://learn.microsoft.com/en-us/graph/auth-register-app-v2#option-2-add-a-client-secret).
 
 ## Step 3/3. Configure the Intune integration in Teleport
 
