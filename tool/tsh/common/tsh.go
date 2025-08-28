@@ -94,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -101,7 +102,6 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
-	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
@@ -4924,44 +4924,22 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	return c, nil
 }
 
-func unique[T comparable](s []T) []T {
-	return sliceutils.FilterMapUnique(s, func(ss T) (T, bool) { return ss, true })
-}
-
 func parseCopySpec(cf *CLIConf, config *client.Config) error {
 	if len(cf.CopySpec) < 2 {
 		return trace.BadParameter("tsh scp requires at least two targets")
 	}
-	type sftpTarget struct {
-		user string
-		host string
+	sources, err := sftp.ParseSources(cf.CopySpec[:len(cf.CopySpec)-1], int(cf.NodePort))
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	allHosts := make([]sftpTarget, 0, len(cf.CopySpec))
-	for _, location := range cf.CopySpec {
-		var target sftpTarget
-		userHost, _, found := strings.Cut(location, ":")
-		if found {
-			login, hostname, found := strings.Cut(userHost, "@")
-			if found {
-				target.user = login
-				target.host = hostname
-			} else {
-				target.host = userHost
-			}
-		}
-		allHosts = append(allHosts, target)
+	config.SrcHost = sources.Host.String()
+	config.SrcLogin = sources.Login
+	dest, err := sftp.ParseTarget(cf.CopySpec[len(cf.CopySpec)-1], int(cf.NodePort))
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	uniqueSources := unique(allHosts[:len(allHosts)-1])
-	dest := allHosts[len(allHosts)-1]
-	if len(uniqueSources) > 1 {
-		return trace.BadParameter("all source targets must be on the same user/host")
-	}
-	src := uniqueSources[0]
-
-	config.SrcHost = src.host
-	config.SrcLogin = src.user
-	config.DestHost = dest.host
-	config.DestLogin = dest.user
+	config.DestHost = dest.Host.String()
+	config.DestLogin = dest.Login
 	return nil
 }
 

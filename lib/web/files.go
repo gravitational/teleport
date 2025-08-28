@@ -218,10 +218,10 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	defer nodeClient.Close()
 
-	webTarget := sftp.Destination{
+	webTarget := sftp.Target{
 		Path: req.filename,
 	}
-	remoteTarget := sftp.Destination{
+	remoteTarget := sftp.Target{
 		Login: req.login,
 		Host: &utils.NetAddr{
 			Addr: req.serverID + ":0",

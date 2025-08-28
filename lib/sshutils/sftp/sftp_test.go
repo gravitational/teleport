@@ -69,7 +69,7 @@ func TestTransferFiles(t *testing.T) {
 				Sources: Sources{
 					Paths: []string{"file"},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "copied-file",
 				},
 				PreserveAttrs: true,
@@ -84,7 +84,7 @@ func TestTransferFiles(t *testing.T) {
 				Sources: Sources{
 					Paths: []string{"file"},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 				PreserveAttrs: true,
@@ -100,7 +100,7 @@ func TestTransferFiles(t *testing.T) {
 				Sources: Sources{
 					Paths: []string{"src/"},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dir/",
 				},
 				PreserveAttrs: true,
@@ -119,7 +119,7 @@ func TestTransferFiles(t *testing.T) {
 						"src/file2",
 					},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 				PreserveAttrs: true,
@@ -138,7 +138,7 @@ func TestTransferFiles(t *testing.T) {
 						"src/file2",
 					},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 				PreserveAttrs: true,
@@ -155,7 +155,7 @@ func TestTransferFiles(t *testing.T) {
 				Sources: Sources{
 					Paths: []string{"s"},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 				PreserveAttrs: true,
@@ -177,7 +177,7 @@ func TestTransferFiles(t *testing.T) {
 				Sources: Sources{
 					Paths: []string{"glob*"},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 			},
@@ -200,7 +200,7 @@ func TestTransferFiles(t *testing.T) {
 				Sources: Sources{
 					Paths: []string{"glob*"},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 			},
@@ -227,7 +227,7 @@ func TestTransferFiles(t *testing.T) {
 						"*stuff",
 					},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 			},
@@ -259,7 +259,7 @@ func TestTransferFiles(t *testing.T) {
 						"*stuff",
 					},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 			},
@@ -292,7 +292,7 @@ func TestTransferFiles(t *testing.T) {
 						"file",
 					},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 				PreserveAttrs: true,
@@ -330,7 +330,7 @@ func TestTransferFiles(t *testing.T) {
 						"tres",
 					},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst_file",
 				},
 			},
@@ -350,7 +350,7 @@ func TestTransferFiles(t *testing.T) {
 				Sources: Sources{
 					Paths: []string{"glob*"},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst_file",
 				},
 			},
@@ -370,7 +370,7 @@ func TestTransferFiles(t *testing.T) {
 				Sources: Sources{
 					Paths: []string{"src/"},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "dst/",
 				},
 			},
@@ -388,7 +388,7 @@ func TestTransferFiles(t *testing.T) {
 				Sources: Sources{
 					Paths: []string{"idontexist"},
 				},
-				Destination: Destination{
+				Destination: Target{
 					Path: "whocares",
 				},
 			},
@@ -495,7 +495,7 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 		Sources: Sources{
 			Paths: []string{linkPath},
 		},
-		Destination: Destination{
+		Destination: Target{
 			Path: dstPath,
 		},
 	}
@@ -529,10 +529,10 @@ func TestHTTPUpload(t *testing.T) {
 
 	transferReq, err := CreateHTTPUploadRequest(
 		HTTPTransferRequest{
-			Src: Destination{
+			Src: Target{
 				Path: "source",
 			},
-			Dst: Destination{
+			Dst: Target{
 				Path: "dst",
 			},
 			HTTPRequest: req,
@@ -570,10 +570,10 @@ func TestHTTPDownload(t *testing.T) {
 	w := httptest.NewRecorder()
 	transferReq, err := CreateHTTPDownloadRequest(
 		HTTPTransferRequest{
-			Src: Destination{
+			Src: Target{
 				Path: src,
 			},
-			Dst: Destination{
+			Dst: Target{
 				Path: "/home/robots.txt",
 			},
 			HTTPResponse: w,
