@@ -260,8 +260,8 @@ export class FramesRenderer extends TimelineCanvasRenderer {
     offset: number,
     containerWidth: number
   ): ThumbnailWithPosition[] {
-    const visibleStart = -offset - 100;
-    const visibleEnd = -offset + containerWidth + 100;
+    const visibleStart = -offset;
+    const visibleEnd = -offset + containerWidth;
 
     const frames: ThumbnailWithPosition[] = [];
     const startIndex = this.binarySearchFrameIndex(visibleStart);
@@ -270,22 +270,27 @@ export class FramesRenderer extends TimelineCanvasRenderer {
       const frame = this.framesAtCurrentZoom[i];
 
       if (frame.isEnd) {
+        // check if the end frame is within the visible area + its width
         if (frame.position < visibleEnd + frame.width) {
+          // check if there's a gap between the last visible frame and where the end frame would be pinned
+          // if so, pin the end frame to the right edge of the visible area
+          // this is because the position of the end frame would always position it off the end of the timeline
+          // as it starts at the end of the recording
           const frameBefore = frames.find(
-            f => f.position + f.width > visibleEnd - 100 - frame.width
+            f => f.position + f.width > visibleEnd - frame.width
           );
 
           if (!frameBefore) {
             frames.push({
               ...frame,
-              position: visibleEnd - 100 - frame.width,
+              position: visibleEnd - frame.width,
             });
           }
 
-          continue;
+          break;
         }
 
-        continue;
+        break;
       }
 
       if (frame.position > visibleEnd) {
