@@ -21,6 +21,8 @@ package readyz
 import (
 	"encoding/json"
 	"net/http"
+
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 )
 
 // Status describes the healthiness of a service or tbot overall.
@@ -82,4 +84,17 @@ func (s Status) HTTPStatusCode() int {
 	default:
 		return http.StatusServiceUnavailable
 	}
+}
+
+// ToProto returns the protobuf representation of the status.
+func (s Status) ToProto() machineidv1pb.BotInstanceHealthStatus {
+	switch s {
+	case Initializing:
+		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
+	case Healthy:
+		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
+	case Unhealthy:
+		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
+	}
+	return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
 }

@@ -56,7 +56,7 @@ func JWTOutputServiceBuilder(
 			trustBundleCache:          trustBundleCache,
 		}
 		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String(), JWTOutputServiceType)
 		return svc, nil
 	}
 }

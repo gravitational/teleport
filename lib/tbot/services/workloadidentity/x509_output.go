@@ -70,7 +70,7 @@ func X509OutputServiceBuilder(
 			crlCache:                  crlCache,
 		}
 		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String(), X509OutputServiceType)
 		return svc, nil
 	}
 }

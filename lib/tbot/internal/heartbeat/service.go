@@ -72,6 +72,9 @@ type Config struct {
 	// StatusReporter is used to report the service's health.
 	StatusReporter readyz.Reporter
 
+	// StatusRegistry is used to capture the current health of all services.
+	StatusRegistry *readyz.Registry
+
 	// Clock that will be used to determine the current time.
 	Clock clockwork.Clock
 }
@@ -87,6 +90,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("Client is required")
 	case cfg.JoinMethod == "":
 		return trace.BadParameter("JoinMethod is required")
+	case cfg.StatusRegistry == nil:
+		return trace.BadParameter("StatusRegistry is required")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -164,15 +169,16 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 
 	now := s.cfg.Clock.Now()
 	hb := &machineidv1pb.BotInstanceStatusHeartbeat{
-		RecordedAt:   timestamppb.New(now),
-		Hostname:     hostName,
-		IsStartup:    isStartup,
-		Uptime:       durationpb.New(now.Sub(s.cfg.StartedAt)),
-		OneShot:      isOneShot,
-		JoinMethod:   string(s.cfg.JoinMethod),
-		Version:      teleport.Version,
-		Architecture: runtime.GOARCH,
-		Os:           runtime.GOOS,
+		RecordedAt:    timestamppb.New(now),
+		Hostname:      hostName,
+		IsStartup:     isStartup,
+		Uptime:        durationpb.New(now.Sub(s.cfg.StartedAt)),
+		OneShot:       isOneShot,
+		JoinMethod:    string(s.cfg.JoinMethod),
+		Version:       teleport.Version,
+		Architecture:  runtime.GOARCH,
+		Os:            runtime.GOOS,
+		ServiceHealth: s.cfg.StatusRegistry.ToProto(),
 	}
 
 	_, err = s.cfg.Client.SubmitHeartbeat(ctx, &machineidv1pb.SubmitHeartbeatRequest{

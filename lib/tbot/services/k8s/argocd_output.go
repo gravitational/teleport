@@ -82,7 +82,7 @@ func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) 
 		}
 
 		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String(), ArgoCDOutputServiceType)
 
 		if svc.alpnUpgradeCache == nil {
 			svc.alpnUpgradeCache = internal.NewALPNUpgradeCache(svc.log)

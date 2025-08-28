@@ -237,7 +237,7 @@ func (f *TrustBundleCacheFacade) BuildService(deps bot.ServiceDependencies) (bot
 				teleport.ComponentKey,
 				teleport.Component(teleport.ComponentTBot, "spiffe-trust-bundle-cache"),
 			),
-			StatusReporter: deps.StatusRegistry.AddService("spiffe-trust-bundle-cache"),
+			StatusReporter: deps.StatusRegistry.AddService("spiffe-trust-bundle-cache", "internal/spiffe-trust-bundle-cache"),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
