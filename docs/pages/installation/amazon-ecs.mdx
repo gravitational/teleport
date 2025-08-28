@@ -11,8 +11,8 @@ Using Amazon ECS and Terraform allows you to easily deploy and manage teleport a
 This flow is ideal when you want to automatically discover and secure access to your EKS clusters, RDS databases or other supported AWS resources.
 
 ## How it works
-A Terraform module deploys a teleport agent on Amazon ECS and keeps it up to date.
-Re-applying the Terraform configuration ensures the teleport agent's version stays up to date.
+A Terraform module deploys a Teleport Agent on Amazon ECS and keeps it up to date.
+Re-applying the Terraform configuration ensures the Teleport Agent's version stays up to date.
 
 You have to create or re-use an IAM Join Token so the Agent is able to join the cluster.
 
