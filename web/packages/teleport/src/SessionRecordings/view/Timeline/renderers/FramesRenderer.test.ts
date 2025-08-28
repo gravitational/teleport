@@ -23,7 +23,7 @@ import { darkTheme } from 'design/theme';
 import { SessionRecordingThumbnail } from 'teleport/services/recordings';
 import type { TimelineRenderContext } from 'teleport/SessionRecordings/view/Timeline/renderers/TimelineCanvasRenderer';
 
-import { FramesRenderer, type ThumbnailWithId } from './FramesRenderer';
+import { FramesRenderer, type LoadedImageResult } from './FramesRenderer';
 
 // Mock the SVG utilities
 jest.mock('teleport/SessionRecordings/svg', () => ({
@@ -92,34 +92,27 @@ async function createRenderer(
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
 
+  function imageLoader() {
+    return new Promise<LoadedImageResult>(resolve => {
+      const canvas = new OffscreenCanvas(frameWidth, frameHeight);
+      const img = new Image();
+
+      resolve({ canvas, img });
+    });
+  }
+
   const renderer = new FramesRenderer(
     ctx,
     darkTheme,
     duration,
     frames,
     initialHeight,
-    eventsHeight
+    eventsHeight,
+    imageLoader
   );
 
   renderer.setTimelineWidth(timelineWidth);
   renderer.calculate();
-
-  jest
-    .spyOn(
-      // hack to be able to spy on a private method
-      // jest cannot load images in tests so we mock this method
-      renderer as unknown as {
-        loadImage: (frame: ThumbnailWithId) => Promise<OffscreenCanvas>;
-      },
-      'loadImage'
-    )
-    .mockImplementation(async frame => {
-      const canvas = new OffscreenCanvas(frameWidth, frameHeight);
-
-      renderer['loadedImages'].set(frame.id, canvas);
-
-      return canvas;
-    });
 
   await renderer.loadVisibleFrames(0, timelineWidth);
 
