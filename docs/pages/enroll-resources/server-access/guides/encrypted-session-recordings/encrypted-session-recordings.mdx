@@ -37,8 +37,7 @@ using the configured key storage backend.
 ### Enable recording encryption
 
 Encrypted session recordings can be enabled through the Teleport Auth
-Service configuration file or by modifying the `session_recording_config`
-resource dynamically using `tctl`.
+Service configuration file.
 
 You can edit the Auth Service configuration file as follows:
 
@@ -49,21 +48,6 @@ auth_service:
     encryption:
       enabled: yes
 ```
-
-You can also edit the `session_recording_config` resource using
-`tctl edit session_recording_config`:
-
-```yaml
-# snippet from session_recording_config
-spec:
-  encryption:
-    enabled: yes
-```
-
-If you are already configuring session recording through the configuration file
-it is recommended that you enable encryption there as well, as modifications
-made through `tctl` will be overwritten when the Teleport Auth Service
-restarts.
 
 ### Optional step: Configure key storage backend
 
