@@ -913,7 +913,7 @@ func (s *leafCluster) dialAndForward(params reversetunnelclient.DialParams) (_ n
 		Address:                  params.Address,
 		UseTunnel:                UseTunnel(s.logger, targetConn),
 		FIPS:                     s.srv.FIPS,
-		HostUUID:                 s.srv.ID,
+		ProxyUUID:                s.srv.ID,
 		Emitter:                  s.srv.Config.Emitter,
 		ParentContext:            s.srv.Context,
 		LockWatcher:              s.srv.LockWatcher,
