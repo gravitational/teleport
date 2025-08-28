@@ -17,18 +17,25 @@
  */
 
 import { format } from 'date-fns';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
 import { ChevronLeft, Terminal } from 'design/Icon';
 import { H3 } from 'design/Text';
+import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import cfg from 'teleport/config';
 import { useSuspenseGetRecordingMetadata } from 'teleport/services/recordings/hooks';
+import { KeysEnum } from 'teleport/services/storageService';
 import { formatSessionRecordingDuration } from 'teleport/SessionRecordings/list/RecordingItem';
 import { RecordingPlayer } from 'teleport/SessionRecordings/view/RecordingPlayer';
+import type { PlayerHandle } from 'teleport/SessionRecordings/view/SshPlayer';
+import {
+  RecordingTimeline,
+  type RecordingTimelineHandle,
+} from 'teleport/SessionRecordings/view/Timeline/RecordingTimeline';
 
 export type SummarySlot = (sessionId: string) => ReactNode;
 
@@ -48,11 +55,45 @@ export function RecordingWithMetadata({
     sessionId,
   });
 
-  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const playerRef = useRef<PlayerHandle>(null);
+  const timelineRef = useRef<RecordingTimelineHandle>(null);
+
+  const [timelineHidden, setTimelineHidden] = useLocalStorage(
+    KeysEnum.SESSION_RECORDING_TIMELINE_HIDDEN,
+    false
+  );
+  const [sidebarHidden, setSidebarHidden] = useLocalStorage(
+    KeysEnum.SESSION_RECORDING_SIDEBAR_HIDDEN,
+    false
+  );
+
+  // handle a time change from the player (update the timeline)
+  const handleTimeChange = useCallback((time: number) => {
+    if (!timelineRef.current) {
+      return;
+    }
+
+    timelineRef.current.moveToTime(time);
+  }, []);
+
+  // handle a time change (user click) from the timeline (update the player and timeline)
+  const handleTimelineTimeChange = useCallback((time: number) => {
+    if (!playerRef.current || !timelineRef.current) {
+      return;
+    }
+
+    playerRef.current.moveToTime(time);
+    timelineRef.current.moveToTime(time);
+  }, []);
 
   const toggleSidebar = useCallback(() => {
-    setSidebarVisible(prev => !prev);
-  }, []);
+    // setSidebarHidden(prev => !prev) does not work with useLocalStorage, it stops working after the first toggle
+    setSidebarHidden(!sidebarHidden);
+  }, [sidebarHidden, setSidebarHidden]);
+
+  const toggleTimeline = useCallback(() => {
+    setTimelineHidden(!timelineHidden);
+  }, [timelineHidden, setTimelineHidden]);
 
   const summary = useMemo(
     () => summarySlot?.(sessionId),
@@ -63,7 +104,7 @@ export function RecordingWithMetadata({
   const endTime = new Date(data.metadata.endTime * 1000);
 
   return (
-    <Grid sidebarVisible={sidebarVisible}>
+    <Grid sidebarHidden={sidebarHidden}>
       <Player>
         <RecordingPlayer
           clusterId={clusterId}
@@ -71,10 +112,13 @@ export function RecordingWithMetadata({
           durationMs={data.metadata.duration}
           recordingType="ssh"
           onToggleSidebar={toggleSidebar}
+          onToggleTimeline={toggleTimeline}
+          onTimeChange={handleTimeChange}
+          ref={playerRef}
         />
       </Player>
 
-      {sidebarVisible && (
+      {!sidebarHidden && (
         <Sidebar>
           <Flex
             flexDirection="column"
@@ -128,16 +172,28 @@ export function RecordingWithMetadata({
           </Flex>
         </Sidebar>
       )}
+
+      {data.frames.length > 0 && !timelineHidden && (
+        <TimelineContainer>
+          <RecordingTimeline
+            frames={data.frames}
+            metadata={data.metadata}
+            onTimeChange={handleTimelineTimeChange}
+            ref={timelineRef}
+            showAbsoluteTime={false} // TODO(ryan): add with the keyboard shortcuts PR
+          />
+        </TimelineContainer>
+      )}
     </Grid>
   );
 }
 
-const Grid = styled.div<{ sidebarVisible: boolean }>`
+const Grid = styled.div<{ sidebarHidden: boolean }>`
   display: grid;
   grid-template-areas: ${p =>
-    p.sidebarVisible
-      ? `'sidebar recording' 'timeline timeline'`
-      : `'recording recording' 'timeline timeline'`};
+    p.sidebarHidden
+      ? `'recording recording' 'timeline timeline'`
+      : `'sidebar recording' 'timeline timeline'`};
   grid-template-columns: 1fr 4fr;
   grid-template-rows: 1fr auto;
   position: absolute;
@@ -192,4 +248,8 @@ const BackLink = styled(Link)`
   display: flex;
   align-items: center;
   gap: ${p => p.theme.space[2]}px;
+`;
+
+const TimelineContainer = styled.div`
+  grid-area: timeline;
 `;
