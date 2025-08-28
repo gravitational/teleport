@@ -79,11 +79,13 @@ const EVENT_RADIUS = 8;
 const TEXT_PADDING = 8;
 const EVENT_HEIGHT = 24;
 
-// EventsRenderer renders each "event" that happens in a session recording, i.e. inactivity,
-// or if a user has joined. It does not render resize events, that is handled by a different renderer.
-//
-// Events are shown between the start time and end time of the event. The text in the event
-// scrolls along with the timeline, but is constrained to the event box.
+/**
+ * EventsRenderer renders each "event" that happens in a session recording, i.e. inactivity,
+ * or if a user has joined. It does not render resize events, that is handled by a different renderer.
+ *
+ * Events are shown between the start time and end time of the event. The text in the event
+ * scrolls along with the timeline, but is constrained to the event box.
+ */
 export class EventsRenderer extends TimelineCanvasRenderer {
   private height = 0;
   // rows are computed on creation, containing information such as text width to avoid
