@@ -187,6 +187,7 @@ type resourceOps[T any] struct {
 func defaultResourceOps[T types.Resource]() *resourceOps[T] {
 	return &resourceOps[T]{
 		Modify: func(t T) {
+			// types.Resource metadata is immutable, modify expiry only.
 			if t.Expiry().IsZero() {
 				t.SetExpiry(time.Now().Add(30 * time.Minute))
 			} else {
@@ -195,6 +196,7 @@ func defaultResourceOps[T types.Resource]() *resourceOps[T] {
 		},
 		Name: func(t T) string { return t.GetName() },
 		Setup: func(t T) {
+			// types.Resource metadata is immutable, modify expiry only.
 			if t.Expiry().IsZero() {
 				t.SetExpiry(time.Now().Add(30 * time.Minute))
 			} else {
