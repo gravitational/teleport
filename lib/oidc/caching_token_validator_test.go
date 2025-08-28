@@ -30,11 +30,12 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
+
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // fakeIDP provides a minimal fake OIDC provider for use in tests
@@ -366,13 +367,13 @@ func TestCachingTokenValidator(t *testing.T) {
 
 				// After just 1 hour, it should return the same pointer
 				idp.clock.Advance(time.Hour + time.Minute)
-				require.True(t, valOld == v.GetValidator(idp.issuer(), "a"))
+				require.Same(t, valOld, v.GetValidator(idp.issuer(), "a"))
 
 				// But after 48 hours, it should be pruned and a new instance
 				// should be returned.
 				idp.clock.Advance(validatorTTL + time.Minute)
 				valNew := v.GetValidator(idp.issuer(), "a")
-				require.True(t, valNew != valOld)
+				require.NotSame(t, valNew, valOld)
 
 				// Next, fake making a request at the midpoint of this
 				// validator's lifecycle - this should mark it as "fresh" and
@@ -383,7 +384,7 @@ func TestCachingTokenValidator(t *testing.T) {
 
 				// After the full TTL, it should not be pruned
 				idp.clock.Advance(validatorTTL/2 + time.Hour)
-				require.True(t, valNew == v.GetValidator(idp.issuer(), "a"))
+				require.Same(t, valNew, v.GetValidator(idp.issuer(), "a"))
 			},
 		},
 	}
