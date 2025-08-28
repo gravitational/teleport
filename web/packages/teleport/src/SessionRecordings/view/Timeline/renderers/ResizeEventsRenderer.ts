@@ -310,7 +310,7 @@ export class ResizeEventsRenderer extends TimelineCanvasRenderer {
   }
 
   // getEventPositions filters and positions events based on the current view offset and container size.
-  // It returns events that are within the visible area plus a buffer, and assigns them to rows to avoid overlap.
+  // It returns events that are within the visible area and assigns them to rows to avoid overlap.
   private getEventPositions(
     offset: number,
     containerWidth: number,
@@ -318,12 +318,11 @@ export class ResizeEventsRenderer extends TimelineCanvasRenderer {
   ): EventWithCalculatedPosition[] {
     const viewStart = -offset;
     const viewEnd = -offset + containerWidth;
-    const buffer = containerWidth / 2;
 
     const activeEvents = this.allEvents.filter(
       event =>
-        event.endPosition > viewStart - buffer &&
-        event.startPosition < viewEnd + buffer
+        event.endPosition > viewStart &&
+        event.startPosition < viewEnd
     );
 
     const sortedEvents = activeEvents.toSorted(
