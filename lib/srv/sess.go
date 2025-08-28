@@ -866,7 +866,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		doneCh:                         make(chan struct{}),
 		initiator:                      scx.Identity.TeleportUser,
 		displayParticipantRequirements: utils.AsBool(scx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
-		serverMeta:                     scx.srv.TargetMetadata(),
+		serverMeta:                     scx.srv.EventMetadata(),
 	}
 
 	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
