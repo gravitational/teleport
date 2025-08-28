@@ -19,7 +19,7 @@ you use the `token` join method with this chart.
 ### Basic configuration
 
 This basic configuration will write a Teleport identity file to a secret in
-the deployment namespace called `<helm-release-name>-output`. For example `tbot-out`.
+the deployment namespace called `<helm-release-name>-out`. For example `tbot-out`.
 
 ```yaml
 clusterName: "test.teleport.sh"
