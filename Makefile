@@ -488,6 +488,39 @@ ifeq ("$(with_rdpclient)", "yes")
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
 
+WEB_PKG_DIR ?= web/packages/shared/libs/ironrdp/pkg
+
+define 	pkgjson
+{
+  "name": "ironrdp",
+  "version": "0.1.0",
+  "files": [
+    "ironrdp_bg.wasm",
+    "ironrdp.js",
+    "ironrdp.d.ts"
+  ],
+  "module": "ironrdp.js",
+  "types": "ironrdp.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
+endef
+ 
+#rustup target add  wasm32-unknown-unknown
+#cargo install wasm-bindgen-cli@<bindgen-version-used-to-build-wasm>
+#wasm-bindgen target/wasm32-unknown-unknown/release/ironrdp.wasm --out-dir pkg --typescript --target bundler
+
+#wasm-opt ./target/wasm32-unknown-unknown/release/ironrdp.wasm -o target/wasm32-unknown-unknown/release/ironrdp.wasm -O
+.PHONY: rdpwasm
+rdpwasm:
+	cargo build --package ironrdp --lib --target wasm32-unknown-unknown --release
+	wasm-bindgen target/wasm32-unknown-unknown/release/ironrdp.wasm --out-dir ${WEB_PKG_DIR} --typescript --target web
+	echo "$$pkgjson" > ${WEB_PKG_DIR}/package.json
+	
+
+
+
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
 .PHONY: build-fido2
 build-fido2:
