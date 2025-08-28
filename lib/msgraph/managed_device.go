@@ -19,7 +19,11 @@ package msgraph
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 // ManagedDevice represents a device from Intune's inventory.
@@ -63,4 +67,13 @@ func WithLastSyncDateTimeGt(lastSyncDateTime time.Time) IterateOpt {
 		// https://learn.microsoft.com/en-us/graph/filter-query-parameter
 		ic.filter = fmt.Sprintf("lastSyncDateTime gt %s", lastSyncDateTime.UTC().Format(time.RFC3339))
 	}
+}
+
+// GetManagedDevice returns a single managed device.
+// https://learn.microsoft.com/en-us/graph/api/intune-devices-manageddevice-get?view=graph-rest-1.0
+func (c *Client) GetManagedDevice(ctx context.Context, id string) (*ManagedDevice, error) {
+	uri := c.endpointURI("deviceManagement", "managedDevices", id)
+	uri.RawQuery = url.Values{"$select": {selectManagedDevice}}.Encode()
+	out, err := roundtrip[*ManagedDevice](ctx, c, http.MethodGet, uri.String(), nil)
+	return out, trace.Wrap(err)
 }
