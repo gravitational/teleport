@@ -35,6 +35,7 @@ export const TestContainer: FC<PropsWithChildren> = ({ children }) => (
 
 export interface StoryProps {
   compatibility: 'compatible' | 'client-too-old' | 'client-too-new';
+  showUpdate: boolean;
 }
 
 export const compatibilityArgType: ArgTypes<StoryProps> = {
@@ -43,13 +44,17 @@ export const compatibilityArgType: ArgTypes<StoryProps> = {
     options: ['compatible', 'client-too-old', 'client-too-new'],
     description: 'Client compatibility',
   },
+  showUpdate: {
+    type: 'boolean',
+    description: 'Show app update',
+  },
 };
 
 export function makeProps(
   storyProps: StoryProps
 ): ClusterLoginPresentationProps {
   const props: ClusterLoginPresentationProps = {
-    shouldPromptSsoStatus: false,
+    ssoPrompt: 'no-prompt',
     title: 'localhost',
     loginAttempt: {
       status: '',
@@ -75,6 +80,27 @@ export function makeProps(
     shouldSkipVersionCheck: false,
     disableVersionCheck: () => {},
     platform: 'darwin',
+    changeAppUpdatesManagingCluster: async () => {},
+    checkForAppUpdates: async () => {},
+    downloadAppUpdate: async () => {},
+    clusterGetter: {
+      findCluster: () => undefined,
+    },
+    quitAndInstallAppUpdate: async () => {},
+    cancelAppUpdateDownload: async () => {},
+    appUpdateEvent: {
+      kind: 'update-not-available',
+      autoUpdatesStatus: {
+        enabled: false,
+        reason: 'no-cluster-with-auto-update',
+        options: {
+          unreachableClusters: [],
+          clusters: [],
+          highestCompatibleVersion: '',
+          managingClusterUri: '',
+        },
+      },
+    },
   };
 
   switch (storyProps.compatibility) {
@@ -97,6 +123,44 @@ export function makeProps(
         server: '17.0.0',
       };
     }
+  }
+
+  if (storyProps.showUpdate) {
+    props.appUpdateEvent = {
+      kind: 'update-available',
+      update: {
+        version: '19.0.0',
+        files: [
+          {
+            url: 'https://cdn.teleport.dev/connect-update',
+            sha512: '',
+          },
+        ],
+        path: '',
+        releaseDate: '',
+        sha512: '',
+      },
+      autoDownload: true,
+      autoUpdatesStatus: {
+        enabled: true,
+        source: 'highest-compatible',
+        version: '19.0.0',
+        options: {
+          unreachableClusters: [],
+          managingClusterUri: '',
+          clusters: [
+            {
+              clusterUri: '/clusters/foo',
+              toolsAutoUpdate: true,
+              minToolsVersion: '18.0.0',
+              toolsVersion: '19.0.0',
+              otherCompatibleClusters: [],
+            },
+          ],
+          highestCompatibleVersion: '19.0.0',
+        },
+      },
+    };
   }
 
   return props;
