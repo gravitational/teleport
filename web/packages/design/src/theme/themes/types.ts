@@ -243,6 +243,7 @@ export type ThemeColors = {
         text: string;
       };
       resize: {
+        semiBackground: string;
         background: string;
         border: string;
         text: string;

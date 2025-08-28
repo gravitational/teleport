@@ -512,6 +512,7 @@ const colors: ThemeColors = {
         text: 'rgba(255, 255, 255, 0.6)',
       },
       resize: {
+        semiBackground: 'rgba(0, 0, 0, 0.8)',
         background: '#26323c',
         border: '#86c4ed',
         text: '#86c4ed',
