@@ -37,33 +37,22 @@ export function setTray(
 
   logger.info(getAssetPath('iconTemplate@2x.png'));
 
-  tray.on('mouse-enter', () => {
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: 'Open Teleport Connect',
-        type: 'normal',
-        click: () => args.showWindow(),
-      },
-      { type: 'separator' },
-      { type: 'header', enabled: true, label: 'Active Connections' },
-      ...statePersis
-        .getConnectionTrackerState()
-        .connections.filter(c => c.connected)
-        .map(c => {
-          const { name, sublabel, submenu } = trackedConenction(c);
-          const a: MenuItemConstructorOptions = {
-            type: 'submenu',
-            label: name,
-            sublabel: sublabel,
-            submenu,
-          };
-          return a;
-        }),
-      { type: 'separator' },
-      { label: 'Quit', type: 'normal', role: 'quit' },
-    ]);
-    tray.setContextMenu(contextMenu);
-  });
+  if (runtimeSettings.platform === 'win32') {
+    tray.on('click', () => {
+      args.showWindow();
+    });
+  }
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open Teleport Connect',
+      type: 'normal',
+      click: () => args.showWindow(),
+    },
+    { type: 'separator' },
+    { label: 'Quit', type: 'normal', role: 'quit' },
+  ]);
+  tray.setContextMenu(contextMenu);
 }
 
 function trackedConenction(t: TrackedConnection) {

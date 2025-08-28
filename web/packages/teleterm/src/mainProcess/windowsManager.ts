@@ -269,6 +269,7 @@ export class WindowsManager {
       return;
     }
 
+    this.window.show();
     if (this.window.isMinimized()) {
       this.window.restore();
     }
@@ -326,6 +327,7 @@ export class WindowsManager {
 
     app.dock?.bounce('informational');
 
+    this.window.show();
     // app.focus() alone doesn't un-minimize the window if the window is minimized.
     if (this.window.isMinimized()) {
       this.window.restore();
