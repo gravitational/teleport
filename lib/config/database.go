@@ -93,7 +93,7 @@ db_service:
   {{- end }}
 
   # Matchers for registering AWS-hosted databases.
-  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions .OpenSearchDiscoveryRegions}}
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .ElastiCacheServerlessDiscoveryRegions .MemoryDBDiscoveryRegions .OpenSearchDiscoveryRegions}}
   aws:
   {{- else }}
   # For more information about AWS auto-discovery:
@@ -106,9 +106,10 @@ db_service:
   #   # 'redshift' - discovers and registers AWS Redshift databases.
   #   # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
   #   # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
+  #   # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
   #   # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
   #   # 'opensearch' - discovers and registers AWS OpenSearch domains.
-  # - types: ["rds", "rdsproxy", "redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]
+  # - types: ["rds", "rdsproxy", "redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch"]
   #   # AWS regions to register databases from.
   #   regions: ["us-west-1", "us-east-2"]
   #   # AWS resource tags to match when registering databases.
@@ -182,6 +183,21 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .ElastiCacheDiscoveryRegions }}
+    - "{{ . }}"
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
+  {{- end }}
+  {{- if .ElastiCacheServerlessDiscoveryRegions }}
+  # ElastiCacheServerless databases auto-discovery.
+  # For more information about ElastiCacheServerless auto-discovery: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
+  - types: ["elasticache-serverless"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .ElastiCacheServerlessDiscoveryRegions }}
     - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -368,7 +384,7 @@ db_service:
       trust_system_cert_pool: {{ .DatabaseTrustSystemCertPool }}
       {{- end }}
     {{- end }}
-    {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSAssumeRoleARN .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSMemoryDBClusterName }}
+    {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSAssumeRoleARN .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSElastiCacheServerlessCacheName .DatabaseAWSMemoryDBClusterName }}
     aws:
       {{- if .DatabaseAWSRegion }}
       region: "{{ .DatabaseAWSRegion }}"
@@ -398,6 +414,10 @@ db_service:
       {{- if .DatabaseAWSElastiCacheGroupID }}
       elasticache:
         replication_group_id: "{{ .DatabaseAWSElastiCacheGroupID }}"
+      {{- end }}
+      {{- if .DatabaseAWSElastiCacheServerlessCacheName }}
+      elasticache_serverless:
+        cache_name: "{{ .DatabaseAWSElastiCacheServerlessCacheName }}"
       {{- end }}
       {{- if .DatabaseAWSMemoryDBClusterName }}
       memorydb:
@@ -616,6 +636,9 @@ type DatabaseSampleFlags struct {
 	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
 	// auto-discovery is configured.
 	ElastiCacheDiscoveryRegions []string
+	// ElastiCacheServerlessDiscoveryRegions is a list of regions the ElastiCache
+	// Serverless auto-discovery is configured.
+	ElastiCacheServerlessDiscoveryRegions []string
 	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
 	// auto-discovery is configured.
 	MemoryDBDiscoveryRegions []string
@@ -644,6 +667,8 @@ type DatabaseSampleFlags struct {
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSElastiCacheGroupID is the ElastiCache replication group identifier.
 	DatabaseAWSElastiCacheGroupID string
+	// DatabaseAWSElastiCacheServerlessCacheName is the ElastiCache Serverless cache name.
+	DatabaseAWSElastiCacheServerlessCacheName string
 	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
 	DatabaseAWSMemoryDBClusterName string
 	// DatabaseADDomain is the Active Directory domain for authentication.
