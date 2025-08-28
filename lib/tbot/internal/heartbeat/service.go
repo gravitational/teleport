@@ -200,7 +200,7 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 		return trace.Wrap(err, "submitting heartbeat")
 	}
 
-	s.cfg.Logger.InfoContext(ctx, "Sent heartbeat", "data", hb.String())
+	s.cfg.Logger.DebugContext(ctx, "Sent heartbeat", "data", hb.String())
 	return nil
 }
 
