@@ -39,7 +39,7 @@ func TestUnmarshalGraphError(t *testing.T) {
 	t.Parallel()
 
 	t.Run("valid", func(t *testing.T) {
-		graphError, err := readError(strings.NewReader(msGraphErrorPayload))
+		graphError, err := readError(strings.NewReader(msGraphErrorPayload), 400)
 		require.NoError(t, err)
 		require.NotNil(t, graphError)
 		expected := &GraphError{
@@ -48,17 +48,18 @@ func TestUnmarshalGraphError(t *testing.T) {
 			InnerError: &GraphError{
 				Code: "invalidRange",
 			},
+			StatusCode: 400,
 		}
 		require.Equal(t, expected, graphError)
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		_, err := readError(strings.NewReader("invalid json"))
+		_, err := readError(strings.NewReader("invalid json"), 400)
 		require.Error(t, err)
 	})
 
 	t.Run("empty", func(t *testing.T) {
-		graphError, err := readError(strings.NewReader("{}"))
+		graphError, err := readError(strings.NewReader("{}"), 400)
 		require.NoError(t, err)
 		require.Nil(t, graphError)
 	})

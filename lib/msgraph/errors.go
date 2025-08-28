@@ -45,6 +45,7 @@ type GraphError struct {
 	Message    string       `json:"message,omitempty"`
 	InnerError *GraphError  `json:"innerError,omitempty"`
 	Details    []GraphError `json:"details,omitempty"`
+	StatusCode int
 }
 
 func (g *GraphError) Error() string {
@@ -60,13 +61,15 @@ func (g *GraphError) Error() string {
 	return strings.Join(parts, ": ")
 }
 
-func readError(r io.Reader) (*GraphError, error) {
+func readError(r io.Reader, statusCode int) (*GraphError, error) {
 	var errResponse graphErrorResponse
 	if err := json.NewDecoder(r).Decode(&errResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if errResponse.Error != nil {
-		return errResponse.Error, nil
+	if errResponse.Error == nil {
+		return nil, nil
 	}
-	return nil, nil
+	graphError := errResponse.Error
+	graphError.StatusCode = statusCode
+	return graphError, nil
 }

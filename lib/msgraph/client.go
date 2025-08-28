@@ -154,6 +154,8 @@ func NewClient(cfg Config) (*Client, error) {
 
 // request is the base function for HTTP API calls.
 // It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
+// If the response from the Graph API has status code outside of [200, 400) range, request attempts
+// to parse the response body as [GraphError] and if successful returns it as error.
 func (c *Client) request(ctx context.Context, method string, uri string, header map[string]string, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
 	if len(payload) > 0 {
@@ -207,7 +209,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			return resp, nil
 		}
 
-		graphError, err := readError(resp.Body)
+		graphError, err := readError(resp.Body, resp.StatusCode)
 		resp.Body.Close()
 		if err != nil {
 			lastErr = err // error while reading the graph error, relay
