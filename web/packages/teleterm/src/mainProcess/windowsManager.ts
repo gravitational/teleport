@@ -163,7 +163,7 @@ export class WindowsManager {
         'runInTray'
       ) as RunInTrayState;
       if (!runInTrayState?.notified) {
-        const { response } = await dialog.showMessageBox({
+        const { response } = await dialog.showMessageBox(window, {
           type: 'info',
           message: 'Teleport Connect will stay active in the system tray',
           detail: 'You can change this behavior anytime in the configuration.',
@@ -182,11 +182,11 @@ export class WindowsManager {
 
     window.on('hide', () => {
       // Hides the app icon in dock on macOS.
-      app.setActivationPolicy('accessory');
+      app.setActivationPolicy?.('accessory');
     });
     window.on('show', () => {
       // Shows the app icon in dock on macOS.
-      app.setActivationPolicy('regular');
+      app.setActivationPolicy?.('regular');
     });
 
     // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen

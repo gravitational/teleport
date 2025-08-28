@@ -16,14 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Menu, nativeImage, Tray } from 'electron';
+import { Menu, MenuItemConstructorOptions, nativeImage, Tray } from 'electron';
 
 import Logger from 'teleterm/logger';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
+import { TrackedConnection } from 'teleterm/ui/services/connectionTracker';
+import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 
 export function setTray(
   runtimeSettings: RuntimeSettings,
+  statePersis: StatePersistenceService,
   args: { showWindow(): void }
 ): void {
   const logger = new Logger('setTray');

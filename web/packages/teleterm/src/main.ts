@@ -36,6 +36,7 @@ import { createConfigService } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 import * as types from 'teleterm/types';
+import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { setTray } from './tray';
@@ -201,7 +202,7 @@ async function initializeApp(): Promise<void> {
       enableWebHandlersProtection();
 
       if (configService.get('keepInTray').value) {
-        setTray(settings, {
+        setTray(settings, new StatePersistenceService(appStateFileStorage), {
           showWindow: () => windowsManager.showWindow(),
         });
       }
