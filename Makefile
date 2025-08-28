@@ -132,6 +132,7 @@ CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
+CARGO_TARGET_wasm := wasm32-unknown-unknown
 
 CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
 
@@ -488,6 +489,25 @@ ifeq ("$(with_rdpclient)", "yes")
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
 
+.PHONY: build-ironrdp-wasm
+build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
+build-ironrdp-wasm: ensure-wasm-deps
+	cargo build --package ironrdp --lib --target $(CARGO_TARGET_wasm) --release
+	wasm-opt target/$(CARGO_TARGET_wasm)/release/ironrdp.wasm -o target/$(CARGO_TARGET_wasm)/release/ironrdp.wasm -O
+	wasm-bindgen target/$(CARGO_TARGET_wasm)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
+	@$(MAKE) print-ironrdp-package-json > $(ironrdp)/pkg/package.json
+
+.PHONY: print-ironrdp-package-json
+print-ironrdp-package-json:
+	@printf '%s\n' '{' \
+	' "name": "ironrdp",' \
+	' "version": "0.1.0",' \
+	' "module": "ironrdp",' \
+	' "types": "ironrdp.d.ts",' \
+	' "files": ["ironrdp_bg.wasm","ironrdp.js","ironrdp.d.ts"],' \
+	' "sideEffects": ["./snippets/*"],' \
+	'}'
+
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
 .PHONY: build-fido2
 build-fido2:
@@ -539,7 +559,7 @@ endif
 	rm -f *.zip
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
-	# Clean up wasm-pack build artifacts
+	# Clean up wasm build artifacts
 	rm -rf web/packages/shared/libs/ironrdp/pkg/
 
 .PHONY: clean-ui
@@ -1880,29 +1900,19 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-pack ensure-wasm-bindgen
+ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt rustup-install-wasm-toolchain
 
-# Get the version of wasm-bindgen from cargo, as that is what wasm-pack is
-# going to do when it checks for the right version. The buildboxes do not
-# have jq installed (yet), so have a hacky awk version on standby.
-CARGO_GET_VERSION_JQ = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "$(1)") | .version)'
-CARGO_GET_VERSION_AWK = awk -F '[ ="]+' '/^name = "$(1)"$$/ {inpkg = 1} inpkg && $$1 == "version" {print $$2; exit}' Cargo.lock
+# Get the version of wasm-bindgen from cargo
+# Note, output has 'v' prefix. e.g., v0.2.99
+WASM_BINDGEN_VERSION = $(shell cargo tree -i wasm-bindgen | head -n 1 | cut -d ' ' -f  2)
 
-BIN_JQ = $(shell which jq 2>/dev/null)
-CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_AWK))
+.PHONY: print-wasm-bindgen-version
+print-wasm-bindgen-version: NEED_VERSION = $(WASM_BINDGEN_VERSION:v%=%)
+print-wasm-bindgen-version:
+	@echo $(NEED_VERSION)
 
-ensure-wasm-pack: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-pack-version)
-ensure-wasm-pack: INSTALLED_VERSION = $(word 2,$(shell wasm-pack --version 2>/dev/null))
-ensure-wasm-pack:
-	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		cargo install wasm-pack --force --locked --version "$(NEED_VERSION)", \
-		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
-	)
 
-# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
-#       On 386 Arch, calling the variable produces a malformed command that fails the build.
-#ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
-ensure-wasm-bindgen: NEED_VERSION = 0.2.99
+ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION:v%=%)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
 ifneq ($(CI)$(FORCE),)
@@ -1918,6 +1928,10 @@ else
 	)
 endif
 endif
+
+.PHONY: ensure-wasm-opt
+ensure-wasm-opt:
+	cargo install wasm-opt
 
 .PHONY: build-ui
 build-ui: ensure-js-deps ensure-wasm-deps
@@ -1943,6 +1957,10 @@ rustup-set-version:
 .PHONY: rustup-install-target-toolchain
 rustup-install-target-toolchain: rustup-set-version
 	rustup target add $(RUST_TARGET_ARCH)
+
+.PHONY: rustup-install-wasm-toolchain
+rustup-install-wasm-toolchain: rustup-set-version
+	rustup target add $(CARGO_TARGET_wasm)
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.

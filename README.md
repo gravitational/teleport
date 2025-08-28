@@ -144,20 +144,11 @@ versions listed in [`build.assets/versions.mk`](/build.assets/versions.mk):
 1. [`Go`](https://golang.org/dl/)
 1. [`Rust`](https://www.rust-lang.org/tools/install)
 1. [`Node.js`](https://nodejs.org/en/download/)
-1. [`wasm-pack`](https://github.com/rustwasm/wasm-pack)
 1. [`libfido2`](https://github.com/Yubico/libfido2)
 1. [`pkg-config`](https://www.freedesktop.org/wiki/Software/pkg-config/)
 
 For an example of Dev Environment setup on a Mac, see [these
 instructions](/BUILD_macos.md).
-
-##### Linux 64-bit ARM Dependencies
-
-1. On Linux aarch64 (64-bit ARM), you may need to manually install
-   [`binaryen`](https://github.com/WebAssembly/binaryen). Check with `which
-   wasm-opt`. If not found, install with `apt-get install binaryen`
-   (Debian-based systems). On other platforms, `wasm-pack` installs it
-   automatically.
 
 #### Perform a build
 
