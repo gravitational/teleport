@@ -351,7 +351,8 @@ func (b *Bot) buildHeartbeatService(
 	statusRegistry *readyz.Registry,
 ) (*heartbeat.Service, error) {
 	return heartbeat.NewService(heartbeat.Config{
-		Interval:           30 * time.Minute,
+		MinInterval:        1 * time.Minute,
+		MaxInterval:        30 * time.Minute,
 		RetryLimit:         5,
 		Client:             machineidv1.NewBotInstanceServiceClient(identityService.GetClient().GetConnection()),
 		BotIdentityReadyCh: identityService.Ready(),

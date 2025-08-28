@@ -71,7 +71,8 @@ func TestHeartbeatService(t *testing.T) {
 	reporter.ReportReason(readyz.Unhealthy, "out of bananas")
 
 	svc, err := NewService(Config{
-		Interval:       time.Second,
+		MinInterval:    time.Second,
+		MaxInterval:    time.Second,
 		RetryLimit:     3,
 		Client:         fhs,
 		Clock:          clock,
