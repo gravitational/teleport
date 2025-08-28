@@ -81,11 +81,21 @@ using the session ID should succeed.
 
 ## Manual Encryption Key Management
 
-By default, Teleport will automatically provision and manage session recording
-encryption keys. However there may be cases where automatic management is not
-possible or desired, such as environments where Teleport lacks sufficient
-privileges to manage keys directly. For this reason, Teleport can be configured
-to use externally managed keys.
+Encrypted session recordings require at least one active key which will be used
+during encryption at recording time and decryption at replay time. Once an
+active key has been rotated, meaning it is no longer used during encryption, it
+should become a rotated key. Rotated keys can only be used for decryption
+during replay in order to maintain access to historical recordings.
+
+By default, Teleport will automatically provision and manage these keys.
+However there may be cases where automatic management is not possible or
+desired, such as environments where Teleport lacks sufficient privileges to
+manage keys directly. For this reason, Teleport can be configured to use
+externally managed keys.
+
+Manual encryption key management enables explicit configuration of active
+and rotated keys by defining what type of key storage backend they are found in
+and the labels identifying the specific keys to be used.
 
 <Admonition type="warning">
 Manual encryption key management places all responsibility and complexity of
