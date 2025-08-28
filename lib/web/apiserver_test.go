@@ -2186,7 +2186,7 @@ func TestTerminalRouting(t *testing.T) {
 
 			sess := term.GetSession()
 
-			metadata := tt.target.TargetMetadata()
+			metadata := tt.target.EventMetadata()
 			require.Equal(t, metadata.ServerID, sess.ServerID)
 			require.Equal(t, metadata.ServerHostname, sess.ServerHostname)
 
