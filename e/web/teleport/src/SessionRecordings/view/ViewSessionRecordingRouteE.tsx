@@ -39,7 +39,6 @@ const SessionSummaryContainer = styled(Flex)`
   justify-content: center;
   width: 100%;
   gap: ${p => p.theme.space[2]}px;
-  padding: ${p => p.theme.space[3]}px;
 `;
 
 function SummaryErrorWrapper({ error, resetErrorBoundary }: FallbackProps) {

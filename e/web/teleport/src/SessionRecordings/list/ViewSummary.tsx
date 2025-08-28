@@ -25,7 +25,7 @@ import { ChatCircleSparkle } from 'design/Icon';
 import { Indicator } from 'design/Indicator';
 import Modal from 'design/Modal';
 import { StyledPopover } from 'design/Popover';
-import Text from 'design/Text';
+import Text, { H3 } from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip';
 import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
 import { Markdown } from 'shared/components/Markdown/Markdown';
@@ -142,6 +142,7 @@ export function ViewSummary({ sessionId }: ViewSummaryProps) {
 
             <Box
               px={3}
+              py={3}
               style={{ overflowY: 'auto' }}
               maxHeight="700px"
               width="500px"
@@ -167,7 +168,6 @@ const SessionSummaryContainer = styled(Flex)`
   justify-content: center;
   width: 100%;
   gap: ${p => p.theme.space[2]}px;
-  padding: ${p => p.theme.space[3]}px;
 `;
 
 function SummaryErrorWrapper({ error, resetErrorBoundary }: FallbackProps) {
@@ -325,6 +325,8 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
 
     return (
       <MarkdownContainer>
+        <H3>Session Summary</H3>
+
         <Markdown text={data.content} />
 
         <SummaryInfo>

@@ -78,7 +78,7 @@ describe('rendering', () => {
     withRecordingSummary({
       sessionId: mockSessionId,
       state: RecordingSummaryState.Success,
-      content: '# Session Summary\n\nTest content',
+      content: 'Test content',
       inferenceStartedAt: '2025-01-15T10:00:00Z',
       inferenceFinishedAt: '2025-01-15T10:01:00Z',
     });
@@ -96,7 +96,7 @@ describe('rendering', () => {
     withRecordingSummary({
       sessionId: mockSessionId,
       state: RecordingSummaryState.Success,
-      content: '# Session Summary\n\nTest content',
+      content: 'Test content',
       inferenceStartedAt: '2025-01-15T10:00:00Z',
       inferenceFinishedAt: '2025-01-15T10:01:00Z',
     });
@@ -120,7 +120,7 @@ describe('popover behavior', () => {
     withRecordingSummary({
       sessionId: mockSessionId,
       state: RecordingSummaryState.Success,
-      content: '# Session Summary\n\nTest content',
+      content: 'Test content',
       inferenceStartedAt: '2025-01-15T10:00:00Z',
       inferenceFinishedAt: '2025-01-15T10:01:00Z',
     });
@@ -140,7 +140,7 @@ describe('popover behavior', () => {
     withRecordingSummary({
       sessionId: mockSessionId,
       state: RecordingSummaryState.Success,
-      content: '# Session Summary\n\nTest content',
+      content: 'Test content',
       inferenceStartedAt: '2025-01-15T10:00:00Z',
       inferenceFinishedAt: '2025-01-15T10:01:00Z',
     });
@@ -165,7 +165,7 @@ describe('popover behavior', () => {
     withRecordingSummary({
       sessionId: mockSessionId,
       state: RecordingSummaryState.Success,
-      content: '# Session Summary\n\nTest content',
+      content: 'Test content',
       inferenceStartedAt: '2025-01-15T10:00:00Z',
       inferenceFinishedAt: '2025-01-15T10:01:00Z',
     });
@@ -192,7 +192,7 @@ describe('summary states', () => {
     const deferred = createDeferredResponse({
       sessionId: mockSessionId,
       state: RecordingSummaryState.Success,
-      content: '# Session Summary\n\nTest content',
+      content: 'Test content',
       inferenceStartedAt: '2025-01-15T10:00:00Z',
       inferenceFinishedAt: '2025-01-15T10:01:00Z',
     });
