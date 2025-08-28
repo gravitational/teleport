@@ -32,6 +32,7 @@ import (
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -65,9 +66,9 @@ type pluginDeleteArgs struct {
 	name string
 }
 
-type pluginUpdateCredsArgs struct {
+type pluginRotateCredsArgs struct {
 	cmd   *kingpin.CmdClause
-	awsic awsICUpdateCredsArgs
+	awsic awsICRotateCredsArgs
 }
 
 // PluginsCommand allows for management of plugins.
@@ -78,7 +79,7 @@ type PluginsCommand struct {
 	dryRun      bool
 	install     pluginInstallArgs
 	delete      pluginDeleteArgs
-	updateCreds pluginUpdateCredsArgs
+	rotateCreds pluginRotateCredsArgs
 }
 
 // Initialize creates the plugins command and subcommands
@@ -94,7 +95,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 
 	p.initInstall(pluginsCommand, config)
 	p.initDelete(pluginsCommand)
-	p.initUpdateCreds(pluginsCommand)
+	p.initRotateCreds(pluginsCommand)
 }
 
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
@@ -176,10 +177,10 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, args installPluginArgs) er
 	return nil
 }
 
-func (p *PluginsCommand) initUpdateCreds(parent *kingpin.CmdClause) {
-	p.updateCreds.cmd = parent.Command("update-creds", "Updates a plugin's credentials.")
+func (p *PluginsCommand) initRotateCreds(parent *kingpin.CmdClause) {
+	p.rotateCreds.cmd = parent.Command("rotate", "Rotates a plugin's credentials.")
 
-	p.initUpdateCredsAWSIC(p.updateCreds.cmd)
+	p.initRotateCredsAWSIC(p.rotateCreds.cmd)
 }
 
 type authClient interface {
@@ -205,8 +206,9 @@ type pluginsClient interface {
 }
 
 type installPluginArgs struct {
-	authClient authClient
-	plugins    pluginsClient
+	authClient   authClient
+	plugins      pluginsClient
+	scimProvider func(plugintType, url, bearerToken string) (scimsdk.Client, error)
 }
 
 // TryRun runs the plugins command
@@ -229,8 +231,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallGithub
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
-	case p.updateCreds.awsic.cmd.FullCommand():
-		commandFunc = p.UpdateAWSICCreds
+	case p.rotateCreds.awsic.cmd.FullCommand():
+		commandFunc = p.RotateAWSICCreds
 	default:
 		return false, nil
 	}
@@ -238,7 +240,18 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	err = commandFunc(ctx, installPluginArgs{authClient: client, plugins: client.PluginsClient()})
+	args := installPluginArgs{
+		authClient: client,
+		plugins:    client.PluginsClient(),
+		scimProvider: func(pluginType, url, token string) (scimsdk.Client, error) {
+			return scimsdk.New(&scimsdk.Config{
+				Endpoint:        url,
+				IntegrationType: pluginType,
+				Token:           token,
+			})
+		},
+	}
+	err = commandFunc(ctx, args)
 	closeFn(ctx)
 
 	return true, trace.Wrap(err)
