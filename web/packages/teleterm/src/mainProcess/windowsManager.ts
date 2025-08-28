@@ -22,6 +22,7 @@ import * as url from 'node:url';
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   Menu,
   nativeTheme,
@@ -36,10 +37,15 @@ import {
   RuntimeSettings,
   WindowsManagerIpc,
 } from 'teleterm/mainProcess/types';
+import { ConfigService } from 'teleterm/services/config';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 type WindowState = Rectangle;
+
+interface RunInBackgroundState {
+  notified?: boolean;
+}
 
 export class WindowsManager {
   private storageKey = 'windowState';
@@ -57,10 +63,12 @@ export class WindowsManager {
     reject: (error: Error) => void;
   };
   private readonly windowUrl: string;
+  private isHidden: boolean;
 
   constructor(
     private fileStorage: FileStorage,
-    private settings: RuntimeSettings
+    private settings: RuntimeSettings,
+    private configService: ConfigService
   ) {
     this.selectionContextMenu = Menu.buildFromTemplate([{ role: 'copy' }]);
     this.frontendAppInit = {
@@ -125,11 +133,34 @@ export class WindowsManager {
       },
     });
 
-    window.once('close', () => {
+    let isAppQuitting = false;
+    // This event is triggered when the app itself initiates shutdown
+    // (e.g., via app.quit()), not when the user manually closes a window.
+    app.on('before-quit', () => {
+      isAppQuitting = true;
+    });
+
+    window.on('close', async e => {
       this.saveWindowState(window);
-      this.frontendAppInit.reject(
-        new Error('Window was closed before frontend app got initialized')
-      );
+
+      if (isAppQuitting || !this.configService.get('runInBackground').value) {
+        this.frontendAppInit.reject(
+          new Error('Window was closed before frontend app got initialized')
+        );
+        return;
+      }
+
+      e.preventDefault();
+
+      const shouldRun = await this.confirmIfShouldRunInTrayOnce();
+      if (shouldRun) {
+        this.hideWindow();
+        return;
+      }
+
+      this.configService.set('runInBackground', false);
+      // Retry closing.
+      window.close();
     });
 
     // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
@@ -208,11 +239,35 @@ export class WindowsManager {
       return;
     }
 
+    // Show the window if hidden.
+    this.showWindow();
     if (this.window.isMinimized()) {
       this.window.restore();
     }
 
     this.window.focus();
+  }
+
+  showWindow(): void {
+    if (!this.isHidden) {
+      return;
+    }
+
+    this.window.show();
+    this.isHidden = false;
+    // Shows the app icon in dock on macOS.
+    void app.dock?.show();
+  }
+
+  hideWindow(): void {
+    if (this.isHidden) {
+      return;
+    }
+
+    this.window.hide();
+    this.isHidden = true;
+    // Hides the app icon in dock on macOS.
+    app.dock?.hide();
   }
 
   /**
@@ -265,10 +320,13 @@ export class WindowsManager {
 
     app.dock?.bounce('informational');
 
+    // Show the window if hidden.
+    this.showWindow();
     // app.focus() alone doesn't un-minimize the window if the window is minimized.
     if (this.window.isMinimized()) {
       this.window.restore();
     }
+
     app.focus({ steal: true });
   }
 
@@ -384,6 +442,36 @@ export class WindowsManager {
       ...getDefaults(),
       ...getPositionAndSize(),
     };
+  }
+
+  private async confirmIfShouldRunInTrayOnce(): Promise<boolean> {
+    const runInBackgroundState = this.fileStorage.get(
+      'runInBackground'
+    ) as RunInBackgroundState;
+    if (runInBackgroundState?.notified) {
+      return true;
+    }
+
+    const isMac = this.settings.platform === 'darwin';
+
+    const { response } = await dialog.showMessageBox(this.window, {
+      type: 'info',
+      message: isMac
+        ? 'Teleport Connect will continue running in the menu bar'
+        : 'Teleport Connect will continue running in the system tray',
+      detail:
+        'VNet and connections to database, kube clusters and apps will remain active.',
+      buttons: [
+        isMac
+          ? 'Stop running in the menu bar'
+          : "'Stop running in the system tray'",
+        'OK',
+      ],
+      defaultId: 1,
+    });
+    const state: RunInBackgroundState = { notified: true };
+    this.fileStorage.put('runInBackground', state);
+    return response !== 0; // true if 'OK'
   }
 }
 

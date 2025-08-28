@@ -83,7 +83,11 @@ async function initializeApp(): Promise<void> {
   });
 
   nativeTheme.themeSource = configService.get('theme').value;
-  const windowsManager = new WindowsManager(appStateFileStorage, settings);
+  const windowsManager = new WindowsManager(
+    appStateFileStorage,
+    settings,
+    configService
+  );
 
   process.on('uncaughtException', (error, origin) => {
     logger.error('Uncaught exception', origin, error);
@@ -158,6 +162,12 @@ async function initializeApp(): Promise<void> {
   });
 
   app.on('second-instance', () => {
+    windowsManager.focusWindow();
+  });
+  // On macOS, re-launching an app triggers the 'activate'
+  // event, not 'second-instance'.
+  // If the window is hidden, activating the app should show it up.
+  app.on('activate', () => {
     windowsManager.focusWindow();
   });
 
