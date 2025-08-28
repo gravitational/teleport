@@ -25,6 +25,7 @@ import (
 	"os"
 	portablepath "path"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
@@ -36,7 +37,8 @@ import (
 // the local file system
 type RemoteFS struct {
 	*sftp.Client
-	session io.Closer
+	session   io.Closer
+	closeOnce sync.Once
 }
 
 // NewRemoteFilesystem creates a new FileSystem over SFTP.
@@ -145,9 +147,13 @@ func (r *RemoteFS) Readlink(name string) (string, error) {
 }
 
 func (r *RemoteFS) Close() error {
-	var sessionErr error
-	if r.session != nil {
-		sessionErr = r.session.Close()
-	}
-	return trace.NewAggregate(sessionErr, r.Client.Close())
+	var err error
+	r.closeOnce.Do(func() {
+		var sessionErr error
+		if r.session != nil {
+			sessionErr = r.session.Close()
+		}
+		err = trace.NewAggregate(sessionErr, r.Client.Close())
+	})
+	return trace.Wrap(err)
 }
