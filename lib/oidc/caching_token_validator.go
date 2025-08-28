@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/client"
@@ -31,6 +33,8 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("oidc"))
 
 const (
 	// discoveryTTL is the maximum duration a discovery configuration will be
@@ -92,8 +96,10 @@ func (v *CachingTokenValidator[C]) pruneStaleValidators() {
 	}
 
 	retained := map[validatorKey]*CachingValidatorInstance[C]{}
+	prunedCount := 0
 	for k, v := range v.instances {
 		if v.IsStale() {
+			prunedCount += 1
 			continue
 		}
 
@@ -102,6 +108,7 @@ func (v *CachingTokenValidator[C]) pruneStaleValidators() {
 
 	v.instances = retained
 	v.lastPruned = v.clock.Now()
+	log.DebugContext(context.Background(), "Pruned stale OIDC validators", "count", prunedCount)
 }
 
 // GetValidator retreives a validator for the given issuer and audience. This
@@ -172,6 +179,7 @@ func (v *CachingValidatorInstance[C]) getKeySet(
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	l := log.With("issuer", v.issuer, "audience", v.audience)
 	now := v.clock.Now()
 
 	// Mark this validator as fresh.
@@ -181,9 +189,13 @@ func (v *CachingValidatorInstance[C]) getKeySet(
 		// Invalidate the cached value.
 		v.discoveryConfig = nil
 		v.discoveryConfigExpires = time.Time{}
+
+		l.DebugContext(ctx, "Invalidating expired discovery config")
 	}
 
 	if v.discoveryConfig == nil {
+		l.DebugContext(ctx, "Fetching new discovery config")
+
 		// Note: This is the only blocking call inside the mutex.
 		// In the future, it might be a good idea to fetch the new discovery
 		// config async and keep it available if the refresh fails.
@@ -209,9 +221,12 @@ func (v *CachingValidatorInstance[C]) getKeySet(
 		// Invalidate the cached value.
 		v.keySet = nil
 		v.keySetExpires = time.Time{}
+
+		l.DebugContext(ctx, "Invalidating expired KeySet")
 	}
 
 	if v.keySet == nil {
+		l.DebugContext(ctx, "Creating new remote KeySet")
 		v.keySet = rp.NewRemoteKeySet(newHTTPClient(), v.discoveryConfig.JwksURI)
 		v.keySetExpires = now.Add(keySetTTL)
 	}
