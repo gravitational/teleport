@@ -40,7 +40,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "root",
 			Host: &utils.NetAddr{
-				Addr:        "remote.host",
+				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/etc/nginx.conf",
@@ -51,7 +51,7 @@ var parseTestCases = []struct {
 		in:   "remote.host:/etc/nginx.co:nf",
 		dest: Destination{
 			Host: &utils.NetAddr{
-				Addr:        "remote.host",
+				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/etc/nginx.co:nf",
@@ -62,7 +62,7 @@ var parseTestCases = []struct {
 		in:   "[::1]:/etc/nginx.co:nf",
 		dest: Destination{
 			Host: &utils.NetAddr{
-				Addr:        "[::1]",
+				Addr:        "[::1]:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/etc/nginx.co:nf",
@@ -74,7 +74,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "root",
 			Host: &utils.NetAddr{
-				Addr:        "123.123.123.123",
+				Addr:        "123.123.123.123:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/var/www/html/",
@@ -86,7 +86,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "myusername",
 			Host: &utils.NetAddr{
-				Addr:        "myremotehost.com",
+				Addr:        "myremotehost.com:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/home/hope/*",
@@ -98,7 +98,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "complex@example.com",
 			Host: &utils.NetAddr{
-				Addr:        "remote.com",
+				Addr:        "remote.com:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/anything.txt",
@@ -110,7 +110,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "root",
 			Host: &utils.NetAddr{
-				Addr:        "remote.host",
+				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: ".",
@@ -121,7 +121,7 @@ var parseTestCases = []struct {
 		in:   "remote.host:/some@file",
 		dest: Destination{
 			Host: &utils.NetAddr{
-				Addr:        "remote.host",
+				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/some@file",
@@ -132,7 +132,7 @@ var parseTestCases = []struct {
 		in:   "remote.host:/some@remote:file",
 		dest: Destination{
 			Host: &utils.NetAddr{
-				Addr:        "remote.host",
+				Addr:        "remote.host:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/some@remote:file",
@@ -144,7 +144,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "complex@user",
 			Host: &utils.NetAddr{
-				Addr:        "[::1]",
+				Addr:        "[::1]:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/remote:file",
@@ -156,7 +156,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "user",
 			Host: &utils.NetAddr{
-				Addr:        "server.com",
+				Addr:        "server.com:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "/tmp/user-2022-03-10T09:49:23-98cd2a03/file.txt",
@@ -168,7 +168,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "user",
 			Host: &utils.NetAddr{
-				Addr:        "server",
+				Addr:        "server:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "file@",
@@ -180,7 +180,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "user",
 			Host: &utils.NetAddr{
-				Addr:        "server",
+				Addr:        "server:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "file[::1]name",
@@ -192,7 +192,7 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "user",
 			Host: &utils.NetAddr{
-				Addr:        "[::1]",
+				Addr:        "[::1]:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "file[::1]name",
@@ -204,10 +204,17 @@ var parseTestCases = []struct {
 		dest: Destination{
 			Login: "user",
 			Host: &utils.NetAddr{
-				Addr:        "[::1]",
+				Addr:        "[::1]:8080",
 				AddrNetwork: "tcp",
 			},
 			Path: "file@[::1]@name",
+		},
+	},
+	{
+		name: "path only",
+		in:   "path/to/somewhere",
+		dest: Destination{
+			Path: "path/to/somewhere",
 		},
 	},
 	{
@@ -252,10 +259,10 @@ func TestParseDestination(t *testing.T) {
 
 	for _, tt := range parseTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := ParseDestination(tt.in)
+			resp, err := ParseDestination(tt.in, 8080)
 			if tt.errCheck == nil {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(resp, &tt.dest))
+				require.Empty(t, cmp.Diff(resp, tt.dest))
 			} else {
 				tt.errCheck(t, err, tt.in)
 			}
@@ -269,6 +276,6 @@ func FuzzParseDestination(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, input string) {
-		_, _ = ParseDestination(input)
+		_, _ = ParseDestination(input, 8080)
 	})
 }

@@ -19,21 +19,87 @@
 package sftp
 
 import (
+	"context"
+	"errors"
+	"io"
 	"os"
 	portablepath "path"
+	"strings"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
 )
 
 // RemoteFS provides API for accessing the files on
 // the local file system
 type RemoteFS struct {
 	*sftp.Client
+	session io.Closer
 }
 
 // NewRemoteFilesystem creates a new FileSystem over SFTP.
 func NewRemoteFilesystem(c *sftp.Client) *RemoteFS {
 	return &RemoteFS{Client: c}
+}
+
+func OpenRemoteFilesystem(ctx context.Context, sshClient *ssh.Client) (fs *RemoteFS, err error) {
+	s, err := sshClient.NewSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		if err != nil {
+			s.Close()
+		}
+	}()
+
+	// File transfers in a moderated session require this variable
+	// to check for approval on the ssh server
+	if moderatedSessionID, ok := ctx.Value(ModeratedSessionID).(string); ok {
+		s.Setenv(string(ModeratedSessionID), moderatedSessionID)
+	}
+
+	pe, err := s.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.RequestSubsystem(teleport.SFTPSubsystem); err != nil {
+		// If the subsystem request failed and a generic error is
+		// returned, return the session's stderr as the error if it's
+		// non-empty, as the session's stderr may have a more useful
+		// error message. String comparison is only used here because
+		// the error is not exported.
+		if strings.Contains(err.Error(), "ssh: subsystem request failed") {
+			var sb strings.Builder
+			if n, _ := io.Copy(&sb, pe); n > 0 {
+				return nil, trace.Wrap(errors.New(sb.String()))
+			}
+		}
+		return nil, trace.Wrap(err)
+	}
+	pw, err := s.StdinPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pr, err := s.StdoutPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sftpClient, err := sftp.NewClientPipe(pr, pw,
+		// Use concurrent stream to speed up transfer on slow networks as described in
+		// https://github.com/gravitational/teleport/issues/20579
+		sftp.UseConcurrentReads(true),
+		sftp.UseConcurrentWrites(true),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &RemoteFS{
+		Client:  sftpClient,
+		session: s,
+	}, nil
 }
 
 func (r *RemoteFS) Type() string {
@@ -76,4 +142,12 @@ func (r *RemoteFS) Mkdir(path string) error {
 
 func (r *RemoteFS) Readlink(name string) (string, error) {
 	return r.Client.ReadLink(name)
+}
+
+func (r *RemoteFS) Close() error {
+	var sessionErr error
+	if r.session != nil {
+		sessionErr = r.session.Close()
+	}
+	return trace.NewAggregate(sessionErr, r.Client.Close())
 }
