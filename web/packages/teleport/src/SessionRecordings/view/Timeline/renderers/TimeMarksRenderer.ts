@@ -101,7 +101,6 @@ export class TimeMarkersRenderer extends TimelineCanvasRenderer {
 
     if (pixelsPerSecond < 10) interval = 10000;
     else if (pixelsPerSecond < 50) interval = 5000;
-    else if (pixelsPerSecond > 200) interval = 1000;
 
     for (let time = 0; time < this.duration + interval; time += interval) {
       // if show absolute time is enabled, change the 0:00, 1:00, etc, labels to absolute time
