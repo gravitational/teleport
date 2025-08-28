@@ -221,12 +221,12 @@
     },
     {
       "source": "/machine-id/reference/telemetry/",
-      "destination": "/reference/machine-id/telemetry/",
+      "destination": "/reference/machine-workload-identity/machine-id/telemetry/",
       "permanent": true
     },
     {
       "source": "/machine-id/reference/v16-upgrade-guide/",
-      "destination": "/reference/machine-id/v16-upgrade-guide/",
+      "destination": "/reference/machine-workload-identity/machine-id/v16-upgrade-guide/",
       "permanent": true
     },
     {
@@ -736,17 +736,17 @@
     },
     {
       "source": "/enroll-resources/workload-identity/workload-attestation/",
-      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "destination": "/reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation/",
       "permanent": true
     },
     {
       "source": "/machine-workload-identity/workload-identity/workload-attestation/",
-      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "destination": "/reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation/",
       "permanent": true
     },
     {
       "source": "/machine-workload-identity/machine-id/deployment/bound-keypair/",
-      "destination": "/reference/machine-id/bound-keypair/getting-started/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/getting-started/",
       "permanent": true
     },
     {
@@ -1710,6 +1710,61 @@
       "permanent": true
     },
     {
+      "source": "/reference/machine-id/bound-keypair/admin-guide/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/admin-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/bound-keypair/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/bound-keypair/concepts/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/concepts/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/bound-keypair/getting-started/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/configuration/",
+      "destination": "/reference/machine-workload-identity/machine-id/configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/diagnostics-service/",
+      "destination": "/reference/machine-workload-identity/machine-id/diagnostics-service/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/github-actions/",
+      "destination": "/reference/machine-workload-identity/machine-id/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/gitlab/",
+      "destination": "/reference/machine-workload-identity/machine-id/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/",
+      "destination": "/reference/machine-workload-identity/machine-id/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/telemetry/",
+      "destination": "/reference/machine-workload-identity/machine-id/telemetry/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/v16-upgrade-guide/",
+      "destination": "/reference/machine-workload-identity/machine-id/v16-upgrade-guide/",
+      "permanent": true
+    },
+    {
       "source": "/reference/managed-updates-v2/",
       "destination": "/reference/deployment/managed-updates-v2/",
       "permanent": true
@@ -1871,27 +1926,27 @@
     },
     {
       "source": "/reference/terraform-provider-mwi/data-sources/",
-      "destination": "/reference/api/terraform-provider-mwi/data-sources/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/data-sources/",
       "permanent": true
     },
     {
       "source": "/reference/terraform-provider-mwi/data-sources/kubernetes/",
-      "destination": "/reference/api/terraform-provider-mwi/data-sources/kubernetes/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/data-sources/kubernetes/",
       "permanent": true
     },
     {
       "source": "/reference/terraform-provider-mwi/ephemeral-resources/",
-      "destination": "/reference/api/terraform-provider-mwi/ephemeral-resources/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/ephemeral-resources/",
       "permanent": true
     },
     {
       "source": "/reference/terraform-provider-mwi/ephemeral-resources/kubernetes/",
-      "destination": "/reference/api/terraform-provider-mwi/ephemeral-resources/kubernetes/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/ephemeral-resources/kubernetes/",
       "permanent": true
     },
     {
       "source": "/reference/terraform-provider-mwi/",
-      "destination": "/reference/api/terraform-provider-mwi/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/",
       "permanent": true
     },
     {
@@ -2182,6 +2237,46 @@
     {
       "source": "/reference/user-types/",
       "destination": "/reference/access-controls/user-types/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/attributes/",
+      "destination": "/reference/machine-workload-identity/workload-identity/attributes/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/configuration-resource-migration/",
+      "destination": "/reference/machine-workload-identity/workload-identity/configuration-resource-migration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/issuer-override/",
+      "destination": "/reference/machine-workload-identity/workload-identity/issuer-override/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/revocations/",
+      "destination": "/reference/machine-workload-identity/workload-identity/revocations/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/sigstore-attestation/",
+      "destination": "/reference/machine-workload-identity/workload-identity/sigstore-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "destination": "/reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/workload-identity-resource/",
+      "destination": "/reference/machine-workload-identity/workload-identity/workload-identity-resource/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/",
+      "destination": "/reference/machine-workload-identity/workload-identity/",
       "permanent": true
     }
   ]
