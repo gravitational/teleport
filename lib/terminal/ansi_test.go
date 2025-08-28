@@ -227,7 +227,7 @@ func TestTerminalStateToANSI(t *testing.T) {
 			VtStateToANSI(&buf, state)
 
 			if golden.ShouldSet() {
-				golden.Set(t, []byte(buf.String()))
+				golden.Set(t, buf.Bytes())
 			}
 
 			require.Equal(t, string(golden.Get(t)), buf.String())
