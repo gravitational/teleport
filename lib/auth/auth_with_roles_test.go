@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
@@ -2868,10 +2869,32 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	dbs, next, err := devClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should see both.
 	dbs, err = adminClt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	dbs, next, err = adminClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// With limit, next should be dev
+	dbs, next, err = adminClt.ListDatabases(ctx, 1, "")
+	require.NoError(t, err)
+	require.Equal(t, devDatabase.GetName(), next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase}, dbs,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -2963,6 +2986,14 @@ func mustGetDatabases(t *testing.T, client *authclient.Client, wantDatabases []t
 	t.Helper()
 
 	actualDatabases, err := client.GetDatabases(context.Background())
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
+	))
+
+	actualDatabases, err = stream.Collect(client.RangeDatabases(t.Context(), "", ""))
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
@@ -6026,6 +6057,9 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		require.NoError(t, err)
 		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 		require.NoError(t, err)
+
+		createTestAppServerV3(t, srv.Auth(), name, nil)
+		createTestMCPAppServer(t, srv.Auth(), "mcp-"+name, nil)
 	}
 
 	// create user and client
@@ -6058,6 +6092,21 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		Limit: 5,
 	})
 	require.NoError(t, err, "sort field is not required")
+
+	t.Run("KindApp", func(t *testing.T) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindApp},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 10) // 5 app + 5 mcp server
+	})
+	t.Run("KindMCP", func(t *testing.T) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindMCP},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 5)
+	})
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -10714,8 +10763,6 @@ func TestValidateOracleJoinToken(t *testing.T) {
 
 func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
 	t.Helper()
-	ctx := t.Context()
-
 	app, err := types.NewAppV3(
 		types.Metadata{
 			Name:   name,
@@ -10726,10 +10773,15 @@ func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels 
 		},
 	)
 	require.NoError(t, err)
+	return createTestAppServerFromApp(t, auth, app)
+}
+
+func createTestAppServerFromApp(t *testing.T, auth *auth.Server, app *types.AppV3) *types.AppServerV3 {
+	t.Helper()
 	appServer, err := types.NewAppServerV3(
 		types.Metadata{
-			Name:   name,
-			Labels: labels,
+			Name:   app.GetName(),
+			Labels: app.GetAllLabels(),
 		},
 		types.AppServerSpecV3{
 			HostID: "test-host-id",
@@ -10738,10 +10790,28 @@ func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels 
 	)
 	require.NoError(t, err)
 
-	_, err = auth.UpsertApplicationServer(ctx, appServer)
+	_, err = auth.UpsertApplicationServer(t.Context(), appServer)
 	require.NoError(t, err, "upserting test Application Server")
 
 	return appServer
+}
+
+func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
+	t.Helper()
+	mcp, err := types.NewAppV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppSpecV3{
+			MCP: &types.MCP{
+				Command:       "test",
+				RunAsHostUser: "test",
+			},
+		},
+	)
+	require.NoError(t, err)
+	return createTestAppServerFromApp(t, auth, mcp)
 }
 
 func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {

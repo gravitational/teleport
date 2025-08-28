@@ -539,9 +539,19 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	if len(kinds) == 0 {
 		return true
 	}
+
 	resourceKind := resource.GetKind()
 	switch resourceKind {
-	case KindApp, KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
+	case KindApp:
+		if slices.Contains(kinds, KindApp) {
+			return true
+		}
+
+		// MCP server resources are subkinds of app resources, but it is
+		// possible for certain APIs like ListUnifiedResources to use KindMCP as
+		// a kind filter.
+		return resource.GetSubKind() == SubKindMCP && slices.Contains(kinds, KindMCP)
+	case KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
 		return slices.Contains(kinds, KindApp)
 	default:
 		return slices.Contains(kinds, resourceKind)

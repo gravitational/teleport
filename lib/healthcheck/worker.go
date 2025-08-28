@@ -50,6 +50,9 @@ type workerConfig struct {
 	Log *slog.Logger
 	// Target is the health check target.
 	Target Target
+	// getTargetHealthTimeout is the timeout to wait for an initial health
+	// check before returning the target health to callers of GetTargetHealth.
+	getTargetHealthTimeout time.Duration
 }
 
 // checkAndSetDefaults checks the worker config and sets defaults.
@@ -59,6 +62,9 @@ func (cfg *workerConfig) checkAndSetDefaults() error {
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
+	}
+	if cfg.getTargetHealthTimeout == 0 {
+		cfg.getTargetHealthTimeout = 10 * time.Second
 	}
 	if err := cfg.Target.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -90,6 +96,7 @@ func newUnstartedWorker(ctx context.Context, cfg workerConfig) (*worker, error) 
 		healthCheckConfigUpdateCh: make(chan *healthCheckConfig, 1),
 		log:                       cfg.Log,
 		target:                    cfg.Target,
+		getTargetHealthTimeout:    cfg.getTargetHealthTimeout,
 	}
 	if w.healthCheckCfg != nil {
 		w.setTargetInit(ctx)
@@ -135,6 +142,14 @@ type worker struct {
 	// targetHealth is the latest target health. Initialized to "unknown" status
 	// before the worker starts.
 	targetHealth types.TargetHealth
+	// initCheckPendingCh is non-nil when the target health is unknown because
+	// the worker is still running an initial health check. When the worker
+	// transitions to any other status, the channel is closed and this field is
+	// set to nil.
+	initCheckPendingCh chan struct{}
+	// getTargetHealthTimeout is the timeout to wait for an initial health
+	// check before returning the target health to callers of GetTargetHealth.
+	getTargetHealthTimeout time.Duration
 }
 
 // dialFunc dials an address on the given network.
@@ -144,6 +159,7 @@ type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 func (w *worker) GetTargetHealth() *types.TargetHealth {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
+	w.waitForInitCheckLocked(w.getTargetHealthTimeout)
 	return utils.CloneProtoMsg(&w.targetHealth)
 }
 
@@ -173,6 +189,9 @@ func (w *worker) run() {
 	defer func() {
 		if w.healthCheckInterval != nil {
 			w.healthCheckInterval.Stop()
+		}
+		if w.initCheckPendingCh != nil {
+			close(w.initCheckPendingCh)
 		}
 		if w.target.onClose != nil {
 			w.target.onClose()
@@ -281,11 +300,12 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	}
 	switch {
 	case newCfg == nil:
-		w.setTargetDisabled(ctx)
 		w.stopHealthCheckInterval(ctx)
+		w.setTargetDisabled(ctx)
 		return
 	case oldCfg == nil:
 		w.startHealthCheckInterval(ctx)
+		w.setTargetInit(ctx)
 		return
 	}
 	w.log.DebugContext(ctx, "Updated health check config",
@@ -401,6 +421,11 @@ func (w *worker) setTargetDisabled(ctx context.Context) {
 func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.TargetHealthStatus, reason types.TargetHealthTransitionReason, message string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if reason != types.TargetHealthTransitionReasonInit {
+		w.notifyInitStatusAvailableLocked()
+	} else if w.initCheckPendingCh == nil {
+		w.initCheckPendingCh = make(chan struct{})
+	}
 	oldHealth := w.targetHealth
 	if oldHealth.Status == string(newStatus) && oldHealth.TransitionReason == string(reason) {
 		return
@@ -435,5 +460,36 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	}
 	if w.healthCheckCfg != nil {
 		w.targetHealth.Protocol = string(w.healthCheckCfg.protocol)
+	}
+}
+
+// notifyInitStatusAvailableLocked closes the pending init status channel, if
+// one exists, to notify any waiters that the init health check status is
+// available. It is assumed that the caller of this func is holding the lock.
+func (w *worker) notifyInitStatusAvailableLocked() {
+	if w.initCheckPendingCh != nil {
+		close(w.initCheckPendingCh)
+		w.initCheckPendingCh = nil
+	}
+}
+
+// waitForInitCheckLocked waits for the pending init status channel to be nil
+// or for a timeout to expire. It is assumed that the caller of this func is
+// holding the read lock.
+func (w *worker) waitForInitCheckLocked(timeout time.Duration) {
+	if w.initCheckPendingCh == nil {
+		return
+	}
+	timeoutCh := time.After(retryutils.HalfJitter(timeout))
+	for w.initCheckPendingCh != nil {
+		ch := w.initCheckPendingCh
+		w.mu.RUnlock()
+		select {
+		case <-ch:
+			w.mu.RLock()
+		case <-timeoutCh:
+			w.mu.RLock()
+			return
+		}
 	}
 }

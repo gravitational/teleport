@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"errors"
+	"iter"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -47,6 +48,10 @@ import (
 type DatabaseGetter interface {
 	// GetDatabases returns all database resources.
 	GetDatabases(context.Context) ([]types.Database, error)
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 }

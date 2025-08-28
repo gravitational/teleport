@@ -82,11 +82,6 @@
             },
             {
               "type": "doc",
-              "label": "Cluster Upgrading Reference",
-              "id": "upgrading/upgrading-reference"
-            },
-            {
-              "type": "doc",
               "label": "Managed Updates for Agents (v1)",
               "id": "upgrading/agent-managed-updates-v1"
             },
@@ -99,6 +94,11 @@
               "type": "doc",
               "label": "Managed Updates for Client Tools",
               "id": "upgrading/client-tools-managed-updates"
+            },
+            {
+              "type": "doc",
+              "label": "Manual Upgrades",
+              "id": "upgrading/upgrading-manual"
             }
           ],
           "link": {

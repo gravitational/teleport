@@ -45,6 +45,10 @@ const (
 	// attrName is the name of an LDAP object.
 	attrName = "name"
 
+	// description is a description of an LDAP object.
+	attrDescription          = "description"
+	attrDescriptionMaxLength = 1024 // https://learn.microsoft.com/en-us/windows/win32/adschema/a-description
+
 	// attrCommonName is the common name of an LDAP object, or "CN".
 	attrCommonName = "cn"
 
@@ -355,6 +359,10 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 	// purge them if they stop being detected, and discovery of large Windows fleets can
 	// take a long time.
 	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL * 3))
+
+	description := entry.GetAttributeValue(attrDescription)
+	desktop.Metadata.Description = description[:min(len(description), attrDescriptionMaxLength)]
+
 	return desktop, nil
 }
 

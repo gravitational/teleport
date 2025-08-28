@@ -1817,7 +1817,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -1956,7 +1956,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -2647,7 +2647,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
 			ClusterName:      f.testSrv.ClusterName(),
 			LocalAccessPoint: proxyClient,
-			SiteGetter:       reverseTunnelServer,
+			ClusterGetter:    reverseTunnelServer,
 			TracerProvider:   tracing.NoopProvider(),
 		})
 		require.NoError(t, err)
@@ -2907,7 +2907,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -3341,7 +3341,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)

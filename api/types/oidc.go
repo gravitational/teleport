@@ -577,6 +577,12 @@ func (o *OIDCConnectorV3) WithMFASettings() error {
 	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
 	o.Spec.ACR = o.Spec.MFASettings.AcrValues
 	o.Spec.Prompt = o.Spec.MFASettings.Prompt
+	// Overwrite the base connector's request object mode iff the MFA setting's
+	// request object mode is explicitly set. Otherwise, the base setting should be assumed.
+	if o.Spec.MFASettings.RequestObjectMode != string(constants.OIDCRequestObjectModeUnknown) {
+		o.Spec.RequestObjectMode = o.Spec.MFASettings.RequestObjectMode
+	}
+
 	// In rare cases, some providers will complain about the presence of the 'max_age'
 	// parameter in auth requests. Provide users with a workaround to omit it.
 	omitMaxAge, _ := strconv.ParseBool(os.Getenv("TELEPORT_OIDC_OMIT_MFA_MAX_AGE"))
