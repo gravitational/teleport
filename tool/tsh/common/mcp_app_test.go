@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/mcp/claude"
+	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -383,18 +383,18 @@ func setupMockMCPConfig(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")
-	config, err := claude.LoadConfigFromFile(configPath)
+	config, err := mcpconfig.LoadConfigFromFile(configPath, mcpconfig.ConfigFormatClaude)
 	require.NoError(t, err)
-	require.NoError(t, config.PutMCPServer("local-everything", claude.MCPServer{
+	require.NoError(t, config.PutMCPServer("local-everything", mcpconfig.MCPServer{
 		Command: "npx",
 		Args:    []string{"-y", "@modelcontextprotocol/server-everything"},
 	}))
-	require.NoError(t, config.Save(claude.FormatJSONPretty))
+	require.NoError(t, config.Save(mcpconfig.FormatJSONPretty))
 	return config.Path()
 }
 
 func mustHaveMCPServerNamesInConfig(t *testing.T, configPath string, wantNames []string) {
-	jsonConfig, err := claude.LoadConfigFromFile(configPath)
+	jsonConfig, err := mcpconfig.LoadConfigFromFile(configPath, mcpconfig.ConfigFormatClaude)
 	require.NoError(t, err)
 	require.ElementsMatch(t,
 		wantNames,

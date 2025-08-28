@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"net"
@@ -34,7 +35,7 @@ import (
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	pgmcp "github.com/gravitational/teleport/lib/client/db/postgres/mcp"
 	"github.com/gravitational/teleport/lib/client/mcp"
-	"github.com/gravitational/teleport/lib/client/mcp/claude"
+	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -216,6 +217,9 @@ type mcpDBConfigCommand struct {
 	siteName     string
 	overwriteEnv bool
 
+	// dbURI is the generated database MCP resource URI.
+	dbURI mcp.ResourceURI
+
 	// databasesGetter used to retrieve databases information. Can be mocked in
 	// tests.
 	databasesGetter databasesGetter
@@ -271,52 +275,42 @@ func (m *mcpDBConfigCommand) run() error {
 		return trace.BadParameter("You must specify --db-user and --db-name flags used to connect to the database")
 	}
 
-	dbURI := mcp.NewDatabaseResourceURI(m.siteName, db.GetName(), mcp.WithDatabaseUser(m.cf.DatabaseUser), mcp.WithDatabaseName(m.cf.DatabaseName))
-	switch {
-	case m.clientConfig.isSet():
-		return trace.Wrap(m.updateClientConfig(dbURI))
-	default:
-		return trace.Wrap(m.printJSONWithHint(dbURI))
-	}
+	m.dbURI = mcp.NewDatabaseResourceURI(m.siteName, db.GetName(), mcp.WithDatabaseUser(m.cf.DatabaseUser), mcp.WithDatabaseName(m.cf.DatabaseName))
+	return trace.Wrap(runMCPConfig(m.cf, &m.clientConfig, m))
 }
 
-func (m *mcpDBConfigCommand) printJSONWithHint(dbURI mcp.ResourceURI) error {
-	config := claude.NewConfig()
+func (m *mcpDBConfigCommand) printInstructions(w io.Writer, configFormat mcpconfig.ConfigFormat) error {
+	config := mcpconfig.NewConfig(configFormat)
 	// Since the database is being added to a "fresh" config file the database
 	// will always be new and we can ignore the additional message as well.
-	if _, _, err := m.addDatabaseToConfig(config, dbURI); err != nil {
+	if _, _, err := m.addDatabaseToConfig(config, m.dbURI); err != nil {
 		return trace.Wrap(err)
 	}
 
-	w := m.cf.Stdout()
-	if _, err := fmt.Fprintln(w, "Here is a sample JSON configuration for launching Teleport MCP servers:"); err != nil {
+	if _, err := fmt.Fprintf(w, "Here is a sample JSON configuration for launching Teleport MCP servers using %s format:\n", configFormat); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := config.Write(w, claude.FormatJSONOption(m.clientConfig.jsonFormat)); err != nil {
+	if err := config.Write(w, mcpconfig.FormatJSONOption(m.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
 	}
 	if _, err := fmt.Fprintf(w, `
 If you already have an entry for %q server, add the following database resource URI to the command arguments list:
 %s
 
-`, mcpDBConfigName, dbURI.String()); err != nil {
+`, mcpDBConfigName, m.dbURI.String()); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(m.clientConfig.printHint(w))
+	return trace.Wrap(m.clientConfig.printFooterNotes(w))
 }
 
 // TODO(gabrielcorado): support updating multiple databases at once.
-func (m *mcpDBConfigCommand) updateClientConfig(dbURI mcp.ResourceURI) error {
-	config, err := m.clientConfig.loadConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	preexistentDB, commandChanged, err := m.addDatabaseToConfig(config, dbURI)
+func (m *mcpDBConfigCommand) updateConfig(w io.Writer, config *mcpconfig.FileConfig) error {
+	preexistentDB, commandChanged, err := m.addDatabaseToConfig(config, m.dbURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := config.Save(claude.FormatJSONOption(m.clientConfig.jsonFormat)); err != nil {
+	if err := config.Save(mcpconfig.FormatJSONOption(m.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -328,7 +322,7 @@ func (m *mcpDBConfigCommand) updateClientConfig(dbURI mcp.ResourceURI) error {
 		EnvChanged    bool
 		OverwriteEnv  bool
 	}{
-		Name:          dbURI.GetDatabaseServiceName(),
+		Name:          m.dbURI.GetDatabaseServiceName(),
 		ConfigPath:    config.Path(),
 		ConfigName:    mcpDBConfigName,
 		PreexistentDB: preexistentDB,
@@ -342,7 +336,7 @@ func (m *mcpDBConfigCommand) updateClientConfig(dbURI mcp.ResourceURI) error {
 // addDatabaseToConfig adds the provided database, merging with existent
 // databases configured. This function returns a additional message to be
 // displayed to users.
-func (m *mcpDBConfigCommand) addDatabaseToConfig(config claudeConfig, dbURI mcp.ResourceURI) (bool, bool, error) {
+func (m *mcpDBConfigCommand) addDatabaseToConfig(config mcpConfig, dbURI mcp.ResourceURI) (bool, bool, error) {
 	var (
 		dbs        []string
 		updated    bool
