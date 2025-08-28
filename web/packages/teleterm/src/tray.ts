@@ -37,16 +37,71 @@ export function setTray(
 
   logger.info(getAssetPath('iconTemplate@2x.png'));
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Open Teleport Connect',
-      type: 'normal',
-      click: () => args.showWindow(),
-    },
-    { type: 'separator' },
-    { label: 'Quit', type: 'normal', role: 'quit' },
-  ]);
-  tray.setContextMenu(contextMenu);
+  tray.on('mouse-enter', () => {
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Open Teleport Connect',
+        type: 'normal',
+        click: () => args.showWindow(),
+      },
+      { type: 'separator' },
+      { type: 'header', enabled: true, label: 'Active Connections' },
+      ...statePersis
+        .getConnectionTrackerState()
+        .connections.filter(c => c.connected)
+        .map(c => {
+          const { name, sublabel, submenu } = trackedConenction(c);
+          const a: MenuItemConstructorOptions = {
+            type: 'submenu',
+            label: name,
+            sublabel: sublabel,
+            submenu,
+          };
+          return a;
+        }),
+      { type: 'separator' },
+      { label: 'Quit', type: 'normal', role: 'quit' },
+    ]);
+    tray.setContextMenu(contextMenu);
+  });
+}
+
+function trackedConenction(t: TrackedConnection) {
+  switch (t.kind) {
+    case 'connection.server':
+      return {
+        name: t.title,
+        sublabel: 'SSH',
+        submenu: [{ label: 'Show' }, { label: 'Disconnect' }],
+      };
+    case 'connection.desktop':
+      return {
+        name: t.title,
+        sublabel: 'Desktop',
+        submenu: [{ label: 'Show' }, { label: 'Disconnect' }],
+      };
+    case 'connection.gateway':
+      return {
+        name: t.title,
+        sublabel: 'App Local Proxy',
+        submenu: [
+          {
+            label: 'Copy Address',
+            sublabel: 'localhost:48219',
+            type: 'normal',
+          },
+          { type: 'separator' },
+          { label: 'Show' },
+          { label: 'Disconnect' },
+        ],
+      };
+    case 'connection.kube':
+      return {
+        name: t.title,
+        sublabel: 'Kube Local Proxy',
+        submenu: [{ label: 'Show' }, { label: 'Disconnect' }],
+      };
+  }
 }
 
 function getIcon(runtimeSettings: RuntimeSettings) {
