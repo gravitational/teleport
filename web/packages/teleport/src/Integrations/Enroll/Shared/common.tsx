@@ -21,18 +21,17 @@ export type BaseIntegration = (
   | { title: string; name?: never }
 ) & {
   tags: IntegrationTag[];
+  description?: string;
 };
 
 export const integrationTagOptions = [
-  { value: 'ai', label: 'AI / MCP' },
   { value: 'bot', label: 'Bot' },
   { value: 'cicd', label: 'CI/CD' },
   { value: 'devicetrust', label: 'Device Trust' },
   { value: 'idp', label: 'IdP' },
-  { value: 'jit', label: 'JIT Review' },
-  { value: 'multicloud', label: 'Multi-Cloud' },
   { value: 'notifications', label: 'Notifications' },
   { value: 'resourceaccess', label: 'Resource Access' },
+  { value: 'scim', label: 'SCIM' },
 ] as const satisfies { value: string; label: string }[];
 
 export type IntegrationTag = Extract<

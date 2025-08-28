@@ -37,7 +37,9 @@ export function filterIntegrations<T extends BaseIntegration>(
     searches.every(
       s =>
         titleOrName(i).toLowerCase().includes(s) ||
-        i.tags.some(tag => tag.includes(s))
+        i.tags.some(tag => tag.includes(s)) ||
+        (i.description && i.description.toLowerCase().includes(s)) ||
+        (i.tags.includes('bot') && 'machine id'.includes(s)) // extra bot check because we append machine ID to tile title
     )
   );
 
