@@ -407,15 +407,7 @@ func New(c ServerConfig) (*Server, error) {
 
 // TargetMetadata returns metadata about the forwarding target.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
-	return apievents.ServerMetadata{
-		ServerVersion:   teleport.Version,
-		ServerNamespace: s.GetNamespace(),
-		ServerID:        s.targetID,
-		ServerAddr:      s.targetAddr,
-		ServerHostname:  s.targetHostname,
-		ForwardedBy:     s.proxyUUID,
-		ServerSubKind:   s.targetServer.GetSubKind(),
-	}
+	return srv.GetTargetMetadata(s)
 }
 
 // Context returns parent context, used to signal
@@ -510,19 +502,39 @@ func (s *Server) GetSELinuxEnabled() bool {
 	return false
 }
 
-// GetInfo returns a services.Server that represents this server.
+// GetInfo returns a services.Server that represents the target server.
 func (s *Server) GetInfo() types.Server {
-	return &types.ServerV2{
+	return s.getBasicInfo()
+}
+
+func (s *Server) getBasicInfo() *types.ServerV2 {
+	// Only set the address for non-tunnel nodes.
+	var addr string
+	if !s.targetServer.GetUseTunnel() {
+		addr = s.targetServer.GetAddr()
+	}
+
+	srv := &types.ServerV2{
 		Kind:    types.KindNode,
+		SubKind: s.targetServer.GetSubKind(),
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      s.ID(),
-			Namespace: s.GetNamespace(),
+			Name:      s.targetServer.GetName(),
+			Namespace: s.targetServer.GetNamespace(),
+			Labels:    s.targetServer.GetLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			Addr: s.AdvertiseAddr(),
+			CmdLabels:   types.LabelsToV2(s.targetServer.GetCmdLabels()),
+			Addr:        addr,
+			Hostname:    s.targetServer.GetHostname(),
+			UseTunnel:   s.useTunnel,
+			Version:     teleport.Version,
+			ProxyIDs:    s.targetServer.GetProxyIDs(),
+			PublicAddrs: s.targetServer.GetPublicAddrs(),
 		},
 	}
+
+	return srv
 }
 
 // Dial returns the client connection created by pipeAddrConn.
