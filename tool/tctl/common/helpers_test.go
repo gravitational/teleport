@@ -113,7 +113,7 @@ func runLockCommand(t *testing.T, client *authclient.Client, args []string) erro
 func runTokensCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &TokensCommand{
-		stdout: &stdoutBuff,
+		Stdout: &stdoutBuff,
 	}
 
 	args = append([]string{"tokens"}, args...)
