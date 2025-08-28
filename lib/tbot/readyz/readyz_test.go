@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
@@ -176,6 +177,51 @@ func TestToProto(t *testing.T) {
 			protocmp.Transform(),
 		),
 	)
+}
+
+func TestWatch(t *testing.T) {
+	registry := readyz.NewRegistry()
+
+	watcher1, close1 := registry.Watch()
+	t.Cleanup(close1)
+
+	watcher2, close2 := registry.Watch()
+	t.Cleanup(close2)
+
+	select {
+	case <-watcher1:
+		t.Fatal("watcher1 should be blocked")
+	case <-watcher2:
+		t.Fatal("watcher2 should be blocked")
+	default:
+	}
+
+	reporter := registry.AddService("milkshake-stand", "store")
+	reporter.Report(readyz.Healthy)
+
+	select {
+	case <-watcher1:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("watcher1 should not be blocked")
+	}
+	select {
+	case <-watcher1:
+		t.Fatal("watcher1 should be blocked")
+	default:
+	}
+
+	reporter.Report(readyz.Unhealthy)
+
+	select {
+	case <-watcher1:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("watcher1 should not be blocked")
+	}
+	select {
+	case <-watcher2:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("watcher1 should not be blocked")
+	}
 }
 
 func ptr[T any](v T) *T { return &v }

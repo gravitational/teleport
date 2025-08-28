@@ -19,6 +19,7 @@
 package readyz
 
 import (
+	"container/list"
 	"sync"
 	"time"
 
@@ -33,6 +34,7 @@ func NewRegistry(opts ...RegistryOpt) *Registry {
 	reg := &Registry{
 		clock:    clockwork.NewRealClock(),
 		services: make(map[string]*ServiceStatus),
+		watchers: list.New(),
 	}
 	for _, opt := range opts {
 		opt(reg)
@@ -54,6 +56,7 @@ type Registry struct {
 
 	mu       sync.Mutex
 	services map[string]*ServiceStatus
+	watchers *list.List
 }
 
 // AddService adds a service to the registry so that its health will be reported
@@ -73,9 +76,9 @@ func (r *Registry) AddService(name, serviceType string) Reporter {
 		r.services[name] = status
 	}
 	return &reporter{
-		clock:  r.clock,
-		mu:     &r.mu,
-		status: status,
+		registry: r,
+		mu:       &r.mu,
+		status:   status,
 	}
 }
 
@@ -126,6 +129,34 @@ func (r *Registry) ToProto() []*machineidv1pb.BotInstanceServiceHealth {
 		proto = append(proto, svc.ToProto())
 	}
 	return proto
+}
+
+// Watch returns a channel you can receive from to be notified when a service's
+// status changes. You must call the returned close function when you're done to
+// free resources.
+func (r *Registry) Watch() (<-chan struct{}, func()) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	ch := make(chan struct{}, 1)
+	elem := r.watchers.PushBack(ch)
+
+	return ch, sync.OnceFunc(func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+
+		r.watchers.Remove(elem)
+	})
+}
+
+func (r *Registry) notifyWatchersLocked() {
+	for elem := r.watchers.Front(); elem != nil; elem = elem.Next() {
+		select {
+		case elem.Value.(chan struct{}) <- struct{}{}:
+		default:
+			// Already a notification buffered in the channel.
+		}
+	}
 }
 
 // ServiceStatus is a snapshot of the service's status.
