@@ -4681,6 +4681,23 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 		)
 	}
 
+	// Wait for cache to propagate the access lists before doing anything
+	require.Eventually(t, func() bool {
+		response, _, err := authServer.Cache.ListAccessLists(ctx, 50, "")
+		if err != nil {
+			return false
+		}
+		reviewableCount := 0
+		for _, al := range response {
+			if al.IsReviewable() {
+				reviewableCount++
+			}
+		}
+
+		// We should have 8 reviewable access lists
+		return reviewableCount >= 8
+	}, 10*time.Second, 100*time.Millisecond, "cache should contain all access lists")
+
 	// Run CreateAccessListReminderNotifications()
 	authServer.CreateAccessListReminderNotifications(ctx)
 
