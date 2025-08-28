@@ -210,9 +210,27 @@ func defaultResourceOps[T types.Resource]() *resourceOps[T] {
 
 func defaultResource153Ops[T types.Resource153]() *resourceOps[T] {
 	return &resourceOps[T]{
-		Setup:  func(t T) { t.GetMetadata().Labels = map[string]string{"label": "value1"} },
-		Modify: func(t T) { t.GetMetadata().Labels["label"] = "value2" },
-		Name:   func(t T) string { return t.GetMetadata().GetName() },
+		Setup: func(t T) {
+			metadata := t.GetMetadata()
+			if metadata.Expires == nil {
+				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			} else {
+				expiry := metadata.Expires.AsTime()
+				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+			}
+			metadata.Labels = map[string]string{"label": "value1"}
+		},
+		Modify: func(t T) {
+			metadata := t.GetMetadata()
+			if metadata.Expires == nil {
+				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			} else {
+				expiry := metadata.Expires.AsTime()
+				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+			}
+			metadata.Labels["label"] = "value2"
+		},
+		Name: func(t T) string { return t.GetMetadata().GetName() },
 		cmpOpts: []cmp.Option{
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 			protocmp.Transform(),
@@ -1392,6 +1410,7 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 	// Check that the resource is now in the backend.
 	out, err := funcs.list(ctx)
 	require.NoError(t, err)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
