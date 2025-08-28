@@ -38,8 +38,9 @@ const (
 	discoveryTTL = time.Hour
 
 	// keySetTTL is the maximum duration a particular keyset will be allowed to
-	// exist before being purged. The underlying library may update its
-	// internal cache of keys within this window.
+	// exist before being purged, regardless of whether or not it is being used
+	// actively. The underlying library may update its internal cache of keys
+	// within this window.
 	keySetTTL = time.Hour * 24
 
 	// validatorTTL is a maximum time a particular validator instance should
@@ -55,6 +56,18 @@ const (
 type validatorKey struct {
 	issuer   string
 	audience string
+}
+
+// NewCachingTokenValidator creates a caching validator for the given issuer and
+// audience, using a real clock.
+func NewCachingTokenValidator[C oidc.Claims]() *CachingTokenValidator[C] {
+	clock := clockwork.NewRealClock()
+
+	return &CachingTokenValidator[C]{
+		clock:      clock,
+		instances:  map[validatorKey]*CachingValidatorInstance[C]{},
+		lastPruned: clock.Now(),
+	}
 }
 
 // CachingTokenValidator is a wrapper on top of `CachingValidatorInstance` that
@@ -111,6 +124,7 @@ func (v *CachingTokenValidator[C]) GetValidator(issuer, audience string) *Cachin
 		issuer:           issuer,
 		audience:         audience,
 		validatorExpires: v.clock.Now().Add(validatorTTL),
+		verifierFn:       zoidcTokenVerifier[C],
 	}
 
 	v.instances[key] = validator
@@ -135,26 +149,26 @@ type CachingValidatorInstance[C oidc.Claims] struct {
 	keySetExpires          time.Time
 
 	validatorExpires time.Time
-}
 
-// NewCachingTokenValidator creates a caching validator for the given issuer and
-// audience, using a real clock.
-func NewCachingTokenValidator[C oidc.Claims]() *CachingTokenValidator[C] {
-	clock := clockwork.NewRealClock()
-
-	return &CachingTokenValidator[C]{
-		clock:      clock,
-		instances:  map[validatorKey]*CachingValidatorInstance[C]{},
-		lastPruned: clock.Now(),
-	}
+	// verifierFn is the function that actually verifies the token using the
+	// oidc library. `zitadel/oidc` doesn't provide any way to override the
+	// clock, so we use this for tests.
+	verifierFn func(
+		ctx context.Context,
+		issuer,
+		clientID string,
+		keySet oidc.KeySet,
+		token string,
+		opts ...rp.VerifierOption,
+	) (C, error)
 }
 
 func (v *CachingValidatorInstance[C]) getKeySet(
 	ctx context.Context,
 ) (oidc.KeySet, error) {
-	// Note: We could consider an RWLock if perf proves to be poor here. As
-	// written, I don't expect serialized warm-cache requests to accumulate
-	// enough to be worth the added complexity.
+	// Note: We could consider an RWLock or singleflight if perf proves to be
+	// poor here. As written, I don't expect serialized warm-cache requests to
+	// accumulate enough to be worth the added complexity.
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
@@ -171,6 +185,8 @@ func (v *CachingValidatorInstance[C]) getKeySet(
 
 	if v.discoveryConfig == nil {
 		// Note: This is the only blocking call inside the mutex.
+		// In the future, it might be a good idea to fetch the new discovery
+		// config async and keep it available if the refresh fails.
 		dc, err := client.Discover(ctx, v.issuer, newHTTPClient())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -203,6 +219,30 @@ func (v *CachingValidatorInstance[C]) getKeySet(
 	return v.keySet, nil
 }
 
+func zoidcTokenVerifier[C oidc.Claims](
+	ctx context.Context,
+	issuer,
+	clientID string,
+	keySet oidc.KeySet,
+	token string,
+	opts ...rp.VerifierOption,
+) (C, error) {
+	var nilClaims C
+	verifier := rp.NewIDTokenVerifier(issuer, clientID, keySet, opts...)
+
+	// Note: VerifyIDToken() may mutate the KeySet (if the keyset is empty or if
+	// it encounters an unknown `kid`). The keyset manages a mutex of its own,
+	// so we don't need to protect this operation. It's acceptable for this
+	// keyset to be swapped in another thread and still used here; it will just
+	// be GC'd afterward.
+	claims, err := rp.VerifyIDToken[C](ctx, token, verifier)
+	if err != nil {
+		return nilClaims, trace.Wrap(err, "verifying token")
+	}
+
+	return claims, nil
+}
+
 // ValidateToken verifies a compact encoded token against the configured
 // issuer and keys, potentially using cached OpenID configuration and JWKS
 // values.
@@ -220,19 +260,21 @@ func (v *CachingValidatorInstance[C]) ValidateToken(
 	if err != nil {
 		return nilClaims, trace.Wrap(err)
 	}
-	verifier := rp.NewIDTokenVerifier(v.issuer, v.audience, ks, opts...)
 
-	// Note: VerifyIDToken() may mutate the KeySet (if the keyset is empty or if
-	// it encounters an unknown `kid`). The keyset manages a mutex of its own,
-	// so we don't need to protect this operation. It's acceptable for this
-	// keyset to be swapped in another thread and still used here; it will just
-	// be GC'd afterward.
-	claims, err := rp.VerifyIDToken[C](timeoutCtx, token, verifier)
+	claims, err := v.verifierFn(ctx, v.issuer, v.audience, ks, token, opts...)
 	if err != nil {
-		return nilClaims, trace.Wrap(err, "verifying token")
+		return nilClaims, trace.Wrap(err)
 	}
 
 	return claims, nil
+}
+
+// Expires returns the time at which this validator will expire if left unused.
+func (v *CachingValidatorInstance[C]) Expires() time.Time {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	return v.validatorExpires
 }
 
 // IsStale returns true if this validator has not been asked to validate any
