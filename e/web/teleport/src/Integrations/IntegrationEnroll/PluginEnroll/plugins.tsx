@@ -480,7 +480,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             <ul>
               <li>
                 Make sure the permission is granted by an administrator.
-                Otherwise the Graph API will return 401 Forbidden errors.
+                Otherwise the Graph API will return an error.
               </li>
             </ul>
           </li>

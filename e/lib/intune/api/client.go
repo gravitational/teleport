@@ -116,6 +116,10 @@ var (
 	// ErrIntuneClientInvalidCredentials is returned by the Intune client when authorization fails
 	// during the init of the client due to invalid client ID or secret.
 	ErrIntuneClientInvalidCredentials = errors.New("invalid Intune API credentials")
+	// ErrIntuneClientUnauthorized is returned by the Graph API in a situation where the app either
+	// doesn't have the DeviceManagementManagedDevices.Read.All permission or it hasn't been grated by
+	// the administrator yet.
+	ErrIntuneClientUnauthorized = errors.New("authentication was successful but application is unable to read managed devices")
 )
 
 const (
@@ -161,6 +165,16 @@ func (c *Client) verifyCredentials(ctx context.Context) error {
 		// It likely means that the provided client secret doesn't match the client ID.
 		// https://login.microsoftonline.com/error?code=7000215
 		return trace.Wrap(ErrIntuneClientInvalidCredentials, apiError.Message)
+
+	case apiError.ServiceKind == ServiceKindGraph &&
+		apiError.StatusCode == http.StatusUnauthorized:
+		// In this situation, the Graph API returns a very verbose and unhelpful error, hence why it's
+		// caught here and a more specific error is returned. On the off chance that the Graph API
+		// starts returning a more helpful message, let's also log it.
+		c.config.Logger.WarnContext(ctx, "Graph API status unauthorized", "error", err)
+		return trace.Wrap(ErrIntuneClientUnauthorized,
+			"does the application have the DeviceManagementManagedDevices.Read.All permission "+
+				"and has it been granted by an administrator?")
 
 	default:
 		return trace.Wrap(err, "verifying Intune credentials")

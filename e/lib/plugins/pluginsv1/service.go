@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -592,7 +593,7 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 				LoginEndpoint: loginEndpoint,
 				GraphEndpoint: graphEndpoint,
 			},
-			Logger:     s.logger,
+			Logger:     s.logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentIntune)),
 			HTTPClient: s.httpClient,
 		}); err != nil {
 			s.logger.WarnContext(ctx, "failed to verify Intune credentials", "error", err)

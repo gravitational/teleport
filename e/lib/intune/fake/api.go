@@ -24,11 +24,12 @@ type API struct {
 	config Config
 
 	// mu guards all fields below it
-	mu                 sync.Mutex
-	apps               []*api.AppCredentials
-	managedDevices     []*api.ManagedDevice
-	issuedTokens       map[string]*accessToken // key is [accessToken.token]
-	simulatePagingGaps bool
+	mu                    sync.Mutex
+	apps                  []*api.AppCredentials
+	unauthorizedClientIDs []string
+	managedDevices        []*api.ManagedDevice
+	issuedTokens          map[string]*accessToken // key is [accessToken.token]
+	simulatePagingGaps    bool
 }
 
 // Config contains values needed by [API].
@@ -50,6 +51,15 @@ func New(config Config) *API {
 func (a *API) SetApps(apps []*api.AppCredentials) {
 	a.mu.Lock()
 	a.apps = apps
+	a.mu.Unlock()
+}
+
+// SetUnauthorizedClientIDs sets a blocklist for clients that should not be able to access the Graph
+// API. This helps to simulate a situation where a registered app has valid credentials but doesn't
+// have necessary permissions set.
+func (a *API) SetUnauthorizedClientIDs(clientIDs []string) {
+	a.mu.Lock()
+	a.unauthorizedClientIDs = clientIDs
 	a.mu.Unlock()
 }
 
@@ -175,6 +185,10 @@ func (a *API) isAuthorized(req *http.Request) (*accessToken, bool) {
 	now := a.config.Clock.Now().UTC()
 	if now.After(issuedToken.expires) {
 		delete(a.issuedTokens, token)
+		return nil, false
+	}
+
+	if slices.Contains(a.unauthorizedClientIDs, issuedToken.owner) {
 		return nil, false
 	}
 

@@ -119,6 +119,21 @@ func TestClient_authn(t *testing.T) {
 		require.ErrorIs(t, err, api.ErrIntuneClientInvalidCredentials)
 	})
 
+	t.Run("app lacking permissions fails creation", func(t *testing.T) {
+		env.API.SetUnauthorizedClientIDs([]string{testenv.DefaultApps[0].ClientID})
+		defer env.API.SetUnauthorizedClientIDs([]string{})
+
+		_, err := api.NewClient(t.Context(), api.ClientConfig{
+			APIConfig: api.Config{
+				AppCredentials: *testenv.DefaultApps[0],
+			},
+			Logger:     env.Logger,
+			HTTPClient: env.HTTPClient,
+			Clock:      env.Clock,
+		})
+		require.ErrorIs(t, err, api.ErrIntuneClientUnauthorized)
+	})
+
 	t.Run("repeated authn failures cause ErrMaxAuthnAttemptsReached", func(t *testing.T) {
 		client := env.MustNewClient(t)
 		mustListManagedDevices(t, client)

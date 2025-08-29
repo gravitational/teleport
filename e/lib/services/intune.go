@@ -68,7 +68,8 @@ func startIntuneService(ctx context.Context, process *service.TeleportProcess, h
 	if err != nil {
 		code := types.PluginStatusCode_OTHER_ERROR
 		if errors.Is(err, api.ErrIntuneClientInvalidCredentials) ||
-			errors.Is(err, api.ErrIntuneClientTenantNotFound) {
+			errors.Is(err, api.ErrIntuneClientTenantNotFound) ||
+			errors.Is(err, api.ErrIntuneClientUnauthorized) {
 			code = types.PluginStatusCode_UNAUTHORIZED
 		}
 		statusSink.Emit(
