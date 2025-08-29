@@ -5,4 +5,363 @@ state: draft
 
 # RFD 0222 - Bot Instances at Scale
 
-Working in Notion initially; https://www.notion.so/goteleport/RFD0222-Bot-Instances-at-Scale-24ffdd3830be802f9253d4ea499d1d24
+## Required Approvers
+
+- Engineering: @strideynet
+- Product: @thedevelopnik
+
+# RFD 0222 - Bot Instances at Scale
+
+# What
+
+This proposal seeks to address the pain points of configuring and running a large fleet of Machine & Workload ID bots.
+
+It will focus solely on the Day 1 experience, and users are expected to be familiar with Teleport in general as well as the config and setup of their respective clusters. Day 0 tutorialization of setup steps and guided beginner scenarios are left to other initiatives.
+
+# Why
+
+As adoption of Machine & Workload ID increases, in part due to the drive to increase efficiency through automation as well as trends like Agentive AI, customers expect managing large fleets of bots to be simple and easy.
+
+It’s the responsibility of the **infrastructure security team** to own and manage the Teleport cluster and enrol protected resources. For teams which make extensive use of Machine & Workload ID, it has become cumbersome to manage many bots and hundreds of instances. Where Dev/Dev Ops teams deploy bot instances themselves, it can be doubly difficult to coordinate upgrades and security initiatives.
+
+# Details
+
+## UX
+
+### User Stories
+
+**As a cluster owner (Infrastructure Security team), I want to know which Bot Instances, across all Bots, are blocking a safe cluster upgrade (major) due to their version.**
+
+The upgrade process can vary depending on the flavour of Teleport in use (cloud, oss, etc), and how it’s deployed. A common step is to query for agents running a version which would become incompatible should an upgrade be done - using `tctl inventory ls --older-than=v18.0.0`. This command does not include bot instances, and `tctl bots instances ls` doesn’t return versions numbers for instances.
+
+As such, it is a difficult task to identify bot instances that may be running an old version of `tbot`. This is especially difficult at scale. The current bot instance list available in the web app allows filtering by version, although it’s a text search and it is not aware of semantic versioning - finding versions older than a given version is not possible.
+
+A breakdown of active instance versions will make the process of monitoring the version status easy at a glance, as well as provide convenient links to filter the instance list for versions already one or more major version behind the control plane (thereby preventing a safe upgrade). To facilitate this, the filter will allow queries such as `semver_lt(version, "18.1")`. The instance list will also indicate the status of an instance’s most recent version (as up-to-date, upgrade available, patch available, or incompatible).
+
+**As a cluster owner (Infrastructure Security team), I want to know which Bot Instances, across all Bots, are running vulnerable versions.**
+
+Currently the instances list can be filtered by version, but this is a text search and it is not aware of semantic versioning. It’s possible to find a specific version number, but it’s not easy to isolate a range of versions, such as “>18 & <18.2.1”, which is likely required to find instances between a vulnerable and patched version.
+
+To support this use-case, the filter for bot instances will support the predicate language and allow queries such as `semver_gte(version, "18.1.0") && semver_lt(version, "19")`.
+
+**As a cluster owner (Infrastructure Security team), I want to know which Bot Instances are running with deprecated/problematic configuration.**
+
+Issues in `tbot` (or just typos) can be difficult to detect and logs may not adequately highlight these. To improve the rate of these events reaching users, `tbot` will detect and collate notices which are sent with the next heartbeat. They will then be available to view for a bot instance. To help in situations where it’s infeasible to check each individual instance, notices will be summarised by title and presented in aggregate form. Each aggregated item will be selectable and will filter the bot instances list. A filter such as `contains(notices, "Proxy URL not set")` will be pre-populated.
+
+**As a cluster owner (Infrastructure Security team), I'd like to be able to figure out what a Bot Instance is for/who it belongs to when making decisions (e.g can we upgrade/break this Bot safely).**
+
+How bot/instances are tagged with an owner, organisational area or purpose will be the subject of a later phase of delivery. As such it is left undefined for the time being. It may simply be a series of optional fields (or labels) which can be included in the `tbot` configuration, via flags or environment variables. These would be sent along with heartbeats and be visible in the web UI.
+
+**As a Bot Instance owner (Dev/Dev Ops team), I'd like help in understanding why my Bot Instance is not working properly.**
+
+For somebody diagnosing an issue with `tbot`, they’re likely to have access to the `tbot` log output. Such as;
+
+```
+INFO [TBOT:IDEN] Fetched new bot identity identity:mwi-demo-aws-manager, id=5c6af2e6-13a4-48c1-855f-74d8b8e01d86 | valid: after=2025-08-21T12:10:15Z, before=2025-08-21T12:31:13Z, duration=20m58s | kind=tls, renewable=false, disallow-reissue=false, roles=[bot-mwi-demo-aws-manager], principals=[-teleport-internal-join], generation=1 tbot/service_bot_identity.go:224
+```
+
+This log entry contains the bot name (as `identity`) and the instance’s ID. Either of these values can be used to filter the instances list, and should make finding the relevant instance easy.
+
+Once found, the instance can be selected to view instance details. Here a health status can be found for each `tbot` service (outputs, tunnels, etc), which includes failure info for those services which are unhealthy. Additionally, a listing of all notices raised by the instance in it’s last run can be viewed, which may reveal the root cause of a failure.
+
+### Instances dashboard
+
+![](assets/0222-dashboard.png)
+
+### Instance details
+
+![](assets/0222-details-overview.png)
+
+![](assets/0222-details-services.png)
+
+![](assets/0222-details-notices.png)
+
+![](assets/0222-details-config.png)
+
+### Predicate language for instance filters
+
+The predicate language will be used to provide advanced filtering for instances. The filter query will be applied in the same way the existing filters work, and no changes to indexes are required. As items are read out of the backend storage, they are filtered one by one until the page size is reached or the end of the list. For a narrow filter, many or even all records will be scanned - this inefficiency is mitigated by the in-memory caching layer's performance. A custom language parser will be used to provide instance-specific functions such as those in the table below.
+
+| Purpose | Example |
+| --- | --- |
+| Find instances running versions less than a given version - based on the most recent heartbeat | `semver_lt(version, 18.1)` |
+| Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat | `semver_gte(version, "18") && semver_lt(version, "18.1")` |
+| Find instances which have a particular notice (by title) | `contains(notices, "Proxy URL not set")` |
+
+## Privacy and Security
+
+The proposed changes are mainly capturing extra data and presenting it in the web UI. As such, it is light on security and privacy concerns.
+
+In order to allow instance config to be viewed without needing log in to the machine running `tbot` the complete configuration will be included in the start-up heartbeat and stored for the lifetime of the instance. Instead of capturing the config YAML verbatim, the _effective_ configuration will be used. This includes any environment variable and flag overrides. For security reasons, the join token will be omitted. For privacy reasons, any unrecognised values as well as comments will also be omitted. There may be other sensitive information such as service/output names, but these are only visible to authorised users.
+
+## Proto Specification
+
+### Heartbeat protobuf additions
+
+``` protobuf
+message BotInstanceStatusHeartbeat {
+	// ...[snip]...
+
+	// Kind identifies whether the bot is running in the tbot binary or embedded
+	// in another component.
+	BotKind kind = 10;
+
+	// Notices emitted since the last heartbeat.
+	//
+	// The server will clear any previous notices if `is_startup` is true, so that
+	// editing tbot's configuration and restarting it clears any warnings from a
+	// previous bad configuration.
+	repeated BotInstanceNotice notices = 11;
+
+	// Snapshots of the bot instance services' health.
+  repeated BotInstanceServiceStatus service_statuses = 12;
+
+  // tbot configuration, sourced from YAML configuration file and CLI flags.
+  //
+  // Will only be sent on startup. Could later be whenever the configuration
+  // changes if we support reloading by sending SIGHUP or something.
+  structpb.Struct config = 13;
+}
+
+// BotKind identifies whether the bot is the tbot binary or embedded in another
+// component.
+enum BotKind {
+		// UNSET is the enum zero value.
+		UNSET = 0;
+
+		// TBOT_BINARY means the bot is running the tbot binary.
+		TBOT_BINARY = 1;
+
+		// TERRAFORM_PROVIDER means the bot is running inside the Teleport Terraform
+		// provider.
+		TERRAFORM_PROVIDER = 2;
+
+		// KUBERNETES_OPERATOR means the bot is running inside the Teleport Kubernetes
+		// operator.
+		KUBERNETES_OPERATOR = 3;
+}
+
+// BotInstanceNotice contains an error message, deprecation warning, etc. emitted
+// by the bot instance.
+message BotInstanceNotice {
+		// ID is a client-generated identifier (i.e. UUID) that can be used by the
+		// auth server to detect and discard duplicate notices caused by partially
+		// failed heartbeat RPCs.
+		string id = 1;
+
+    // Type of notice (e.g. DEPRECATION_WARNING, MESSAGE).
+    BotInstanceNoticeType type = 1;
+
+    // Service this notice relates to (or nil if it relates to the bot instance
+    // more generally).
+    optional BotInstanceService service = 2;
+
+    // Timestamp at which this notice was emitted.
+    google.protobuf.Timestamp timestamp = 3;
+
+    oneof notice {
+        // Deprecation warning details.
+        BotInstanceDeprecationWarning deprecation_warning = 4;
+
+        // Generic message text.
+        string message = 5;
+    }
+}
+
+// BotInstanceService identifies an individual service the bot instance is running.
+message BotInstanceService {
+    // Type of service (e.g. "application-tunnel", "workload-identity-api").
+    string type = 1;
+
+    // Name given by the user or generated from their configuration.
+    string name = 2;
+}
+
+// BotInstanceNoticeType identifies the type of notice.
+enum BotInstanceNoticeType {
+    // UNKNOWN is the enum's zero value.
+    UNKNOWN = 0;
+
+    // DEPRECATION_WARNING means the notice contains a warning that the user is
+    // using a configuration option that will be removed in a future release.
+    DEPRECATION_WARNING = 1;
+
+    // MESSAGE means the notice contains a generic error message.
+    MESSAGE = 2;
+}
+
+// BotInstanceDeprecationWarning contains the details of a deprecation warning.
+message BotInstanceDeprecationWarning {
+    // Message explaining the deprecation.
+    string message = 1;
+
+    // The major version in which the deprecated configuration will no longer
+    // work.
+    string removal_version = 2;
+}
+
+// BotInstanceHealthStatus indicates the health of one of the bot instance's
+// services.
+enum BotInstanceHealthStatus {
+    // UNKNOWN is the enum's zero value.
+    UNKNOWN = 0;
+
+    // INITIALIZING means the service is still starting up.
+    INITIALIZING = 1;
+
+    // HEALTHY means the service is operating correctly.
+    HEALTHY = 2;
+
+    // UNHEALTHY means the service has encountered an error and is not currently
+    // operating correctly.
+    UNHEALTHY = 3;
+}
+
+// BotInstanceServiceStatus is a snapshot of the health of a bot instance service.
+message BotInstanceServiceStatus {
+    // Service this status relates to.
+    BotInstanceService service = 1;
+
+    // Status of the service.
+    BotInstanceHealthStatus status = 2;
+
+    // Human-readable explanation of the status (e.g. error message).
+    optional string reason = 3;
+
+    // When this status was last updated.
+    google.protobuf.Timestamp updated_at = 4;
+}
+```
+
+### Data fields and expected quantities
+
+| Field | Description | Example | Quantity | Limitations |
+| --- | --- | --- | --- | --- |
+| Bot | A collection of roles and access assumed by `tbot` using a join token |  | 0-300+ per cluster |  |
+| Bot instance | A unique joined instance of `tbot` in either a long-running or ephemeral environment |  | 1-300+ per bot |  |
+| Authentication record | Created for each join or renewal |  | 0-10 per instance (max enforced) |  |
+| Instance heartbeat | Self-reported by each bot instance |  | 0-10 per instance (max enforced) | Data is **not** validated by the auth server, and cannot be used for making access decisions. |
+| Service | An independent, internal part of `tbot`. Generally maps 1:1 with configured outputs/tunnels. | `application-tunnel`, `workload-identity-api` | 1-30+ per heartbeat |  |
+| Notice | An item created by `tbot` to capture an unusual event, configuration warning, or important status |  | 0-100+ per heartbeat |  |
+| OS | Operating system from `runtime.GOOS` | linux, windows or darwin | Once per heartbeat |  |
+| Version | Version of `tbot` | 18.1.0 | Once per heartbeat |  |
+| Hostname |  |  | Once per heartbeat |  |
+| Uptime | How long `tbot` has been running |  | Once per heartbeat |  |
+| Raw config | `tbot`’s local config (combination of YAML and CLI flags) as a protobuf struct |  | Once per heartbeat |  |
+| Join token name |  |  | Once per auth |  |
+| Join method |  | github, iam, kubernetes | Once per auth |  |
+| Join attributes | Metadata specific to a join method | GitHub repository name | Once per auth |  |
+| Health status |  | INITIALIZING, HEALTHY, UNHEALTHY,
+UNKNOWN | Once per service |  |
+
+### Notices
+
+Today, when `tbot` encounters a configuration that is suboptimal or will not be supported in an upcoming release, it typically logs a message with the `WARN` severity. These messages can easily be missed because `tbot`'s logs are noisy, it is often running non-interactively (e.g. in CI/CD pipeline), and because many users do not have a decent centralised logging solution.
+
+We have historically kept deprecated features around for longer than promised, to mitigate the risk of users missing these warnings, which creates a compounding maintenance burden.
+
+Instead, we will surface deprecation warnings and other such important messages in the web product by having `tbot` include them in its heartbeats to the auth server. It’s important to note that we will only send notices that **require some user action** or intervention, in order to avoid information fatigue — collecting the full stream of logs is out of scope (and would require a very different architecture).
+
+Services will receive a `NoticeLogger` along with their `readyz.Reporter`, it will “tag” all notices with the name and type of the service.
+
+```go
+// NoticeLogger allows a service to emit a notice that will be sent in the bot's
+// next heartbeat.
+type NoticeLogger interface {
+	// DeprecationWarning notifies the user that they're using a feature or
+	// configuration optional that will be removed in a future release.
+	//
+	// removalVersion identifies the major version in which the feature will
+	// be removed.
+	DeprecationWarning(message string, removalVersion string)
+
+	// Message sends a generic message.
+	Message(title string, body string)
+}
+```
+
+Notices emitted using the `NoticeLogger` will be buffered in-memory and flushed to the auth server on the bot’s next heartbeat. Once notices have been sent to the auth server, `tbot` will delete them from memory. To avoid unbounded memory growth if the heartbeat service becomes unavailable, notices will be stored in fixed-size data structure such as a ring buffer, although the volume of notices should be low enough for this not to be a problem anyway.
+
+On the auth server, notices will be stored on the bot instance record like all other heartbeat data. The server will keep a limited number (e.g. 50) of the most recent notices and discard the rest. We do not need to worry about concurrent writers because the `tbot`'s heartbeat service is a singleton and except in rare misconfigurations, it’s only possible for a single `tbot` process to use a bot instance’s identity at a time.
+
+If the heartbeat message’s `is_startup` flag is set, the auth server will discard all previous notices so that if the user fixes their configuration and restarts `tbot`, any warnings from their previous bad configuration will be immediately cleared to avoid confusion. This decision will also prevent us from treating notices as a general logging solution, as they will inherently be ephemeral and only representative of the most recent run.
+
+### Configuration
+
+For visibility, `tbot` will also send its full configuration to the auth server. As we do not yet support dynamically reloading `tbot`'s configuration (e.g. by sending a `SIGHUP`) we will only include it in the first heartbeat after the bot starts up, but this may change if we support dynamic configuration in the future.
+
+**Effective vs Literal Configuration**
+
+The actual configuration `tbot` uses at runtime is a combination of values from the YAML configuration file, CLI flags, default values, and sometimes environment variables.
+
+While there are benefits to sending the raw inputs (e.g. the literal content of the YAML file) such as being able to spot typos, we think it’s more useful overall to send the “effective” configuration after it has been parsed, validated, and default values have been applied. This also gives us an opportunity to redact fields we know to contain sensitive information such as the join token.
+
+### Web API
+
+**GET /v2/webapi/sites/:site/machine-id/bot-instance**
+
+A new version of an existing API with a `query` parameter added to accept a string query in the Teleport predicate language (e.g. `semver_lt(version, 18.1)`) which is used to filter returned instances.
+
+In the situation where a new web client sends a request to an old proxy (in a load balanced setup), the old proxy will not host the new endpoint and will return a 404 and the proxy’s version. A helpful message is then displayed to the user advising that the proxy needs to be upgraded to support the operation.
+
+**GET /webapi/:site/machine-id/bot-instance/dashboard**
+
+A new endpoint to return summary data for bot instances. The result will contain multiple named datasets for the requested timeframe (last 24 hours, last week, last month, etc), as well as an indication of other timeframes that can be chosen. A “last updated at” timestamp will be included to give users a sense of recency.
+
+## Backward Compatibility
+
+> Describe the impact that your design doc has on backwards compatibility and include any migration steps. (Non-exhaustive list below.)
+> Will the change impact older clients? (tsh, tctl)
+> What impact does the change have on remote clusters?
+> Are there any backend migrations required?
+> How will changes be rolled out across future versions?
+
+// TODO
+
+## Test Plan
+
+> Include any changes or additions that will need to be made to the [Test Plan](https://www.notion.so/.github/ISSUE_TEMPLATE/testplan.md) to appropriately test the changes in your design doc and prevent any regressions from happening in the future.
+
+// TODO
+
+# Delivery phases
+
+## Phase 1
+
+**tl;dr**: list, yaml, and filter & sort by version
+
+**Backports**: v17 and v18
+
+In this phase we’ll focus on the requirements to manage the versions of bot instances at scale. This includes filtering for instances running a version that prevents an upgrade, as well as instances running a compromised version.
+
+The instances list from the bot details will be reused with minimal changes (except the addition of bot name), and the details view will simply house the full instance yaml (including auth records and heartbeats). This lays the UI foundation for the following phases.
+
+The search field will get an ‘advanced’ mode where the Teleport predicate language can be used to filter items using semver-aware functions (such as `semver_lt` and `semver_gte`).
+
+An additional sort, by version, will also be included.
+
+## Phase 2
+
+**tl;dr**: upgrades dashboard, service-level health, and `tbot` configuration
+
+**Backports**: v17 and v18
+
+This phase focuses on the requirements of the dev/dev-ops teams, who deploy instances of `tbot`. It includes features that enable easy confirmation of `tbot` running correctly, as well as tools to help troubleshoot issues.
+
+Giving users access to fine-grained health statuses (for each service/output) will help pinpoint areas where problems lie.
+
+Providing the resolved configuration will allow users to troubleshoot issues related to environment variables, flags and `tbot` config.
+
+An aggregated dashboard will help to give a high-level overview of the MWI estate, and is invaluable when dealing with a large fleet. This phase will provide the groundwork for data aggregation and reporting, and will pave the way for the rest of the proposed data visualisations.
+
+## Phase 3
+
+**tl;dr**: notices, ownership tagging, and activity dashboard
+
+**Backports**: v17 and v18
+
+This phase focuses on reducing the risk of users using deprecated config, or sub-optimal config while deploying `tbot`. This is done by allowing `tbot` to raise notices.
+
+Notices provide a way to surface helpful events and warnings to users, and are easily accessed via the web interface.
+
+In addition, the instances dashboard will be expanded to include a breakdown of notices across all instances, as well as a general activity heat-map.
