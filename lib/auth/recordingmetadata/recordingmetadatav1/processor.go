@@ -119,46 +119,30 @@ func (p *sessionProcessor) handleEvent(evt apievents.AuditEvent) error {
 }
 
 func (p *sessionProcessor) handleDatabaseSessionStart(e *apievents.DatabaseSessionStart) {
-	p.startTime = e.Time
-	p.lastActivityTime = e.Time
-
-	p.metadata.ResourceName = e.DatabaseService
-	p.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_DATABASE
-
-	p.metadata.ClusterName = e.ClusterName
-	p.metadata.User = e.User
+	p.setCommonMetadata(e.Time, e.ClusterName, e.DatabaseUser, e.DatabaseName, pb.SessionRecordingType_SESSION_RECORDING_TYPE_DATABASE)
 }
 
 func (p *sessionProcessor) handleWindowsDesktopSessionStart(e *apievents.WindowsDesktopSessionStart) {
-	p.startTime = e.Time
-	p.lastActivityTime = e.Time
-
-	p.metadata.ResourceName = e.DesktopName
-	p.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_DESKTOP
-
-	p.metadata.ClusterName = e.ClusterName
-	p.metadata.User = e.User
+	p.setCommonMetadata(e.Time, e.ClusterName, e.WindowsUser, e.DesktopName, pb.SessionRecordingType_SESSION_RECORDING_TYPE_DESKTOP)
 }
 
 func (p *sessionProcessor) handleSessionStart(e *apievents.SessionStart) error {
-	p.lastActivityTime = e.Time
-	p.startTime = e.Time
+	var resourceName string
+	var recordingType pb.SessionRecordingType
+	switch e.Protocol {
+	case events.EventProtocolSSH:
+		resourceName = e.ServerHostname
+		recordingType = pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH
+	case events.EventProtocolKube:
+		resourceName = e.KubernetesCluster
+		recordingType = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
+	}
+
+	p.setCommonMetadata(e.Time, e.ClusterName, e.User, resourceName, recordingType)
 
 	size, err := session.UnmarshalTerminalParams(e.TerminalSize)
 	if err != nil {
 		return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, p.sessionID)
-	}
-
-	p.metadata.ClusterName = e.ClusterName
-	p.metadata.User = e.User
-
-	switch e.Protocol {
-	case events.EventProtocolSSH:
-		p.metadata.ResourceName = e.ServerHostname
-		p.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH
-	case events.EventProtocolKube:
-		p.metadata.ResourceName = e.KubernetesCluster
-		p.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
 	}
 
 	p.metadata.StartCols = int32(size.W)
@@ -259,6 +243,16 @@ func (p *sessionProcessor) verifyEventsFound() error {
 		return trace.NotFound("no events found for session %v", p.sessionID)
 	}
 	return nil
+}
+
+func (p *sessionProcessor) setCommonMetadata(eventTime time.Time, clusterName, userName string, resourceName string, recordingType pb.SessionRecordingType) {
+	p.startTime = eventTime
+	p.lastActivityTime = eventTime
+
+	p.metadata.ClusterName = clusterName
+	p.metadata.User = userName
+	p.metadata.ResourceName = resourceName
+	p.metadata.Type = recordingType
 }
 
 func (p *sessionProcessor) collect() (*pb.SessionRecordingMetadata, []*thumbnailEntry) {
