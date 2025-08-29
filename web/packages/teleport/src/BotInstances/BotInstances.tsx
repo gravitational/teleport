@@ -52,6 +52,7 @@ export function BotInstances() {
   const queryParams = new URLSearchParams(location.search);
   const pageToken = queryParams.get('page') ?? '';
   const searchTerm = queryParams.get('search') ?? '';
+  const query = queryParams.get('query') ?? '';
   const sort = queryParams.get('sort') || 'active_at_latest:desc';
 
   const ctx = useTeleport();
@@ -60,12 +61,13 @@ export function BotInstances() {
 
   const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
     enabled: canListInstances,
-    queryKey: ['bot_instances', 'list', searchTerm, pageToken, sort],
+    queryKey: ['bot_instances', 'list', searchTerm, query, pageToken, sort],
     queryFn: () =>
       listBotInstances({
         pageSize: 20,
         pageToken,
         searchTerm,
+        query,
         sort,
       }),
     placeholderData: keepPreviousData,
@@ -120,6 +122,22 @@ export function BotInstances() {
     (term: string) => {
       const search = new URLSearchParams(location.search);
       search.set('search', term);
+      search.set('query', '');
+      search.set('page', '');
+
+      history.replace({
+        pathname: `${location.pathname}`,
+        search: search.toString(),
+      });
+    },
+    [history, location.pathname, location.search]
+  );
+
+  const handleQueryChange = useCallback(
+    (exp: string) => {
+      const search = new URLSearchParams(location.search);
+      search.set('query', exp);
+      search.set('search', '');
       search.set('page', '');
 
       history.replace({
@@ -212,7 +230,9 @@ export function BotInstances() {
           onFetchNext={hasNextPage ? handleFetchNext : undefined}
           onFetchPrev={hasPrevPage ? handleFetchPrev : undefined}
           onSearchChange={handleSearchChange}
+          onQueryChange={handleQueryChange}
           searchTerm={searchTerm}
+          query={query}
           onItemSelected={onItemSelected}
           sortType={sortType}
           onSortChanged={handleSortChanged}
