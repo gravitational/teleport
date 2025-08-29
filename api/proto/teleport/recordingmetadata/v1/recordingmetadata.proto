@@ -104,4 +104,6 @@ message SessionRecordingThumbnail {
   google.protobuf.Duration start_offset = 6;
   // EndOffset is the end time of the thumbnail, relative to the start of the session.
   google.protobuf.Duration end_offset = 7;
+  // CursorVisible indicates whether the cursor is visible.
+  bool cursor_visible = 8;
 }

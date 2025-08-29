@@ -36,6 +36,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -97,6 +98,8 @@ type ProtoStreamerConfig struct {
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -148,6 +151,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ForceFlush:                s.cfg.ForceFlush,
 		RetryConfig:               s.cfg.RetryConfig,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
 	})
 }
 
@@ -178,6 +182,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		CompletedParts:            parts,
 		RetryConfig:               s.cfg.RetryConfig,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
 	})
 }
 
@@ -214,6 +219,8 @@ type ProtoStreamConfig struct {
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -742,6 +749,16 @@ func (w *sliceWriter) completeStream() {
 		if err != nil {
 			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
 			return
+		}
+
+		if w.proto.cfg.RecordingMetadataProvider != nil {
+			recordingMetadata := w.proto.cfg.RecordingMetadataProvider.Service()
+			// Process every session recording, as there may not be an end event.
+			// The processor will immediately return if the session recording type is not supported.
+			if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID); err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
+				return
+			}
 		}
 
 		summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
