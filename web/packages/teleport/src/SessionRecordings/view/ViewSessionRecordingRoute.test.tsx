@@ -154,7 +154,7 @@ test('renders non-SSH recordings correctly', async () => {
         sid: 'test-session',
       },
       {
-        recordingType: 'k8s',
+        recordingType: 'desktop',
         durationMs: 3600000,
       }
     )
