@@ -3773,12 +3773,17 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 }
 
 type fakeAWSClients struct {
+	ec2Client        db.EC2Client
 	ecClient         db.ElastiCacheClient
 	mdbClient        db.MemoryDBClient
 	openSearchClient db.OpenSearchClient
 	rdsClient        db.RDSClient
 	redshiftClient   db.RedshiftClient
 	rssClient        db.RSSClient
+}
+
+func (f fakeAWSClients) GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) db.EC2Client {
+	return f.ec2Client
 }
 
 func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {

@@ -174,6 +174,8 @@ type CommandLineFlags struct {
 	DatabaseAWSRDSClusterID string
 	// DatabaseAWSElastiCacheGroupID is the ElastiCache replication group identifier.
 	DatabaseAWSElastiCacheGroupID string
+	// DatabaseAWSElastiCacheServerlessCacheName is the ElastiCache Serverless cache name.
+	DatabaseAWSElastiCacheServerlessCacheName string
 	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
 	DatabaseAWSMemoryDBClusterName string
 	// DatabaseAWSSessionTags is the AWS STS session tags.
@@ -973,7 +975,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("cannot set both proxy_checks_host_keys and session_recording_config at the same time, prefer session_recording_config.proxy_checks_host_keys")
 			}
 
-			src = *fc.Auth.SessionRecordingConfig
+			src = fc.Auth.SessionRecordingConfig.toSpec()
 		}
 
 		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(src)
@@ -1860,6 +1862,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ElastiCache: servicecfg.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
+				ElastiCacheServerless: servicecfg.DatabaseAWSElastiCacheServerless{
+					CacheName: database.AWS.ElastiCacheServerless.CacheName,
+				},
 				MemoryDB: servicecfg.DatabaseAWSMemoryDB{
 					ClusterName: database.AWS.MemoryDB.ClusterName,
 				},
@@ -2544,6 +2549,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				},
 				ElastiCache: servicecfg.DatabaseAWSElastiCache{
 					ReplicationGroupID: clf.DatabaseAWSElastiCacheGroupID,
+				},
+				ElastiCacheServerless: servicecfg.DatabaseAWSElastiCacheServerless{
+					CacheName: clf.DatabaseAWSElastiCacheServerlessCacheName,
 				},
 				MemoryDB: servicecfg.DatabaseAWSMemoryDB{
 					ClusterName: clf.DatabaseAWSMemoryDBClusterName,

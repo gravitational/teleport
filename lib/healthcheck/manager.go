@@ -156,9 +156,9 @@ func (m *manager) AddTarget(target Target) error {
 		return trace.BadParameter("health check target resource kind %q is not supported", resource.GetKind())
 	}
 
+	key := newResourceKey(resource)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	key := newResourceKey(resource)
 	if _, ok := m.workers[key]; ok {
 		return trace.AlreadyExists("target health checker %q already exists", key)
 	}
@@ -202,9 +202,9 @@ func (m *manager) RemoveTarget(r types.ResourceWithLabels) error {
 // GetTargetHealth returns the health of a given resource.
 func (m *manager) GetTargetHealth(r types.ResourceWithLabels) (*types.TargetHealth, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	key := newResourceKey(r)
 	worker, ok := m.workers[key]
+	m.mu.RUnlock()
 	if !ok {
 		return nil, trace.NotFound("health checker %q not found", key)
 	}
