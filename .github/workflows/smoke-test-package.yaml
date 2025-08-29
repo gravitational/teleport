@@ -94,21 +94,37 @@ jobs:
           mkdir -p "$RELEASE_DIR"
           make -C build.assets "$RELEASE_TARGET" VERSION="$VERSION"
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          name: build-artifacts
-          retention-days: 1
-          path: |
-            ${{ github.workspace }}/build/artifacts
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
 
-      - name: Upload test-assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-assets
-          retention-days: 1
-          path: |
-            assets/package-test/*
+      - name: Copy artifacts to S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          aws s3 sync ${{ github.workspace }}/build/artifacts "s3://$PENDING_BUCKET_NAME/teleport-update/${{ github.ref_name }}/"
+
+#      - name: Upload artifacts
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: build-artifacts
+#          retention-days: 1
+#          path: |
+#            ${{ github.workspace }}/build/artifacts
+#
+#      - name: Upload test-assets
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: test-assets
+#          retention-days: 1
+#          path: |
+#            assets/package-test/*
 
   build-packages:
     runs-on: ubuntu-latest
@@ -119,10 +135,26 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v4
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          name: build-artifacts
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Copy artifacts from S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          aws s3 sync "s3://$PENDING_BUCKET_NAME/teleport-update/${{ github.ref_name }}/" ${{ github.workspace }}/build/artifacts
+
+#      - name: Download artifacts
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: build-artifacts
 
       - name: Build Debian package
         env:
@@ -145,14 +177,22 @@ jobs:
           make rpm-unsigned VERSION="$VERSION"
           cp build/*.rpm build/artifacts
 
-      - name: Upload packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages
-          retention-days: 1
-          path: |
-            ${{ github.workspace }}/build/*.deb
-            ${{ github.workspace }}/build/*.rpm
+      - name: Copy packages to S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          aws s3 sync ${{ github.workspace }}/build/*.deb "s3://$PENDING_BUCKET_NAME/teleport-update/${{ github.ref_name }}/"
+          aws s3 sync ${{ github.workspace }}/build/*.rpm "s3://$PENDING_BUCKET_NAME/teleport-update/${{ github.ref_name }}/"
+
+#      - name: Upload packages
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: packages
+#          retention-days: 1
+#          path: |
+#            ${{ github.workspace }}/build/*.deb
+#            ${{ github.workspace }}/build/*.rpm
 
   test-deb:
     name: Run deb tests
@@ -177,14 +217,34 @@ jobs:
       ARTIFACT_TAG: "${{ needs.build-packages.outputs.version }}"
       INSTALLER: "apt"
     steps:
-      - name: Download packages
-        uses: actions/download-artifact@v4
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          name: packages
-      - name: Download test-assets
-        uses: actions/download-artifact@v4
-        with:
-          name: test-assets
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Copy packages from S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          aws s3 sync "s3://$PENDING_BUCKET_NAME/teleport-update/${{ github.ref_name }}/*.deb" ${{ github.workspace }}/build/
+          aws s3 sync "s3://$PENDING_BUCKET_NAME/teleport-update/${{ github.ref_name }}/*.rpm" ${{ github.workspace }}/build/
+
+#      - name: Download packages
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: packages
+#      - name: Download test-assets
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: test-assets
 
       - name: Install test dependencies
         run: |
@@ -218,14 +278,34 @@ jobs:
       ARTIFACT_TAG: "${{ needs.build-packages.outputs.version }}"
       INSTALLER: "${{ matrix.container.package-manager }}"
     steps:
-      - name: Download packages
-        uses: actions/download-artifact@v4
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          name: packages
-      - name: Download test-assets
-        uses: actions/download-artifact@v4
-        with:
-          name: test-assets
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Copy packages from S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          aws s3 sync "s3://$PENDING_BUCKET_NAME/teleport-update/${{ github.ref_name }}/*.deb" ${{ github.workspace }}/build/
+          aws s3 sync "s3://$PENDING_BUCKET_NAME/teleport-update/${{ github.ref_name }}/*.rpm" ${{ github.workspace }}/build/
+
+#      - name: Download packages
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: packages
+#      - name: Download test-assets
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: test-assets
 
       - name: Install test dependencies
         run: |
