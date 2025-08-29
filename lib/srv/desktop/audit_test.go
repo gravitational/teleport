@@ -192,6 +192,11 @@ func TestSessionEndEvent(t *testing.T) {
 			SessionID: "sessionID",
 			WithMFA:   id.MFAVerified,
 		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.LoginIP,
+			RemoteAddr: testDesktop.GetAddr(),
+			Protocol:   libevents.EventProtocolTDP,
+		},
 		WindowsDesktopService: audit.desktopServiceUUID,
 		DesktopAddr:           testDesktop.GetAddr(),
 		Domain:                testDesktop.GetDomain(),

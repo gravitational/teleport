@@ -1865,11 +1865,12 @@ func ProcessNamespace(namespace string) string {
 
 // WhereExpr is a tree like structure representing a `where` (sub-)expression.
 type WhereExpr struct {
-	Field            string
-	Literal          interface{}
-	And, Or          WhereExpr2
-	Not              *WhereExpr
-	Equals, Contains WhereExpr2
+	Field                    string
+	Literal                  interface{}
+	And, Or                  WhereExpr2
+	Not                      *WhereExpr
+	Equals, Contains         WhereExpr2
+	ContainsAny, ContainsAll WhereExpr2
 }
 
 // WhereExpr2 is a pair of `where` (sub-)expressions.
@@ -1899,6 +1900,12 @@ func (e WhereExpr) String() string {
 	}
 	if e.Contains.L != nil && e.Contains.R != nil {
 		return fmt.Sprintf("contains(%s, %s)", e.Contains.L, e.Contains.R)
+	}
+	if e.ContainsAny.L != nil && e.ContainsAny.R != nil {
+		return fmt.Sprintf("contains_any(%s, %s)", e.ContainsAny.L, e.ContainsAny.R)
+	}
+	if e.ContainsAll.L != nil && e.ContainsAll.R != nil {
+		return fmt.Sprintf("contains_all(%s, %s)", e.ContainsAll.L, e.ContainsAll.R)
 	}
 	return ""
 }

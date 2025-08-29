@@ -559,8 +559,9 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				Groups:   []string{string(types.RoleAuth)},
 			},
 			want: apievents.UserMetadata{
-				User:     "system.teleport.name",
-				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
+				User:      "system.teleport.name",
+				UserRoles: []string{string(types.RoleAuth)},
+				UserKind:  apievents.UserKind_USER_KIND_SYSTEM,
 			},
 		},
 		{
@@ -570,8 +571,9 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				Groups:   []string{string(types.RoleDiscovery)},
 			},
 			want: apievents.UserMetadata{
-				User:     "system.teleport.name",
-				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
+				User:      "system.teleport.name",
+				UserKind:  apievents.UserKind_USER_KIND_SYSTEM,
+				UserRoles: []string{string(types.RoleDiscovery)},
 			},
 		},
 		{
@@ -581,8 +583,9 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				Groups:   []string{string(types.RoleOkta)},
 			},
 			want: apievents.UserMetadata{
-				User:     "system.teleport.name",
-				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
+				User:      "system.teleport.name",
+				UserKind:  apievents.UserKind_USER_KIND_SYSTEM,
+				UserRoles: []string{string(types.RoleOkta)},
 			},
 		},
 	}
