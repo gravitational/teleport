@@ -319,7 +319,7 @@ func (b *Bot) buildIdentityService(
 		),
 		ClientBuilder:  clientBuilder,
 		ReloadCh:       reloadCh,
-		StatusReporter: statusRegistry.AddService("identity"),
+		StatusReporter: statusRegistry.AddService("identity", "internal/identity"),
 	})
 	if err != nil {
 		unsubscribe()
@@ -351,7 +351,8 @@ func (b *Bot) buildHeartbeatService(
 	statusRegistry *readyz.Registry,
 ) (*heartbeat.Service, error) {
 	return heartbeat.NewService(heartbeat.Config{
-		Interval:           30 * time.Minute,
+		MinInterval:        1 * time.Minute,
+		MaxInterval:        30 * time.Minute,
 		RetryLimit:         5,
 		Client:             machineidv1.NewBotInstanceServiceClient(identityService.GetClient().GetConnection()),
 		BotIdentityReadyCh: identityService.Ready(),
@@ -360,7 +361,8 @@ func (b *Bot) buildHeartbeatService(
 		Logger: b.cfg.Logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentTBot, "heartbeat"),
 		),
-		StatusReporter: statusRegistry.AddService("heartbeat"),
+		StatusReporter: statusRegistry.AddService("heartbeat", "internal/heartbeat"),
+		StatusRegistry: statusRegistry,
 	})
 }
 
@@ -389,6 +391,6 @@ func (b *Bot) buildCARotationService(
 			teleport.ComponentKey,
 			teleport.Component(teleport.ComponentTBot, "ca-rotation"),
 		),
-		StatusReporter: statusRegistry.AddService("ca-rotation"),
+		StatusReporter: statusRegistry.AddService("ca-rotation", "internal/ca-rotation"),
 	})
 }

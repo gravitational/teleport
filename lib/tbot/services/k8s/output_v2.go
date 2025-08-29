@@ -71,7 +71,7 @@ func OutputV2ServiceBuilder(cfg *OutputV2Config, opts ...OutputV2Option) bot.Ser
 			opt.applyToV2Output(svc)
 		}
 		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String(), OutputV2ServiceType)
 		return svc, nil
 	}
 }
