@@ -282,6 +282,13 @@ type CommandLineFlags struct {
 	// is not set to enforcing mode or the global SELinux mode is not set to
 	// enforcing.
 	EnsureSELinuxEnforcing bool
+
+	// BackendKey is the backend key to use for various `teleport backend` commands.
+	BackendKey string
+	// BackendPrefix limits `teleport backend ls` to only output keys matching the prefix.
+	BackendPrefix string
+	// Format is used to change the format of output.
+	Format string
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
