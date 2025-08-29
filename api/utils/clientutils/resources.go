@@ -91,7 +91,7 @@ func rangeInternal[T any](ctx context.Context, params rangeParams[T]) iter.Seq2[
 					continue
 				}
 
-				yield(*new(T), err)
+				yield(*new(T), trace.Wrap(err))
 				return
 			}
 
