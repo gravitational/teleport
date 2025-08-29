@@ -1,27 +1,16 @@
 ---
-title: AWS Console and CLI access
-description: How to access AWS with Teleport.
+title: AWS Console and CLI access with Roles Anywhere
+description: How to use AWS IAM Roles Anywhere with Teleport for AWS Console and CLI access
 labels:
  - how-to
  - zero-trust
 ---
 
-<Admonition type="tip">
-You can access AWS APIs (e.g., CLI, SDKs) through Teleport using two methods:
-- using an Application Service which proxies and audits every AWS API request
-- using short-lived credentials stored in your local system
-Accessing the AWS Web Console works the same in both methods.
+Teleport integrates with AWS IAM Roles Anywhere to provide AWS Console and CLI access.
+This allows you to take advantage of Teleport role-based access controls, just-in-time access requests and other zero-trust and identity governance capabilities to manage access to your AWS infrastructure.
 
-This guide focus on the second method, which is the recommend one.
-
-If you want to audit AWS API requests, then use the method[first method](aws-console.mdx).
-
-Access Requests, Access Lists and other RBAC access controls features work the same in both methods.
-</Admonition>
-
-You can protect the AWS Management Console and AWS APIs with Teleport.
-This allows you to manage access to AWS infrastructure with Teleport features like Access Requests, Access Lists, and identity locking.
-You can also configure Teleport to provide different levels of AWS access automatically when users authenticate using your single sign-on solution.
+If you're already using AWS IAM Roles Anywhere and looking to protect access to your AWS environment with Teleport, while ensuring full compatibility with all AWS API based tooling (such as CLI tools or terraform), this guide provides a recommended way for you to do that.
+If you're looking to provide AWS CLI access to your users with audit capture by going through Teleport proxy, or Roles Anywhere are not adopted at your organization, take a look at the guide for [agent-based AWS access](aws-console.mdx) instead.
 
 This guide will explain how to:
 
@@ -55,128 +44,128 @@ For CLI and SDK based access, you must use `tsh` to obtain AWS credentials.
 
 ## Step 1/4. Configure AWS IAM Roles Anywhere integration
 
+Navigate to Teleport Web UI, click on Enroll New Resource in the Resources listing page, and follow the guide after clicking on AWS CLI/Console Access tile.
+
+<details>
+  <summary>Manually configure the integration</summary>
+
+  You will create the following resources in AWS:
+
+  | Name                                 | Resource                        | Function                                                                                  |
+  |--------------------------------------|---------------------------------|-------------------------------------------------------------------------------------------|
+  | `TeleportRolesAnywhereIntegrationCA` | IAM Roles Anywhere Trust Anchor | Allow access from Teleport into AWS.                                                      |
+  | `TeleportRolesAnywhereProfileSync`   | IAM Role                        | Allows Teleport to iterate over AWS Roles Anywhere Profiles and import them as resources. |
+  | `TeleportRolesAnywhereProfileSync`   | IAM Roles Anywhere Profile      | Allows access to `TeleportRolesAnywhereProfileSync` IAM Role.                             |
+
+  ### Create an IAM Roles Anywhere Trust Anchor
+
+  First, you will create an IAM Roles Anywhere Trust Anchor which trusts the Teleport's AWS Roles Anywhere CA.
+
+  1. Obtain the Teleport certificate by:
+    <Tabs>
+      <TabItem label="Via curl">
+      ```code
+      $ curl 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=awsra'
+      -----BEGIN CERTIFICATE-----
+      MIIDqjCCApKgAwIBAgIQMIK8/WiQ/rUOrjlmB0IHVTANBgkqhkiG9w0BAQsFADBv
+      ...
+      -----END CERTIFICATE-----
+      ```
+      </TabItem>
+
+      <TabItem label="Via tctl">
+      ```code
+      $ tctl auth export --type awsra
+      -----BEGIN CERTIFICATE-----
+      MIIDqjCCApKgAwIBAgIQMIK8/WiQ/rUOrjlmB0IHVTANBgkqhkiG9w0BAQsFADBv
+      ...
+      -----END CERTIFICATE-----
+      ```
+      </TabItem>
+    </Tabs>
+  1. Navigate to [Create a trust anchor](https://console.aws.amazon.com/rolesanywhere/home/trust-anchors/create) page.
+    Name the trust anchor `TeleportRolesAnywhereIntegrationCA` and add the Teleport's `awsra` CA certificate you obtained in the previous step as an External certificate bundle.
+  1. Copy the Trust Anchor ARN <Var name="Trust Anchor ARN" />
+
+  ### Set up Profile Sync
+
+  Next, you will create the required AWS resources to enable the Profile Sync.
+
+  1. Navigate to [Create Role](https://console.aws.amazon.com/iam/home?#/roles/create) and create a new IAM Role called `TeleportRolesAnywhereProfileSync`.
+    Trust policy must include the Roles Anywhere service principal:
+    ```json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {
+                    "Service": "rolesanywhere.amazonaws.com"
+                },
+                "Action": [
+                    "sts:AssumeRole",
+                    "sts:SetSourceIdentity",
+                    "sts:TagSession"
+                ]
+            }
+        ]
+    }
+    ```
+  1. Copy the IAM Role ARN <Var name="Role ARN" />
+  1. Navigate to the [TeleportRolesAnywhereProfileSync Role](https://console.aws.amazon.com/iam/home?#/roles/details/TeleportRolesAnywhereProfileSync) and create a new inline policy:
+    ```json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "RolesAnywhereProfileSync",
+                "Effect": "Allow",
+                "Action": [
+                    "rolesanywhere:ListProfiles",
+                    "rolesanywhere:ListTagsForResource",
+                    "rolesanywhere:ImportCrl",
+                    "iam:GetRole"
+                ],
+                "Resource": [
+                    "*"
+                ]
+            }
+        ]
+    }
+    ```
+
+  1. Now, navigate to the [Create a Profile](https://console.aws.amazon.com/rolesanywhere/home/profiles/create) page and name it `TeleportRolesAnywhereProfileSync`.
+    Add the role created in the last step (`TeleportRolesAnywhereProfileSync`) and create the Profile.
+  1. Copy the Profile ARN <Var name="Profile ARN" />
+
+  ### Create a Teleport AWS IAM Roles Anywhere integration
+  Now that the required AWS resources are created, you can create a Teleport AWS IAM Roles Anywhere integration.
+
+  1. Write the following contents to a file called `roles-anywhere-integration.yaml`:
+    ```yaml
+    kind: integration
+    sub_kind: aws-ra
+    version: v1
+    metadata:
+      name: <Var name="Integration Name" />
+    spec:
+      aws_ra:
+        trust_anchor_arn: <Var name="Trust Anchor ARN" />
+        profile_sync_config:
+          enabled: true
+          profile_arn: <Var name="Profile ARN" />
+          role_arn: <Var name="Role ARN" />
+    ```
+
+  1. Create the integration with the following command:
+    ```code
+    $ tctl create -f roles-anywhere-integration.yaml
+    ```
+
+  Teleport will now start syncing AWS IAM Roles Anywhere Profiles as AWS applications, every 5 minutes.
+</details>
+
 In this section, you will configure AWS IAM resources to allow Teleport to issue AWS credentials.
-
-<Admonition type="note">
-Instead of doing this step manually, you can navigate to your Teleport Web UI,
-click on Enroll New Resource in Resources listing page,
-and follow the guide after clicking on the AWS CLI/Console Access tile.
-</Admonition>
-
-You will create the following resources in AWS:
-
-| Name                                 | Resource                        | Function                                                                                  |
-|--------------------------------------|---------------------------------|-------------------------------------------------------------------------------------------|
-| `TeleportRolesAnywhereIntegrationCA` | IAM Roles Anywhere Trust Anchor | Allow access from Teleport into AWS.                                                      |
-| `TeleportRolesAnywhereProfileSync`   | IAM Role                        | Allows Teleport to iterate over AWS Roles Anywhere Profiles and import them as resources. |
-| `TeleportRolesAnywhereProfileSync`   | IAM Roles Anywhere Profile      | Allows access to `TeleportRolesAnywhereProfileSync` IAM Role.                             |
-
-### Create an IAM Roles Anywhere Trust Anchor
-
-First, you will create an IAM Roles Anywhere Trust Anchor which trusts the Teleport's AWS Roles Anywhere CA.
-
-1. Obtain the Teleport certificate by:
-  <Tabs>
-    <TabItem label="Via curl">
-    ```code
-    $ curl 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=awsra'
-    -----BEGIN CERTIFICATE-----
-    MIIDqjCCApKgAwIBAgIQMIK8/WiQ/rUOrjlmB0IHVTANBgkqhkiG9w0BAQsFADBv
-    ...
-    -----END CERTIFICATE-----
-    ```
-    </TabItem>
-
-    <TabItem label="Via tctl">
-    ```code
-    $ tctl auth export --type awsra
-    -----BEGIN CERTIFICATE-----
-    MIIDqjCCApKgAwIBAgIQMIK8/WiQ/rUOrjlmB0IHVTANBgkqhkiG9w0BAQsFADBv
-    ...
-    -----END CERTIFICATE-----
-    ```
-    </TabItem>
-  </Tabs>
-1. Navigate to [Create a trust anchor](https://console.aws.amazon.com/rolesanywhere/home/trust-anchors/create) page.
-  Name the trust anchor `TeleportRolesAnywhereIntegrationCA` and add the Teleport's `awsra` CA certificate you obtained in the previous step as an External certificate bundle.
-1. Copy the Trust Anchor ARN <Var name="Trust Anchor ARN" />
-
-### Set up Profile Sync
-
-Next, you will create the required AWS resources to enable the Profile Sync.
-
-1. Navigate to [Create Role](https://console.aws.amazon.com/iam/home?#/roles/create) and create a new IAM Role called `TeleportRolesAnywhereProfileSync`.
-  Trust policy must include the Roles Anywhere service principal:
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Effect": "Allow",
-              "Principal": {
-                  "Service": "rolesanywhere.amazonaws.com"
-              },
-              "Action": [
-                  "sts:AssumeRole",
-                  "sts:SetSourceIdentity",
-                  "sts:TagSession"
-              ]
-          }
-      ]
-  }
-  ```
-1. Copy the IAM Role ARN <Var name="Role ARN" />
-1. Navigate to the [TeleportRolesAnywhereProfileSync Role](https://console.aws.amazon.com/iam/home?#/roles/details/TeleportRolesAnywhereProfileSync) and create a new inline policy:
-  ```json
-  {
-      "Version": "2012-10-17",
-      "Statement": [
-          {
-              "Sid": "RolesAnywhereProfileSync",
-              "Effect": "Allow",
-              "Action": [
-                  "rolesanywhere:ListProfiles",
-                  "rolesanywhere:ListTagsForResource",
-                  "rolesanywhere:ImportCrl",
-                  "iam:GetRole"
-              ],
-              "Resource": [
-                  "*"
-              ]
-          }
-      ]
-  }
-  ```
-
-1. Now, navigate to the [Create a Profile](https://console.aws.amazon.com/rolesanywhere/home/profiles/create) page and name it `TeleportRolesAnywhereProfileSync`.
-  Add the role created in the last step (`TeleportRolesAnywhereProfileSync`) and create the Profile.
-1. Copy the Profile ARN <Var name="Profile ARN" />
-
-### Create a Teleport AWS IAM Roles Anywhere integration
-Now that the required AWS resources are created, you can create a Teleport AWS IAM Roles Anywhere integration.
-
-1. Write the following contents to a file called `roles-anywhere-integration.yaml`:
-  ```yaml
-  kind: integration
-  sub_kind: aws-ra
-  version: v1
-  metadata:
-    name: <Var name="Integration Name" />
-  spec:
-    aws_ra:
-      trust_anchor_arn: <Var name="Trust Anchor ARN" />
-      profile_sync_config:
-        enabled: true
-        profile_arn: <Var name="Profile ARN" />
-        role_arn: <Var name="Role ARN" />
-  ```
-
-1. Create the integration with the following command:
-  ```code
-  $ tctl create -f roles-anywhere-integration.yaml
-  ```
-
-Teleport will now start syncing AWS IAM Roles Anywhere Profiles as AWS applications, every 5 minutes.
 
 ## Step 2/4. Create an AWS IAM Roles Anywhere Profile and assign IAM Roles
 
@@ -212,7 +201,6 @@ If you are already leveraging AWS IAM Roles Anywhere Profiles, you can skip this
   Add the role created in the last step (`ExampleReadOnlyAccess`) and create the Profile.
   
   Copy the Profile ARN <Var name="Read Only Profile ARN" />.
-1. You should now see the `ExampleReadOnlyAccess` profile listed in your Teleport Web UI in the Resources page.
 
 ## Step 3/4. Set up access
 Now you need to grant your users access to the imported AWS profiles/roles.
