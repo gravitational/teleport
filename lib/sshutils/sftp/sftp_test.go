@@ -533,7 +533,7 @@ func TestHTTPUpload(t *testing.T) {
 				Path: "source",
 			},
 			Dst: Target{
-				Path: "dst",
+				Path: dst,
 			},
 			HTTPRequest: req,
 		},
