@@ -7602,6 +7602,15 @@ message AWSICProvisioningSpec {
   // actual credential is stored separetely ain a PluginStaticCredentials
   // service, and populated at runtime as necessary.
   string bearer_token = 2;
+
+  // UserProvisioningMode indicates how the Identity Center integration's SCIM
+  // provisioner will provision users into the downstream Identity Center
+  // instance. Legal values are:
+  //  - "internal": Teleport will provision users into the downstream IC instance
+  //  - "external": Teleport will defer to an extarnal IdP to push users into the
+  //                downstream IC instance.
+  // Defaults to "internal" if not specified
+  string user_provisioning_mode = 3;
 }
 
 // PluginAWSICStatusV1 defines AWS Identity Center plugin sub-process status.
