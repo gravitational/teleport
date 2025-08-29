@@ -56,20 +56,20 @@ func TestIdentityCenterAccount(t *testing.T) {
 			return newIdentityCenterAccount(s), nil
 		},
 		create: func(ctx context.Context, item *identitycenterv1.Account) error {
-			_, err := fixturePack.identityCenter.CreateIdentityCenterAccount2(ctx, item)
+			_, err := fixturePack.identityCenter.CreateIdentityCenterAccount(ctx, item)
 			return trace.Wrap(err)
 		},
 		update: func(ctx context.Context, item *identitycenterv1.Account) error {
-			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccount2(ctx, item)
+			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccount(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.identityCenter.ListIdentityCenterAccounts2,
+		list: fixturePack.identityCenter.ListIdentityCenterAccounts,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeleteIdentityCenterAccount(
 				ctx, services.IdentityCenterAccountID(id)))
 		},
 		deleteAll: fixturePack.identityCenter.DeleteAllIdentityCenterAccounts,
-		cacheList: fixturePack.cache.ListIdentityCenterAccounts2,
+		cacheList: fixturePack.cache.ListIdentityCenterAccounts,
 		cacheGet:  fixturePack.cache.GetIdentityCenterAccount,
 	}, withSkipPaginationTest())
 }
@@ -111,14 +111,14 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 			_, err := fixturePack.identityCenter.UpdatePrincipalAssignment(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.identityCenter.ListPrincipalAssignments2,
+		list: fixturePack.identityCenter.ListPrincipalAssignments,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeletePrincipalAssignment(ctx, services.PrincipalAssignmentID(id)))
 		},
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(fixturePack.identityCenter.DeleteAllPrincipalAssignments(ctx))
 		},
-		cacheList: fixturePack.cache.ListPrincipalAssignments2,
+		cacheList: fixturePack.cache.ListPrincipalAssignments,
 		cacheGet: func(ctx context.Context, id string) (*identitycenterv1.PrincipalAssignment, error) {
 			r, err := fixturePack.cache.GetPrincipalAssignment(ctx, services.PrincipalAssignmentID(id))
 			return r, trace.Wrap(err)
