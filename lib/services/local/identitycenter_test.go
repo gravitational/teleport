@@ -69,7 +69,7 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 			},
 			updateResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
 				acct := r.(*identitycenterv1.Account)
-				return svc.UpdateIdentityCenterAccount2(subtestCtx, acct)
+				return svc.UpdateIdentityCenterAccount(subtestCtx, acct)
 			},
 			upsertResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
 				acct := r.(*identitycenterv1.Account)
@@ -109,10 +109,10 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 			},
 			upsertResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
 				asmt := r.(*identitycenterv1.AccountAssignment)
-				return svc.UpsertAccountAssignment(subtestCtx, asmt)
+				return svc.UpsertIdentityCenterAccountAssignment(subtestCtx, asmt)
 			},
 			deleteAllResources: func(subtestCtx context.Context, svc services.IdentityCenter) error {
-				return svc.DeleteAllAccountAssignments(subtestCtx)
+				return svc.DeleteAllIdentityCenterAccountAssignments(subtestCtx)
 			},
 		},
 		{
@@ -270,7 +270,7 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 
 func makeTestIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) *identitycenterv1.Account {
 	t.Helper()
-	created, err := svc.CreateIdentityCenterAccount2(ctx, &identitycenterv1.Account{
+	created, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
 		Kind:     types.KindIdentityCenterAccount,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: id},

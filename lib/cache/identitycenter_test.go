@@ -58,15 +58,15 @@ func TestIdentityCenterAccount(t *testing.T) {
 			return newIdentityCenterAccount(s), nil
 		},
 		create: func(ctx context.Context, item *identitycenterv1.Account) error {
-			_, err := fixturePack.identityCenter.CreateIdentityCenterAccount2(ctx, item)
+			_, err := fixturePack.identityCenter.CreateIdentityCenterAccount(ctx, item)
 			return trace.Wrap(err)
 		},
 		update: func(ctx context.Context, item *identitycenterv1.Account) error {
-			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccount2(ctx, item)
+			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccount(ctx, item)
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*identitycenterv1.Account, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.identityCenter.ListIdentityCenterAccounts2))
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.identityCenter.ListIdentityCenterAccounts))
 		},
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeleteIdentityCenterAccount(
@@ -76,7 +76,7 @@ func TestIdentityCenterAccount(t *testing.T) {
 			return trace.Wrap(fixturePack.identityCenter.DeleteAllIdentityCenterAccounts(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]*identitycenterv1.Account, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListIdentityCenterAccounts2))
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListIdentityCenterAccounts))
 		},
 		cacheGet: func(ctx context.Context, id string) (*identitycenterv1.Account, error) {
 			r, err := fixturePack.cache.GetIdentityCenterAccount(ctx, id)
@@ -123,7 +123,7 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*identitycenterv1.PrincipalAssignment, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.identityCenter.ListPrincipalAssignments2))
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.identityCenter.ListPrincipalAssignments))
 		},
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeletePrincipalAssignment(ctx, services.PrincipalAssignmentID(id)))
@@ -132,7 +132,7 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 			return trace.Wrap(fixturePack.identityCenter.DeleteAllPrincipalAssignments(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]*identitycenterv1.PrincipalAssignment, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListPrincipalAssignments2))
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListPrincipalAssignments))
 		},
 		cacheGet: func(ctx context.Context, id string) (*identitycenterv1.PrincipalAssignment, error) {
 			r, err := fixturePack.cache.GetPrincipalAssignment(ctx, services.PrincipalAssignmentID(id))
