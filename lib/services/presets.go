@@ -842,7 +842,7 @@ func NewPresetMCPUserRole() types.Role {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				AppLabels: map[string]apiutils.Strings{
-					types.Wildcard: []string{types.Wildcard},
+					types.AppSubKindLabel: []string{types.SubKindMCP},
 				},
 				MCP: &types.MCPPermissions{
 					Tools: []string{types.Wildcard},
