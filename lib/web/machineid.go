@@ -417,6 +417,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 		PageToken:        r.URL.Query().Get("page_token"),
 		FilterSearchTerm: r.URL.Query().Get("search"),
 		Sort:             sort,
+		Query:            r.URL.Query().Get("query"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

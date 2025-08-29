@@ -56,7 +56,7 @@ func TestBotInstanceCache(t *testing.T) {
 			return p.cache.GetBotInstance(ctx, "bot-1", key)
 		},
 		cacheList: func(ctx context.Context) ([]*machineidv1.BotInstance, error) {
-			results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
+			results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil, "")
 			return results, err
 		},
 		create: func(ctx context.Context, resource *machineidv1.BotInstance) error {
@@ -64,7 +64,7 @@ func TestBotInstanceCache(t *testing.T) {
 			return err
 		},
 		list: func(ctx context.Context) ([]*machineidv1.BotInstance, error) {
-			results, _, err := p.botInstanceService.ListBotInstances(ctx, "", 0, "", "", nil)
+			results, _, err := p.botInstanceService.ListBotInstances(ctx, "", 0, "", "", nil, "")
 			return results, err
 		},
 		update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
@@ -107,13 +107,13 @@ func TestBotInstanceCachePaging(t *testing.T) {
 
 	// Let the cache catch up
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil, "")
 		require.NoError(t, err)
 		require.Len(t, results, 5)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	// page size equal to total items
-	results, nextPageToken, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
+	results, nextPageToken, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil, "")
 	require.NoError(t, err)
 	require.Empty(t, nextPageToken)
 	require.Len(t, results, 5)
@@ -124,7 +124,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	require.Equal(t, "instance-5", results[4].GetMetadata().GetName())
 
 	// page size smaller than total items
-	results, nextPageToken, err = p.cache.ListBotInstances(ctx, "", 3, "", "", nil)
+	results, nextPageToken, err = p.cache.ListBotInstances(ctx, "", 3, "", "", nil, "")
 	require.NoError(t, err)
 	require.Equal(t, "bot-1/instance-4", nextPageToken)
 	require.Len(t, results, 3)
@@ -133,7 +133,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
 
 	// next page
-	results, nextPageToken, err = p.cache.ListBotInstances(ctx, "", 3, nextPageToken, "", nil)
+	results, nextPageToken, err = p.cache.ListBotInstances(ctx, "", 3, nextPageToken, "", nil, "")
 	require.NoError(t, err)
 	require.Empty(t, nextPageToken)
 	require.Len(t, results, 2)
@@ -166,12 +166,12 @@ func TestBotInstanceCacheBotFilter(t *testing.T) {
 
 	// Let the cache catch up
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil, "")
 		require.NoError(t, err)
 		require.Len(t, results, 10)
 	}, 10*time.Second, 100*time.Millisecond)
 
-	results, _, err := p.cache.ListBotInstances(ctx, "bot-1", 0, "", "", nil)
+	results, _, err := p.cache.ListBotInstances(ctx, "bot-1", 0, "", "", nil, "")
 	require.NoError(t, err)
 	require.Len(t, results, 5)
 
@@ -213,12 +213,12 @@ func TestBotInstanceCacheSearchFilter(t *testing.T) {
 
 	// Let the cache catch up
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil, "")
 		require.NoError(t, err)
 		require.Len(t, results, 10)
 	}, 10*time.Second, 100*time.Millisecond)
 
-	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "host-1", nil)
+	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "host-1", nil, "")
 	require.NoError(t, err)
 	require.Len(t, results, 5)
 }
@@ -268,7 +268,7 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 
 	// Let the cache catch up
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil, "")
 		require.NoError(t, err)
 		require.Len(t, results, 3)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -277,7 +277,7 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
 		Field:  "active_at_latest",
 		IsDesc: false,
-	})
+	}, "")
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 	require.Equal(t, "instance-3", results[0].GetMetadata().GetName())
@@ -288,7 +288,7 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
 		Field:  "active_at_latest",
 		IsDesc: true,
-	})
+	}, "")
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 	require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
@@ -296,7 +296,7 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 	require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
 
 	// sort ascending by bot_name
-	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", nil) // empty sort should default to `bot_name:asc`
+	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", nil, "") // empty sort should default to `bot_name:asc`
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 	require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
@@ -307,7 +307,7 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
 		Field:  "bot_name",
 		IsDesc: true,
-	})
+	}, "")
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 	require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
@@ -341,7 +341,7 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 
 	// Let the cache catch up
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil, "")
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -350,7 +350,7 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
 		Field:  "bot_name",
 		IsDesc: false,
-	})
+	}, "")
 	require.NoError(t, err) // asc by bot_name is the only sort supported by the upstream
 	require.Len(t, results, 1)
 
@@ -358,7 +358,7 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 	_, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
 		Field:  "bot_name",
 		IsDesc: true,
-	})
+	}, "")
 	require.Error(t, err)
 	require.Equal(t, "unsupported sort, only bot_name:asc is supported, but got \"bot_name\" (desc = true)", err.Error())
 
@@ -366,7 +366,7 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 	_, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
 		Field:  "active_at_latest",
 		IsDesc: false,
-	})
+	}, "")
 	require.Error(t, err)
 	require.Equal(t, "unsupported sort, only bot_name:asc is supported, but got \"active_at_latest\" (desc = false)", err.Error())
 

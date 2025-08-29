@@ -48,6 +48,8 @@ message ListBotInstancesRequest {
   string filter_search_term = 4;
   // The sort config to use for the results. If empty, the default sort field and order is used.
   types.SortBy sort = 5;
+  // A query in Teleport predicate language used to filter the results.
+  string query = 6;
 }
 
 // Response for ListBotInstances.
