@@ -248,7 +248,7 @@ func (f *Forwarder) impersonatedKubeClient(authCtx *authContext, headers http.He
 		return nil, nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
 	restConfig := details.getKubeRestConfig()
-	kubeUser, kubeGroups, err := computeImpersonatedPrincipals(authCtx.kubeUsers, authCtx.kubeGroups, headers)
+	kubeUser, kubeGroups, err := computeImpersonatedPrincipals(authCtx.kubeUsers, authCtx.kubeGroups, authCtx.User.GetName(), headers)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
