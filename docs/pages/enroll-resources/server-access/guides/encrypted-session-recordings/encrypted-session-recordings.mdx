@@ -59,9 +59,10 @@ are the default, but other backends can also be configured:
 - [Google Cloud KMS](../../../../zero-trust-access/deploy-a-cluster/gcp-kms.mdx)
 - [HSM](../../../../zero-trust-access/deploy-a-cluster/hsm.mdx)
 
-It is important that all Teleport Auth Service instances have access to the
-same keys and key storage backend to ensure all recorded sessions are always
-replayable.
+It is required that all Teleport Auth Service instances have access to the
+exact same encryption keys in order to ensure all recorded sessions are always
+replayable. This means shared access to keys in AWS KMS and GCP KMS backends,
+or a shared, networked HSM for PKCS#11 backends.
 
 <Admonition type="note">
 Before enabling encrypted recordings with an HSM backend, make sure OAEP
