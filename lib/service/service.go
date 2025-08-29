@@ -138,7 +138,8 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
-	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/join/joinv1"
+	legacyjoinserver "github.com/gravitational/teleport/lib/join/legacyservice"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
@@ -7003,8 +7004,10 @@ func (process *TeleportProcess) initPublicGRPCServer(
 		}),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
+	joinServiceServer := legacyjoinserver.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
+
+	joinv1.RegisterProxyForwardingJoinServiceServer(server, conn.Client.GRPCConn())
 
 	accessGraphProxySvc, err := secretsscannerproxy.New(
 		secretsscannerproxy.ServiceConfig{

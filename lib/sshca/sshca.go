@@ -48,9 +48,9 @@ type HostCertificateRequest struct {
 	// PublicHostKey is the public key of the host
 	PublicHostKey []byte
 	// HostID is used by Teleport to uniquely identify a node within a cluster (this is used to help infill
-	// Identity.Princiapals and is not a standalone cert field).
+	// Identity.Principals and is not a standalone cert field).
 	HostID string
-	// NodeName is the DNS name of the node (this is used to help infill Identity.Princiapals and is not a
+	// NodeName is the DNS name of the node (this is used to help infill Identity.Principals and is not a
 	// standalone cert field).
 	NodeName string
 	// TTL defines how long a certificate is valid for
