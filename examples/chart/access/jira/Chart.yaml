@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev.removewebpack.3"
+.version: &version "19.0.0-dev.removewebpack.4"
 
 apiVersion: v2
 name: teleport-plugin-jira
