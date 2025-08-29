@@ -72,7 +72,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.provisioningStates.ListProvisioningStatesForAllDownstreams2))
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.provisioningStates.ListProvisioningStatesForAllDownstreams))
 		},
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteProvisioningState(
@@ -82,7 +82,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteAllProvisioningStates(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListProvisioningStatesForAllDownstreams2))
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListProvisioningStatesForAllDownstreams))
 		},
 		cacheGet: func(ctx context.Context, id string) (*provisioningv1.PrincipalState, error) {
 			r, err := fixturePack.provisioningStates.GetProvisioningState(

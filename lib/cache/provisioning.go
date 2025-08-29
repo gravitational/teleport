@@ -23,14 +23,14 @@ import (
 
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 type provisioningStateGetter interface {
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
-	ListProvisioningStatesForAllDownstreams(context.Context, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
-	ListProvisioningStatesForAllDownstreams2(context.Context, int, string) ([]*provisioningv1.PrincipalState, string, error)
+	ListProvisioningStatesForAllDownstreams(context.Context, int, string) ([]*provisioningv1.PrincipalState, string, error)
 }
 
 type provisioningStateExecutor struct{}
@@ -44,25 +44,8 @@ func (provisioningStateExecutor) getAll(ctx context.Context, cache *Cache, loadS
 		return nil, trace.BadParameter("cache provisioning state source is not set")
 	}
 
-	var page pagination.PageRequestToken
-	var resources []*provisioningv1.PrincipalState
-	for {
-		var resourcesPage []*provisioningv1.PrincipalState
-		var err error
-
-		resourcesPage, nextPage, err := cache.ProvisioningStates.ListProvisioningStatesForAllDownstreams(ctx, 0, &page)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, resourcesPage...)
-
-		if nextPage == pagination.EndOfList {
-			break
-		}
-		page.Update(nextPage)
-	}
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.ProvisioningStates.ListProvisioningStatesForAllDownstreams))
+	return out, trace.Wrap(err)
 }
 
 func (provisioningStateExecutor) upsert(ctx context.Context, cache *Cache, resource *provisioningv1.PrincipalState) error {
