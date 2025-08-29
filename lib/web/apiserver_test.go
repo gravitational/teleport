@@ -11624,8 +11624,6 @@ func TestGetLocksV2(t *testing.T) {
 		newLock(t, "test-lock-5", false, types.LockTarget{WindowsDesktop: "test-win-1"}),
 		newLock(t, "test-lock-6", false, types.LockTarget{Device: "test-device-1"}),
 		newLock(t, "test-lock-7", false, types.LockTarget{ServerID: "test-server-1"}),
-		newLock(t, "test-lock-8", false, types.LockTarget{BotInstanceID: "test-instance-1"}),
-		newLock(t, "test-lock-9", false, types.LockTarget{JoinToken: "test-token-1"}),
 
 		newLock(t, "test-lock-10", true, types.LockTarget{
 			User: "test-user-1",

@@ -3568,10 +3568,6 @@ func (h *Handler) getClusterLocksV2(
 				target.Device = parts[1]
 			case "server_id":
 				target.ServerID = parts[1]
-			case "bot_instance_id":
-				target.BotInstanceID = parts[1]
-			case "join_token":
-				target.JoinToken = parts[1]
 			default:
 				return nil, trace.BadParameter("invalid target type %q", parts[0])
 			}
