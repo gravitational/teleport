@@ -177,7 +177,7 @@ function Install-WasmDeps {
     begin {
         Write-Host "::group::Installing wasm-bindgen-cli $WasmBindgenVersion"
         # TODO(camscale): Don't hard-code wasm-binden-cli version
-        cargo install wasm-bindgen-cli --locked --version 0.2.99
+        cargo install wasm-bindgen-cli --locked --version $WasmBindgenVersion
         Write-Host "::endgroup::"
     }
 }
