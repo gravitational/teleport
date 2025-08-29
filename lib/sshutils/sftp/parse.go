@@ -20,7 +20,6 @@ package sftp
 
 import (
 	"fmt"
-	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -33,12 +32,19 @@ type Target struct {
 	// Login is a login username.
 	Login string
 	// Host is a host to copy to/from. If nil, target is a local path.
-	Host net.Addr
+	Host *utils.NetAddr
 	// Path is a path to copy to/from.
 	// An empty path name is valid, and it refers to the user's default directory (usually
 	// the user's home directory).
 	// See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
 	Path string
+}
+
+func (t Target) GetHost() string {
+	if t.Host != nil {
+		return t.Host.String()
+	}
+	return ""
 }
 
 // ParseTarget takes a string representing a remote resource for SFTP
@@ -152,8 +158,15 @@ func parseIPv6Host(input string, start int) (*utils.NetAddr, int, error) {
 
 type Sources struct {
 	Login string
-	Host  net.Addr
+	Host  *utils.NetAddr
 	Paths []string
+}
+
+func (s Sources) GetHost() string {
+	if s.Host != nil {
+		return s.Host.String()
+	}
+	return ""
 }
 
 func ParseSources(rawSources []string, port int) (Sources, error) {
@@ -174,7 +187,7 @@ func ParseSources(rawSources []string, port int) (Sources, error) {
 		if err != nil {
 			return Sources{}, trace.Wrap(err)
 		}
-		if source.Login != sources.Login || source.Host.String() != sources.Host.String() {
+		if source.Login != sources.Login || source.GetHost() != sources.GetHost() {
 			return Sources{}, trace.BadParameter("multiple users/hosts not allowed")
 		}
 		sources.Paths = append(sources.Paths, source.Path)

@@ -174,7 +174,10 @@ func (h *httpFS) Getwd() (string, error) {
 }
 
 func (h *httpFS) Close() error {
-	return trace.Wrap(h.reader.Close())
+	if h.reader != nil {
+		return trace.Wrap(h.reader.Close())
+	}
+	return nil
 }
 
 type nopWriteCloser struct {
