@@ -28,7 +28,6 @@ import (
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
-	"github.com/go-mysql-org/go-mysql/packet"
 	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
 	"golang.org/x/time/rate"
@@ -62,14 +61,28 @@ type Engine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// proxyConn is a client connection.
-	proxyConn server.Conn
+	proxyConn *server.Conn
 }
 
 // InitializeConnection initializes the engine with client connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
-	// Make server conn to get access to protocol's WriteOK/WriteError methods.
-	e.proxyConn = server.Conn{Conn: packet.NewConn(clientConn)}
+	e.proxyConn = makeProxyConn(clientConn)
 	return nil
+}
+
+func makeProxyConn(clientConn net.Conn) *server.Conn {
+	return server.MakeConn(
+		clientConn,
+		server.NewServer(
+			DefaultServerVersion,
+			mysql.DEFAULT_COLLATION_ID,
+			mysql.AUTH_CACHING_SHA2_PASSWORD,
+			nil,
+			nil,
+		),
+		&credentialProvider{},
+		server.EmptyHandler{},
+	)
 }
 
 // SendError sends an error to connected client in the MySQL understandable format.
@@ -133,11 +146,19 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	}
 
-	// Send back OK packet to indicate auth/connect success. At this point
-	// the original client should consider the connection phase completed.
-	err = e.proxyConn.WriteOK(nil)
-	if err != nil {
+	// notify proxy of auth/connect success. At this point the original client
+	// should consider the connection phase completed.
+	if err := notifyProxy(ctx, e.Log, getHandshakeMode(), e.proxyConn); err != nil {
+		e.Log.ErrorContext(ctx, "Failed to notify proxy of connection",
+			"error", err,
+		)
 		return trace.Wrap(err)
+	}
+
+	if attrs := e.proxyConn.Attributes(); attrs != nil {
+		if clientName, ok := attrs[clientNameParamName]; ok {
+			sessionCtx.UserAgent = clientName
+		}
 	}
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
