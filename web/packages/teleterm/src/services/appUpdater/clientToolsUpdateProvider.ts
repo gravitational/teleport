@@ -74,7 +74,7 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
     const { baseUrl, version } = clientTools;
     const updatesSupport = areManagedUpdatesSupportedInConnect(version);
     if (updatesSupport.supported === false) {
-      throw new UnsupportedVersionError(updatesSupport.minVersion);
+      throw new UnsupportedVersionError(version, updatesSupport.minVersion);
     }
 
     const fileUrl = `${baseUrl}/${makeDownloadFilename(this.nativeUpdater, version)}`;

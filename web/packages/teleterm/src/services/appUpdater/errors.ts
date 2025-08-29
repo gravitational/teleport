@@ -22,9 +22,9 @@
  * Kept in a separate file to allow importing in the renderer process.
  */
 export class UnsupportedVersionError extends Error {
-  constructor(minVersion: string) {
+  constructor(wantedVersion: string, minVersion: string) {
     super(
-      `Teleport Connect cannot update to this version. Managed updates are supported in version ${minVersion} and later.`
+      `Teleport Connect cannot update to version ${wantedVersion}. Managed updates are supported in version ${minVersion} and later.`
     );
     this.name = 'UnsupportedVersionError';
   }
