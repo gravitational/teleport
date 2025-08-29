@@ -9,7 +9,16 @@ labels:
  - platform-wide
 ---
 
+import applicationSvg from "@site/src/components/Icon/teleport-svg/application.svg";
+import linuxServersSvg from "@site/src/components/Icon/teleport-svg/linux-servers.svg";
+import databaseSvg from "@site/src/components/Icon/teleport-svg/database-access.svg";
+import kubernetesClustersSvg from "@site/src/components/Icon/teleport-svg/kubernetes-clusters.svg";
+import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-desktops.svg";
+import autoDiscoverySvg from "@site/src/components/Icon/teleport-svg/auto-discovery.svg";
+import cloudProvidersSvg from "@site/src/components/Icon/teleport-svg/cloud-providers.svg";
+import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
 import DocsHeader, { DocsHeaderProps } from "@site/src/components/Pages/Homepage/DocsHeader";
+import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/Resources";
 
 <DocsHeader
   quickActions={[
@@ -40,6 +49,59 @@ You can quickly see how Teleport works by following our [Get
 Started](./get-started.mdx) guide to enroll your first resource with Teleport.
 
 (!docs/pages/includes/homepage/products.mdx!)
+
+<Resources
+  resources={[
+    {
+      title: 'Applications',
+      description: 'Protect web apps, TCP apps, and Cloud APIs',
+      iconComponent: applicationSvg,
+      href: './enroll-resources/application-access/'
+    },
+    {
+      title: 'Linux Servers',
+      description: 'Secure Linux servers and OpenSSH servers',
+      iconComponent: linuxServersSvg,
+      href: './enroll-resources/server-access/'
+    },
+    {
+      title: 'Databases',
+      description: 'AWS, Azure, Google Cloud, cloud DB platforms, & more',
+      iconComponent: databaseSvg,
+      href: './enroll-resources/database-access/'
+    },
+    {
+      title: 'Kubernetes Clusters',
+      description: 'Kubernetes clusters and the apps running in them',
+      iconComponent: kubernetesClustersSvg,
+      href: './enroll-resources/kubernetes-access/'
+    },
+    {
+      title: 'Windows Desktops',
+      description: 'With or without Active Directory',
+      iconComponent: windowsDesktopsSvg,
+      href: './enroll-resources/desktop-access/'
+    },
+    {
+      title: 'Auto-Discovery of Resources',
+      description: 'SSH servers, databases, Kubernetes clusters and apps',
+      iconComponent: autoDiscoverySvg,
+      href: './enroll-resources/auto-discovery/'
+    },
+    {
+      title: 'Cloud Providers',
+      description: 'AWS, Azure, and Google Cloud consoles and CLI',
+      iconComponent: cloudProvidersSvg,
+      href: './enroll-resources/application-access/cloud-apis/'
+    },
+    {
+      title: 'MCP and AI Agents',
+      description: 'Secure agentic AI connections to databases & MCP servers',
+      iconComponent: mcpAndAiSvg,
+      href: './enroll-resources/mcp-access/'
+    }
+  ]}
+/>
 
 ## Architecture
 
