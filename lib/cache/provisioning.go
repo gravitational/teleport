@@ -25,8 +25,9 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 type principalStateIndex string
@@ -48,26 +49,8 @@ func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.W
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
-			var page pagination.PageRequestToken
-			var resources []*provisioningv1.PrincipalState
-			for {
-				var resourcesPage []*provisioningv1.PrincipalState
-				var err error
-
-				resourcesPage, nextPage, err := upstream.ListProvisioningStatesForAllDownstreams(ctx, 0, &page)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, resourcesPage...)
-
-				if nextPage == "" {
-					break
-				}
-				page.Update(nextPage)
-			}
-
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListProvisioningStatesForAllDownstreams))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *provisioningv1.PrincipalState {
 			return &provisioningv1.PrincipalState{
@@ -99,17 +82,12 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	return out, trace.Wrap(err)
 }
 
-func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, req *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisioningStatesForAllDownstreams")
 	defer span.End()
 
-	nextToken, err := req.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	out, next, err := c.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, nextToken)
-	return out, pagination.NextPageToken(next), trace.Wrap(err)
+	out, next, err := c.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
 }
 
 func (c *Cache) ListProvisioningStatesForAllDownstreams2(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
