@@ -11501,3 +11501,80 @@ func TestPingWithSAMLURL(t *testing.T) {
 		})
 	}
 }
+
+func TestGetLocksV2(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	clusterName := env.server.ClusterName()
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+	endpoint := pack.clt.Endpoint("v2", "webapi", "sites", clusterName, "locks")
+
+	locks := []types.Lock{
+		newLock(t, "test-lock-1", false, types.LockTarget{User: "test-user-1"}),
+		newLock(t, "test-lock-2", false, types.LockTarget{Role: "test-role-1"}),
+		newLock(t, "test-lock-3", false, types.LockTarget{Login: "test-login-1"}),
+		newLock(t, "test-lock-4", false, types.LockTarget{MFADevice: "test-mfa-1"}),
+		newLock(t, "test-lock-5", false, types.LockTarget{WindowsDesktop: "test-win-1"}),
+		newLock(t, "test-lock-6", false, types.LockTarget{Device: "test-device-1"}),
+		newLock(t, "test-lock-7", false, types.LockTarget{ServerID: "test-server-1"}),
+		newLock(t, "test-lock-8", false, types.LockTarget{BotInstanceID: "test-instance-1"}),
+		newLock(t, "test-lock-9", false, types.LockTarget{JoinToken: "test-token-1"}),
+
+		newLock(t, "test-lock-10", true, types.LockTarget{
+			User: "test-user-1",
+			Role: "test-role-1",
+		}),
+	}
+
+	for _, l := range locks {
+		err := env.server.Auth().UpsertLock(ctx, l)
+		require.NoError(t, err)
+	}
+
+	// Without filters - returns all items
+	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	resp := GetClusterLocksV2Response{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Locks, len(locks))
+
+	// With target filter - returns partial matching items also
+	re, err = pack.clt.Get(ctx, endpoint, url.Values{
+		"target": []string{"user|test-user-1", "login|test-login-1"},
+	})
+	require.NoError(t, err)
+	resp = GetClusterLocksV2Response{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Locks, 3)
+
+	// With target filter and in_force_only - returns only non-expired items
+	re, err = pack.clt.Get(ctx, endpoint, url.Values{
+		"target":        []string{"user|test-user-1"},
+		"in_force_only": []string{"true"},
+	})
+	require.NoError(t, err)
+	resp = GetClusterLocksV2Response{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Locks, 1)
+}
+
+func newLock(t *testing.T, name string, expired bool, target types.LockTarget) types.Lock {
+	t.Helper()
+
+	expires := time.Now()
+	if expired {
+		expires = expires.Add(-time.Hour)
+	} else {
+		expires = expires.Add(time.Hour)
+	}
+
+	lock, err := types.NewLock(name, types.LockSpecV2{
+		Target:  target,
+		Expires: &expires,
+	})
+	require.NoError(t, err)
+
+	return lock
+}
