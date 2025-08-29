@@ -5582,3 +5582,15 @@ func (c *Client) DeleteHealthCheckConfig(ctx context.Context, name string) error
 	)
 	return trace.Wrap(err)
 }
+
+// ValidateTrustedCluster is called by the proxy on behalf of a cluster that
+// wishes to join this one as a leaf cluster.
+func (c *Client) ValidateTrustedCluster(
+	ctx context.Context, validateRequest *proto.ValidateTrustedClusterRequest,
+) (*proto.ValidateTrustedClusterResponse, error) {
+	resp, err := c.grpc.ValidateTrustedCluster(ctx, validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
