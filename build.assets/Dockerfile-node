@@ -46,11 +46,10 @@ RUN apt-get -y update && \
     python3-pip \
     python3-setuptools \
     python3-wheel \
+    binaryen \
     # Used during tag builds to build the RPM package of Connect.
     rpm \
     && \
-    # Manually install the wasm-opt binary from the binaryen package on ARM64.
-    if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
