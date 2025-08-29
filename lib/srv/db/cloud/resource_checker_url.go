@@ -98,16 +98,17 @@ func convIsEndpoint(isEndpoint isEndpointFunc) checkDatabaseFunc {
 // Check permforms url checks.
 func (c *urlChecker) Check(ctx context.Context, database types.Database) error {
 	checkersByDatabaseType := map[string]checkDatabaseFunc{
-		types.DatabaseTypeRDS:                c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
-		types.DatabaseTypeRDSOracle:          c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
-		types.DatabaseTypeRDSProxy:           c.checkAWS(c.checkRDSProxy, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
-		types.DatabaseTypeRedshift:           c.checkAWS(c.checkRedshift, convIsEndpoint(apiawsutils.IsRedshiftEndpoint)),
-		types.DatabaseTypeRedshiftServerless: c.checkAWS(c.checkRedshiftServerless, convIsEndpoint(apiawsutils.IsRedshiftServerlessEndpoint)),
-		types.DatabaseTypeElastiCache:        c.checkAWS(c.checkElastiCache, convIsEndpoint(apiawsutils.IsElastiCacheEndpoint)),
-		types.DatabaseTypeMemoryDB:           c.checkAWS(c.checkMemoryDB, convIsEndpoint(apiawsutils.IsMemoryDBEndpoint)),
-		types.DatabaseTypeOpenSearch:         c.checkAWS(c.checkOpenSearch, c.checkOpenSearchEndpoint),
-		types.DatabaseTypeDocumentDB:         c.checkAWS(c.checkDocumentDB, convIsEndpoint(apiawsutils.IsDocumentDBEndpoint)),
-		types.DatabaseTypeAzure:              c.checkAzure,
+		types.DatabaseTypeRDS:                   c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
+		types.DatabaseTypeRDSOracle:             c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
+		types.DatabaseTypeRDSProxy:              c.checkAWS(c.checkRDSProxy, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
+		types.DatabaseTypeRedshift:              c.checkAWS(c.checkRedshift, convIsEndpoint(apiawsutils.IsRedshiftEndpoint)),
+		types.DatabaseTypeRedshiftServerless:    c.checkAWS(c.checkRedshiftServerless, convIsEndpoint(apiawsutils.IsRedshiftServerlessEndpoint)),
+		types.DatabaseTypeElastiCache:           c.checkAWS(c.checkElastiCache, convIsEndpoint(apiawsutils.IsElastiCacheEndpoint)),
+		types.DatabaseTypeElastiCacheServerless: c.checkAWS(c.checkElastiCacheServerless, convIsEndpoint(apiawsutils.IsElastiCacheServerlessEndpoint)),
+		types.DatabaseTypeMemoryDB:              c.checkAWS(c.checkMemoryDB, convIsEndpoint(apiawsutils.IsMemoryDBEndpoint)),
+		types.DatabaseTypeOpenSearch:            c.checkAWS(c.checkOpenSearch, c.checkOpenSearchEndpoint),
+		types.DatabaseTypeDocumentDB:            c.checkAWS(c.checkDocumentDB, convIsEndpoint(apiawsutils.IsDocumentDBEndpoint)),
+		types.DatabaseTypeAzure:                 c.checkAzure,
 	}
 
 	if check := checkersByDatabaseType[database.GetType()]; check != nil {

@@ -2384,7 +2384,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	testCtx.fakeCluster = reversetunnelclient.NewFakeCluster(testCtx.clusterName, proxyAuthClient)
 	t.Cleanup(func() { require.NoError(t, testCtx.fakeCluster.Close()) })
 	tunnel := &reversetunnelclient.FakeServer{
-		Clusters: []reversetunnelclient.Cluster{
+		FakeClusters: []reversetunnelclient.Cluster{
 			testCtx.fakeCluster,
 		},
 	}
@@ -3343,6 +3343,46 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 				Region: "us-west-1",
 				ElastiCache: types.ElastiCache{
 					ReplicationGroupID: "example-cluster",
+				},
+			},
+			// Set CA cert to pass cert validation.
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withElastiCacheServerlessRedis(name string, token, engineVersion string) withDatabaseOption {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, redis.TestServerPassword(token))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				"engine-version": engineVersion,
+			},
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				Region: "us-west-1",
+				ElastiCacheServerless: types.ElastiCacheServerless{
+					CacheName: "example-cache",
 				},
 			},
 			// Set CA cert to pass cert validation.

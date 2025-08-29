@@ -95,6 +95,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata/recordingmetadatav1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
@@ -2198,9 +2200,10 @@ func (process *TeleportProcess) initAuthService() error {
 				LockNameComponents: []string{"recording_encryption"},
 			},
 		},
+		InitialSessionRecordingConfig: cfg.Auth.SessionRecordingConfig,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "initializing session recording encryption")
 	}
 
 	clusterConfig = recordingEncryptionManager
@@ -2214,6 +2217,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	sessionSummarizerProvider := summarizer.NewSessionSummarizerProvider()
+	recordingMetadataProvider := recordingmetadata.NewProvider()
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
@@ -2255,6 +2259,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Uploader:                  uploadHandler,
 			Encrypter:                 encryptedIO,
 			SessionSummarizerProvider: sessionSummarizerProvider,
+			RecordingMetadataProvider: recordingMetadataProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2464,6 +2469,15 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
+
+	recordingMetadataService, err := recordingmetadatav1.NewRecordingMetadataService(recordingmetadatav1.RecordingMetadataServiceConfig{
+		Streamer:      authServer,
+		UploadHandler: authServer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	recordingMetadataProvider.SetService(recordingMetadataService)
 
 	process.setLocalAuth(authServer)
 
@@ -3303,7 +3317,7 @@ func (process *TeleportProcess) initSSH() error {
 			Component:      teleport.ComponentNode,
 			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id, "sessionctrl")),
 			TracerProvider: process.TracingProvider,
-			ServerID:       cfg.HostUUID,
+			ServerID:       conn.HostUUID(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3319,7 +3333,7 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.AdvertiseIP,
 			process.proxyPublicAddr(),
 			conn.Client,
-			regular.SetUUID(cfg.HostUUID),
+			regular.SetUUID(conn.HostUUID()),
 			regular.SetLimiter(limiter),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),
@@ -3373,7 +3387,7 @@ func (process *TeleportProcess) initSSH() error {
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
 			resumableServer = resumption.NewSSHServerWrapper(resumption.SSHServerWrapperConfig{
 				SSHServer: s.HandleConnection,
-				HostID:    cfg.HostUUID,
+				HostID:    conn.HostUUID(),
 				DataDir:   cfg.DataDir,
 			})
 
@@ -4000,23 +4014,39 @@ func (process *TeleportProcess) initTracingService() error {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentTracing, process.id))
 	logger.InfoContext(process.ExitContext(), "Initializing tracing provider and exporter.")
 
-	attrs := []attribute.KeyValue{
+	staticAttrs := []attribute.KeyValue{
 		attribute.String(tracing.ProcessIDKey, process.id),
 		attribute.String(tracing.HostnameKey, process.Config.Hostname),
-		attribute.String(tracing.HostIDKey, process.Config.HostUUID),
 	}
 
-	traceConf, err := process.Config.Tracing.Config(attrs...)
+	traceConf, err := process.Config.Tracing.Config(staticAttrs...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	traceConf.Logger = process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentTracing, process.id))
+	// Host UUID is not ready at this point, it will be reported to the tracing
+	// provider in the goroutine below.
+	traceConf.WaitForDelayedResourceAttrs = true
 
 	provider, err := tracing.NewTraceProvider(process.ExitContext(), *traceConf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	process.TracingProvider = provider
+
+	go func() {
+		var delayedResourceAttrs []attribute.KeyValue
+		hostUUID, err := process.waitForHostID(process.GracefulExitContext())
+		if err != nil {
+			logger.WarnContext(process.ExitContext(), "Failed to get host UUID, traces may be exported without host UUID attribute", "error", err)
+		} else {
+			delayedResourceAttrs = append(delayedResourceAttrs,
+				attribute.String(tracing.HostIDKey, hostUUID))
+		}
+		if err := process.TracingProvider.SetDelayedResourceAttrs(process.GracefulExitContext(), delayedResourceAttrs); err != nil {
+			logger.WarnContext(process.ExitContext(), "Failed to report delayed resource attributes to tracing provider", "error", err)
+		}
+	}()
 
 	process.OnExit("tracing.shutdown", func(payload any) {
 		if payload == nil {
@@ -4969,7 +4999,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:      clusterName,
 			LocalAccessPoint: accessPoint,
-			SiteGetter:       tsrv,
+			ClusterGetter:    tsrv,
 			TracerProvider:   process.TracingProvider,
 			Logger:           process.logger.With(teleport.ComponentKey, "router"),
 		})
@@ -5947,10 +5977,10 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 			return nil, trace.ConvertSystemError(err)
 		}
 		hostChecker, err := newHostPolicyChecker(hostPolicyCheckerConfig{
-			publicAddrs: process.Config.Proxy.PublicAddrs,
-			clt:         conn.Client,
-			tun:         tsrv,
-			clusterName: conn.ClusterName(),
+			publicAddrs:   process.Config.Proxy.PublicAddrs,
+			clt:           conn.Client,
+			clusterGetter: tsrv,
+			clusterName:   conn.ClusterName(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

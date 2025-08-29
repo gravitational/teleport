@@ -558,7 +558,7 @@ func (m *Manager) GetDecrypter(ctx context.Context, keyPair *types.EncryptionKey
 		if !canUse {
 			continue
 		}
-		pub, err := keys.ParsePublicKey(keyPair.PublicKey)
+		pub, err := x509.ParsePKIXPublicKey(keyPair.PublicKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -761,7 +761,7 @@ func (m *Manager) newEncryptionKeyPair(ctx context.Context, alg cryptosuites.Alg
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	publicKey, err := keys.MarshalPublicKey(decrypter.Public())
+	publicKey, err := x509.MarshalPKIXPublicKey(decrypter.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

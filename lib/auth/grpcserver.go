@@ -5824,6 +5824,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Uploader:   cfg.AuthServer.Services,
+		KeyRotater: cfg.AuthServer.Services,
 		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
 	})
 	if err != nil {
@@ -5953,8 +5954,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			cfg.AuthServer,
 			cfg.Authorizer,
 		),
-		Streamer:      cfg.AuthServer,
-		UploadHandler: cfg.AuthServer,
+		Streamer:        cfg.AuthServer,
+		DownloadHandler: cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating recording metadata service")
