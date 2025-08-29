@@ -363,6 +363,7 @@ func (b *Bot) buildHeartbeatService(
 		),
 		StatusReporter: statusRegistry.AddService("heartbeat", "internal/heartbeat"),
 		StatusRegistry: statusRegistry,
+		BotConfig:      b.cfg.RawConfig,
 	})
 }
 
