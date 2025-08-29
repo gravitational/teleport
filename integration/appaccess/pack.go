@@ -914,16 +914,16 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID, configs[i].Apps.Apps)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, configs[i].Apps.Apps)
 	}
 
 	return servers
 }
 
-func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name string, hostUUID string, apps []servicecfg.App) {
+func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name string, apps []servicecfg.App) {
 	// Make sure that the app server is ready to accept connections.
 	// The remote site cache needs to be filled with new registered application services.
-	waitForAppInClusterCache(t, tunnel, name, apps, hostUUID)
+	waitForAppInClusterCache(t, tunnel, name, apps)
 }
 
 func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
@@ -1059,13 +1059,13 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID, configs[i].Apps.Apps)
+		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, configs[i].Apps.Apps)
 	}
 
 	return servers
 }
 
-func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App, hostUUID string) {
+func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App) {
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cluster, err := server.Cluster(ctx, clusterName)
