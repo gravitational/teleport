@@ -16,7 +16,6 @@ import (
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -40,11 +39,11 @@ func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assertSCIMUsers(t.Context(), c, mockSCIM, "alice", "bob")
 
-		accounts, _, err := auth.ListIdentityCenterAccounts(t.Context(), 0, &pagination.PageRequestToken{})
+		accounts, _, err := auth.ListIdentityCenterAccounts2(t.Context(), 0, "")
 		require.NoError(c, err)
 		require.Len(c, mockIC.Accounts, len(accounts))
 
-		permissionSet, _, err := auth.ListPermissionSets(t.Context(), 0, &pagination.PageRequestToken{})
+		permissionSet, _, err := auth.ListPermissionSets2(t.Context(), 0, "")
 		require.NoError(c, err)
 		require.Len(c, mockIC.PermissionSets, len(permissionSet))
 
@@ -59,7 +58,7 @@ func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
 	})
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		accounts, _, err := auth.ListIdentityCenterAccounts(t.Context(), 0, &pagination.PageRequestToken{})
+		accounts, _, err := auth.ListIdentityCenterAccounts2(t.Context(), 0, "")
 		require.NoError(c, err)
 		require.Len(c, accounts, 1)
 
