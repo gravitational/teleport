@@ -1900,7 +1900,7 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-bindgen
+ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt
 
 # Get the version of wasm-bindgen from cargo. The buildboxes do not
 # have jq installed (yet), so have a hacky awk version on standby.
@@ -1929,6 +1929,10 @@ else
 	)
 endif
 endif
+
+.PHONY: ensure-wasm-opt
+ensure-wasm-opt:
+	cargo install wasm-opt
 
 .PHONY: build-ui
 build-ui: ensure-js-deps ensure-wasm-deps
