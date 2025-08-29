@@ -164,21 +164,20 @@ function Enable-Node {
     }
 }
 
-function Install-WasmPack {
+function Install-WasmDeps {
     <#
     .SYNOPSIS
-        Builds and installs wasm-pack and dependent tooling.
+        Builds and installs wasm-bindgen-cli.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [string] $WasmPackVersion
+        [string] $WasmBindgenVersion
     )
     begin {
-        Write-Host "::group::Installing wasm-pack $WasmPackVersion"
+        Write-Host "::group::Installing wasm-bindgen-cli $WasmBindgenVersion"
         # TODO(camscale): Don't hard-code wasm-binden-cli version
         cargo install wasm-bindgen-cli --locked --version 0.2.99
-        cargo install wasm-pack --locked --version "$WasmPackVersion"
         Write-Host "::endgroup::"
     }
 }
@@ -349,8 +348,8 @@ function Install-BuildRequirements {
         $GoVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-go-version).TrimStart("go")
         Install-Go -GoVersion "$GoVersion" -ToolchainDir "$InstallDirectory"
 
-        $WasmPackVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-wasm-pack-version).Trim()
-        Install-WasmPack -WasmPackVersion "$WasmPackVersion"
+        $WasmBindgenVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-wasm-bindgen-cli-version).Trim()
+        Install-WasmDeps -WasmBindgenVersion "$WasmBindgenVersion"
     }
     Write-Host $("All build requirements installed in {0:g}" -f $CommandDuration)
 }
