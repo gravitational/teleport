@@ -1347,12 +1347,14 @@ func TestBotJoiningURI(t *testing.T) {
 	ctx := context.Background()
 	log := utils.NewSlogLoggerForTests()
 
-	process := testenv.MakeTestServer(
-		t,
-		defaultTestServerOpts(t, log),
-		testenv.WithProxyKube(t),
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
 
 	role, err := types.NewRole("role", types.RoleSpecV6{
 		Allow: types.RoleConditions{
