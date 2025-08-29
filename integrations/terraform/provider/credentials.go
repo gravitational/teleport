@@ -33,7 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
-	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 var supportedCredentialSources = CredentialSources{
@@ -514,20 +515,19 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 		return nil, trace.Wrap(err, "Invalid Join Method")
 	}
 	botConfig := &embeddedtbot.BotConfig{
-		AuthServer:            addr,
-		AuthServerAddressMode: tbotconfig.AllowProxyAsAuthServer,
-		Onboarding: tbotconfig.OnboardingConfig{
+		AuthServer: addr,
+		Onboarding: onboarding.Config{
 			TokenValue: joinToken,
 			CAPath:     caPath,
 			JoinMethod: apitypes.JoinMethod(joinMethod),
-			Terraform: tbotconfig.TerraformOnboardingConfig{
+			Terraform: onboarding.TerraformOnboardingConfig{
 				AudienceTag: audienceTag,
 			},
-			Gitlab: tbotconfig.GitlabOnboardingConfig{
+			Gitlab: onboarding.GitlabOnboardingConfig{
 				TokenEnvVarName: gitlabIDTokenEnvVar,
 			},
 		},
-		CredentialLifetime: tbotconfig.CredentialLifetime{
+		CredentialLifetime: bot.CredentialLifetime{
 			TTL:             time.Hour,
 			RenewalInterval: 20 * time.Minute,
 		},

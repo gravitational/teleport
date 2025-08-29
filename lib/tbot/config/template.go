@@ -47,14 +47,3 @@ const (
 	// certificates
 	TemplateSSHHostCertName = "ssh_host_cert"
 )
-
-// FileDescription is a minimal spec needed to create an empty end-user-owned
-// file with bot-writable ACLs during `tbot init`.
-type FileDescription struct {
-	// Name is the name of the file or directory to create.
-	Name string
-
-	// IsDir designates whether this describes a subdirectory inside the
-	// Destination.
-	IsDir bool
-}

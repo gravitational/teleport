@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 )
 
 // SPIFFESVIDCommand implements `tbot start spiffe-svid` and
@@ -73,12 +74,12 @@ func (c *SPIFFESVIDCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) e
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.SPIFFESVIDOutput{
+	cfg.Services = append(cfg.Services, &legacyspiffe.SVIDOutputConfig{
 		Destination: dest,
-		SVID: config.SVIDRequest{
+		SVID: legacyspiffe.SVIDRequest{
 			Path: c.SVIDPath,
 			Hint: c.SVIDHint,
-			SANS: config.SVIDRequestSANs{
+			SANS: legacyspiffe.SVIDRequestSANs{
 				DNS: c.DNSSANs,
 				IP:  c.IPSANs,
 			},

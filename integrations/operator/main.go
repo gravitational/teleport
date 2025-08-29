@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
-	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
 )
 
 var (
@@ -55,7 +54,6 @@ func main() {
 	}
 	opts.BindFlags(flag.CommandLine)
 	botConfig := &embeddedtbot.BotConfig{}
-	botConfig.AuthServerAddressMode = tbotconfig.AllowProxyAsAuthServer
 	botConfig.BindFlags(flag.CommandLine)
 	flag.Parse()
 

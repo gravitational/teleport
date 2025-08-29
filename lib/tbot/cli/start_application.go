@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 // ApplicationCommand implements `tbot start application` and
@@ -67,7 +68,7 @@ func (c *ApplicationCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) 
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.ApplicationOutput{
+	cfg.Services = append(cfg.Services, &application.OutputConfig{
 		Destination:           dest,
 		AppName:               c.AppName,
 		SpecificTLSExtensions: c.SpecificTLSExtensions,
