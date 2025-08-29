@@ -221,8 +221,6 @@ const cfg = {
     integrationStatusResources:
       '/web/integrations/status/:type/:name/resources/:resourceKind',
     integrationEnroll: '/web/integrations/new/:type?/:subPage?',
-    integrationEnrollChild:
-      '/web/integrations/new/:type/:name/child/:subType/:subPage?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
@@ -418,6 +416,8 @@ const cfg = {
     resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
 
     awsRolesAnywhere: {
+      validate:
+        '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/validate',
       generate:
         '/v1/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=:integrationName?&trustAnchor=:trustAnchor?&syncRole=:syncRole?&syncProfile=:syncProfile',
       ping: '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/ping',
@@ -1379,6 +1379,14 @@ const cfg = {
     return generatePath(cfg.api.resolveUserTaskPath, {
       clusterId,
       name,
+    });
+  },
+
+  getValidateAWSRolesAnywhereIntegrationUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.awsRolesAnywhere.validate, {
+      clusterId,
+      integrationName,
     });
   },
 

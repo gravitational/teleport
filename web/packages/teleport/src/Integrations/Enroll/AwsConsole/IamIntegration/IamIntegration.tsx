@@ -28,11 +28,15 @@ import {
   CardTile,
   Flex,
   H2,
+  H3,
   Link,
   Subtitle2,
 } from 'design';
+import * as Alerts from 'design/Alert';
+import { Danger } from 'design/Alert';
 import { CollapsibleInfoSection } from 'design/CollapsibleInfoSection';
 import { Info, NewTab } from 'design/Icon';
+import { IconTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -42,7 +46,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import { Guide } from 'teleport/Integrations/Enroll/AwsConsole/IamIntegration/Guide';
+import { Guide } from 'teleport/Integrations/Enroll/AwsConsole/Guide';
 import { validTrustAnchorInput } from 'teleport/Integrations/Enroll/AwsConsole/rules';
 import {
   cloudShell,
@@ -65,8 +69,6 @@ export function IamIntegration() {
   const ctx = useTeleport();
   const integrationsAccess = ctx.storeUser.getIntegrationsAccess();
   const canEnroll = integrationsAccess.create;
-  const clusterId = ctx.storeUser.getClusterId();
-  const resourceRoute = cfg.getUnifiedResourcesRoute(clusterId);
 
   const history = useHistory();
   const [phase, setPhase] = useState(Phase.One);
@@ -91,20 +93,60 @@ export function IamIntegration() {
     syncRoleName: 'teleport-aws-roles-anywhere-role',
   });
 
+  const create = useMutation({
+    mutationFn: () =>
+      integrationService
+        .createIntegration({
+          name: formState.integrationName,
+          kind: IntegrationKind.AwsRa,
+          subKind: IntegrationKind.AwsRa,
+          awsRa: {
+            trustAnchorARN: output.trustAnchorArn,
+            profileSyncConfig: {
+              enabled: false, // must be false for creation; otherwise profiles will sync before configuration on the next page
+              profileArn: output.syncProfileArn,
+              roleArn: output.syncRoleArn,
+              filters: [], // will be added in configuration step
+            },
+          },
+        })
+        .then(data => data),
+    onSuccess: () => {
+      history.push(
+        cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'access'),
+        {
+          integrationName: formState.integrationName,
+          trustAnchorArn: output.trustAnchorArn,
+          syncProfileArn: output.syncProfileArn,
+          syncRoleArn: output.syncRoleArn,
+        }
+      );
+    },
+  });
+
+  const validateName = useMutation({
+    mutationFn: () =>
+      integrationService
+        .validateAWSRolesAnywhereIntegration(formState.integrationName)
+        .then(data => data),
+    onSuccess: () => {
+      setScriptUrl(
+        cfg.getAwsRolesAnywhereGenerateUrl(
+          formState.integrationName,
+          formState.trustAnchorName,
+          formState.syncRoleName,
+          formState.syncProfileName
+        )
+      );
+      setPhase(Phase.Two);
+    },
+  });
+
   function generateCommand(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
-
-    setScriptUrl(
-      cfg.getAwsRolesAnywhereGenerateUrl(
-        formState.integrationName,
-        formState.trustAnchorName,
-        formState.syncRoleName,
-        formState.syncProfileName
-      )
-    );
-    setPhase(Phase.Two);
+    validateName.mutate();
   }
 
   const manageAction = {
@@ -186,7 +228,7 @@ export function IamIntegration() {
         <H2>AWS CLI / Console Access</H2>
         <InfoGuideButton
           config={{
-            guide: <Guide resourcesRoute={resourceRoute} />,
+            guide: <Guide />,
           }}
         />
       </Flex>
@@ -221,7 +263,6 @@ export function IamIntegration() {
               </Flex>
               <Flex flexDirection="column" gap={1} maxWidth={500}>
                 <FieldInput
-                  readonly={phase !== Phase.One}
                   label="Integration Name"
                   placeholder="teleport-aws-prod"
                   rule={requiredField('Name is required')}
@@ -235,13 +276,12 @@ export function IamIntegration() {
                 />
               </Flex>
               <CollapsibleInfoSection
-                openLabel="Optionally edit Trust Anchor, IAM Role and Profile Names"
-                closeLabel="Edit Trust Anchor, IAM Role and Profile Names"
+                openLabel="Optionally edit resource names that will be created in AWS"
+                closeLabel="Edit resource names that will be created in AWS"
               >
                 <Flex flexDirection="column" gap={1} maxWidth={500}>
                   <FieldInput
-                    readonly={phase !== Phase.One}
-                    label="Trust Anchor Name"
+                    label="IAM Roles Anywhere Trust Anchor Name"
                     placeholder=""
                     value={formState.trustAnchorName}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
@@ -252,8 +292,7 @@ export function IamIntegration() {
                     }}
                   />
                   <FieldInput
-                    readonly={phase !== Phase.One}
-                    label="AWS IAM Role Name *"
+                    label="IAM Role Name (used for profile synchronization)"
                     placeholder=""
                     value={formState.syncRoleName}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
@@ -264,8 +303,7 @@ export function IamIntegration() {
                     }}
                   />
                   <FieldInput
-                    readonly={phase !== Phase.One}
-                    label="Roles Anywhere Profile Name *"
+                    label="IAM Roles Anywhere Profile Name (used for profile synchronization)"
                     placeholder=""
                     value={formState.syncProfileName}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
@@ -277,19 +315,74 @@ export function IamIntegration() {
                   />
                 </Flex>
               </CollapsibleInfoSection>
-              <ButtonPrimary
-                width="200px"
-                disabled={phase !== Phase.One}
-                onClick={() => generateCommand(validator)}
-              >
-                Generate Command
-              </ButtonPrimary>
+              {validateName.status === 'error' && validateName.error && (
+                <Danger details={validateName.error.message}>
+                  Error: {validateName.error.name}
+                </Danger>
+              )}
+              {phase === Phase.One ? (
+                <ButtonPrimary
+                  disabled={
+                    create.status == 'pending' ||
+                    validateName.status == 'pending' ||
+                    testCfg.status == 'pending'
+                  }
+                  width="200px"
+                  onClick={() => generateCommand(validator)}
+                >
+                  Generate Command
+                </ButtonPrimary>
+              ) : (
+                <ButtonSecondary
+                  disabled={
+                    create.status == 'pending' ||
+                    validateName.status == 'pending' ||
+                    testCfg.status == 'pending'
+                  }
+                  width="200px"
+                  onClick={() => generateCommand(validator)}
+                >
+                  Generate Command
+                </ButtonSecondary>
+              )}
             </CardTile>
             {phase !== Phase.One && (
               <>
                 <CardTile>
                   <Flex flexDirection="column">
-                    <H2>Step 2: Create Roles Anywhere Trust Anchor</H2>
+                    <Flex gap={1} alignItems="center">
+                      <H2>Step 2: Create Roles Anywhere Trust Anchor</H2>
+                      <IconTooltip sticky={true} maxWidth={800}>
+                        <H3 mb={2}>
+                          Running the command in AWS CloudShell does the
+                          following:
+                        </H3>
+                        <ol>
+                          <li>
+                            Configures a new IAM Roles Anywhere which trusts
+                            your Teleport Cluster.
+                          </li>
+                          <li>Configures an IAM Role named {`<xyz>`} that:</li>
+                          <ul>
+                            <li>
+                              Can be used by the AWS IAM Roles Anywhere Trust
+                              Anchor created above
+                            </li>
+                            <li>Allows the usage of the following APIs:</li>
+                            <ul>
+                              <li>rolesanywhere:ListProfiles</li>
+                              <li>rolesanywhere:ListTagsForResource</li>
+                              <li>rolesanywhere:ImportCrl</li>
+                              <li>iam:GetRole</li>
+                            </ul>
+                          </ul>
+                          <li>
+                            Creates a new IAM Roles Anywhere Profile which can
+                            use the Role above
+                          </li>
+                        </ol>
+                      </IconTooltip>
+                    </Flex>
                     <Subtitle2>
                       Open{' '}
                       <Link href={cloudShell} target="_blank">
@@ -336,34 +429,53 @@ export function IamIntegration() {
                     placeholder={`:trust-anchor/\n:profile/\n:role/\n`}
                     rule={validTrustAnchorInput}
                   />
-                  <ButtonPrimary
-                    width="200px"
-                    onClick={() => testCfg.mutate()}
-                    disabled={!sync || phase !== Phase.Two || !validInput}
-                  >
-                    Test Configuration
-                  </ButtonPrimary>
+                  {phase === Phase.Two ? (
+                    <ButtonPrimary
+                      width="200px"
+                      onClick={() => testCfg.mutate()}
+                      disabled={
+                        !sync ||
+                        !validInput ||
+                        create.status == 'pending' ||
+                        validateName.status == 'pending' ||
+                        testCfg.status == 'pending'
+                      }
+                    >
+                      Test Configuration
+                    </ButtonPrimary>
+                  ) : (
+                    <ButtonSecondary
+                      width="200px"
+                      onClick={() => testCfg.mutate()}
+                      disabled={
+                        !sync ||
+                        !validInput ||
+                        create.status == 'pending' ||
+                        validateName.status == 'pending' ||
+                        testCfg.status == 'pending'
+                      }
+                    >
+                      Test Configuration
+                    </ButtonSecondary>
+                  )}
                   {alert && alert}
                 </CardTile>
               </>
             )}
+            {create.error && (
+              <Alerts.Danger details={create.error?.message}>
+                Error: {create.error.name}
+              </Alerts.Danger>
+            )}
             <Flex gap={3}>
               <ButtonPrimary
                 width="200px"
-                disabled={phase !== Phase.Three}
-                onClick={() =>
-                  history.push(
-                    cfg.getIntegrationEnrollRoute(
-                      IntegrationKind.AWSRa,
-                      'access'
-                    ),
-                    {
-                      integrationName: formState.integrationName,
-                      trustAnchorArn: output.trustAnchorArn,
-                      syncRoleArn: output.syncRoleArn,
-                      syncProfileArn: output.syncProfileArn,
-                    }
-                  )
+                onClick={() => create.mutate()}
+                disabled={
+                  phase !== Phase.Three ||
+                  create.status == 'pending' ||
+                  validateName.status == 'pending' ||
+                  testCfg.status == 'pending'
                 }
               >
                 Next: Configure Access
