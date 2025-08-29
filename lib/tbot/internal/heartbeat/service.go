@@ -29,7 +29,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -38,6 +40,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
+
+// MaxConfigSize is the maximum size of the protobuf-serialized bot configuration
+// that we will include in heartbeats.
+const MaxConfigSize = 1 << 20 // 1MiB
 
 // Client for the heartbeat service.
 type Client interface {
@@ -83,6 +89,10 @@ type Config struct {
 
 	// Clock that will be used to determine the current time.
 	Clock clockwork.Clock
+
+	// BotConfig is the bot's configuration, which will be sent in the first
+	// heartbeat after startup.
+	BotConfig *structpb.Struct
 }
 
 // CheckAndSetDefaults checks the service configuration and sets any default values.
@@ -193,6 +203,13 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 		ServiceHealth: s.cfg.StatusRegistry.ToProto(),
 	}
 
+	// Only send the config in the first heartbeat, as `tbot` does not support
+	// dynamically reloading configuration so there's no point wasting bandwidth
+	// sending it every time.
+	if isStartup && proto.Size(s.cfg.BotConfig) <= MaxConfigSize {
+		hb.Config = s.cfg.BotConfig
+	}
+
 	_, err = s.cfg.Client.SubmitHeartbeat(ctx, &machineidv1pb.SubmitHeartbeatRequest{
 		Heartbeat: hb,
 	})
@@ -200,7 +217,7 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 		return trace.Wrap(err, "submitting heartbeat")
 	}
 
-	s.cfg.Logger.DebugContext(ctx, "Sent heartbeat", "data", hb.String())
+	s.cfg.Logger.InfoContext(ctx, "Sent heartbeat", "data", hb.String())
 	return nil
 }
 

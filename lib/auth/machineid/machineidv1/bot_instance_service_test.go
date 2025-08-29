@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -245,6 +246,9 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 	const botName = "test-bot"
 	const botInstanceID = "123-456"
 
+	botCfg, err := structpb.NewStruct(map[string]any{"foo": "bar"})
+	require.NoError(t, err)
+
 	goodIdentity := tlsca.Identity{
 		BotName:       botName,
 		BotInstanceID: botInstanceID,
@@ -264,6 +268,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			req: &machineidv1.SubmitHeartbeatRequest{
 				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
 					Hostname: "llama",
+					Config:   botCfg,
 				},
 			},
 			identity:      goodIdentity,
@@ -373,6 +378,15 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 							tt.req.Heartbeat,
 							protocmp.Transform()),
 					)
+					if tt.req.Heartbeat.Config != nil {
+						assert.Empty(
+							t,
+							cmp.Diff(
+								bi.Status.Config,
+								tt.req.Heartbeat.Config,
+								protocmp.Transform()),
+						)
+					}
 				} else {
 					assert.Nil(t, bi.Status.InitialHeartbeat)
 					assert.Empty(t, bi.Status.LatestHeartbeats)

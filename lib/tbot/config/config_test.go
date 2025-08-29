@@ -27,9 +27,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/structpb"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -564,6 +568,143 @@ func TestBotConfig_NameValidation(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			t.Parallel()
 			require.ErrorContains(t, tc.cfg.CheckAndSetDefaults(), tc.err)
+		})
+	}
+}
+
+func TestToProtoStruct(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]struct {
+		in  *BotConfig
+		out map[string]any
+	}{
+		"full": {
+			in: &BotConfig{
+				Version: V2,
+				Onboarding: onboarding.Config{
+					JoinMethod: types.JoinMethodAzure,
+					TokenValue: "azure-join-token",
+				},
+				Storage: &StorageConfig{
+					Destination: destination.NewMemory(),
+				},
+				AuthServer: "test.teleport.sh:443",
+				JoinURI:    "my-join-uri",
+				Services: ServiceConfigs{
+					&identity.OutputConfig{
+						Destination: &destination.Directory{
+							Path: "/path/to/destination",
+						},
+					},
+				},
+			},
+			out: map[string]any{
+				"version": "v2",
+				"onboarding": map[string]any{
+					"join_method": "azure",
+					"token":       "azure-join-token",
+				},
+				"storage": map[string]any{
+					"type": "memory",
+				},
+				"services": []any{
+					map[string]any{
+						"type":       "identity",
+						"ssh_config": "on",
+						"destination": map[string]any{
+							"type":     "directory",
+							"path":     "/path/to/destination",
+							"symlinks": "try-secure",
+							"acls":     "off",
+						},
+					},
+				},
+				"auth_server":      "test.teleport.sh:443",
+				"join_uri":         "<redacted>",
+				"debug":            false,
+				"fips":             false,
+				"oneshot":          false,
+				"credential_ttl":   "1h0m0s",
+				"renewal_interval": "20m0s",
+			},
+		},
+		"join token redacted": {
+			in: &BotConfig{
+				Version: V2,
+				Onboarding: onboarding.Config{
+					JoinMethod: types.JoinMethodToken,
+					TokenValue: "super-secret-value",
+				},
+				Storage: &StorageConfig{
+					Destination: destination.NewMemory(),
+				},
+				AuthServer: "test.teleport.sh:443",
+			},
+			out: map[string]any{
+				"version": "v2",
+				"onboarding": map[string]any{
+					"join_method": "token",
+					"token":       "<redacted>",
+				},
+				"storage": map[string]any{
+					"type": "memory",
+				},
+				"auth_server":      "test.teleport.sh:443",
+				"debug":            false,
+				"fips":             false,
+				"oneshot":          false,
+				"credential_ttl":   "1h0m0s",
+				"renewal_interval": "20m0s",
+			},
+		},
+		"bound keypair secret redacted": {
+			in: &BotConfig{
+				Version: V2,
+				Onboarding: onboarding.Config{
+					JoinMethod: types.JoinMethodBoundKeypair,
+					BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
+						RegistrationSecret: "super secret value",
+					},
+				},
+				Storage: &StorageConfig{
+					Destination: destination.NewMemory(),
+				},
+				AuthServer: "test.teleport.sh:443",
+			},
+			out: map[string]any{
+				"version": "v2",
+				"onboarding": map[string]any{
+					"join_method": "bound_keypair",
+					"bound_keypair": map[string]any{
+						"registration_secret": "<redacted>",
+					},
+				},
+				"storage": map[string]any{
+					"type": "memory",
+				},
+				"auth_server":      "test.teleport.sh:443",
+				"debug":            false,
+				"fips":             false,
+				"oneshot":          false,
+				"credential_ttl":   "1h0m0s",
+				"renewal_interval": "20m0s",
+			},
+		},
+	}
+	for desc, tc := range testCases {
+		t.Run(desc, func(t *testing.T) {
+			require.NoError(t, tc.in.CheckAndSetDefaults())
+
+			expected, err := structpb.NewStruct(tc.out)
+			require.NoError(t, err)
+
+			got, err := tc.in.ToProtoStruct()
+			require.NoError(t, err)
+
+			if diff := cmp.Diff(expected, got, protocmp.Transform()); diff != "" {
+				t.Fatal(diff)
+			}
 		})
 	}
 }

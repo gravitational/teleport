@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/structpb"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -615,4 +616,40 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	default:
 		return nil, trace.BadParameter("unrecognized config version %q", version.Version)
 	}
+}
+
+// ToProtoStruct returns a protobuf struct representation of the config, with
+// sensitive fields redacted, to be sent to the auth server in heartbeats.
+func (cfg BotConfig) ToProtoStruct() (*structpb.Struct, error) {
+	// Note: it's important that `cfg` and `cfg.Onboarding` are passed by value
+	// not pointers because we mutate them for redaction.
+	redact := func(s *string) {
+		if *s != "" {
+			*s = "<redacted>"
+		}
+	}
+
+	redact(&cfg.JoinURI)
+	switch cfg.Onboarding.JoinMethod {
+	case types.JoinMethodToken:
+		redact(&cfg.Onboarding.TokenValue)
+	case types.JoinMethodBoundKeypair:
+		redact(&cfg.Onboarding.BoundKeypair.RegistrationSecret)
+	}
+
+	bytes, err := yaml.Marshal(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling config to YAML")
+	}
+
+	var cfgMap map[string]any
+	if err := yaml.Unmarshal(bytes, &cfgMap); err != nil {
+		return nil, trace.Wrap(err, "unmarshaling config from YAML")
+	}
+
+	str, err := structpb.NewStruct(cfgMap)
+	if err != nil {
+		return nil, trace.Wrap(err, "constructing protobuf struct")
+	}
+	return str, nil
 }

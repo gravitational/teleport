@@ -211,7 +211,10 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		}
 		// Append the new heartbeat to the end.
 		instance.Status.LatestHeartbeats = append(instance.Status.LatestHeartbeats, req.Heartbeat)
-
+		// The first heartbeat after startup includes the bot config.
+		if req.Heartbeat.Config != nil {
+			instance.Status.Config = req.Heartbeat.Config
+		}
 		return instance, nil
 	})
 	if err != nil {

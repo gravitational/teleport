@@ -256,6 +256,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}
 	}
 
+	rawCfg, err := b.cfg.ToProtoStruct()
+	if err != nil {
+		b.log.ErrorContext(ctx, "failed to marshal bot configuration for heartbeats", "error", err)
+	}
+
 	bt, err := bot.New(bot.Config{
 		Connection:         b.cfg.ConnectionConfig(),
 		Onboarding:         b.cfg.Onboarding,
@@ -266,6 +271,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		ReloadCh:           b.cfg.ReloadCh,
 		Services:           services,
 		ClientMetrics:      clientMetrics,
+		RawConfig:          rawCfg,
 	})
 	if err != nil {
 		return trace.Wrap(err)

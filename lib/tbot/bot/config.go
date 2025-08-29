@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -63,6 +64,9 @@ type Config struct {
 
 	// ClientMetrics will be used to record the bot's API client metrics.
 	ClientMetrics *prometheus.ClientMetrics
+
+	// RawConfig will be sent to the auth server in the bot's first heartbeat.
+	RawConfig *structpb.Struct
 }
 
 // CheckAndSetDefaults validates the configuration and sets any default values.

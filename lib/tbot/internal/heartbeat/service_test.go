@@ -32,6 +32,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -70,6 +71,9 @@ func TestHeartbeatService(t *testing.T) {
 	reporter := registry.AddService("my-service", "service")
 	reporter.ReportReason(readyz.Unhealthy, "out of bananas")
 
+	botCfg, err := structpb.NewStruct(map[string]any{"foo": "bar"})
+	require.NoError(t, err)
+
 	svc, err := NewService(Config{
 		MinInterval:    time.Second,
 		MaxInterval:    time.Second,
@@ -80,6 +84,7 @@ func TestHeartbeatService(t *testing.T) {
 		Logger:         log,
 		JoinMethod:     types.JoinMethodGitHub,
 		StatusRegistry: registry,
+		BotConfig:      botCfg,
 	})
 	require.NoError(t, err)
 
@@ -114,16 +119,56 @@ func TestHeartbeatService(t *testing.T) {
 					UpdatedAt: timestamppb.New(now),
 				},
 			},
+			Config: botCfg,
 		},
 	}
 	assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
 
 	got = <-fhs.ch
 	want.Heartbeat.IsStartup = false
+	want.Heartbeat.Config = nil
 	assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
 
 	cancel()
 	assert.NoError(t, <-errCh)
+}
+
+func TestHeartbeatService_MassiveConfig(t *testing.T) {
+	t.Parallel()
+
+	log := logtest.NewLogger()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	fhs := &fakeHeartbeatSubmitter{
+		ch: make(chan *machineidv1pb.SubmitHeartbeatRequest, 1),
+	}
+
+	now := time.Date(2024, time.April, 1, 12, 0, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(now)
+
+	botCfg, err := structpb.NewStruct(map[string]any{
+		"large": make([]byte, MaxConfigSize),
+	})
+	require.NoError(t, err)
+
+	svc, err := NewService(Config{
+		MinInterval:    time.Second,
+		MaxInterval:    time.Second,
+		RetryLimit:     3,
+		Client:         fhs,
+		Clock:          clock,
+		StartedAt:      time.Date(2024, time.April, 1, 11, 0, 0, 0, time.UTC),
+		Logger:         log,
+		JoinMethod:     types.JoinMethodGitHub,
+		StatusRegistry: readyz.NewRegistry(),
+		BotConfig:      botCfg,
+	})
+	require.NoError(t, err)
+	require.NoError(t, svc.OneShot(ctx))
+
+	got := <-fhs.ch
+	assert.Nil(t, got.Heartbeat.Config)
 }
 
 func ptr[T any](v T) *T { return &v }

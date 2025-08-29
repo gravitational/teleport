@@ -85,6 +85,11 @@ message BotInstanceStatusHeartbeat {
   string os = 9;
   // The health of the services/output `tbot` is running.
   repeated BotInstanceServiceHealth service_health = 10;
+  // Effective bot configuration, after applying defaults and merging with CLI flags.
+  //
+  // Will typically only be sent if `is_startup` is true, as tbot does not
+  // support dynamic configuration changes.
+  google.protobuf.Struct config = 11;
 }
 
 // BotInstanceHealthStatus describes the healthiness of a `tbot` service.
@@ -175,4 +180,6 @@ message BotInstanceStatus {
   BotInstanceStatusHeartbeat initial_heartbeat = 3;
   // The N most recent heartbeats for this bot instance.
   repeated BotInstanceStatusHeartbeat latest_heartbeats = 4;
+  // Effective bot configuration, taken from the first heartbeat after startup.
+  google.protobuf.Struct config = 11;
 }
