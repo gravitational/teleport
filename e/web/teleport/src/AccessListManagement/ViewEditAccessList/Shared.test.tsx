@@ -9,7 +9,6 @@ import {
 } from './Shared';
 
 describe('getEligibleUsersForAddingNewUsers', () => {
-  // eslint-disable-next-line jest/require-hook
   [
     {
       case: 'empty',
@@ -170,7 +169,6 @@ describe('getEligibleUsersForAddingNewUsers', () => {
 });
 
 describe('getNewAndExistingUsersForAddingNewUsers', () => {
-  // eslint-disable-next-line jest/require-hook
   [
     {
       case: 'empty lists',

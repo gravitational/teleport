@@ -1,7 +1,6 @@
 import { getMemberApprovedMsg } from './Summary';
 
 describe('getMemberApprovedMsg combo', () => {
-  // eslint-disable-next-line jest/require-hook
   [
     {
       case: 'all 0 values',

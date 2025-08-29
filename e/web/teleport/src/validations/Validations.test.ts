@@ -1,7 +1,6 @@
 import { isValidEmail } from 'e-teleport/validations/email';
 
 describe('validations', () => {
-  // eslint-disable-next-line jest/require-hook
   [
     // valid
     { email: 'char@char.char', valid: true },

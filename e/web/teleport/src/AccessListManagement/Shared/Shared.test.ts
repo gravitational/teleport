@@ -15,7 +15,6 @@ import {
 } from './Shared';
 
 describe('matchRoles', () => {
-  // eslint-disable-next-line jest/require-hook
   [
     {
       case: 'empty',
@@ -109,7 +108,6 @@ describe('matchRoles', () => {
 });
 
 describe('matchTraits', () => {
-  // eslint-disable-next-line jest/require-hook
   [
     {
       case: 'empty',
