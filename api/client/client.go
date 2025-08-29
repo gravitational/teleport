@@ -152,8 +152,8 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc AuthServiceClient
-	// JoinServiceClient is a client for the JoinService, which runs on both the
-	// auth and proxy.
+	// JoinServiceClient is a client for the legacy JoinService, which
+	// runs on both the auth and proxy.
 	*JoinServiceClient
 	// closedFlag is set to indicate that the connection is closed.
 	// It's a pointer to allow the Client struct to be copied.
@@ -818,6 +818,11 @@ func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) 
 		return nil, trace.Wrap(err)
 	}
 	return types.DeviceToResource(upserted), nil
+}
+
+// GRPCConn returns the underlying gRPC connection to the Auth service.
+func (c *Client) GRPCConn() *grpc.ClientConn {
+	return c.conn
 }
 
 // ScopedAccessServiceClient returns an unadorned Scoped Access Service client, using the underlying
