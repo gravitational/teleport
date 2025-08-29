@@ -140,6 +140,10 @@ type KubernetesSelector struct {
 	Name string `yaml:"name,omitempty"`
 
 	Labels map[string]string `yaml:"labels,omitempty"`
+
+	// DefaultNamespace specifies the default namespace that should be set in
+	// the resulting kubeconfig context for clusters yielded by this selector.
+	DefaultNamespace string `yaml:"default_namespace,omitempty"`
 }
 
 // String returns a human-readable representation of the selector for logs.

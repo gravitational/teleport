@@ -216,14 +216,14 @@ func (s *ArgoCDOutput) discoverClusters(ctx context.Context) ([]*argoClusterCred
 	}
 	defer impersonatedClient.Close()
 
-	clusters, err := fetchAllMatchingKubeClusters(ctx, impersonatedClient, s.cfg.Selectors)
+	matches, err := fetchAllMatchingKubeClusters(ctx, impersonatedClient, s.cfg.Selectors)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var clusterNames []string
-	for _, c := range clusters {
-		clusterNames = append(clusterNames, c.GetName())
+	for _, m := range matches {
+		clusterNames = append(clusterNames, m.cluster.GetName())
 	}
 	clusterNames = utils.Deduplicate(clusterNames)
 
