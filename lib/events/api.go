@@ -58,6 +58,8 @@ const (
 	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
 	// as a type of captured protocol
 	EventProtocolTDP = "tdp"
+	// EventProtocolDB specifies database as a type of captured protocol
+	EventProtocolDB = "db"
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address

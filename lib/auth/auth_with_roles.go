@@ -218,7 +218,22 @@ func (a *ServerWithRoles) actionWithExtendedContext(ctx context.Context, kind, v
 func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.ID) error {
 	extendContext := func(servicesCtx *services.Context) error {
 		sessionEnd, err := a.findSessionEndEvent(ctx, sid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		servicesCtx.Session = sessionEnd
+		servicesCtx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
+		// AccessCheker is set here to allow access checks to other resources
+		// in the where clause.
+		servicesCtx.AccessChecker = a.context.Checker
+		return nil
+	}
+
+	// First try a simple check without the extended context.
+	if err := a.actionWithContext(&services.Context{User: a.context.User}, types.KindSession, types.VerbRead); err == nil {
+		return nil
+	} else if !trace.IsAccessDenied(err) {
+		// If the error is something other than AccessDenied, return it.
 		return trace.Wrap(err)
 	}
 
@@ -1323,7 +1338,6 @@ func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	default:
 		return trace.Wrap(a.checkAction(apidefaults.Namespace, kind, types.VerbList, types.VerbRead))
 	}
-
 }
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
