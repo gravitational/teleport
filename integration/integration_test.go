@@ -433,7 +433,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// Start a node.
 			nodeConf := suite.defaultServiceConfig()
-			nodeConf.HostUUID = "node"
 			nodeConf.Hostname = "node"
 			nodeConf.SSH.Enabled = true
 			nodeConf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &nodeConf.FileDescriptors)
@@ -796,7 +795,8 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			return "", trace.Wrap(err)
 		}
 
-		return node.Config.HostUUID, nil
+		uuid, err := node.WaitForHostID(t.Context())
+		return uuid, trace.Wrap(err)
 	}
 
 	// add two nodes with the same hostname.
@@ -1409,7 +1409,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 			conf.SetToken("token")
 			conf.Testing.UploadEventsC = i.UploadEventsC
 			conf.SetAuthServerAddress(*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))))
-			conf.HostUUID = name
 			conf.Hostname = name
 			conf.SSH.Enabled = true
 			conf.CachePolicy = servicecfg.CachePolicy{

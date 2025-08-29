@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -154,9 +153,9 @@ func TestHSMRotation(t *testing.T) {
 }
 
 func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, error) {
-	identity, err := storage.ReadLocalIdentity(
+	identity, err := storage.ReadLocalIdentityForRole(
 		filepath.Join(authDataDir, teleport.ComponentProcess),
-		state.IdentityID{Role: types.RoleAdmin})
+		types.RoleAdmin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
