@@ -475,7 +475,7 @@ export class FeatureNewLock implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.newLocks;
+    return flags.addLocks;
   }
 
   // getRoute allows child class extending this

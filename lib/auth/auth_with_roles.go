@@ -6246,7 +6246,7 @@ func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, target
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetLocks(ctx, inForceOnly, targets...)
+	return a.authServer.Cache.GetLocks(ctx, inForceOnly, targets...)
 }
 
 // UpsertLock upserts a lock.
