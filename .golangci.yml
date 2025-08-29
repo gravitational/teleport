@@ -187,6 +187,7 @@ linters:
             - '!**/e/lib/aws/identitycenter/test/**'
             - '!**/e/lib/devicetrust/testenv/**'
             - '!**/e/lib/jamf/testenv/**'
+            - '!**/e/lib/intune/testenv/**'
             - '!**/e/lib/idp/saml/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
@@ -260,6 +261,7 @@ linters:
             - '!**/integrations/lib/testing/integration/authhelper.go'
             - '!**/integrations/lib/testing/integration/suite.go'
             - '!**/integrations/operator/controllers/resources/testlib/**'
+            - '!**/e/lib/intune/testenv/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -273,6 +275,7 @@ linters:
             - '!**/e/lib/devicetrust/storage/storage.go'
             - '!**/e/lib/idp/saml/testenv/**'
             - '!**/e/lib/jamf/testenv/**'
+            - '!**/e/lib/intune/testenv/**'
             - '!**/e/lib/okta/api/oktaapitest/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'

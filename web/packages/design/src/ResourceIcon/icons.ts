@@ -179,6 +179,7 @@ export { default as inkeep } from './assets/inkeep.svg?no-inline';
 export { default as instruqtDark } from './assets/instruqt-dark.svg?no-inline';
 export { default as instruqtLight } from './assets/instruqt-light.svg?no-inline';
 export { default as intellimize } from './assets/intellimize.svg?no-inline';
+export { default as intune } from './assets/intune.svg?no-inline';
 export { default as ipstack } from './assets/ipstack.svg?no-inline';
 export { default as jamf } from './assets/jamf.svg?no-inline';
 export { default as jenkins } from './assets/jenkins.svg?no-inline';

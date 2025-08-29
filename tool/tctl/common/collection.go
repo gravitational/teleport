@@ -1635,6 +1635,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsOpenAI                    = "openai"
 		settingsOkta                      = "okta"
 		settingsJamf                      = "jamf"
+		settingsIntune                    = "intune"
 		settingsPagerDuty                 = "pager_duty"
 		settingsMattermost                = "mattermost"
 		settingsJira                      = "jira"
@@ -1702,6 +1703,8 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Status.Details = &types.PluginStatusV1_Okta{}
 		case settingsJamf:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
+		case settingsIntune:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Intune{}
 		case settingsPagerDuty:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_PagerDuty{}
 		case settingsMattermost:

@@ -99,6 +99,14 @@ export const plugins: Plugin[] = [
   },
   {
     resourceType: 'plugin',
+    name: 'intune',
+    details: '',
+    kind: 'intune',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
     name: 'servicenow',
     details: '',
     kind: 'servicenow',
