@@ -119,7 +119,7 @@ prevent sessions logs from reaching the Auth Service. With sessions recorded at
 the Proxy Service, users with root privileges on nodes have no way of disabling
 the audit.
 
-See the [reference](../monitoring/audit.mdx) to learn how to
+See the [reference](../deployment/monitoring/audit.mdx) to learn how to
 turn on Recording Proxy Mode. Note that the recording mode is configured on the
 Auth Service.
 
@@ -167,7 +167,7 @@ high-latency.
 ## Storage
 
 Session recordings are stored in Teleport's audit sessions backend, which is
-specified by the `audit_sessions_uri` field in the `teleport.yaml` [configuration file](../config.mdx).
+specified by the `audit_sessions_uri` field in the `teleport.yaml` [configuration file](../deployment/config.mdx).
 Teleport current supports the following session storage backends:
 
 - File: stores recordings on the local filesystem. Suitable for dev environments, demos,
@@ -229,5 +229,5 @@ complete it.
 ## Related reading
 
 - [Recording Proxy Mode](../../enroll-resources/server-access/guides/recording-proxy-mode.mdx)
-- [SSH recording modes](../monitoring/audit.mdx)
+- [SSH recording modes](../deployment/monitoring/audit.mdx)
 - [Session recording for desktops](../agent-services/desktop-access-reference/sessions.mdx)

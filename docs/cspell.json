@@ -1097,8 +1097,8 @@
   ],
   "flagWords": ["hte"],
   "ignorePaths": [
-    "**/reference/terraform-provider/**",
-    "**/reference/operator-resources/**",
+    "**/reference/api/terraform-provider/**",
+    "**/reference/api/operator-resources/**",
     "**/includes/reference/code-blocks-no-cspell/**"
   ]
 }
