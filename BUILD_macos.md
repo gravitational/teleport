@@ -84,24 +84,6 @@ and updates are welcome!
         node --version
         ```
 
-1. Install `wasm-pack`:
-    1. Find the required wasm-pack version in
-    [`build.assets/versions.mk`](/build.assets/versions.mk)
-    (`WASM_PACK_VERSION`).
-
-    1. Install wasm-pack globally:
-
-        ```shell
-        # Replace <version> with the value of WASM_PACK_VERSION from build.assets/versions.mk (e.g., 0.12.1)
-        npm install --global wasm-pack@<version>
-        ```
-
-    1. Verify wasm-pack version:
-
-        ```shell
-        wasm-pack --version
-        ```
-
 1. Install `libfido2`:
 
     ```shell
