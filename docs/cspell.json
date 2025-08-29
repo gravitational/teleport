@@ -302,6 +302,7 @@
     "allkeys",
     "allowdeny",
     "allowedlogins",
+    "alloydb",
     "anonymization",
     "anotheruser",
     "apikey",
@@ -909,6 +910,7 @@
     "serviceacct",
     "servicecfg",
     "serviceid",
+    "serviceusage",
     "sess",
     "session",
     "sestatus",
@@ -1095,7 +1097,9 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
+  "flagWords": [
+    "hte"
+  ],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**",
