@@ -30,9 +30,9 @@ removing devices that are no longer in use.
   ```
 </Admonition>
 
-<Admonition type="tip" title="Sync with Jamf Pro">
-Teleport supports device synchronization with [Jamf Pro](./jamf-integration.mdx). Once configured, devices
-are automatically updated in Teleport's device inventory.
+<Admonition type="tip" title="Sync from an MDM">
+Teleport supports device synchronization through [MDM integrations](device-trust.mdx#mdm-integrations).
+Once configured, devices are automatically updated in Teleport's device inventory.
 </Admonition>
 
 Before you can enroll the device, you need to register it. To register
@@ -84,9 +84,9 @@ Use `tctl` to check that the device has been registered:
 
 ```code
 $ tctl devices ls
-Asset Tag    OS    Enroll Status Device ID
------------- ----- ------------- ------------------------------------
-(=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
+Asset Tag    OS    Source Enroll Status Owner Device ID
+------------ ----- ------ ------------- ----- ------------------------------------
+(=devicetrust.asset_tag=) macOS        not enrolled        (=devicetrust.device_id=)
 ```
 
 ## Create a device enrollment token
@@ -139,8 +139,8 @@ enrolls the user's device in their next Teleport (`tsh`) login.
 
 For auto-enrollment to work, the following conditions must be met:
 - A device must be registered. Registration may be
-[manual](#register-a-trusted-device) or performed using an
-integration, like the [Jamf Pro integration](./jamf-integration.mdx).
+[manual](#register-a-trusted-device) or performed using [an MDM
+integration](./device-trust.mdx#mdm-integrations).
 - Auto-enrollment must be enabled in the cluster setting.
 
 Enable auto-enrollment in your cluster settings. To do so, modify the dynamic
@@ -197,9 +197,9 @@ A device that is no longer in use may be removed using `tctl devices rm
 First, find a device to delete:
 ```code
 $ tctl devices ls
-Asset Tag    OS    Enroll Status Device ID
------------- ----- ------------- ------------------------------------
-C00AA0AAAA0A macOS enrolled      c9cbb327-68a8-497e-b820-6a4b2bf58269
+Asset Tag    OS    Source Enroll Status Owner Device ID
+------------ ----- ------ ------------- ----- ------------------------------------
+C00AA0AAAA0A macOS        enrolled      alice c9cbb327-68a8-497e-b820-6a4b2bf58269
 ```
 
 Now use asset-tag or device id to delete a device:
@@ -273,3 +273,4 @@ Save and close your editor to apply your changes.
 
 - [Device Trust Enforcement](./enforcing-device-trust.mdx)
 - [Jamf Pro Integration](./jamf-integration.mdx)
+- [Microsoft Intune Integration](./intune-integration.mdx)
