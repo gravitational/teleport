@@ -62,6 +62,8 @@ export interface RecordingItemProps {
   viewMode: ViewMode;
 }
 
+const recordingTypesWithThumbnails: RecordingType[] = ['ssh', 'k8s'];
+
 export function RecordingItem({
   actionSlot,
   density,
@@ -94,7 +96,9 @@ export function RecordingItem({
     [actionSlot, recording.sid]
   );
 
-  const hasThumbnail = recording.recordingType === 'ssh';
+  const hasThumbnail = recordingTypesWithThumbnails.includes(
+    recording.recordingType
+  );
 
   return (
     <RecordingItemContainer

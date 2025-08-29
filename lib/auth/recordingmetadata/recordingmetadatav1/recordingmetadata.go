@@ -220,9 +220,14 @@ loop:
 				metadata.ClusterName = e.ClusterName
 				metadata.User = e.User
 
-				if e.Protocol == events.EventProtocolSSH {
+				switch e.Protocol {
+				case events.EventProtocolSSH:
 					metadata.ResourceName = e.ServerHostname
 					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH
+
+				case events.EventProtocolKube:
+					metadata.ResourceName = e.KubernetesCluster
+					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
 				}
 
 				metadata.StartCols = int32(size.W)

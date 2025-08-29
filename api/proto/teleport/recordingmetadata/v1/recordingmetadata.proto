@@ -62,6 +62,8 @@ enum SessionRecordingType {
   SESSION_RECORDING_TYPE_UNSPECIFIED = 0;
   // SessionRecordingTypeSsh is an interactive SSH session recording.
   SESSION_RECORDING_TYPE_SSH = 1;
+  // SessionRecordingTypeKubernetes is an interactive Kubernetes session recording.
+  SESSION_RECORDING_TYPE_KUBERNETES = 2;
 }
 
 // SessionRecordingMetadata contains metadata for a session recording.

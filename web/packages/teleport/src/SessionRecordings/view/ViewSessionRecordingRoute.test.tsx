@@ -145,7 +145,7 @@ test('renders the duration correctly', async () => {
 });
 
 test('renders non-SSH recordings correctly', async () => {
-  server.use(createMetadataHandler({ ...mockMetadata, type: 'k8s' }, []));
+  server.use(createMetadataHandler({ ...mockMetadata, type: 'desktop' }, []));
 
   setupTest(
     cfg.getPlayerRoute(
@@ -154,7 +154,7 @@ test('renders non-SSH recordings correctly', async () => {
         sid: 'test-session',
       },
       {
-        recordingType: 'k8s',
+        recordingType: 'desktop',
         durationMs: 3600000,
       }
     )
@@ -162,7 +162,7 @@ test('renders non-SSH recordings correctly', async () => {
 
   expect(
     await screen.findByText(
-      'RecordingPlayer: test-cluster/test-session/3600000/k8s'
+      'RecordingPlayer: test-cluster/test-session/3600000/desktop'
     )
   ).toBeInTheDocument();
 });
