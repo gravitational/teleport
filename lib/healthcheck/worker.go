@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -161,6 +163,15 @@ func (w *worker) GetTargetHealth() *types.TargetHealth {
 	defer w.mu.RUnlock()
 	w.waitForInitCheckLocked(w.getTargetHealthTimeout)
 	return utils.CloneProtoMsg(&w.targetHealth)
+}
+
+// GetCanonicalHealthStatus returns the worker's canonical target health status.
+//
+// Returns only a healthy, unhealthy, or unknown status.
+func (w *worker) GetCanonicalHealthStatus() types.TargetHealthStatus {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return types.TargetHealthStatus(w.targetHealth.Status).Canonical()
 }
 
 // GetTargetResource returns the target resource.
@@ -361,13 +372,72 @@ func (w *worker) dialEndpoints(ctx context.Context) error {
 }
 
 func (w *worker) dialEndpoint(ctx context.Context, endpoint string) error {
-	conn, err := w.target.dialFn(ctx, "tcp", endpoint)
+	// TODO(rana): HTTP AUTH TO RESOLVE "403 Forbidden"
+	// DEBU [KUBERNETE] kube health check: getTargetHealth pid:40600.1 !BADKEY:Protocol:"HTTP" Status:"unknown" TransitionTimestamp:<seconds:1755473706 nanos:770699000 > TransitionReason:"initialized" Message:"Health checker initialized"  proxy/server.go:584
+	// WARN [KUBERNETE] Denying proxy access to unauthenticated user - this can sometimes be caused by inadvertently using an HTTP load balancer instead of a TCP load balancer on the Kubernetes port pid:40600.1 user_type:authz.BuiltinRole proxy/forwarder.go:558
+	// DEBU [KUBERNETE] Failed health check target_name:colima target_kind:kube_cluster target_origin: error:[
+
+	// if w.healthCheckCfg.protocol == types.TargetHealthProtocolTCP {
+
+	// // Check TCP.
+	// conn, err := w.target.dialFn(ctx, "tcp", endpoint)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	// // an error while closing the connection could indicate an RST packet from
+	// // the endpoint - that's a health check failure.
+	// return trace.Wrap(conn.Close())
+
+	// } else {
+	// 	// Check HTTP.
+
+	// TODO(rana): REMOVE- FOR TESTING UI
+	content, err := os.ReadFile("/Users/rana.ian/src/wrk/env.txt") // 0 or 1
 	if err != nil {
-		return trace.Wrap(err)
+		content = []byte("0")
 	}
-	// an error while closing the connection could indicate an RST packet from
-	// the endpoint - that's a health check failure.
-	return trace.Wrap(conn.Close())
+	kubeHealth, err := strconv.ParseBool(string(content))
+	if err != nil {
+		kubeHealth = false
+	}
+	if kubeHealth {
+		return nil
+	} else {
+		return fmt.Errorf("Health error for testing")
+	}
+
+	// // TODO(rana): move url construction
+	// // Kube HTTP check /readyz endpoint.
+	// req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s/readyz", endpoint), nil)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+
+	// // KubeAPI accepts TLS traffic.
+	// client := &http.Client{
+	// 	Transport: &http.Transport{
+	// 		TLSClientConfig: &tls.Config{
+	// 			InsecureSkipVerify: true,
+	// 		},
+	// 	},
+	// }
+	// res, err := client.Do(req)
+	// if res != nil {
+	// 	io.Copy(io.Discard, res.Body)
+	// 	if bodyErr := res.Body.Close(); bodyErr != nil {
+	// 		w.log.ErrorContext(ctx, "Error closing response body", "error", bodyErr)
+	// 	}
+	// }
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	// if res.StatusCode != http.StatusOK {
+	// 	return trace.Errorf("HTTP status code %q", res.StatusCode)
+	// 	// TODO(rana): CALL /readyz?verbose
+	// }
+	// return nil
+
+	// }
 }
 
 // getThreshold returns the appropriate threshold to compare against the last

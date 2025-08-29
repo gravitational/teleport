@@ -25,8 +25,10 @@ import (
 type TargetHealthProtocol string
 
 const (
-	// TargetHealthProtocolTCP is a target health check protocol.
+	// TargetHealthProtocolTCP is the TCP target health check protocol.
 	TargetHealthProtocolTCP TargetHealthProtocol = "TCP"
+	// TargetHealthProtocolHTTP is the HTTP target health check protocol.
+	TargetHealthProtocolHTTP TargetHealthProtocol = "HTTP"
 )
 
 // TargetHealthStatus is a target resource's health status.
@@ -46,6 +48,8 @@ const (
 
 // Canonical converts a status into its canonical form.
 // An empty or unknown status is converted to [TargetHealthStatusUnknown].
+//
+// Returns only a healthy, unhealthy, or unknown status.
 func (s TargetHealthStatus) Canonical() TargetHealthStatus {
 	switch s {
 	case TargetHealthStatusHealthy, TargetHealthStatusUnhealthy:

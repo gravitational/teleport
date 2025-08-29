@@ -169,6 +169,10 @@ type ReadProxyAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
+	// HealthCheckConfigReader defines methods for fetching health check config
+	// resources.
+	services.HealthCheckConfigReader
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -347,6 +351,10 @@ type ProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// HealthCheckConfigReader defines methods for fetching health check config
+	// resources.
+	services.HealthCheckConfigReader
 }
 
 // ReadRelayAccessPoint is a read only API interface to be used by a Relay
@@ -471,6 +479,10 @@ type RemoteProxyAccessPoint interface {
 type ReadKubernetesAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+
+	// HealthCheckConfigReader defines methods for fetching health check config
+	// resources.
+	services.HealthCheckConfigReader
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -1320,7 +1332,7 @@ type Cache interface {
 	// GitServerGetter defines methods for fetching Git servers.
 	services.GitServerGetter
 
-	// HealthCheckConfigReader defines methods for fetching health checkc config
+	// HealthCheckConfigReader defines methods for fetching health check config
 	// resources.
 	services.HealthCheckConfigReader
 
