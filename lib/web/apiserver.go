@@ -3652,10 +3652,10 @@ func (h *Handler) getClusterLocksV2(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 ) (any, error) {
 	ctx := r.Context()
-	clt, err := sessionCtx.GetUserClient(ctx, site)
+	clt, err := sessionCtx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
