@@ -19,7 +19,10 @@
 package recordingmetadatav1
 
 import (
+	"context"
 	"errors"
+	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,6 +31,7 @@ import (
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -184,4 +188,105 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 	err = service.ProcessSessionRecording(t.Context(), sessionID)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "upload failed")
+}
+
+// mockUploadHandler implements events.UploadHandler for testing
+type mockUploadHandler struct {
+	metadata       map[string][]byte
+	thumbnails     map[string][]byte
+	uploadError    error
+	metadataPaths  map[string]string
+	thumbnailPaths map[string]string
+	mu             sync.Mutex
+}
+
+func newMockUploadHandler() *mockUploadHandler {
+	return &mockUploadHandler{
+		metadata:       make(map[string][]byte),
+		thumbnails:     make(map[string][]byte),
+		metadataPaths:  make(map[string]string),
+		thumbnailPaths: make(map[string]string),
+	}
+}
+
+func (m *mockUploadHandler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return "", nil
+}
+
+func (m *mockUploadHandler) UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	return "", nil
+}
+
+func (m *mockUploadHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	if m.uploadError != nil {
+		return "", m.uploadError
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+
+	path := "metadata/" + string(sessionID)
+	m.metadata[string(sessionID)] = data
+	m.metadataPaths[string(sessionID)] = path
+	return path, nil
+}
+
+func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	if m.uploadError != nil {
+		return "", m.uploadError
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+
+	path := "thumbnail/" + string(sessionID)
+	m.thumbnails[string(sessionID)] = data
+	m.thumbnailPaths[string(sessionID)] = path
+	return path, nil
+}
+
+func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return nil
+}
+
+func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return nil
+}
+
+func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return nil
+}
+
+func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return nil
+}
+
+func (m *mockUploadHandler) Complete(ctx context.Context, upload events.StreamUpload) error {
+	return nil
+}
+
+func (m *mockUploadHandler) Reserve(ctx context.Context, upload events.StreamUpload) error {
+	return nil
+}
+
+func (m *mockUploadHandler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
+	return nil, nil
+}
+
+func (m *mockUploadHandler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+	return nil, nil
+}
+
+func (m *mockUploadHandler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+	return nil, nil
 }

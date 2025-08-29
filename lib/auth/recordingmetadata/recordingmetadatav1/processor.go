@@ -84,8 +84,11 @@ func (p *sessionProcessor) processEventStream(ctx context.Context, evts <-chan a
 
 func (p *sessionProcessor) handleEvent(evt apievents.AuditEvent) error {
 	switch e := evt.(type) {
-	case *apievents.DatabaseSessionStart, *apievents.WindowsDesktopSessionStart:
-		return nil
+	case *apievents.DatabaseSessionStart:
+		p.handleDatabaseSessionStart(e)
+
+	case *apievents.WindowsDesktopSessionStart:
+		p.handleWindowsDesktopSessionStart(e)
 
 	case *apievents.SessionStart:
 		return p.handleSessionStart(e)
@@ -102,11 +105,39 @@ func (p *sessionProcessor) handleEvent(evt apievents.AuditEvent) error {
 	case *apievents.SessionLeave:
 		p.handleSessionLeave(e)
 
+	case *apievents.DatabaseSessionEnd:
+		return p.handleSessionEnd(e.EndTime, false /* thumbnail */)
+
+	case *apievents.WindowsDesktopSessionEnd:
+		return p.handleSessionEnd(e.EndTime, false /* thumbnail */)
+
 	case *apievents.SessionEnd:
-		return p.handleSessionEnd(e)
+		return p.handleSessionEnd(e.EndTime, true /* thumbnail */)
 	}
 
 	return nil
+}
+
+func (p *sessionProcessor) handleDatabaseSessionStart(e *apievents.DatabaseSessionStart) {
+	p.startTime = e.Time
+	p.lastActivityTime = e.Time
+
+	p.metadata.ResourceName = e.DatabaseService
+	p.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_DATABASE
+
+	p.metadata.ClusterName = e.ClusterName
+	p.metadata.User = e.User
+}
+
+func (p *sessionProcessor) handleWindowsDesktopSessionStart(e *apievents.WindowsDesktopSessionStart) {
+	p.startTime = e.Time
+	p.lastActivityTime = e.Time
+
+	p.metadata.ResourceName = e.DesktopName
+	p.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_DESKTOP
+
+	p.metadata.ClusterName = e.ClusterName
+	p.metadata.User = e.User
 }
 
 func (p *sessionProcessor) handleSessionStart(e *apievents.SessionStart) error {
@@ -196,12 +227,14 @@ func (p *sessionProcessor) handleSessionLeave(e *apievents.SessionLeave) {
 	}
 }
 
-func (p *sessionProcessor) handleSessionEnd(e *apievents.SessionEnd) error {
-	if !p.lastActivityTime.IsZero() && e.Time.Sub(p.lastActivityTime) > inactivityThreshold {
-		p.addInactivityEvent(p.lastActivityTime, e.Time)
+func (p *sessionProcessor) handleSessionEnd(endTime time.Time, thumbnail bool) error {
+	if !p.lastActivityTime.IsZero() && endTime.Sub(p.lastActivityTime) > inactivityThreshold {
+		p.addInactivityEvent(p.lastActivityTime, endTime)
 	}
 
-	p.recordThumbnail(e.EndTime)
+	if thumbnail {
+		p.recordThumbnail(endTime)
+	}
 
 	return nil
 }
@@ -233,7 +266,7 @@ func (p *sessionProcessor) collect() (*pb.SessionRecordingMetadata, []*thumbnail
 	for user, userStartOffset := range p.activeUsers {
 		p.metadata.Events = append(p.metadata.Events, &pb.SessionRecordingEvent{
 			StartOffset: durationpb.New(userStartOffset),
-			EndOffset:   durationpb.New(p.lastEvent.GetTime().Sub(p.startTime)),
+			EndOffset:   durationpb.New(getEventOffset(p.lastEvent, p.startTime)),
 			Event: &pb.SessionRecordingEvent_Join{
 				Join: &pb.SessionRecordingJoinEvent{
 					User: user,
@@ -242,9 +275,25 @@ func (p *sessionProcessor) collect() (*pb.SessionRecordingMetadata, []*thumbnail
 		})
 	}
 
-	p.metadata.Duration = durationpb.New(p.lastEvent.GetTime().Sub(p.startTime))
+	p.metadata.Duration = durationpb.New(getEventOffset(p.lastEvent, p.startTime))
 	p.metadata.StartTime = timestamppb.New(p.startTime)
 	p.metadata.EndTime = timestamppb.New(p.lastEvent.GetTime())
 
 	return p.metadata, p.sampler.result()
+}
+
+// getEventOffset extracts the time of the event relative to the session start time.
+func getEventOffset(evt apievents.AuditEvent, startTime time.Time) time.Duration {
+	switch evt := evt.(type) {
+	case *apievents.SessionPrint:
+		return time.Duration(evt.DelayMilliseconds) * time.Millisecond
+	case *apievents.SessionEnd:
+		return evt.EndTime.Sub(evt.StartTime)
+	case *apievents.DatabaseSessionEnd:
+		return evt.EndTime.Sub(evt.StartTime)
+	case *apievents.WindowsDesktopSessionEnd:
+		return evt.EndTime.Sub(evt.StartTime)
+	default:
+		return evt.GetTime().Sub(startTime)
+	}
 }
