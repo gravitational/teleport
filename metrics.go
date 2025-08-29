@@ -289,8 +289,11 @@ const (
 	// MetricUnknown represents a resource in an unknown health state.
 	MetricUnknown = "unknown"
 
-	// MetricResourcesAvailable tracks available health resources.
-	MetricResourcesAvailable = "resources_available"
+	// MetricResourceDB is a database resource metric.
+	MetricResourceDB = "db"
+
+	// MetricResourceKubernetes is a Kubernetes cluster resource metric.
+	MetricResourceKubernetes = "kubernetes"
 
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"

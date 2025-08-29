@@ -23,21 +23,23 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/trace"
 )
 
 // Manager manages health checks for registered resource targets.
@@ -140,6 +142,9 @@ func (m *manager) Start(ctx context.Context) error {
 		return trace.Wrap(err, "failed to start health check config watcher")
 	}
 	m.startWorkerUpdater(ctx)
+	if err := m.startMetricUpdater(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -355,6 +360,94 @@ func (m *manager) getConfigLocked(ctx context.Context, r types.ResourceWithLabel
 	return nil
 }
 
+// startMetricUpdater starts a goroutine for updating health check metrics.
+func (m *manager) startMetricUpdater(ctx context.Context) error {
+	var metricType string
+	switch m.cfg.Component {
+	case teleport.ComponentDatabase:
+		metricType = teleport.MetricResourceDB
+	case teleport.ComponentKube:
+		metricType = teleport.MetricResourceKubernetes
+	default:
+		return fmt.Errorf("unsupported component %q", m.cfg.Component)
+	}
+	metricInterval := interval.New(interval.Config{
+		Duration:      defaults.HealthCheckInterval,
+		Jitter:        retryutils.SeventhJitter,
+		FirstDuration: retryutils.HalfJitter(defaults.HealthCheckInterval),
+		Clock:         m.cfg.Clock,
+	})
+	go func() {
+		defer func() {
+			metricInterval.Stop()
+			// Reset metrics to zero on exit.
+			resourceHealthyGauge.WithLabelValues(metricType).Set(0.0)
+			resourceUnhealthyGauge.WithLabelValues(metricType).Set(0.0)
+			resourceUnknownGauge.WithLabelValues(metricType).Set(0.0)
+		}()
+		prvSums := map[types.TargetHealthStatus]int{
+			types.TargetHealthStatusHealthy:   0,
+			types.TargetHealthStatusUnhealthy: 0,
+			types.TargetHealthStatusUnknown:   0,
+		}
+		curSums := map[types.TargetHealthStatus]int{
+			types.TargetHealthStatusHealthy:   0,
+			types.TargetHealthStatusUnhealthy: 0,
+			types.TargetHealthStatusUnknown:   0,
+		}
+		for {
+			select {
+			case <-metricInterval.Next():
+				m.updateMetrics(ctx, metricType, prvSums, curSums)
+				prvSums, curSums = curSums, prvSums
+			case <-ctx.Done():
+				return
+			case <-m.closeContext.Done():
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+// updateMetrics calculates and sets health check metrics.
+func (m *manager) updateMetrics(ctx context.Context, metricType string, prvSums, curSums map[types.TargetHealthStatus]int) {
+	// Ensure each metric starts from zero each time.
+	// Worker slice may no longer have a previous TargetHealthStatus.
+	// These three health statuses are defined as canonical by TargetHealthStatus.
+	curSums[types.TargetHealthStatusHealthy] = 0
+	curSums[types.TargetHealthStatusUnhealthy] = 0
+	curSums[types.TargetHealthStatusUnknown] = 0
+	// Sum available health statuses.
+	m.mu.Lock()
+	for _, w := range m.workers {
+		curSums[w.GetCanonicalHealthStatus()]++
+	}
+	m.mu.Unlock()
+	// Check whether there are any changes to record.
+	if maps.Equal(prvSums, curSums) {
+		return
+	}
+	// Set new health check metrics.
+	metricUpdates := make([]any, 0, 2*len(curSums))
+	for healthStatus, sum := range curSums {
+		metricUpdates = append(metricUpdates, string(healthStatus), sum)
+		switch healthStatus {
+		case types.TargetHealthStatusHealthy:
+			resourceHealthyGauge.WithLabelValues(metricType).Set(float64(sum))
+		case types.TargetHealthStatusUnhealthy:
+			resourceUnhealthyGauge.WithLabelValues(metricType).Set(float64(sum))
+		case types.TargetHealthStatusUnknown:
+			resourceUnknownGauge.WithLabelValues(metricType).Set(float64(sum))
+		default:
+			m.logger.WarnContext(ctx, "Unexpected health status while updating metrics",
+				"target_health_status", healthStatus,
+				"metric_sum", sum)
+		}
+	}
+	m.logger.DebugContext(ctx, "Health metrics updated", metricUpdates...)
+}
+
 func init() {
 	metrics.RegisterPrometheusCollectors(
 		resourceHealthyGauge,
@@ -363,18 +456,8 @@ func init() {
 	)
 }
 
-// prometheusLabel returns a Prometheus label
-// for use with GaugeVec "type".
-//
-// TODO(rana): Return an error for unsupported targetKind.
-func prometheusLabel(targetKind string) string {
-	if targetKind == types.KindDatabase {
-		return types.KindDatabase
-	}
-	return "kubernetes"
-}
-
 var (
+	// teleport_resources_health_status_healthy
 	resourceHealthyGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
@@ -384,6 +467,7 @@ var (
 		},
 		[]string{teleport.TagType}, // db|k8s|etc
 	)
+	// teleport_resources_health_status_unhealthy
 	resourceUnhealthyGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
@@ -393,6 +477,7 @@ var (
 		},
 		[]string{teleport.TagType}, // db|k8s|etc
 	)
+	// teleport_resources_health_status_unknown
 	resourceUnknownGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,

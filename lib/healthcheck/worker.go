@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -161,6 +163,15 @@ func (w *worker) GetTargetHealth() *types.TargetHealth {
 	defer w.mu.RUnlock()
 	w.waitForInitCheckLocked(w.getTargetHealthTimeout)
 	return utils.CloneProtoMsg(&w.targetHealth)
+}
+
+// GetCanonicalHealthStatus returns the worker's canonical target health status.
+//
+// Returns only a healthy, unhealthy, or unknown status.
+func (w *worker) GetCanonicalHealthStatus() types.TargetHealthStatus {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return types.TargetHealthStatus(w.targetHealth.Status).Canonical()
 }
 
 // GetTargetResource returns the target resource.
@@ -368,31 +379,32 @@ func (w *worker) dialEndpoint(ctx context.Context, endpoint string) error {
 
 	// if w.healthCheckCfg.protocol == types.TargetHealthProtocolTCP {
 
-	// Check TCP.
-	conn, err := w.target.dialFn(ctx, "tcp", endpoint)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// an error while closing the connection could indicate an RST packet from
-	// the endpoint - that's a health check failure.
-	return trace.Wrap(conn.Close())
+	// // Check TCP.
+	// conn, err := w.target.dialFn(ctx, "tcp", endpoint)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	// // an error while closing the connection could indicate an RST packet from
+	// // the endpoint - that's a health check failure.
+	// return trace.Wrap(conn.Close())
+
 	// } else {
 	// 	// Check HTTP.
 
-	// // TODO(rana): REMOVE- FOR TESTING UI
-	// content, err := os.ReadFile("/Users/rana.ian/src/wrk/env.txt") // 0 or 1
-	// if err != nil {
-	// 	content = []byte("0")
-	// }
-	// kubeHealth, err := strconv.ParseBool(string(content))
-	// if err != nil {
-	// 	kubeHealth = false
-	// }
-	// if kubeHealth {
-	// 	return nil
-	// } else {
-	// 	return fmt.Errorf("Health error for testing")
-	// }
+	// TODO(rana): REMOVE- FOR TESTING UI
+	content, err := os.ReadFile("/Users/rana.ian/src/wrk/env.txt") // 0 or 1
+	if err != nil {
+		content = []byte("0")
+	}
+	kubeHealth, err := strconv.ParseBool(string(content))
+	if err != nil {
+		kubeHealth = false
+	}
+	if kubeHealth {
+		return nil
+	} else {
+		return fmt.Errorf("Health error for testing")
+	}
 
 	// // TODO(rana): move url construction
 	// // Kube HTTP check /readyz endpoint.
@@ -494,21 +506,17 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 			"reason", reason,
 			"message", message,
 		)
-		resourceHealthyGauge.WithLabelValues(prometheusLabel(w.GetTargetResource().GetKind())).Inc()
 	case types.TargetHealthStatusUnhealthy:
 		w.log.WarnContext(ctx, "Target became unhealthy",
 			"reason", reason,
 			"message", message,
 		)
-		resourceUnhealthyGauge.WithLabelValues(prometheusLabel(w.GetTargetResource().GetKind())).Inc()
 	case types.TargetHealthStatusUnknown:
 		w.log.DebugContext(ctx, "Target health status is unknown",
 			"reason", reason,
 			"message", message,
 		)
-		resourceUnknownGauge.WithLabelValues(prometheusLabel(w.GetTargetResource().GetKind())).Inc()
 	}
-	decrementPreviousGauge(types.TargetHealthStatus(oldHealth.Status), prometheusLabel(w.GetTargetResource().GetKind()))
 	now := w.clock.Now()
 	w.targetHealth = types.TargetHealth{
 		Address:             strings.Join(w.lastResolvedEndpoints, ","),
@@ -522,19 +530,6 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	}
 	if w.healthCheckCfg != nil {
 		w.targetHealth.Protocol = string(w.healthCheckCfg.protocol)
-	}
-}
-
-// decrementPreviousGauge decrements a Prometheus gauge for
-// a previous health state.
-func decrementPreviousGauge(previousHealth types.TargetHealthStatus, prometheusLabel string) {
-	switch previousHealth {
-	case types.TargetHealthStatusHealthy:
-		resourceHealthyGauge.WithLabelValues(prometheusLabel).Dec()
-	case types.TargetHealthStatusUnhealthy:
-		resourceUnhealthyGauge.WithLabelValues(prometheusLabel).Dec()
-	case types.TargetHealthStatusUnknown:
-		resourceUnknownGauge.WithLabelValues(prometheusLabel).Dec()
 	}
 }
 

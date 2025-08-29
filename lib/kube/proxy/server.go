@@ -174,7 +174,6 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.healthCheckManager == nil {
-		// TODO(rana): VALIDATE THAT c.Context IS CORRECT
 		manager, err := healthcheck.NewManager(c.Context, healthcheck.ManagerConfig{
 			Component:               teleport.ComponentKube,
 			Events:                  c.AccessPoint,
@@ -581,7 +580,7 @@ func (t *TLSServer) getTargetHealth(ctx context.Context, kube types.KubeCluster)
 	// t.log.DebugContext(ctx, "kube health check: getTargetHealth")
 
 	health, err := t.healthCheckManager.GetTargetHealth(kube)
-	t.log.DebugContext(ctx, "kube health check: getTargetHealth", health)
+	t.log.DebugContext(ctx, "kube health check: getTargetHealth", "target_health", health.String())
 	if err == nil {
 		return *health
 	}
