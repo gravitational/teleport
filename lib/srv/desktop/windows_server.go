@@ -379,9 +379,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := s.ca.Update(s.closeCtx, tc); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		s.startPublishingCRL(ctx, tc)
 	}
 
 	ok := false
@@ -1304,4 +1302,32 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	}
 
 	return len(s), nil
+}
+
+// startPublishingCRL publishes the empty Certificate Revocation List to the given
+// ldap server. It continues to do so every 10 minutes to make sure it is present
+// and in the correct location.
+func (s *WindowsService) startPublishingCRL(ctx context.Context, tlsConfig *tls.Config) error {
+	// Make an initial call to publish CRL before entering periodic
+	if err := s.ca.Update(ctx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
+		s.cfg.Logger.ErrorContext(ctx, "failed to publish CRL", "error", err)
+	}
+
+	go func() {
+		t := s.cfg.Clock.NewTicker(time.Minute * 10)
+		defer t.Stop()
+
+		for {
+			select {
+			case <-s.closeCtx.Done():
+				return
+			case <-t.Chan():
+				if err := s.ca.Update(ctx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
+					s.cfg.Logger.ErrorContext(ctx, "failed to publish CRL", "error", err)
+				}
+			}
+		}
+	}()
+
+	return nil
 }
