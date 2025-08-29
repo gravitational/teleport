@@ -192,12 +192,14 @@ func (t *LegacyEventsWatcher) fetch(ctx context.Context) error {
 // It only advances the windowStartTime if no events are found until the last complete day.
 func (t *LegacyEventsWatcher) getEvents(ctx context.Context) (string, error) {
 	wst := t.getWindowStartTime()
+	t.log.DebugContext(ctx, "GET EVENTS called")
 	rangeSplitByDay := splitRangeByDay(wst, time.Now().UTC(), t.config.WindowSize)
 	for i := 1; i < len(rangeSplitByDay); i++ {
 		startTime := rangeSplitByDay[i-1]
 		endTime := rangeSplitByDay[i]
 		t.log.DebugContext(ctx, "Fetching events", "from", startTime, "to", endTime)
 		evts, cursor, err := t.getEventsInWindow(ctx, startTime, endTime)
+		t.log.DebugContext(ctx, "GOT EVENTS", "count", len(evts), "cursor", cursor)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -220,7 +222,7 @@ func (t *LegacyEventsWatcher) getEvents(ctx context.Context) (string, error) {
 		// and it's the last complete day, update start time to the next day.
 		if t.canSkipToNextWindow(i, rangeSplitByDay, cursor) {
 			t.log.InfoContext(
-				ctx, "No new events found for the range",
+				ctx, "No new events found for the range, skipping to next window",
 				"from", startTime,
 				"to", endTime,
 			)
@@ -273,6 +275,7 @@ func (t *LegacyEventsWatcher) canSkipToNextWindow(i int, rangeSplitByDay []time.
 // getEvents calls Teleport client and loads events from the audit log.
 // It returns a slice of events, a cursor for the next page and an error.
 func (t *LegacyEventsWatcher) getEventsInWindow(ctx context.Context, from, to time.Time) ([]*auditlogpb.EventUnstructured, string, error) {
+	t.log.DebugContext(ctx, "Search event request", "from", from, "to", to, "cursor", t.cursor)
 	evts, cursor, err := t.client.SearchUnstructuredEvents(
 		ctx,
 		from,
