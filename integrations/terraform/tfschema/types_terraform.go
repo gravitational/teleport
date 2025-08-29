@@ -4126,8 +4126,8 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 				},
 				"entra_id_groups_provider": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"force_disable": {
-							Description: "ForceDisable specifies groups provider should be disabled, even if Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.",
+						"disabled": {
+							Description: "Disabled specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
@@ -41929,19 +41929,19 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 									obj.EntraIdGroupsProvider = &github_com_gravitational_teleport_api_types.EntraIDGroupsProvider{}
 									obj := obj.EntraIdGroupsProvider
 									{
-										a, ok := tf.Attrs["force_disable"]
+										a, ok := tf.Attrs["disabled"]
 										if !ok {
-											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable"})
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.disabled"})
 										} else {
 											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 											} else {
 												var t bool
 												if !v.Null && !v.Unknown {
 													t = bool(v.Value)
 												}
-												obj.ForceDisable = t
+												obj.Disabled = t
 											}
 										}
 									}
@@ -43236,25 +43236,25 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 									obj := obj.EntraIdGroupsProvider
 									tf := &v
 									{
-										t, ok := tf.AttrTypes["force_disable"]
+										t, ok := tf.AttrTypes["disabled"]
 										if !ok {
-											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable"})
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.disabled"})
 										} else {
-											v, ok := tf.Attrs["force_disable"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											v, ok := tf.Attrs["disabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
-													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable", err})
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.entra_id_groups_provider.disabled", err})
 												}
 												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.force_disable", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.entra_id_groups_provider.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 												}
-												v.Null = bool(obj.ForceDisable) == false
+												v.Null = bool(obj.Disabled) == false
 											}
-											v.Value = bool(obj.ForceDisable)
+											v.Value = bool(obj.Disabled)
 											v.Unknown = false
-											tf.Attrs["force_disable"] = v
+											tf.Attrs["disabled"] = v
 										}
 									}
 									{

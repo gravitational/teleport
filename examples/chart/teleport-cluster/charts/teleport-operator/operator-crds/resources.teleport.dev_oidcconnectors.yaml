@@ -103,10 +103,10 @@ spec:
                   exceeds 200 max item limit.
                 nullable: true
                 properties:
-                  force_disable:
-                    description: ForceDisable specifies groups provider should be
-                      disabled, even if Entra ID responds with a groups claim source.
-                      User may choose to disable it if they are using integrations
+                  disabled:
+                    description: Disabled specifies that the groups provider should
+                      be disabled even when Entra ID responds with a groups claim
+                      source. User may choose to disable it if they are using integrations
                       such as SCIM or similar groups importer as connector based role
                       mapping may be not needed in such a scenario.
                     type: boolean
