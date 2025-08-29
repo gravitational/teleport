@@ -52,24 +52,6 @@ export const SupportOSSWithCTA = () => (
   </Provider>
 );
 
-export const SupportCloud = () => (
-  <Provider>
-    <Support {...props} isCloud={true} />
-  </Provider>
-);
-
-export const SupportEnterprise = () => (
-  <Provider>
-    <Support {...props} isEnterprise={true} />
-  </Provider>
-);
-
-export const SupportEnterpriseWithCTA = () => (
-  <Provider>
-    <Support {...props} isEnterprise={true} showPremiumSupportCTA={true} />
-  </Provider>
-);
-
 export const SupportWithTunnelAddress = () => (
   <Provider>
     <Support {...props} tunnelPublicAddress="localhost:11005"></Support>
