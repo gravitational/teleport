@@ -555,7 +555,6 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			tconf.ReverseTunnels = []types.ReverseTunnel{rt}
 		}
 	}
-	tconf.HostUUID = i.Secrets.GetIdentity().ID.HostUUID
 	tconf.SSH.Addr.Addr = i.SSH
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
