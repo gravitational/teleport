@@ -560,7 +560,11 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 
 	// Renew the certs once (e.g. this is the actual bot process)
-	_, certsReal, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.Status.UserName, result.PrivateKey)
+	renewedClient, certsReal, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.Status.UserName, result.PrivateKey)
+	require.NoError(t, err)
+
+	// This client should be able to ping.
+	_, err = renewedClient.Ping(ctx)
 	require.NoError(t, err)
 
 	// Check the generation, it should be 2.
@@ -575,12 +579,18 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
-	// The user should now be locked.
+	// The bot instance should now be locked.
 	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
-		User: "bot-test",
+		BotInstanceID: impersonatedIdent.BotInstanceID,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, locks)
+
+	// The original client should be locked out.
+	require.Eventually(t, func() bool {
+		_, err = renewedClient.Ping(ctx)
+		return err != nil && strings.Contains(err.Error(), "access denied")
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestRegisterBotCertificateExtensions ensures bot cert extensions are present.
