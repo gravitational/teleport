@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	typescommon "github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -1117,7 +1118,7 @@ func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUs
 		"roles", p.Roles,
 		"dry_run", dryRun,
 	)
-	user := &types.UserV2{
+	user := types.User(&types.UserV2{
 		Kind:    types.KindUser,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -1143,7 +1144,7 @@ func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUs
 				},
 			},
 		},
-	}
+	})
 
 	if dryRun {
 		return user, nil
@@ -1169,7 +1170,19 @@ func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUs
 			"user", existingUser.GetName(),
 			"connector_type", connectorRef.Type,
 			"connector_id", connectorRef.ID,
+			"origin", existingUser.Origin(),
 		)
+
+		// When SCIM integration is enabled, SCIM provisioning manages the lifetime of the SSO user,
+		// meaning the user is no longer ephemeral. In this case, user expiration settings are ignored,
+		// and the user object should remain persistent.
+		// SCIM-originated users must not be overwritten (apart from roles and traits),
+		// otherwise it will break SCIM provisioning functionality.
+		if existingUser.Origin() == typescommon.OriginSCIM {
+			if user, err = oas.handleSCIMOriginUser(ctx, existingUser, user, p); err != nil {
+				return nil, trace.Wrap(err, "failed to handle existing SCIM-originated user %q", existingUser.GetName())
+			}
+		}
 
 		user.SetRevision(existingUser.GetRevision())
 		created, err := oas.auth.UpdateUser(ctx, user)
@@ -1178,6 +1191,42 @@ func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUs
 
 	created, err := oas.auth.CreateUser(ctx, user)
 	return created, trace.Wrap(err)
+}
+
+func (oas *OIDCAuthService) handleSCIMOriginUser(ctx context.Context, existingUser, newUser types.User, p *auth.CreateUserParams) (types.User, error) {
+	existingUserConnector := existingUser.GetCreatedBy().Connector
+	if existingUserConnector == nil {
+		// SCIM-originated users should always have connector information.
+		return nil, trace.BadParameter(
+			"The existing SCIM-originated user %q is missing the CreatedBy.Connector field."+
+				"Please report this issue and include a description of your setup.", existingUser.GetName(),
+		)
+	}
+	newUserConnector := newUser.GetCreatedBy().Connector
+	if newUserConnector == nil {
+		return nil, trace.BadParameter("newUser.GetCreatedBy.Connector is empty")
+
+	}
+	hasSameConnector := existingUserConnector.ID == newUserConnector.ID &&
+		existingUserConnector.Type == newUserConnector.Type
+
+	if !hasSameConnector {
+		return nil, trace.AlreadyExists(
+			"Cannot create user %q: a SCIM-managed user with the same username already exists, "+
+				"but it was created using a different connector (%q) than the one you are using now (%q). "+
+				"To proceed, select the Teleport connector %q during the Teleport login flow "+
+				"or contact your Teleport administrator to resolve username conflicts across multiple connectors.",
+			newUser.GetName(),
+			existingUserConnector.ID,
+			p.ConnectorName,
+			existingUserConnector.ID)
+	}
+
+	// Update SCIM users roles and traits without overwriting the whole user object.
+	existingUser.SetRoles(p.Roles)
+	existingUser.SetTraits(p.Traits)
+
+	return existingUser, nil
 }
 
 // validateACRValues validates that we get an appropriate response for acr values. By default

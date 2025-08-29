@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -2122,6 +2123,83 @@ func TestAuthorizationRequestObject(t *testing.T) {
 			tt.inspectResults(defaultResult, jarResult)
 		})
 	}
+}
+
+func TestOIDCSSOUpdateSCIMUser(t *testing.T) {
+	t.Parallel()
+	suite := newOIDCSuite(t)
+	ctx := context.Background()
+
+	testUser, err := types.NewUser("test-user@example.com")
+	require.NoError(t, err)
+
+	testUser, err = suite.authServer.CreateUser(ctx, testUser)
+	require.NoError(t, err)
+
+	// Case 1: Local (non-OIDC) user exists with the same username.
+	// We don't allow for username collisions between a local user and an OIDC identity
+	// OIDC login flow must fail until the conflict is resolved.
+	t.Run("OIDC flow should fail when local user is present", func(t *testing.T) {
+		_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+			ConnectorID: suite.connector.GetName(),
+			CheckUser:   true,
+			CertTTL:     time.Minute,
+		})
+		require.True(t, trace.IsAlreadyExists(err))
+		require.ErrorContains(t, err, "Either change email in OIDC identity or remove local user and try again")
+	})
+
+	// Case 2: SCIM-managed user exists, but it was created via a different connector.
+	// We don't allow logging in via OIDC using a different connector when an SCIM user
+	// with the same username is already managed by SCIM provisioning
+	t.Run("OIDC flow should fail when SCIM user belongs to a different connector", func(t *testing.T) {
+		testUser.SetOrigin(common.OriginSCIM)
+		testUser.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{
+				ID: "scim-integration-conn",
+			},
+		})
+		testUser, err = suite.authServer.UpdateUser(ctx, testUser)
+		require.NoError(t, err)
+
+		_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+			ConnectorID: suite.connector.GetName(),
+			CheckUser:   true,
+			CertTTL:     time.Minute,
+		})
+		require.True(t, trace.IsAlreadyExists(err))
+		require.ErrorContains(t, err, "SCIM-managed user with the same username already exists")
+	})
+
+	// Case 3: SCIM-managed user exists and was created via the SAME connector.
+	// OIDC login is allowed and should update only roles/traits, not SCIM-managed user metadata.
+	t.Run("OIDC flow should succeed when SCIM user belongs to the same connector", func(t *testing.T) {
+		testUser.SetOrigin(common.OriginSCIM)
+		testUser.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{
+				ID:   suite.connector.GetName(),
+				Type: types.KindOIDC,
+			},
+		})
+		testUser, err = suite.authServer.UpdateUser(ctx, testUser)
+		require.NoError(t, err)
+
+		_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+			ConnectorID: suite.connector.GetName(),
+			CheckUser:   true,
+			CertTTL:     time.Minute,
+		})
+		require.NoError(t, err)
+
+		testUser, err = suite.authServer.GetUser(ctx, "test-user@example.com", false)
+		require.NoError(t, err)
+
+		// OIDC login flow should with persistent SCIM users should only update user roles/traits
+		require.Equal(t, []string{"access"}, testUser.GetRoles())
+		// OIDC login flow should not overwrite president SCIM user properties
+		require.Equal(t, common.OriginSCIM, testUser.Origin())
+		require.Nil(t, testUser.GetMetadata().Expires)
+	})
 }
 
 // joseSignerFromCrypto creates a jose.Signer from a crypto.Signer
