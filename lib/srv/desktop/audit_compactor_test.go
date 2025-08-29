@@ -27,9 +27,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/events"
 )
 
 func newReadEvent(path string, directory directoryID, offset uint64, length uint32) *events.DesktopSharedDirectoryRead {
