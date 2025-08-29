@@ -1,0 +1,27 @@
+Add an entry to the `discovery_service.aws` section of your `teleport.yaml`
+file, assigning <Var name="role ARN" /> to the ARN of the IAM role to assume and
+<Var name="optional external ID" /> to an optional external ID:
+
+```yaml
+# teleport.yaml
+# ...
+discovery_service:
+  enabled: true
+  discovery_group: "aws-prod"
+  aws:
+  - types: ["ec2"]
+    # Add new entry after existing entries
+  - types: ["ec2"]
+    regions: ["us-east-1","us-west-1"]
+    install:
+      join_params:
+        token_name: aws-discovery-iam-token
+        method: iam
+    tags:
+      "env": "prod" # Match EC2 instances where tag:env=prod
+    assume_role_arn: "<Var name="role ARN" />"
+    external_id: "<Var name="optional external ID" />"
+  - types: ["ec2"]
+    # Add a new entry for each account.
+    # ...
+```

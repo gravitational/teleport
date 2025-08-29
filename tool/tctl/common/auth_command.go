@@ -21,7 +21,6 @@ package common
 import (
 	"context"
 	"crypto/x509"
-	"encoding/base32"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -170,7 +169,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	a.authLS = auth.Command("ls", "List connected auth servers.")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
 
-	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for certificate authorities.")
+	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for Teleport certificate authorities.")
 	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
 	a.authCRL.Flag("out", "If set, writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
 }
@@ -193,7 +192,7 @@ func (a *AuthCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 	case a.authLS.FullCommand():
 		commandFunc = a.ListAuthServers
 	case a.authCRL.FullCommand():
-		commandFunc = a.GenerateCRLForCA
+		commandFunc = a.ExportCRL
 	default:
 		return false, nil
 	}
@@ -495,9 +494,9 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 	return nil
 }
 
-// GenerateCRLForCA generates a certificate revocation list for a certificate
-// authority.
-func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authCommandClient) error {
+// ExportCRL exports an empty certificate revocation list for a
+// Teleport certificate authority.
+func (a *AuthCommand) ExportCRL(ctx context.Context, clusterAPI authCommandClient) error {
 	certType := types.CertAuthType(a.caType)
 	if err := certType.Check(); err != nil {
 		return trace.Wrap(err)
@@ -541,8 +540,16 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	var results []output
 	for i, keypair := range tlsKeys {
 		crl := keypair.CRL
+		// DELETE IN v19 (probakowski, zmb3): tctl v19 means the server is either v19 or v20,
+		// both of which are guaranteed to have CRLs already in place.
 		if len(crl) == 0 {
-			fmt.Fprintf(os.Stderr, "keypair %v is missing CRL for %v authority %v, generating legacy fallback", i, authority.GetType(), authority.GetName())
+			// WARNING: GenerateCertAuthorityCRL will find any suitable keypair for signing the CRL,
+			// it is not guaranteed to use _this_ particular keypair.
+			fmt.Fprintf(os.Stderr, "Keypair %v is missing CRL for %v authority %v, generating legacy fallback.",
+				i, authority.GetType(), authority.GetName())
+			if len(tlsKeys) > 1 {
+				fmt.Fprintf(os.Stderr, "If you are using HSM or KMS for private key material, please update your auth server and re-export CRLs.")
+			}
 			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
 			if err != nil {
 				return trace.Wrap(err)
@@ -560,7 +567,7 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 			return trace.Wrap(err)
 		}
 
-		cn := base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + cert.Subject.CommonName
+		cn := winpki.CRLCN(cert.Subject.CommonName, cert.SubjectKeyId)
 		filename := fmt.Sprintf("%s-%v-%v.crl", a.output, certType, cn)
 		if err := os.WriteFile(filename, out.crl, os.FileMode(0644)); err != nil {
 			return trace.Wrap(err)

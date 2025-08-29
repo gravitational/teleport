@@ -28,7 +28,7 @@ import type {
 } from 'shared/services';
 import { mergeDeep } from 'shared/utils/highbar';
 
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import type { SortType } from 'teleport/services/agents';
 import {
@@ -311,7 +311,10 @@ const cfg = {
     kubernetesResourcesPath:
       '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
 
+    // TODO(rudream): DELETE IN V21.0.0
     usersPath: '/v1/webapi/users',
+    usersPathV2:
+      '/v2/webapi/users?startKey=:startKey?&search=:search?&limit=:limit?',
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
@@ -325,6 +328,8 @@ const cfg = {
     },
 
     presetRolesPath: '/v1/webapi/presetroles',
+    listRequestableRolesPath:
+      '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
@@ -503,6 +508,13 @@ const cfg = {
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
+    },
+
+    sessionRecording: {
+      metadata:
+        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/metadata/ws',
+      thumbnail:
+        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/thumbnail',
     },
   },
 
@@ -879,6 +891,20 @@ const cfg = {
     return route;
   },
 
+  getSessionRecordingMetadataUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.metadata, {
+      clusterId,
+      sessionId,
+    });
+  },
+
+  getSessionRecordingThumbnailUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.thumbnail, {
+      clusterId,
+      sessionId,
+    });
+  },
+
   getConnectionDiagnosticUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
@@ -932,8 +958,17 @@ const cfg = {
     return generatePath(cfg.routes.ssoConnector.create, { connectorType });
   },
 
+  // TODO(rudream): DELETE IN V21.0.0
   getUsersUrl() {
     return cfg.api.usersPath;
+  },
+
+  getUsersUrlV2(params?: UrlListUsersParams) {
+    return generatePath(cfg.api.usersPathV2, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getUserWithUsernameUrl(username: string) {
@@ -1161,6 +1196,14 @@ const cfg = {
       default:
         action satisfies never;
     }
+  },
+
+  getListRequestableRolesUrl(params?: UrlListRolesParams) {
+    return generatePath(cfg.api.listRequestableRolesPath, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getDiscoveryConfigUrl(clusterId: string) {
@@ -1680,6 +1723,12 @@ export interface UrlDesktopParams {
 }
 
 export interface UrlListRolesParams {
+  search?: string;
+  limit?: number;
+  startKey?: string;
+}
+
+export interface UrlListUsersParams {
   search?: string;
   limit?: number;
   startKey?: string;

@@ -1,0 +1,5 @@
+type: kubernetes_secret
+name: my-secret
+labels:
+  key: value
+namespace: my-namespace

@@ -24,6 +24,8 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -35,6 +37,59 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+// SummaryState is the state of the summarization process.
+type SummaryState int32
+
+const (
+	SummaryState_SUMMARY_STATE_UNSPECIFIED SummaryState = 0
+	SummaryState_SUMMARY_STATE_PENDING     SummaryState = 1
+	SummaryState_SUMMARY_STATE_SUCCESS     SummaryState = 2
+	SummaryState_SUMMARY_STATE_ERROR       SummaryState = 3
+)
+
+// Enum value maps for SummaryState.
+var (
+	SummaryState_name = map[int32]string{
+		0: "SUMMARY_STATE_UNSPECIFIED",
+		1: "SUMMARY_STATE_PENDING",
+		2: "SUMMARY_STATE_SUCCESS",
+		3: "SUMMARY_STATE_ERROR",
+	}
+	SummaryState_value = map[string]int32{
+		"SUMMARY_STATE_UNSPECIFIED": 0,
+		"SUMMARY_STATE_PENDING":     1,
+		"SUMMARY_STATE_SUCCESS":     2,
+		"SUMMARY_STATE_ERROR":       3,
+	}
+)
+
+func (x SummaryState) Enum() *SummaryState {
+	p := new(SummaryState)
+	*p = x
+	return p
+}
+
+func (x SummaryState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SummaryState) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[0].Descriptor()
+}
+
+func (SummaryState) Type() protoreflect.EnumType {
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[0]
+}
+
+func (x SummaryState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SummaryState.Descriptor instead.
+func (SummaryState) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{0}
+}
 
 // InferenceModel resource specifies a session summarization inference model
 // configuration. It tells Teleport how to use a specific provider and model to
@@ -125,9 +180,25 @@ type InferenceModelSpec struct {
 	// Types that are valid to be assigned to Provider:
 	//
 	//	*InferenceModelSpec_Openai
-	Provider      isInferenceModelSpec_Provider `protobuf_oneof:"provider"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Provider isInferenceModelSpec_Provider `protobuf_oneof:"provider"`
+	// MaxSessionLengthBytes is the maximum session length that can be sent to
+	// inference provider. Currently, it's determined by the size of model's
+	// context window; future versions of Teleport will allow summarizing larger
+	// sessions by splitting them.
+	//
+	// Inference providers will reject requests that are larger than given
+	// model's context window. Since context windows are usually sized in tokens,
+	// this value is an approximation. Assuming 2 bytes per input token should be
+	// safe.
+	//
+	// Currently, Teleport will outright reject sessions larger than this limit;
+	// future versions will split sessions in chunks, treating this size as a
+	// maximum.
+	//
+	// If unset or set to 0, defaults to 1MB.
+	MaxSessionLengthBytes int64 `protobuf:"varint,2,opt,name=max_session_length_bytes,json=maxSessionLengthBytes,proto3" json:"max_session_length_bytes,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *InferenceModelSpec) Reset() {
@@ -174,6 +245,13 @@ func (x *InferenceModelSpec) GetOpenai() *OpenAIProvider {
 		}
 	}
 	return nil
+}
+
+func (x *InferenceModelSpec) GetMaxSessionLengthBytes() int64 {
+	if x != nil {
+		return x.MaxSessionLengthBytes
+	}
+	return 0
 }
 
 type isInferenceModelSpec_Provider interface {
@@ -543,19 +621,141 @@ func (x *InferencePolicySpec) GetFilter() string {
 	return ""
 }
 
+// Summary represents a summary of a session recording. This format is used to
+// store the summaries in the session storage and return it with gRPC.
+type Summary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// sessionId is an ID of the session whose recording got summarized.
+	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// State is the state of the summarization process.
+	State SummaryState `protobuf:"varint,2,opt,name=state,proto3,enum=teleport.summarizer.v1.SummaryState" json:"state,omitempty"`
+	// InferenceStartedAt is the time when the summarization process started.
+	InferenceStartedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=inference_started_at,json=inferenceStartedAt,proto3" json:"inference_started_at,omitempty"`
+	// InferenceFinishedAt is the time when the summarization process finished.
+	InferenceFinishedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=inference_finished_at,json=inferenceFinishedAt,proto3" json:"inference_finished_at,omitempty"`
+	// Content is the main text content of the summary, stored in Markdown
+	// format. Available if the state is SUMMARY_STATE_SUCCESS.
+	Content string `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
+	// ModelName is the name of the `InferenceModel` resource that was used to
+	// generate this summary.
+	ModelName string `protobuf:"bytes,6,opt,name=model_name,json=modelName,proto3" json:"model_name,omitempty"`
+	// SessionEndEvent is the event that ended the summarized session. Session
+	// end events carry the most complete set of data that Teleport has about a
+	// given session. Used for checking access based on RBAC rule "where"
+	// filters.
+	//
+	// The event is stored in an unstructured form, as storing an instance of
+	// events.OneOf posed a number of technical challenges with JSON
+	// serialization as a subcomponent of this message. These challenges stem
+	// from the fact that audit events have gogoproto extensions.
+	SessionEndEvent *structpb.Struct `protobuf:"bytes,7,opt,name=session_end_event,json=sessionEndEvent,proto3" json:"session_end_event,omitempty"`
+	// ErrorMessage is an error message if the summarization failed. Available if
+	// the state is SUMMARY_STATE_ERROR.
+	ErrorMessage  string `protobuf:"bytes,8,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Summary) Reset() {
+	*x = Summary{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Summary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Summary) ProtoMessage() {}
+
+func (x *Summary) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Summary.ProtoReflect.Descriptor instead.
+func (*Summary) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *Summary) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *Summary) GetState() SummaryState {
+	if x != nil {
+		return x.State
+	}
+	return SummaryState_SUMMARY_STATE_UNSPECIFIED
+}
+
+func (x *Summary) GetInferenceStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.InferenceStartedAt
+	}
+	return nil
+}
+
+func (x *Summary) GetInferenceFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.InferenceFinishedAt
+	}
+	return nil
+}
+
+func (x *Summary) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *Summary) GetModelName() string {
+	if x != nil {
+		return x.ModelName
+	}
+	return ""
+}
+
+func (x *Summary) GetSessionEndEvent() *structpb.Struct {
+	if x != nil {
+		return x.SessionEndEvent
+	}
+	return nil
+}
+
+func (x *Summary) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
 var File_teleport_summarizer_v1_summarizer_proto protoreflect.FileDescriptor
 
 const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a!teleport/header/v1/metadata.proto\"\xd3\x01\n" +
+	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xd3\x01\n" +
 	"\x0eInferenceModel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
-	"\x04spec\x18\x05 \x01(\v2*.teleport.summarizer.v1.InferenceModelSpecR\x04spec\"b\n" +
+	"\x04spec\x18\x05 \x01(\v2*.teleport.summarizer.v1.InferenceModelSpecR\x04spec\"\x9b\x01\n" +
 	"\x12InferenceModelSpec\x12@\n" +
-	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openaiB\n" +
+	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openai\x127\n" +
+	"\x18max_session_length_bytes\x18\x02 \x01(\x03R\x15maxSessionLengthBytesB\n" +
 	"\n" +
 	"\bprovider\"\xa2\x01\n" +
 	"\x0eOpenAIProvider\x12&\n" +
@@ -580,7 +780,23 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x13InferencePolicySpec\x12\x14\n" +
 	"\x05kinds\x18\x01 \x03(\tR\x05kinds\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12\x16\n" +
-	"\x06filter\x18\x03 \x01(\tR\x06filterBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
+	"\x06filter\x18\x03 \x01(\tR\x06filter\"\xa5\x03\n" +
+	"\aSummary\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12:\n" +
+	"\x05state\x18\x02 \x01(\x0e2$.teleport.summarizer.v1.SummaryStateR\x05state\x12L\n" +
+	"\x14inference_started_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x12inferenceStartedAt\x12N\n" +
+	"\x15inference_finished_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x13inferenceFinishedAt\x12\x18\n" +
+	"\acontent\x18\x05 \x01(\tR\acontent\x12\x1d\n" +
+	"\n" +
+	"model_name\x18\x06 \x01(\tR\tmodelName\x12C\n" +
+	"\x11session_end_event\x18\a \x01(\v2\x17.google.protobuf.StructR\x0fsessionEndEvent\x12#\n" +
+	"\rerror_message\x18\b \x01(\tR\ferrorMessage*|\n" +
+	"\fSummaryState\x12\x1d\n" +
+	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +
+	"\x15SUMMARY_STATE_SUCCESS\x10\x02\x12\x17\n" +
+	"\x13SUMMARY_STATE_ERROR\x10\x03BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
 var (
 	file_teleport_summarizer_v1_summarizer_proto_rawDescOnce sync.Once
@@ -594,30 +810,39 @@ func file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP() []byte {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescData
 }
 
-var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
-	(*InferenceModel)(nil),      // 0: teleport.summarizer.v1.InferenceModel
-	(*InferenceModelSpec)(nil),  // 1: teleport.summarizer.v1.InferenceModelSpec
-	(*OpenAIProvider)(nil),      // 2: teleport.summarizer.v1.OpenAIProvider
-	(*InferenceSecret)(nil),     // 3: teleport.summarizer.v1.InferenceSecret
-	(*InferenceSecretSpec)(nil), // 4: teleport.summarizer.v1.InferenceSecretSpec
-	(*InferencePolicy)(nil),     // 5: teleport.summarizer.v1.InferencePolicy
-	(*InferencePolicySpec)(nil), // 6: teleport.summarizer.v1.InferencePolicySpec
-	(*v1.Metadata)(nil),         // 7: teleport.header.v1.Metadata
+	(SummaryState)(0),             // 0: teleport.summarizer.v1.SummaryState
+	(*InferenceModel)(nil),        // 1: teleport.summarizer.v1.InferenceModel
+	(*InferenceModelSpec)(nil),    // 2: teleport.summarizer.v1.InferenceModelSpec
+	(*OpenAIProvider)(nil),        // 3: teleport.summarizer.v1.OpenAIProvider
+	(*InferenceSecret)(nil),       // 4: teleport.summarizer.v1.InferenceSecret
+	(*InferenceSecretSpec)(nil),   // 5: teleport.summarizer.v1.InferenceSecretSpec
+	(*InferencePolicy)(nil),       // 6: teleport.summarizer.v1.InferencePolicy
+	(*InferencePolicySpec)(nil),   // 7: teleport.summarizer.v1.InferencePolicySpec
+	(*Summary)(nil),               // 8: teleport.summarizer.v1.Summary
+	(*v1.Metadata)(nil),           // 9: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),       // 11: google.protobuf.Struct
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
-	7, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
-	1, // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
-	2, // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	7, // 3: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
-	4, // 4: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	7, // 5: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
-	6, // 6: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	9,  // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
+	2,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	3,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	9,  // 3: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
+	5,  // 4: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	9,  // 5: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
+	7,  // 6: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
+	0,  // 7: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
+	10, // 8: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
+	10, // 9: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
+	11, // 10: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }
@@ -633,13 +858,14 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   7,
+			NumEnums:      1,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_teleport_summarizer_v1_summarizer_proto_goTypes,
 		DependencyIndexes: file_teleport_summarizer_v1_summarizer_proto_depIdxs,
+		EnumInfos:         file_teleport_summarizer_v1_summarizer_proto_enumTypes,
 		MessageInfos:      file_teleport_summarizer_v1_summarizer_proto_msgTypes,
 	}.Build()
 	File_teleport_summarizer_v1_summarizer_proto = out.File

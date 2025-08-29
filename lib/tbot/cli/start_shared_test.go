@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 func TestSharedStartArgs(t *testing.T) {
@@ -72,7 +72,7 @@ func TestSharedStartArgs(t *testing.T) {
 	require.True(t, cfg.Oneshot)
 	require.Equal(t, "0.0.0.0:8080", cfg.DiagAddr)
 
-	dir, ok := cfg.Storage.Destination.(*config.DestinationDirectory)
+	dir, ok := cfg.Storage.Destination.(*destination.Directory)
 	require.True(t, ok)
 	require.Equal(t, "/foo/bar", dir.Path)
 }
@@ -98,7 +98,7 @@ func TestSharedDestinationArgs(t *testing.T) {
 	dest, err := args.BuildDestination()
 	require.NoError(t, err)
 
-	dd, ok := dest.(*config.DestinationDirectory)
+	dd, ok := dest.(*destination.Directory)
 	require.True(t, ok)
 
 	require.ElementsMatch(t, dd.Readers, []*botfs.ACLSelector{

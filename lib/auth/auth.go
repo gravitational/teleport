@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -420,6 +421,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.Summarizer == nil {
+		summarizer, err := local.NewSummarizerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating Summarizer service")
+		}
+		cfg.Summarizer = summarizer
+	}
+	if cfg.SessionSummarizerProvider == nil {
+		cfg.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
+	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
 		if err != nil {
@@ -569,29 +580,32 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
+		MultipartHandler:                cfg.MultipartHandler,
+		Summarizer:                      cfg.Summarizer,
 	}
 
 	as := Server{
-		bk:                      cfg.Backend,
-		clock:                   cfg.Clock,
-		limiter:                 limiter,
-		Authority:               cfg.Authority,
-		AuthServiceName:         cfg.AuthServiceName,
-		ServerID:                cfg.HostUUID,
-		cancelFunc:              cancelFunc,
-		closeCtx:                closeCtx,
-		emitter:                 cfg.Emitter,
-		Streamer:                cfg.Streamer,
-		Unstable:                local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:                services,
-		Cache:                   services,
-		keyStore:                keyStore,
-		traceClient:             cfg.TraceClient,
-		fips:                    cfg.FIPS,
-		loadAllCAs:              cfg.LoadAllCAs,
-		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
-		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
-		logger:                  cfg.Logger,
+		bk:                        cfg.Backend,
+		clock:                     cfg.Clock,
+		limiter:                   limiter,
+		Authority:                 cfg.Authority,
+		AuthServiceName:           cfg.AuthServiceName,
+		ServerID:                  cfg.HostUUID,
+		cancelFunc:                cancelFunc,
+		closeCtx:                  closeCtx,
+		emitter:                   cfg.Emitter,
+		Streamer:                  cfg.Streamer,
+		Unstable:                  local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:                  services,
+		Cache:                     services,
+		keyStore:                  keyStore,
+		traceClient:               cfg.TraceClient,
+		fips:                      cfg.FIPS,
+		loadAllCAs:                cfg.LoadAllCAs,
+		httpClientForAWSSTS:       cfg.HTTPClientForAWSSTS,
+		accessMonitoringEnabled:   cfg.AccessMonitoringEnabled,
+		logger:                    cfg.Logger,
+		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -811,6 +825,8 @@ type Services struct {
 	services.HealthCheckConfig
 	services.BackendInfoService
 	services.VnetConfigService
+	events.MultipartHandler
+	services.Summarizer
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1224,6 +1240,11 @@ type Server struct {
 
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
+
+	// sessionSummarizerProvider is a provider of the session summarizer service.
+	// It allows for late initialization of the summarizer in the enterprise
+	// plugin. The summarizer itself summarizes session recordings.
+	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1312,6 +1333,12 @@ func (a *Server) ResetLoginHooks() {
 	a.loginHooksMu.Lock()
 	a.loginHooks = nil
 	a.loginHooksMu.Unlock()
+}
+
+// SetSummarizerService sets an implementation of the summarizer service used
+// by this server and its underlying services.
+func (a *Server) SetSummarizerService(s summarizer.SessionSummarizer) {
+	a.sessionSummarizerProvider.SetSummarizer(s)
 }
 
 // CloseContext returns the close context
@@ -3483,10 +3510,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
-	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	// Generate AWS client side credentials if the user is trying to access an AWS App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
 	switch {
-	case errors.Is(err, errNotIntegrationApp):
+	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
@@ -6674,6 +6701,9 @@ func (a *Server) createAccessListReminderNotification(ctx context.Context, owner
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
+//
+// WARNING: This is not safe for use in clusters using HSMs or KMS for private key material.
+// Instead, you should prefer using the CRLs that are already present in the certificate_authority resource.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
 	clusterName, err := a.GetClusterName(ctx)
@@ -6688,10 +6718,8 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): this will only create a CRL for an active signer.
-	// If there are multiple signers (multiple HSMs), we won't have the full CRL coverage.
-	// Generate a CRL per signer and return all of them separately.
-
+	// Note: this will only create a CRL for a single active signer.
+	// If there are multiple signers (HSMs), we won't have the full CRL coverage.
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if trace.IsNotFound(err) {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this

@@ -79,7 +79,7 @@ func SignRequest(ctx context.Context, req *http.Request, signCtx *SigningCtx) (*
 	if err := signCtx.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	payload, err := utils.GetAndReplaceRequestBody(req)
+	payloadHash, err := GetV4PayloadHash(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,7 +101,7 @@ func SignRequest(ctx context.Context, req *http.Request, signCtx *SigningCtx) (*
 	}
 
 	signer := NewSigner(signCtx.SigningName)
-	err = signer.SignHTTP(ctx, creds, reqCopy, GetV4PayloadHash(payload), signCtx.SigningName, signCtx.SigningRegion, time.Now())
+	err = signer.SignHTTP(ctx, creds, reqCopy, payloadHash, signCtx.SigningName, signCtx.SigningRegion, time.Now())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
