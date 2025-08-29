@@ -23,17 +23,17 @@ import (
 	"context"
 	"errors"
 	"io"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -62,17 +62,13 @@ func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 
 	streamer := newMockStreamerNeverSends()
 
-	uploadHandler := newMockUploadHandler()
+	processor := newSessionProcessor(sessionID)
 
-	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
-		Streamer:      streamer,
-		UploadHandler: uploadHandler,
-	})
-	require.NoError(t, err)
+	events, errs := streamer.StreamSessionEvents(ctx, sessionID, 0)
 
 	processDone := make(chan error, 1)
 	go func() {
-		processDone <- service.ProcessSessionRecording(ctx, sessionID)
+		processDone <- processor.processEventStream(ctx, events, errs)
 	}()
 
 	streamer.WaitUntilBlocking()
@@ -84,7 +80,158 @@ func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(5 * time.Second):
-		t.Fatal("test timed out - ProcessSessionRecording did not exit after context cancellation")
+		t.Fatal("test timed out - processEventStream did not exit after context cancellation")
+	}
+}
+
+func TestProcessSessionRecording_Metadata(t *testing.T) {
+	startTime := time.Now()
+
+	tests := []struct {
+		name             string
+		events           []apievents.AuditEvent
+		expectError      bool
+		expectedMetadata func(t *testing.T, metadata *pb.SessionRecordingMetadata)
+		expectFrames     bool
+	}{
+		{
+			name:   "ssh session with print events",
+			events: generateBasicSession(startTime),
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.Equal(t, timestamppb.New(startTime), metadata.StartTime)
+				require.Equal(t, timestamppb.New(startTime.Add(10*time.Second)), metadata.EndTime)
+				require.Equal(t, durationpb.New(10*time.Second), metadata.Duration)
+
+				require.Equal(t, int32(80), metadata.StartCols)
+				require.Equal(t, int32(24), metadata.StartRows)
+
+				require.Equal(t, "test-cluster", metadata.ClusterName)
+				require.Equal(t, "test-server", metadata.ResourceName)
+
+				require.Equal(t, pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH, metadata.Type)
+			},
+			expectFrames: true,
+		},
+		{
+			name:   "kube session with print events",
+			events: generateKubernetesSession(startTime),
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.Equal(t, timestamppb.New(startTime), metadata.StartTime)
+				require.Equal(t, timestamppb.New(startTime.Add(10*time.Second)), metadata.EndTime)
+				require.Equal(t, durationpb.New(10*time.Second), metadata.Duration)
+
+				require.Equal(t, int32(80), metadata.StartCols)
+				require.Equal(t, int32(24), metadata.StartRows)
+
+				require.Equal(t, "test-cluster", metadata.ClusterName)
+				require.Equal(t, "test-k8s-cluster", metadata.ResourceName)
+
+				require.Equal(t, pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES, metadata.Type)
+			},
+			expectFrames: true,
+		},
+		{
+			name:        "desktop session",
+			events:      generateDesktopSession(startTime),
+			expectError: false,
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.Equal(t, timestamppb.New(startTime), metadata.StartTime)
+				require.Equal(t, timestamppb.New(startTime.Add(10*time.Second)), metadata.EndTime)
+				require.Equal(t, durationpb.New(10*time.Second), metadata.Duration)
+
+				require.Empty(t, metadata.Events)
+				require.Equal(t, "test-desktop", metadata.ResourceName)
+
+				require.Equal(t, pb.SessionRecordingType_SESSION_RECORDING_TYPE_DESKTOP, metadata.Type)
+			},
+			expectFrames: false,
+		},
+		{
+			name:        "database session",
+			events:      generateDatabaseSession(startTime),
+			expectError: false,
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.Equal(t, timestamppb.New(startTime), metadata.StartTime)
+				require.Equal(t, timestamppb.New(startTime.Add(10*time.Second)), metadata.EndTime)
+				require.Equal(t, durationpb.New(10*time.Second), metadata.Duration)
+
+				require.Empty(t, metadata.Events)
+				require.Equal(t, "test-database", metadata.ResourceName)
+
+				require.Equal(t, pb.SessionRecordingType_SESSION_RECORDING_TYPE_DATABASE, metadata.Type)
+			},
+			expectFrames: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessionID := session.NewID()
+
+			streamer := &mockStreamer{
+				events:       tt.events,
+				errorOnEvent: -1,
+			}
+
+			processor := newSessionProcessor(sessionID)
+
+			events, errs := streamer.StreamSessionEvents(t.Context(), sessionID, 0)
+			err := processor.processEventStream(t.Context(), events, errs)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+
+				metadata, frames := processor.collect()
+
+				tt.expectedMetadata(t, metadata)
+
+				if tt.expectFrames {
+					require.NotEmpty(t, frames, "expected thumbnail frames")
+				} else {
+					require.Empty(t, frames, "did not expect any thumbnail frames")
+				}
+			}
+		})
+	}
+}
+
+func generateDesktopSession(startTime time.Time) []apievents.AuditEvent {
+	return []apievents.AuditEvent{
+		&apievents.WindowsDesktopSessionStart{
+			Metadata: apievents.Metadata{
+				Time: startTime,
+			},
+			DesktopName: "test-desktop",
+		},
+		&apievents.WindowsDesktopSessionEnd{
+			Metadata: apievents.Metadata{
+				Time: startTime.Add(10 * time.Second),
+			},
+			StartTime: startTime,
+			EndTime:   startTime.Add(10 * time.Second),
+		},
+	}
+}
+
+func generateDatabaseSession(startTime time.Time) []apievents.AuditEvent {
+	return []apievents.AuditEvent{
+		&apievents.DatabaseSessionStart{
+			Metadata: apievents.Metadata{
+				Time: startTime,
+			},
+			DatabaseMetadata: apievents.DatabaseMetadata{
+				DatabaseService: "test-database",
+			},
+		},
+		&apievents.DatabaseSessionEnd{
+			Metadata: apievents.Metadata{
+				Time: startTime.Add(10 * time.Second),
+			},
+			StartTime: startTime,
+			EndTime:   startTime.Add(10 * time.Second),
+		},
 	}
 }
 
@@ -92,8 +239,57 @@ func generateBasicSession(startTime time.Time) []apievents.AuditEvent {
 	events := []apievents.AuditEvent{
 		&apievents.SessionStart{
 			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
+				ClusterName: "test-cluster",
+				Type:        "session.start",
+				Time:        startTime,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				Protocol: "ssh",
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerHostname: "test-server",
+			},
+			TerminalSize: "80:24",
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(1 * time.Second),
+			},
+			Data: []byte("Hello World\n"),
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(2 * time.Second),
+			},
+			Data: []byte("$ ls -la\n"),
+		},
+		&apievents.SessionEnd{
+			Metadata: apievents.Metadata{
+				Type: "session.end",
+				Time: startTime.Add(10 * time.Second),
+			},
+			StartTime: startTime,
+			EndTime:   startTime.Add(10 * time.Second),
+		},
+	}
+	return events
+}
+
+func generateKubernetesSession(startTime time.Time) []apievents.AuditEvent {
+	events := []apievents.AuditEvent{
+		&apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				ClusterName: "test-cluster",
+				Type:        "session.start",
+				Time:        startTime,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				Protocol: "kube",
+			},
+			KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
+				KubernetesCluster: "test-k8s-cluster",
 			},
 			TerminalSize: "80:24",
 		},
@@ -358,105 +554,4 @@ func (m *mockStreamerNeverSends) StreamSessionEvents(ctx context.Context, _ sess
 
 func (m *mockStreamerNeverSends) WaitUntilBlocking() {
 	<-m.called
-}
-
-// mockUploadHandler implements events.UploadHandler for testing
-type mockUploadHandler struct {
-	metadata       map[string][]byte
-	thumbnails     map[string][]byte
-	uploadError    error
-	metadataPaths  map[string]string
-	thumbnailPaths map[string]string
-	mu             sync.Mutex
-}
-
-func newMockUploadHandler() *mockUploadHandler {
-	return &mockUploadHandler{
-		metadata:       make(map[string][]byte),
-		thumbnails:     make(map[string][]byte),
-		metadataPaths:  make(map[string]string),
-		thumbnailPaths: make(map[string]string),
-	}
-}
-
-func (m *mockUploadHandler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return "", nil
-}
-
-func (m *mockUploadHandler) UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
-	return "", nil
-}
-
-func (m *mockUploadHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	if m.uploadError != nil {
-		return "", m.uploadError
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return "", err
-	}
-
-	path := "metadata/" + string(sessionID)
-	m.metadata[string(sessionID)] = data
-	m.metadataPaths[string(sessionID)] = path
-	return path, nil
-}
-
-func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	if m.uploadError != nil {
-		return "", m.uploadError
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return "", err
-	}
-
-	path := "thumbnail/" + string(sessionID)
-	m.thumbnails[string(sessionID)] = data
-	m.thumbnailPaths[string(sessionID)] = path
-	return path, nil
-}
-
-func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return nil
-}
-
-func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return nil
-}
-
-func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return nil
-}
-
-func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return nil
-}
-
-func (m *mockUploadHandler) Complete(ctx context.Context, upload events.StreamUpload) error {
-	return nil
-}
-
-func (m *mockUploadHandler) Reserve(ctx context.Context, upload events.StreamUpload) error {
-	return nil
-}
-
-func (m *mockUploadHandler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
-	return nil, nil
-}
-
-func (m *mockUploadHandler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
-	return nil, nil
-}
-
-func (m *mockUploadHandler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
-	return nil, nil
 }
