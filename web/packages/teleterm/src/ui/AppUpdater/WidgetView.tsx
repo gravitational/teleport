@@ -100,13 +100,6 @@ export function WidgetView({
     );
   }
 
-  if (
-    updateEvent.kind === 'error' &&
-    updateEvent.error.name === UnsupportedVersionError.name
-  ) {
-    return;
-  }
-
   // If an error occurred when there was no update info, return early.
   if (updateEvent.kind === 'error' && !updateEvent.update) {
     return (
@@ -122,7 +115,9 @@ export function WidgetView({
           </Stack>
         }
       >
-        Unable to check for app updates
+        {updateEvent.error.name === UnsupportedVersionError.name
+          ? 'Incompatible managed update version'
+          : 'Unable to check for app updates'}
       </Alert>
     );
   }
