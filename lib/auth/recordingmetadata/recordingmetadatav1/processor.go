@@ -1,0 +1,250 @@
+/**
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package recordingmetadatav1
+
+import (
+	"context"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/hinshun/vt10x"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
+)
+
+type sessionProcessor struct {
+	sessionID        session.ID
+	startTime        time.Time
+	lastEvent        apievents.AuditEvent
+	lastActivityTime time.Time
+	activeUsers      map[string]time.Duration
+	vt               vt10x.Terminal
+	metadata         *pb.SessionRecordingMetadata
+	sampler          *thumbnailBucketSampler
+}
+
+func newSessionProcessor(sessionID session.ID) *sessionProcessor {
+	return &sessionProcessor{
+		sessionID:   sessionID,
+		activeUsers: make(map[string]time.Duration),
+		vt:          vt10x.New(),
+		metadata:    &pb.SessionRecordingMetadata{},
+		sampler:     newThumbnailBucketSampler(maxThumbnails, 1*time.Second),
+	}
+}
+
+func (p *sessionProcessor) processEventStream(ctx context.Context, evts <-chan apievents.AuditEvent, errors <-chan error) error {
+	for {
+		select {
+		case evt, ok := <-evts:
+			if !ok {
+				return p.verifyEventsFound()
+			}
+
+			p.lastEvent = evt
+
+			if err := p.handleEvent(evt); err != nil {
+				return trace.Wrap(err)
+			}
+
+		case err, ok := <-errors:
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if !ok {
+				return nil
+			}
+
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (p *sessionProcessor) handleEvent(evt apievents.AuditEvent) error {
+	switch e := evt.(type) {
+	case *apievents.DatabaseSessionStart, *apievents.WindowsDesktopSessionStart:
+		return nil
+
+	case *apievents.SessionStart:
+		return p.handleSessionStart(e)
+
+	case *apievents.Resize:
+		return p.handleResize(e)
+
+	case *apievents.SessionPrint:
+		return p.handleSessionPrint(e)
+
+	case *apievents.SessionJoin:
+		p.handleSessionJoin(e)
+
+	case *apievents.SessionLeave:
+		p.handleSessionLeave(e)
+
+	case *apievents.SessionEnd:
+		return p.handleSessionEnd(e)
+	}
+
+	return nil
+}
+
+func (p *sessionProcessor) handleSessionStart(e *apievents.SessionStart) error {
+	p.lastActivityTime = e.Time
+	p.startTime = e.Time
+
+	size, err := session.UnmarshalTerminalParams(e.TerminalSize)
+	if err != nil {
+		return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, p.sessionID)
+	}
+
+	p.metadata.ClusterName = e.ClusterName
+	p.metadata.User = e.User
+
+	switch e.Protocol {
+	case events.EventProtocolSSH:
+		p.metadata.ResourceName = e.ServerHostname
+		p.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH
+	case events.EventProtocolKube:
+		p.metadata.ResourceName = e.KubernetesCluster
+		p.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
+	}
+
+	p.metadata.StartCols = int32(size.W)
+	p.metadata.StartRows = int32(size.H)
+
+	p.vt.Resize(size.W, size.H)
+
+	return nil
+}
+
+func (p *sessionProcessor) handleResize(e *apievents.Resize) error {
+	size, err := session.UnmarshalTerminalParams(e.TerminalSize)
+	if err != nil {
+		return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, p.sessionID)
+	}
+
+	p.metadata.Events = append(p.metadata.Events, &pb.SessionRecordingEvent{
+		StartOffset: durationpb.New(e.Time.Sub(p.startTime)),
+		Event: &pb.SessionRecordingEvent_Resize{
+			Resize: &pb.SessionRecordingResizeEvent{
+				Cols: int32(size.W),
+				Rows: int32(size.H),
+			},
+		},
+	})
+
+	p.vt.Resize(size.W, size.H)
+
+	return nil
+}
+
+func (p *sessionProcessor) handleSessionPrint(e *apievents.SessionPrint) error {
+	if !p.lastActivityTime.IsZero() && e.Time.Sub(p.lastActivityTime) > inactivityThreshold {
+		p.addInactivityEvent(p.lastActivityTime, e.Time)
+	}
+
+	if _, err := p.vt.Write(e.Data); err != nil {
+		return trace.Errorf("writing data to terminal: %w", err)
+	}
+
+	if p.sampler.shouldCapture(e.Time) {
+		p.recordThumbnail(e.Time)
+	}
+
+	p.lastActivityTime = e.Time
+	return nil
+}
+
+func (p *sessionProcessor) handleSessionJoin(e *apievents.SessionJoin) {
+	p.activeUsers[e.User] = e.Time.Sub(p.startTime)
+}
+
+func (p *sessionProcessor) handleSessionLeave(e *apievents.SessionLeave) {
+	if joinTime, ok := p.activeUsers[e.User]; ok {
+		p.metadata.Events = append(p.metadata.Events, &pb.SessionRecordingEvent{
+			StartOffset: durationpb.New(joinTime),
+			EndOffset:   durationpb.New(e.Time.Sub(p.startTime)),
+			Event: &pb.SessionRecordingEvent_Join{
+				Join: &pb.SessionRecordingJoinEvent{
+					User: e.User,
+				},
+			},
+		})
+
+		delete(p.activeUsers, e.User)
+	}
+}
+
+func (p *sessionProcessor) handleSessionEnd(e *apievents.SessionEnd) error {
+	if !p.lastActivityTime.IsZero() && e.Time.Sub(p.lastActivityTime) > inactivityThreshold {
+		p.addInactivityEvent(p.lastActivityTime, e.Time)
+	}
+
+	p.recordThumbnail(e.EndTime)
+
+	return nil
+}
+
+func (p *sessionProcessor) addInactivityEvent(start, end time.Time) {
+	p.metadata.Events = append(p.metadata.Events, &pb.SessionRecordingEvent{
+		StartOffset: durationpb.New(start.Sub(p.startTime)),
+		EndOffset:   durationpb.New(end.Sub(p.startTime)),
+		Event: &pb.SessionRecordingEvent_Inactivity{
+			Inactivity: &pb.SessionRecordingInactivityEvent{},
+		},
+	})
+}
+
+func (p *sessionProcessor) recordThumbnail(t time.Time) {
+	state := p.vt.DumpState()
+	p.sampler.add(&state, t)
+}
+
+func (p *sessionProcessor) verifyEventsFound() error {
+	if p.lastEvent == nil {
+		return trace.NotFound("no events found for session %v", p.sessionID)
+	}
+	return nil
+}
+
+func (p *sessionProcessor) collect() (*pb.SessionRecordingMetadata, []*thumbnailEntry) {
+	// Finish off any remaining activity events
+	for user, userStartOffset := range p.activeUsers {
+		p.metadata.Events = append(p.metadata.Events, &pb.SessionRecordingEvent{
+			StartOffset: durationpb.New(userStartOffset),
+			EndOffset:   durationpb.New(p.lastEvent.GetTime().Sub(p.startTime)),
+			Event: &pb.SessionRecordingEvent_Join{
+				Join: &pb.SessionRecordingJoinEvent{
+					User: user,
+				},
+			},
+		})
+	}
+
+	p.metadata.Duration = durationpb.New(p.lastEvent.GetTime().Sub(p.startTime))
+	p.metadata.StartTime = timestamppb.New(p.startTime)
+	p.metadata.EndTime = timestamppb.New(p.lastEvent.GetTime())
+
+	return p.metadata, p.sampler.result()
+}
