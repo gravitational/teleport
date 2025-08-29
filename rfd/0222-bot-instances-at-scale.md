@@ -46,18 +46,18 @@ To support this use-case, the filter for bot instances will support the predicat
 
 **As a cluster owner (Infrastructure Security team), I want to know which Bot Instances are running with deprecated/problematic configuration.**
 
-Issues in `tbot` (or just typos) can be difficult to detect and logs may not adequately highlight these. To improve the rate of these events reaching users, `tbot` will detect and collate notices which are sent with the next heartbeat. They will then be available to view for a bot instance. To help in situations where it’s infeasible to check each individual instance, notices will be summarised by title and presented in aggregate form. Each aggregated item will be selectable and will filter the bot instances list. A filter such as `contains(notices, "Proxy URL not set")` will be pre-populated.
+Issues in `tbot` (or just typos) can be difficult to detect and logs may not adequately highlight these. To improve the rate of these events reaching users, `tbot` will detect and collate notices which are sent with the next heartbeat. They will then be available to view for a bot instance. To help in situations where it’s infeasible to check each individual instance, notices will be summarized by title and presented in aggregate form. Each aggregated item will be selectable and will filter the bot instances list. A filter such as `contains(notices, "Proxy URL not set")` will be pre-populated.
 
 **As a cluster owner (Infrastructure Security team), I'd like to be able to figure out what a Bot Instance is for/who it belongs to when making decisions (e.g can we upgrade/break this Bot safely).**
 
-How bot/instances are tagged with an owner, organisational area or purpose will be the subject of a later phase of delivery. As such it is left undefined for the time being. It may simply be a series of optional fields (or labels) which can be included in the `tbot` configuration, via flags or environment variables. These would be sent along with heartbeats and be visible in the web UI.
+How bot/instances are tagged with an owner, organizational area or purpose will be the subject of a later phase of delivery. As such it is left undefined for the time being. It may simply be a series of optional fields (or labels) which can be included in the `tbot` configuration, via flags or environment variables. These would be sent along with heartbeats and be visible in the web UI.
 
 **As a Bot Instance owner (Dev/Dev Ops team), I'd like help in understanding why my Bot Instance is not working properly.**
 
 For somebody diagnosing an issue with `tbot`, they’re likely to have access to the `tbot` log output. Such as;
 
 ```
-INFO [TBOT:IDEN] Fetched new bot identity identity:mwi-demo-aws-manager, id=5c6af2e6-13a4-48c1-855f-74d8b8e01d86 | valid: after=2025-08-21T12:10:15Z, before=2025-08-21T12:31:13Z, duration=20m58s | kind=tls, renewable=false, disallow-reissue=false, roles=[bot-mwi-demo-aws-manager], principals=[-teleport-internal-join], generation=1 tbot/service_bot_identity.go:224
+INFO [TBOT:IDENTITY] Fetched new bot identity identity:mwi-demo-aws-manager, id=5c6af2e6-13a4-48c1-855f-74d8b8e01d86 | valid: after=2025-08-21T12:10:15Z, before=2025-08-21T12:31:13Z, duration=20m58s | kind=tls, renewable=false, disallow-reissue=false, roles=[bot-mwi-demo-aws-manager], principals=[-teleport-internal-join], generation=1 tbot/service_bot_identity.go:224
 ```
 
 This log entry contains the bot name (as `identity`) and the instance’s ID. Either of these values can be used to filter the instances list, and should make finding the relevant instance easy.
@@ -92,7 +92,7 @@ The predicate language will be used to provide advanced filtering for instances.
 
 The proposed changes are mainly capturing extra data and presenting it in the web UI. As such, it is light on security and privacy concerns.
 
-In order to allow instance config to be viewed without needing log in to the machine running `tbot` the complete configuration will be included in the start-up heartbeat and stored for the lifetime of the instance. Instead of capturing the config YAML verbatim, the _effective_ configuration will be used. This includes any environment variable and flag overrides. For security reasons, the join token will be omitted. For privacy reasons, any unrecognised values as well as comments will also be omitted. There may be other sensitive information such as service/output names, but these are only visible to authorised users.
+In order to allow instance config to be viewed without needing log in to the machine running `tbot` the complete configuration will be included in the start-up heartbeat and stored for the lifetime of the instance. Instead of capturing the config YAML verbatim, the _effective_ configuration will be used. This includes any environment variable and flag overrides. For security reasons, the join token will be omitted. For privacy reasons, any unrecognized values as well as comments will also be omitted. There may be other sensitive information such as service/output names, but these are only visible to authorised users.
 
 ## Proto Specification
 
@@ -256,7 +256,7 @@ UNKNOWN | Once per service |  |
 
 ### Notices
 
-Today, when `tbot` encounters a configuration that is suboptimal or will not be supported in an upcoming release, it typically logs a message with the `WARN` severity. These messages can easily be missed because `tbot`'s logs are noisy, it is often running non-interactively (e.g. in CI/CD pipeline), and because many users do not have a decent centralised logging solution.
+Today, when `tbot` encounters a configuration that is suboptimal or will not be supported in an upcoming release, it typically logs a message with the `WARN` severity. These messages can easily be missed because `tbot`'s logs are noisy, it is often running non-interactively (e.g. in CI/CD pipeline), and because many users do not have a decent centralized logging solution.
 
 We have historically kept deprecated features around for longer than promised, to mitigate the risk of users missing these warnings, which creates a compounding maintenance burden.
 
@@ -352,7 +352,7 @@ Giving users access to fine-grained health statuses (for each service/output) wi
 
 Providing the resolved configuration will allow users to troubleshoot issues related to environment variables, flags and `tbot` config.
 
-An aggregated dashboard will help to give a high-level overview of the MWI estate, and is invaluable when dealing with a large fleet. This phase will provide the groundwork for data aggregation and reporting, and will pave the way for the rest of the proposed data visualisations.
+An aggregated dashboard will help to give a high-level overview of the MWI estate, and is invaluable when dealing with a large fleet. This phase will provide the groundwork for data aggregation and reporting, and will pave the way for the rest of the proposed data visualizations.
 
 ## Phase 3
 
