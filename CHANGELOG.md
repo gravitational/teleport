@@ -1,5 +1,11 @@
 # Changelog
 
+## 18.1.8 (08/29/25)
+
+* Fixed an issue introduced in v18.1.5 that caused desktop connection attempts to stall on the loading screen. [#58500](https://github.com/gravitational/teleport/pull/58500)
+* Support setting `"*"` in role `kubernetes_users`. [#58477](https://github.com/gravitational/teleport/pull/58477)
+* The following Helm charts now support obtaining the plugin credentials using tbot: `teleport-plugin-discord`, `teleport-plugin-email`, `teleport-plugin-jira`, `teleport-plugin-mattermost`, `teleport-plugin-msteams`, `teleport-plugin-pagerduty`, `teleport-plugin-event-handler`. [#58301](https://github.com/gravitational/teleport/pull/58301)
+
 ## 18.1.7 (08/27/25)
 
 **Warning:** This release includes a regression that prevents connecting to Windows desktops via the Web UI.
