@@ -44,6 +44,8 @@ For CLI and SDK based access, you must use `tsh` to obtain AWS credentials.
 
 ## Step 1/4. Configure AWS IAM Roles Anywhere integration
 
+In this section, you will configure AWS IAM resources to allow Teleport to issue AWS credentials.
+
 Navigate to Teleport Web UI, click on Enroll New Resource in the Resources listing page, and follow the guide after clicking on AWS CLI/Console Access tile.
 
 <details>
@@ -165,8 +167,6 @@ Navigate to Teleport Web UI, click on Enroll New Resource in the Resources listi
   Teleport will now start syncing AWS IAM Roles Anywhere Profiles as AWS applications, every 5 minutes.
 </details>
 
-In this section, you will configure AWS IAM resources to allow Teleport to issue AWS credentials.
-
 ## Step 2/4. Create an AWS IAM Roles Anywhere Profile and assign IAM Roles
 
 Now, you will create an example Profile and Role so that you can test the integration.
@@ -239,7 +239,7 @@ You will create a Teleport Role which will grant access to the `ExampleReadOnlyA
     </TabItem>
   </Tabs>
 
-Assign the Role to the users you want to allow access. You can also assign it to an [Access List](../../../identity-governance/access-lists/guide.mdx) or use it in conjunction with [Access Requests](../../../identity-governance/access-requests/).
+Assign the Role to the users you want to allow access. You can also assign it to an [Access List](../../../identity-governance/access-lists/guide.mdx) or use it in conjunction with [Access Requests](../../../identity-governance/access-requests/access-requests.mdx).
 
 ## Step 4/4. Access AWS resources
 
