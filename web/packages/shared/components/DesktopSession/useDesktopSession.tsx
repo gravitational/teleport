@@ -150,11 +150,28 @@ export default function useDesktopSession(
   };
 
   /** Clears sharing state. */
-  const clearSharing = useCallback(() => {
-    setDirectorySharingState({
-      directorySelected: false,
-    });
-  }, []);
+  const clearSharing = async () => {
+    try {
+      await tdpClient.clearDirectory();
+      setDirectorySharingState({
+        directorySelected: false,
+      });
+  } catch (e) {
+    if (isAbortError(e)) {
+        return;
+      }
+      setDirectorySharingState({
+        directorySelected: false,
+      });
+      addAlert({
+        severity: 'warn',
+        content: {
+          title: 'Could not clear shared directory',
+          description: e.message,
+        },
+      });
+    }
+ };
 
   return {
     clipboardSharingState: clipboardSharing,

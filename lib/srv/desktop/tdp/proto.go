@@ -86,6 +86,7 @@ const (
 	TypeLatencyStats                    = MessageType(35)
 	TypePing                            = MessageType(36)
 	TypeClientKeyboardLayout            = MessageType(37)
+	TypeSharedDirectoryRemove           = MessageType(38)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -152,6 +153,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return DecodeMFA(in)
 	case TypeSharedDirectoryAnnounce:
 		return decodeSharedDirectoryAnnounce(in)
+	case TypeSharedDirectoryRemove:
+		return decodeSharedDirectoryRemove(in)
 	case TypeSharedDirectoryAcknowledge:
 		return decodeSharedDirectoryAcknowledge(in)
 	case TypeSharedDirectoryInfoRequest:
@@ -820,6 +823,29 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 	return &MFA{
 		Type:                     mt,
 		MFAAuthenticateChallenge: &req,
+	}, nil
+}
+
+// SharedDirectoryRemove informs the server that the client is no longer sharing a directory.
+// | message type (38) | directory_id uint32
+type SharedDirectoryRemove struct {
+	DirectoryID uint32
+}
+
+func (s SharedDirectoryRemove) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryRemove))
+	writeUint32(buf, s.DirectoryID)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryRemove(in io.Reader) (SharedDirectoryRemove, error) {
+	var directoryID uint32
+	if err := binary.Read(in, binary.BigEndian, &directoryID); err != nil {
+		return SharedDirectoryRemove{}, trace.Wrap(err)
+	}
+	return SharedDirectoryRemove{
+		DirectoryID: directoryID,
 	}, nil
 }
 

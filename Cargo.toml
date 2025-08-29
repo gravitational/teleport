@@ -36,3 +36,20 @@ ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "dd221bf22
     "rustls",
 ] }
 ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "dd221bf22401c4635798ec012724cba7e6d503b2" }
+
+[patch."https://github.com/Devolutions/IronRDP"]
+ironrdp-cliprdr = { path = "../IronRDP/crates/ironrdp-cliprdr" }
+ironrdp-connector = { path = "../IronRDP/crates/ironrdp-connector" }
+ironrdp-core = { path = "../IronRDP/crates/ironrdp-core" }
+ironrdp-displaycontrol = { path = "../IronRDP/crates/ironrdp-displaycontrol" }
+ironrdp-dvc = { path = "../IronRDP/crates/ironrdp-dvc" }
+ironrdp-graphics = { path = "../IronRDP/crates/ironrdp-graphics" }
+ironrdp-pdu = { path = "../IronRDP/crates/ironrdp-pdu" }
+ironrdp-rdpdr = { path = "../IronRDP/crates/ironrdp-rdpdr" }
+ironrdp-rdpsnd = { path = "../IronRDP/crates/ironrdp-rdpsnd" }
+ironrdp-session = { path = "../IronRDP/crates/ironrdp-session" }
+ironrdp-svc = { path = "../IronRDP/crates/ironrdp-svc" }
+ironrdp-tls = { path = "../IronRDP/crates/ironrdp-tls", features = [
+    "rustls",
+] }
+ironrdp-tokio = { path = "../IronRDP/crates/ironrdp-tokio" }
