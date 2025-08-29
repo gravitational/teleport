@@ -827,7 +827,12 @@
     },
     {
       "source": "/admin-guides/teleport-policy/policy-how-to-use/",
-      "destination": "/identity-security/policy-how-to-use/",
+      "destination": "/identity-security/how-to-use/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/policy-how-to-use/",
+      "destination": "/identity-security/how-to-use/",
       "permanent": true
     },
     {
