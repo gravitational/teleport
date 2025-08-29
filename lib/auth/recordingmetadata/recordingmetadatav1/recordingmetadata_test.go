@@ -66,53 +66,50 @@ func TestProcessSessionRecording_Upload(t *testing.T) {
 			},
 		},
 		{
-			name:   "session with resize events",
-			events: generateSessionWithResize(startTime),
+			name:   "kube session",
+			events: generateKubernetesSession(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
-
-				var hasResize bool
-				for _, event := range metadata.Events {
-					if resize := event.GetResize(); resize != nil {
-						hasResize = true
-						require.Equal(t, int32(120), resize.Cols)
-						require.Equal(t, int32(40), resize.Rows)
-					}
-				}
-				require.True(t, hasResize, "expected resize event")
+				require.NotNil(t, metadata.Duration)
+				require.Equal(t, int32(80), metadata.StartCols)
+				require.Equal(t, int32(24), metadata.StartRows)
+			},
+			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
+				require.NotEmpty(t, frames)
+			},
+			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
+				var thumbnail pb.SessionRecordingThumbnail
+				err := proto.Unmarshal(thumbnailData, &thumbnail)
+				require.NoError(t, err)
+				require.NotEmpty(t, thumbnail.Svg)
 			},
 		},
 		{
-			name:   "session with inactivity periods",
-			events: generateSessionWithInactivity(startTime),
+			name:   "desktop session",
+			events: generateDesktopSession(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
-
-				var hasInactivity bool
-				for _, event := range metadata.Events {
-					if event.GetInactivity() != nil {
-						hasInactivity = true
-						require.NotNil(t, event.StartOffset)
-						require.NotNil(t, event.EndOffset)
-					}
-				}
-				require.True(t, hasInactivity, "expected inactivity event")
+				require.NotNil(t, metadata.Duration)
+			},
+			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
+				require.Empty(t, frames)
+			},
+			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
+				require.Empty(t, thumbnailData)
 			},
 		},
 		{
-			name:   "session with join and leave events",
-			events: generateSessionWithJoinLeave(startTime),
+			name:   "database session",
+			events: generateDatabaseSession(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
-
-				joinUsers := make(map[string]bool)
-				for _, event := range metadata.Events {
-					if join := event.GetJoin(); join != nil {
-						joinUsers[join.User] = true
-					}
-				}
-				require.True(t, joinUsers["alice"], "expected alice join event")
-				require.True(t, joinUsers["bob"], "expected bob join event")
+				require.NotNil(t, metadata.Duration)
+			},
+			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
+				require.Empty(t, frames)
+			},
+			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
+				require.Empty(t, thumbnailData)
 			},
 		},
 	}
@@ -188,6 +185,48 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 	err = service.ProcessSessionRecording(t.Context(), sessionID)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "upload failed")
+}
+
+func generateBasicSession(startTime time.Time) []apievents.AuditEvent {
+	events := []apievents.AuditEvent{
+		&apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				ClusterName: "test-cluster",
+				Type:        "session.start",
+				Time:        startTime,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				Protocol: "ssh",
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerHostname: "test-server",
+			},
+			TerminalSize: "80:24",
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(1 * time.Second),
+			},
+			Data: []byte("Hello World\n"),
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(2 * time.Second),
+			},
+			Data: []byte("$ ls -la\n"),
+		},
+		&apievents.SessionEnd{
+			Metadata: apievents.Metadata{
+				Type: "session.end",
+				Time: startTime.Add(10 * time.Second),
+			},
+			StartTime: startTime,
+			EndTime:   startTime.Add(10 * time.Second),
+		},
+	}
+	return events
 }
 
 // mockUploadHandler implements events.UploadHandler for testing

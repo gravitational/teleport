@@ -96,7 +96,7 @@ func TestProcessSessionRecording_Metadata(t *testing.T) {
 	}{
 		{
 			name:   "ssh session with print events",
-			events: generateBasicSession(startTime),
+			events: generateSshSession(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.Equal(t, timestamppb.New(startTime), metadata.StartTime)
 				require.Equal(t, timestamppb.New(startTime.Add(10*time.Second)), metadata.EndTime)
@@ -161,6 +161,50 @@ func TestProcessSessionRecording_Metadata(t *testing.T) {
 				require.Equal(t, pb.SessionRecordingType_SESSION_RECORDING_TYPE_DATABASE, metadata.Type)
 			},
 			expectFrames: false,
+		},
+		{
+			name:   "session with resize events",
+			events: generateSessionWithResize(startTime),
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				var hasResize bool
+				for _, event := range metadata.Events {
+					if resize := event.GetResize(); resize != nil {
+						hasResize = true
+						require.Equal(t, int32(120), resize.Cols)
+						require.Equal(t, int32(40), resize.Rows)
+					}
+				}
+				require.True(t, hasResize, "expected resize event")
+			},
+		},
+		{
+			name:   "session with inactivity periods",
+			events: generateSessionWithInactivity(startTime),
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				var hasInactivity bool
+				for _, event := range metadata.Events {
+					if event.GetInactivity() != nil {
+						hasInactivity = true
+						require.NotNil(t, event.StartOffset)
+						require.NotNil(t, event.EndOffset)
+					}
+				}
+				require.True(t, hasInactivity, "expected inactivity event")
+			},
+		},
+		{
+			name:   "session with join and leave events",
+			events: generateSessionWithJoinLeave(startTime),
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				joinUsers := make(map[string]bool)
+				for _, event := range metadata.Events {
+					if join := event.GetJoin(); join != nil {
+						joinUsers[join.User] = true
+					}
+				}
+				require.True(t, joinUsers["alice"], "expected alice join event")
+				require.True(t, joinUsers["bob"], "expected bob join event")
+			},
 		},
 	}
 
@@ -235,7 +279,7 @@ func generateDatabaseSession(startTime time.Time) []apievents.AuditEvent {
 	}
 }
 
-func generateBasicSession(startTime time.Time) []apievents.AuditEvent {
+func generateSshSession(startTime time.Time) []apievents.AuditEvent {
 	events := []apievents.AuditEvent{
 		&apievents.SessionStart{
 			Metadata: apievents.Metadata{
