@@ -1902,18 +1902,17 @@ ensure-wasm-deps:
 else
 ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt
 
-# Get the version of wasm-bindgen from cargo. The buildboxes do not
-# have jq installed (yet), so have a hacky awk version on standby.
-CARGO_GET_VERSION_JQ = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "$(1)") | .version)'
-CARGO_GET_VERSION_AWK = awk -F '[ ="]+' '/^name = "$(1)"$$/ {inpkg = 1} inpkg && $$1 == "version" {print $$2; exit}' Cargo.lock
+# Get the version of wasm-bindgen from cargo
+# Note, has 'v' prefix, e.g., v0.2.99
+WASM_BINDGEN_VERSION = $(shell cargo tree -i wasm-bindgen | head -n 1 | cut -d ' ' -f  2)
 
-BIN_JQ = $(shell which jq 2>/dev/null)
-CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_AWK))
+.PHONY: print-wasm-bindgen-version
+print-wasm-bindgen-version: NEED_VERSION = $(WASM_BINDGEN_VERSION:v%=%)
+print-wasm-bindgen-version:
+	@echo $(NEED_VERSION)
 
-# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
-#       On 386 Arch, calling the variable produces a malformed command that fails the build.
-#ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
-ensure-wasm-bindgen: NEED_VERSION = 0.2.99
+
+ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION:v%=%)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
 ifneq ($(CI)$(FORCE),)
