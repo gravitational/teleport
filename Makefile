@@ -494,8 +494,18 @@ build-ironrdp-wasm:
 	cargo build --package ironrdp --lib --target wasm32-unknown-unknown --release
 	wasm-opt target/wasm32-unknown-unknown/release/ironrdp.wasm -o target/wasm32-unknown-unknown/release/ironrdp.wasm -O
 	wasm-bindgen target/wasm32-unknown-unknown/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
-	jq -n '{name: "ironrdp", "version": "0.1.0", module: "ironrdp.js", types: "ironrdp.d.ts", sideEffects: ["./snippets/*"] , files: ["ironrdp_bg.wasm","ironrdp.js","ironrdp.d.ts"]}' \
-	> $(ironrdp)/pkg/package.json
+	@$(MAKE) print-ironrdp-package-json > $(ironrdp)/pkg/package.json
+
+.PHONY: print-ironrdp-package-json
+print-ironrdp-package-json:
+	@printf '%s\n' '{' \
+	' "name": "ironrdp",' \
+	' "version": "0.1.0",' \
+	' "module": "ironrdp",' \
+	' "types": "ironrdp.d.ts",' \
+	' "files": ["ironrdp_bg.wasm","ironrdp.js","ironrdp.d.ts"],' \
+	' "sideEffects": ["./snippets/*"],' \
+	'}'
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
 .PHONY: build-fido2
