@@ -11,8 +11,8 @@ Using Amazon ECS and Terraform allows you to easily deploy and manage teleport a
 This flow is ideal when you want to automatically discover and secure access to your EKS clusters, RDS databases or other supported AWS resources.
 
 ## How it works
-A Terraform module deploys a Teleport Agent on Amazon ECS and keeps it up to date.
-Re-applying the Terraform configuration ensures the Teleport Agent's version stays up to date.
+A Terraform module deploys a teleport agent on Amazon ECS and keeps it up to date.
+Re-applying the Terraform configuration ensures the teleport agent's version stays up to date.
 
 You have to create or re-use an IAM Join Token so the Agent is able to join the cluster.
 
@@ -39,67 +39,178 @@ $ cd teleport/examples/aws/terraform/ecs-agent
 ## Step 2/3. Configure the deployment
 The file `variables.tf` contains all the configurable parameters for the teleport agent deployment, ensure you review and create a `.tfvars` file that overrides the default values.
 
-Here's an example of what a `.tfvars` file might look like:
-```hcl
-teleport_proxy_server = "proxy.example.com:443"
+<Tabs>
+  <TabItem label="Base deployment example">
+  Here's an example of what a `.tfvars` file might look like:
+  ```hcl
+  teleport_proxy_server = "proxy.example.com:443"
 
-// AWS Region where the teleport agent is deployed
-aws_region = "eu-south-2"
+  // AWS Region where the teleport agent is deployed
+  aws_region = "eu-south-2"
 
-// ECS cluster name to use.
-ecs_cluster = "marco-ecs-guide"
+  // ECS cluster name to use.
+  ecs_cluster = "teleport-ecs-guide"
 
-// ECS Service networking configuration.
-teleport_agent_subnets         = ["subnet-123"]
-teleport_agent_security_groups = ["sg-456"]
+  // ECS Service networking configuration.
+  teleport_agent_subnets         = ["subnet-123"]
+  teleport_agent_security_groups = ["sg-456"]
 
-// Default tags to add to AWS resources when creating them.
-default_tags = {
-  "DeployedBy" = "TeleportAmazonECSGuide"
-}
+  // Default tags to add to AWS resources when creating them.
+  default_tags = {
+    "DeployedBy" = "TeleportAmazonECSGuide"
+  }
 
-// Teleport agent configuration.
-teleport_agent_config = {
-  version = "v3"
-  teleport = {
-    join_params = {
-      // Create a new IAM Join Token that allows joining from your AWS Account.
-      token_name = "token-ecs-guide"
-      method     = "iam"
+  // Teleport agent configuration.
+  teleport_agent_config = {
+    version = "v3"
+    teleport = {
+      join_params = {
+        // Create a new IAM Join Token that allows joining from your AWS Account.
+        token_name = "token-ecs-guide"
+        method     = "iam"
+      }
+      // Teleport Proxy server endpoint.
+      proxy_server = "proxy.example.com:443"
+      log = {
+        severity = "DEBUG"
+      }
     }
-    // Teleport Proxy server endpoint.
-    proxy_server = "proxy.example.com:443"
-    log = {
-      severity = "DEBUG"
+    auth_service = {
+      enabled = "no"
+    }
+    proxy_service = {
+      enabled = "no"
+    }
+    ssh_service = {
+      enabled = "yes"
     }
   }
-  auth_service = {
-    enabled = "no"
-  }
-  proxy_service = {
-    enabled = "no"
-  }
-  ssh_service = {
-    enabled = "yes"
-  }
-}
 
-// Depending on your use case, you may want to allow additional permissions for the IAM Role which will be assumed by the agent.
-ecs_taskrole = "ecs-guide-teleport_agent_role"
-ecs_taskrole_policy = {
-  Version = "2012-10-17"
-  Statement = [
-    {
-      Action = [
-        "sts:GetCallerIdentity",
+  // Depending on your use case, you may want to allow additional permissions for the IAM Role which will be assumed by the agent.
+  ecs_taskrole = "ecs-guide-teleport_agent_role"
+  ecs_taskrole_policy = {
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "sts:GetCallerIdentity",
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+    ]
+  }
+  ecs_executionrole = "ecs-guide-teleport_agent_executionrole"
+  ```
+  </TabItem>
+
+  <TabItem label="Auto Discover Amazon EKS clusters">
+  In order to Auto Discover and access Amazon EKS clusters, start with the following configuration:
+  Here's an example of what a `.tfvars` file might look like:
+  ```hcl
+  teleport_proxy_server = "proxy.example.com:443"
+
+  // AWS Region where the Teleport agent is deployed
+  aws_region = "eu-south-2"
+
+  // ECS cluster name to use.
+  ecs_cluster = "teleport-ecs-guide"
+
+  // ECS Service networking configuration.
+  teleport_agent_subnets         = ["subnet-123"]
+  teleport_agent_security_groups = ["sg-456"]
+
+  // Default tags to add to AWS resources when creating them.
+  default_tags = {
+    "DeployedBy" = "TeleportAmazonECSGuide"
+  }
+
+  // Teleport Agent configuration.
+  teleport_agent_config = {
+    version = "v3"
+    teleport = {
+      join_params = {
+        // Create a new IAM Join Token that allows joining from your AWS Account.
+        // Ensure it allows Discovery and Kubernetes system roles.
+        token_name = "token-ecs-guide"
+        method     = "iam"
+      }
+      proxy_server = "proxy.example.com:443"
+      log = {
+        severity = "DEBUG"
+      }
+    }
+    auth_service = {
+      enabled = "no"
+    }
+    proxy_service = {
+      enabled = "no"
+    }
+    ssh_service = {
+      enabled = "no"
+    }
+    discovery_service = {
+      enabled         = "yes"
+      discovery_group = "discover-eks"
+      aws = [
+        {
+          types   = ["eks"]
+          regions = ["eu-south-2"]
+          tags = [
+            { "*" = "*" }
+          ]
+        }
       ]
-      Effect   = "Allow"
-      Resource = "*"
-    },
-  ]
-}
-ecs_executionrole = "ecs-guide-teleport_agent_executionrole"
-```
+    }
+    kubernetes_service = {
+      enabled = "yes"
+      resources = [
+        {
+          labels = {
+            "region"                                 = "eu-south-2"
+            "account-id"                             = data.aws_caller_identity.current.account_id
+            "teleport.dev/cloud"                     = "AWS"
+            "teleport.dev/discovery-type"            = "eks"
+            "teleport.internal/discovery-group-name" = "discover-eks"
+          }
+        }
+      ]
+    }
+  }
+
+  // Depending on your use case, you may want to allow additional permissions for the IAM Role which will be assumed by the agent.
+  ecs_taskrole = "ecs-guide-teleport_agent_role"
+  ecs_taskrole_policy = {
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid = "EKSDiscovery"
+        Action = [
+          "eks:DescribeCluster",
+          "eks:ListClusters"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      {
+        Sid = "EKSManageAccess"
+        Action = [
+          "eks:AssociateAccessPolicy",
+          "eks:CreateAccessEntry",
+          "eks:DeleteAccessEntry",
+          "eks:DescribeAccessEntry",
+          "eks:TagResource",
+          "eks:UpdateAccessEntry"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+    ]
+  }
+  ecs_executionrole = "ecs-guide-teleport_agent_executionrole"
+  ```
+  </TabItem>
+</Tabs>
 
 It configures the following AWS resources:
 - IAM Role with the required permission for accessing AWS APIs
