@@ -9,7 +9,6 @@
 
 * [AWS: Simple cluster with Terraform](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/starter-cluster#teleport-terraform-aws-ami-simple-example)
 * [AWS: High Availability cluster with Terraform](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
-* [AWS: EKS Auto Discovery in Amazon ECS](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ecs-eks-autodiscovery/)
 
 ## Kubernetes - Helm Charts
 

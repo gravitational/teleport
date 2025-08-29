@@ -4,7 +4,6 @@ This section of the Teleport GitHub repo contains AWS Terraform definitions for 
 
 - A simple starter Teleport cluster to, quickly and cost-effectively, demo or POC Teleport on a single node (auth, proxy, and node processes running on one t3.nano ec2 instance).
 - A production worthy high-availability auto-scaling Teleport Cluster. This cluster makes use of several AWS technologies, provisioned and configured using Terraform.
-- A deployment of Teleport in Amazon ECS, which is capable of auto-discovering and proxying requests to your EKS Clusters.
 
 If you are planning on using our Terraform example in production, please reference the high-availability auto-scaling Teleport Cluster for best practices. Our Production Guide outlines in-depth details on how to run Teleport in production.
 
@@ -27,9 +26,6 @@ In order to spin up AWS resources using these Terraform examples, you need the f
 
 - HA Auto-Scaling Teleport Cluster
   - [Get Started](ha-autoscale-cluster/README.md)
-
-- EKS Auto Discovery using Amazon ECS
-  - [Get Started](ecs-eks-autodiscovery/README.md)
 
 ## How to get help
 
