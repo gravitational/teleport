@@ -2055,7 +2055,10 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
-		if err := app.CheckAndSetDefaults(); err != nil {
+		// Collect all proxy addresses. They are needed to validate application configuration.
+		proxyAddrs := append([]utils.NetAddr{cfg.ProxyServer}, cfg.Proxy.PublicAddrs...)
+
+		if err := app.CheckAndSetDefaults(proxyAddrs...); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
@@ -2495,7 +2498,11 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			StaticLabels:  static,
 			DynamicLabels: dynamic,
 		}
-		if err := app.CheckAndSetDefaults(); err != nil {
+
+		// Collect all proxy addresses. They are needed to validate application configuration.
+		proxyAddrs := append([]utils.NetAddr{cfg.ProxyServer}, cfg.Proxy.PublicAddrs...)
+
+		if err := app.CheckAndSetDefaults(proxyAddrs...); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)

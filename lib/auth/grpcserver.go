@@ -1489,6 +1489,29 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		}
 	}
 
+	// Ensure app public_addr is not the same as any of the web proxy public addresses. This is a defensive check to
+	// prevent misconfigurations.
+	// TODO: Move to lib/services/local/apps.go?
+	// TODO: Update tests.
+	proxyServers, err := auth.GetProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, proxyServer := range proxyServers {
+		if proxyServer.GetPublicAddr() == "" {
+			continue
+		}
+
+		proxyHost, err := utils.ParseAddr(proxyServer.GetPublicAddr())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if app.GetPublicAddr() == proxyHost.Host() {
+			return nil, trace.BadParameter("application %q public_addr %q can not be the same as a web proxy public address", app.GetName(), app.GetPublicAddr())
+		}
+	}
+
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
