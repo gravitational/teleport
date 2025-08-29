@@ -63,7 +63,7 @@ func (process *TeleportProcess) runRelayService() error {
 		SubKind: "",
 		Version: apitypes.V1,
 		Metadata: &headerv1.Metadata{
-			Name: process.Config.HostUUID,
+			Name: conn.HostUUID(),
 		},
 		Spec: &presencev1.RelayServer_Spec{},
 	})

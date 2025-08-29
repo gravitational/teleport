@@ -1050,9 +1050,12 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
+	nodeID, err := nodeSvc.WaitForHostID(ctx)
+	require.NoError(t, err)
+
 	// waits for the node to be added
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
 		return err == nil
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 
@@ -1068,7 +1071,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 
 	// waits for the node to be deleted
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
 		return trace.IsNotFound(err)
 	}, time.Minute, time.Second, "waiting for node to be deleted")
 }
