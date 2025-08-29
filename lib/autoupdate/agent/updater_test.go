@@ -840,12 +840,12 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, reload bool) error {
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, _ bool, reload bool) error {
 				restarted = reload
 				setupCalls++
 				return tt.setupErr
 			}
-			updater.SetupNamespace = func(_ context.Context, path string, rev Revision) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, _ bool) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -1429,6 +1429,8 @@ func TestUpdater_Install(t *testing.T) {
 		reloadCalls       int
 		revertCalls       int
 		setupCalls        int
+		selinuxInstalls   int
+		selinuxRemovals   int
 		restarted         bool
 		errMatch          string
 	}{
@@ -1644,6 +1646,7 @@ func TestUpdater_Install(t *testing.T) {
 			revertCalls:       1,
 			setupCalls:        1,
 			reloadCalls:       1,
+			selinuxRemovals:   1,
 			restarted:         true,
 			errMatch:          "setup error",
 		},
@@ -1664,6 +1667,7 @@ func TestUpdater_Install(t *testing.T) {
 			requestGroup:      "default",
 			revertCalls:       1,
 			setupCalls:        1,
+			selinuxRemovals:   1,
 			errMatch:          "setup error",
 		},
 		{
@@ -1687,6 +1691,54 @@ func TestUpdater_Install(t *testing.T) {
 			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "default",
 			setupCalls:        1,
+			restarted:         true,
+		},
+		{
+			name: "install selinux from file",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: true,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+				},
+			},
+
+			installedRevision: NewRevision("16.3.0", 0),
+			installedBaseURL:  autoupdate.DefaultBaseURL,
+			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
+			setupCalls:        1,
+			selinuxInstalls:   1,
+			restarted:         true,
+		},
+		{
+			name: "install selinux from user",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: false,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+				},
+			},
+			userCfg: OverrideConfig{
+				UpdateSpec: UpdateSpec{
+					SELinuxSSH: true,
+				},
+				SELinuxSSHChanged: true,
+			},
+
+			installedRevision: NewRevision("16.3.0", 0),
+			installedBaseURL:  autoupdate.DefaultBaseURL,
+			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
+			setupCalls:        1,
+			selinuxInstalls:   1,
 			restarted:         true,
 		},
 	}
@@ -1752,6 +1804,8 @@ func TestUpdater_Install(t *testing.T) {
 				reloadCalls       int
 				setupCalls        int
 				revertSetupCalls  int
+				selinuxInstalls   int
+				selinuxRemovals   int
 			)
 			updater.Installer = &testInstaller{
 				FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
@@ -1793,13 +1847,21 @@ func TestUpdater_Install(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, reload bool) error {
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, installSELinux bool, reload bool) error {
 				setupCalls++
+				if installSELinux {
+					selinuxInstalls++
+				}
 				restarted = reload
 				return tt.setupErr
 			}
-			updater.SetupNamespace = func(_ context.Context, path string, rev Revision) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, installSELinux bool) error {
 				revertSetupCalls++
+				if installSELinux {
+					selinuxInstalls++
+				} else {
+					selinuxRemovals++
+				}
 				return nil
 			}
 
@@ -1821,6 +1883,8 @@ func TestUpdater_Install(t *testing.T) {
 			require.Equal(t, tt.revertCalls, revertSetupCalls)
 			require.Equal(t, tt.revertCalls, revertFuncCalls)
 			require.Equal(t, tt.setupCalls, setupCalls)
+			require.Equal(t, tt.selinuxInstalls, selinuxInstalls)
+			require.Equal(t, tt.selinuxRemovals, selinuxRemovals)
 			require.Equal(t, tt.restarted, restarted)
 
 			data, err := os.ReadFile(cfgPath)
@@ -1892,12 +1956,15 @@ func TestUpdater_Setup(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		restart    bool
-		present    bool
-		setupErr   error
-		presentErr error
-		reloadErr  error
+		name           string
+		cfg            *UpdateConfig // nil -> file not present
+		restart        bool
+		present        bool
+		installSELinux bool
+		removeSELinux  bool
+		setupErr       error
+		presentErr     error
+		reloadErr      error
 
 		errMatch string
 	}{
@@ -1966,11 +2033,65 @@ func TestUpdater_Setup(t *testing.T) {
 			reloadErr: errors.New("some error"),
 			errMatch:  "some error",
 		},
+		{
+			name:           "install selinux",
+			installSELinux: true,
+			restart:        false,
+			present:        true,
+		},
+		{
+			name: "install selinux false in file",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: false,
+				},
+			},
+			installSELinux: true,
+			restart:        false,
+			present:        true,
+		},
+		{
+			name: "remove selinux",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: true,
+				},
+			},
+			installSELinux: false,
+			removeSELinux:  true,
+			restart:        false,
+			present:        true,
+		},
+		{
+			name: "selinux no-op",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					SELinuxSSH: false,
+				},
+			},
+			installSELinux: false,
+			removeSELinux:  false,
+			restart:        false,
+			present:        true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ns := &Namespace{}
+			dir := t.TempDir()
+			ns := &Namespace{
+				installDir: dir,
+			}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
 			require.NoError(t, err)
 
@@ -1982,8 +2103,9 @@ func TestUpdater_Setup(t *testing.T) {
 					return tt.present, tt.presentErr
 				},
 			}
-			updater.SetupNamespace = func(_ context.Context, path string, rev Revision) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, installSELinux bool) error {
 				require.Equal(t, "test", path)
+				require.Equal(t, tt.installSELinux, installSELinux)
 				return tt.setupErr
 			}
 			updater.WriteTeleportService = func(_ context.Context, path string, rev Revision) error {
@@ -1992,8 +2114,16 @@ func TestUpdater_Setup(t *testing.T) {
 				return tt.setupErr
 			}
 
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				b, err := yaml.Marshal(tt.cfg)
+				require.NoError(t, err)
+				err = os.WriteFile(cfgPath, b, 0600)
+				require.NoError(t, err)
+			}
+
 			ctx := context.Background()
-			err = updater.Setup(ctx, "test", Revision{Version: "version"}, tt.restart)
+			err = updater.Setup(ctx, "test", Revision{Version: "version"}, tt.installSELinux, tt.restart)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)

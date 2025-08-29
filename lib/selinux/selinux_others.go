@@ -44,6 +44,11 @@ func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 	return trace.Errorf(errPlatformNotSupportedMsg)
 }
 
+// ModuleInstalled returns true if the SSH SELinux module is installed.
+func ModuleInstalled() (bool, error) {
+	return false, trace.Errorf(errPlatformNotSupportedMsg)
+}
+
 // UserContext returns the SELinux context that should be used when
 // creating processes as a certain user.
 func UserContext(login string) (string, error) {
