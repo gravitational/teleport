@@ -1889,24 +1889,15 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-pack ensure-wasm-bindgen
+ensure-wasm-deps: ensure-wasm-bindgen
 
-# Get the version of wasm-bindgen from cargo, as that is what wasm-pack is
-# going to do when it checks for the right version. The buildboxes do not
+# Get the version of wasm-bindgen from cargo. The buildboxes do not
 # have jq installed (yet), so have a hacky awk version on standby.
 CARGO_GET_VERSION_JQ = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "$(1)") | .version)'
 CARGO_GET_VERSION_AWK = awk -F '[ ="]+' '/^name = "$(1)"$$/ {inpkg = 1} inpkg && $$1 == "version" {print $$2; exit}' Cargo.lock
 
 BIN_JQ = $(shell which jq 2>/dev/null)
 CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_AWK))
-
-ensure-wasm-pack: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-pack-version)
-ensure-wasm-pack: INSTALLED_VERSION = $(word 2,$(shell wasm-pack --version 2>/dev/null))
-ensure-wasm-pack:
-	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		cargo install wasm-pack --force --locked --version "$(NEED_VERSION)", \
-		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
-	)
 
 # TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
 #       On 386 Arch, calling the variable produces a malformed command that fails the build.
