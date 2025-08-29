@@ -323,6 +323,11 @@ func (i *Identity) GetDeviceMetadata() *apievents.DeviceMetadata {
 	}
 }
 
+// IsBot returns whether this identity belongs to a bot.
+func (id *Identity) IsBot() bool {
+	return id.BotName != ""
+}
+
 // DecodeIdentity decodes an ssh certificate into an identity.
 func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident := &Identity{

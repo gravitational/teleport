@@ -1093,6 +1093,21 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		}))
 	require.NoError(t, err, "NewClient failed")
 
+	// Create bot user for testing.
+	botUser, _, err := authtest.CreateUserAndRole(testServer.Auth(), "wall-e", []string{"wall-e-role"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	botMeta := botUser.GetMetadata()
+	botMeta.Labels = map[string]string{
+		types.BotLabel: "wall-e",
+	}
+	botUser.SetMetadata(botMeta)
+	botUser, err = testServer.Auth().UpsertUser(ctx, botUser)
+	require.NoError(t, err)
+
+	botClient, err := testServer.NewClient(authtest.TestUser(botUser.GetName()))
+	require.NoError(t, err)
+
 	// updateAuthPref is a helper used throughout the test.
 	updateAuthPref := func(t *testing.T, modify func(ap types.AuthPreference)) {
 		authPref, err := authServer.GetAuthPreference(ctx)
@@ -1161,6 +1176,15 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			WindowsDesktop: "mydesktop",
 			Login:          username,
 		},
+	}
+	botSSHReq := proto.UserCertsRequest{
+		SSHPublicKey:   sshPub,
+		Username:       botUser.GetName(),
+		Expires:        expires,
+		RouteToCluster: clusterName,
+		NodeName:       "mynode",
+		Usage:          proto.UserCertsRequest_SSH,
+		SSHLogin:       "llama",
 	}
 
 	assertSuccess := func(t *testing.T, err error) {
@@ -1253,6 +1277,22 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			client:            clientWithoutDevice,
 			req:               winReq,
 			assertErr:         assertSuccess,
+		},
+		{
+			name:               "nok: mode=required with bot",
+			clusterDeviceMode:  constants.DeviceTrustModeRequired,
+			client:             botClient,
+			req:                botSSHReq,
+			skipSingleUseCerts: true,
+			assertErr:          assertAccessDenied,
+		},
+		{
+			name:               "ok: mode=required-for-humans with bot",
+			clusterDeviceMode:  constants.DeviceTrustModeRequiredForHumans,
+			client:             botClient,
+			req:                botSSHReq,
+			skipSingleUseCerts: true,
+			assertErr:          assertSuccess,
 		},
 	}
 	for _, test := range tests {
@@ -3641,6 +3681,11 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 
+	out, next, err := clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
 	// Create both databases.
 	err = clt.CreateDatabase(ctx, db1)
 	require.NoError(t, err)
@@ -3650,6 +3695,13 @@ func TestDatabasesCRUD(t *testing.T) {
 	// Fetch all databases.
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
 	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
@@ -3687,6 +3739,12 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
+	out, next, err = clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 
 	// Try to delete a database that doesn't exist.
 	err = clt.DeleteDatabase(ctx, "doesnotexist")
@@ -3697,6 +3755,10 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
+	require.Empty(t, out)
+	out, next, err = clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
 	require.Empty(t, out)
 }
 

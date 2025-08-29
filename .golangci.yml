@@ -1,6 +1,6 @@
 version: '2'
 run:
-  go: '1.23'
+  go: '1.24'
   timeout: 15m
 linters:
   default: none
@@ -231,7 +231,6 @@ linters:
             - '!**/integrations/lib/testing/integration/authhelper.go'
             - '!**/integrations/lib/testing/integration/suite.go'
             - '!**/integrations/operator/controllers/resources/testlib/**'
-            - '!**/tool/teleport/testenv/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -269,7 +268,6 @@ linters:
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/cli.go'
             - '!**/lib/utils/testutils/**'
-            - '!**/tool/teleport/testenv/**'
           deny:
             - pkg: testing
               desc: testing should not be imported outside of tests

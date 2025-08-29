@@ -19,7 +19,9 @@ package types
 import (
 	"net/netip"
 	"net/url"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -115,6 +117,10 @@ type OIDCConnector interface {
 	IsMFAEnabled() bool
 	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
 	WithMFASettings() error
+	// GetRequestObjectMode will return the RequestObjectMode of the connector.
+	GetRequestObjectMode() constants.OIDCRequestObjectMode
+	// SetRequestObjectMode sets the RequestObjectMode of the connector.
+	SetRequestObjectMode(mode constants.OIDCRequestObjectMode)
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -544,10 +550,33 @@ func (o *OIDCConnectorV3) WithMFASettings() error {
 	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
 	o.Spec.ACR = o.Spec.MFASettings.AcrValues
 	o.Spec.Prompt = o.Spec.MFASettings.Prompt
-	o.Spec.MaxAge = &MaxAge{
-		Value: o.Spec.MFASettings.MaxAge,
+	// Overwrite the base connector's request object mode iff the MFA setting's
+	// request object mode is explicitly set. Otherwise, the base setting should be assumed.
+	if o.Spec.MFASettings.RequestObjectMode != string(constants.OIDCRequestObjectModeUnknown) {
+		o.Spec.RequestObjectMode = o.Spec.MFASettings.RequestObjectMode
+	}
+
+	// In rare cases, some providers will complain about the presence of the 'max_age'
+	// parameter in auth requests. Provide users with a workaround to omit it.
+	omitMaxAge, _ := strconv.ParseBool(os.Getenv("TELEPORT_OIDC_OMIT_MFA_MAX_AGE"))
+	if omitMaxAge {
+		o.Spec.MaxAge = nil
+	} else {
+		o.Spec.MaxAge = &MaxAge{
+			Value: o.Spec.MFASettings.MaxAge,
+		}
 	}
 	return nil
+}
+
+// GetRequestObjectMode returns the configured OIDC request object mode.
+func (r *OIDCConnectorV3) GetRequestObjectMode() constants.OIDCRequestObjectMode {
+	return constants.OIDCRequestObjectMode(r.Spec.RequestObjectMode)
+}
+
+// SetRequestObjectMode sets the OIDC request object mode.
+func (r *OIDCConnectorV3) SetRequestObjectMode(mode constants.OIDCRequestObjectMode) {
+	r.Spec.RequestObjectMode = string(mode)
 }
 
 // Check returns nil if all parameters are great, err otherwise

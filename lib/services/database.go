@@ -47,6 +47,8 @@ import (
 type DatabaseGetter interface {
 	// GetDatabases returns all database resources.
 	GetDatabases(context.Context) ([]types.Database, error)
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 }
@@ -100,7 +102,7 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 	case types.V3:
 		var database types.DatabaseV3
 		if err := utils.FastUnmarshal(data, &database); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := database.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

@@ -9,7 +9,11 @@ labels:
 Teleport maintains DEB and RPM package repositories for different operating
 systems, platforms, and Teleport versions. A server that installs Teleport from
 a DEB or RPM package must have systemd installed. You can also download TAR
-archives containing Teleport binaries. 
+archives containing Teleport binaries.
+
+Note that Teleport agents should always use the one-line installation script
+or `teleport-update` binary to install Teleport. Otherwise, they will fall
+out-of-date, become incompatible with the cluster, and eventually disconnect.
 
 ## Operating system support
 | Operating System | `teleport` Daemon | `tctl` Admin Tool | `tsh` and Teleport Connect User Clients [1] | Web UI (via the browser) | `tbot` Daemon |
@@ -28,7 +32,7 @@ archives containing Teleport binaries.
 
 If you are starting out with Teleport, we recommend beginning with a [Teleport Cloud](https://goteleport.com/signup/) account. From there, the only Teleport components you need to deploy yourself are Teleport Agents, which is discussed in the [next section](#installing-teleport-as-an-agent).
 
-If you are self-hosting a Teleport cluster, please take a look at our [Linux Demo](../linux-demo.mdx) for the Teleport Community Edition or our [Self-Hosting Teleport](../admin-guides/deploy-a-cluster/deploy-a-cluster.mdx) section in the docs for more information on Teleport Enterprise Self-Hosted.
+If you are self-hosting a Teleport cluster, please take a look at our [Linux Demo](../linux-demo.mdx) for the Teleport Community Edition or our [Self-Hosting Teleport](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) section in the docs for more information on Teleport Enterprise Self-Hosted.
 
 <Tabs>
 <TabItem label="Teleport Enterprise Cloud (Managed)">
@@ -75,7 +79,7 @@ The above methods for installing Teleport on a Linux server do not generate a Te
 See the following guides for help setting up a configuration file:
 
 - [Teleport Configuration Reference](../reference/config.mdx): This will provide you with the command you need to generate and populate the `/etc/config.yaml` file as well as further configuration options for your cluster.
-- [Self-Hosted Demo Cluster](../admin-guides/deploy-a-cluster/deploy-a-cluster.mdx): If you are deploying the Teleport Auth Service and Proxy Service, read this guide for an example of a configuration file.
+- [Self-Hosted Demo Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx): If you are deploying the Teleport Auth Service and Proxy Service, read this guide for an example of a configuration file.
 
 ## Installing Teleport as an agent
 
@@ -104,58 +108,13 @@ See the following guides for examples of setting up a configuration file:
   up Teleport Agents in order to enroll infrastructure resources in your cluster. These
   guides include examples of setting up Teleport configuration files.
 - [Self-Hosted Demo
-  Cluster](../admin-guides/deploy-a-cluster/deploy-a-cluster.mdx): If you are
+  Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx): If you are
   deploying the Teleport Auth Service and Proxy Service, read this guide for an
   example of a configuration file.
 - [Teleport Configuration Reference](../reference/config.mdx): A guide to all
   configuration fields.
 
 ## Other Install Methods
-
-### Older Teleport Versions
-
-If you are running older Teleport versions you must manually assign environment
-variables based on your edition:
-
-<Tabs>
-<TabItem label="Teleport Enterprise (Managed)">
-
-The following commands show you how to determine the Teleport version to install
-by querying your Teleport Cloud account. This way, the Teleport installation has
-the same major version as the service that manages automatic updates. Assign
-<Var name="example.teleport.sh" /> to your Teleport cluster address:
-
-```code
-$ TELEPORT_EDITION="cloud"
-$ TELEPORT_DOMAIN=<Var name="example.teleport.sh" />
-$ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/stable/cloud/version | sed 's/v//')"
-```
-
-</TabItem>
-<TabItem label="Teleport Enterprise (Self-Hosted)">
-
-```code
-$ TELEPORT_EDITION="enterprise"
-$ TELEPORT_VERSION="(=teleport.version=)"
-```
-
-</TabItem>
-<TabItem label="Teleport Community Edition">
-
-```code
-$ TELEPORT_EDITION="oss"
-$ TELEPORT_VERSION="(=teleport.version=)"
-```
-
-</TabItem>
-</Tabs>
-
-Then, download and run the generic installation script on the server where you
-want to install Teleport:
-
-```code
-$ curl (=teleport.teleport_install_script_url=) | bash -s ${TELEPORT_VERSION?} ${TELEPORT_EDITION?}
-```
 
 ### Package repositories
 
@@ -167,33 +126,15 @@ If your system does not support the one-line installation script, read the
 instructions in this section for instructions on working with Teleport package
 repositories.
 
+Note that Teleport agents should always use the one-line installation script
+or `teleport-update` binary to install Teleport. Otherwise, they will fall
+out-of-date, become incompatible with the cluster, and eventually disconnect.
+
 1. Assign the following environment variables in the terminal where you will run
    Teleport installation commands, indicating the package and version to
    install:
 
    <Tabs>
-   <TabItem label="Teleport Enterprise (Managed)">
-
-   Teleport Cloud installations must include the automatic agent updater. The
-   following commands show you how to determine the Teleport version to install
-   by querying your Teleport Cloud account. This way, the Teleport installation
-   has the same major version as the service that conducts automatic updates:
-
-   ```code
-   $ export TELEPORT_DOMAIN=<Var name="example.teleport.sh" />
-   $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/stable/cloud/version | sed 's/v//')"
-   $ export TELEPORT_PKG="teleport-ent-${TELEPORT_VERSION?} teleport-ent-updater"
-   $ export TELEPORT_CHANNEL=stable/cloud
-   ```
-
-   If you are installing Teleport on Debian or Ubuntu, `TELEPORT_PKG` is
-   slightly different:
-
-   ```code
-   $ export TELEPORT_PKG="teleport-ent=${TELEPORT_VERSION?} teleport-ent-updater"
-   ```
-
-   </TabItem>
    <TabItem label="Teleport Enterprise (Self-Hosted)">
 
    ```code
@@ -353,10 +294,9 @@ Teleport maintains TAR archives as well as DEB and RPM packages for
 Linux-compatible binaries at `https://cdn.teleport.dev`. This section explains
 how to install Teleport by manually downloading a release.
 
-The original (v1) Teleport updater is not compatible with this method.
-If you use cloud-hosted Teleport, you must use `teleport-update` to manage
-your Teleport installation. We recommend using the [one-line installation
-script](#one-line-installation-script).
+Note that Teleport agents should always use the one-line installation script
+or `teleport-update` binary to install Teleport. Otherwise, they will fall
+out-of-date, become incompatible with the cluster, and eventually disconnect.
 
 1. In your terminal, assign environment variables that you will use to download
    your intended archive.
@@ -491,4 +431,4 @@ On cloud-hosted Teleport Enterprise you can visit a download page in the Web UI.
 in the upper right and select Downloads from the menu.
 
 Customers who self-host Teleport Enterprise can access Enterprise downloads and their license
-file from their [dedicated account dashboard](../admin-guides/deploy-a-cluster/license.mdx).
+file from their [dedicated account dashboard](../zero-trust-access/deploy-a-cluster/license.mdx).

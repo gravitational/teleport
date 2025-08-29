@@ -109,6 +109,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -499,7 +500,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
@@ -515,6 +515,9 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			metadata.StreamClientInterceptor,
 			interceptors.GRPCClientStreamErrorInterceptor,
 			breaker.StreamClientInterceptor(cb),
+		),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(grpcutils.MaxClientRecvMsgSize()),
 		),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
@@ -2784,6 +2787,14 @@ func (c *Client) DynamicDesktopClient() *dynamicwindows.Client {
 	return dynamicwindows.NewClient(dynamicwindowsv1.NewDynamicWindowsServiceClient(c.conn))
 }
 
+func (c *Client) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
+	return c.DynamicDesktopClient().ListDynamicWindowsDesktops(ctx, pageSize, pageToken)
+}
+
+func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	return c.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, name)
+}
+
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {
@@ -3701,6 +3712,29 @@ func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
 		databases[i] = items.Databases[i]
 	}
 	return databases, nil
+}
+
+// ListDatabases returns a page of database resources.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]types.Database, string, error) {
+	resp, err := c.grpc.ListDatabases(ctx, &proto.ListDatabasesRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	databases := make([]types.Database, len(resp.Databases))
+	for i := range resp.Databases {
+		databases[i] = resp.Databases[i]
+	}
+	return databases, resp.NextPageToken, nil
 }
 
 // DeleteDatabase deletes specified database resource.

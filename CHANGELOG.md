@@ -1,5 +1,35 @@
 # Changelog
 
+## 17.7.2 (08/18/25)
+
+* Fixed an issue that could cause some hosts not to register dynamic Windows desktops. [#58062](https://github.com/gravitational/teleport/pull/58062)
+* Improve error message when a User without any MFA devices enrolled attempts to access a resource that requires MFA. [#58044](https://github.com/gravitational/teleport/pull/58044)
+* Add TELEPORT_UNSTABLE_GRPC_RECV_SIZE env var which can be set to overwrite client side max grpc message size. [#58028](https://github.com/gravitational/teleport/pull/58028)
+* Add support for JWT-Secured Authorization Requests to OIDC Connector. [#58013](https://github.com/gravitational/teleport/pull/58013)
+* Fixed an issue that could cause revocation checks to fail in Windows environments. [#57879](https://github.com/gravitational/teleport/pull/57879)
+* Fixed the case where the auto-updated client tools did not use the intended version. [#57871](https://github.com/gravitational/teleport/pull/57871)
+* Fix database PKINIT issues caused missing CDP information in the certificate. [#57851](https://github.com/gravitational/teleport/pull/57851)
+* Device Trust: added `required-for-humans` mode to allow bots to run on unenrolled devices, while enforcing checks for human users. [#57845](https://github.com/gravitational/teleport/pull/57845)
+* Updated Go to 1.23.12. [#57765](https://github.com/gravitational/teleport/pull/57765)
+* Added the `--auth` flag to the `tctl plugins install scim` CLI command to support Bearer token and OAuth authentication methods. [#57758](https://github.com/gravitational/teleport/pull/57758)
+* Fix Alt+Click not being registered in remote desktop sessions. [#57756](https://github.com/gravitational/teleport/pull/57756)
+* Kubernetes Access: `kubectl port-forward` now exits cleanly when backend pods are removed. [#57742](https://github.com/gravitational/teleport/pull/57742)
+* Kubernetes Access: Fixed a bug when forwarding multiple ports to a single pod. [#57737](https://github.com/gravitational/teleport/pull/57737)
+* Fixed unlink-package during upgrade/downgrade. [#57721](https://github.com/gravitational/teleport/pull/57721)
+* Teleport `event-handler` now accepts HTTP Status Code 204 from the recipient. This adds support for sending events to Grafana Alloy and newer Fluentd versions. [#57681](https://github.com/gravitational/teleport/pull/57681)
+* Enrich the windows.desktop.session.start audit event with additional certificate metadata. [#57678](https://github.com/gravitational/teleport/pull/57678)
+* Added `--force` option to `tctl workload-identity x509-issuer-overrides sign-csrs` to allow displaying the output of partial failures, intended for use in clusters that make use of HSMs. [#57661](https://github.com/gravitational/teleport/pull/57661)
+* Tctl top can now display raw prometheus metrics. [#57634](https://github.com/gravitational/teleport/pull/57634)
+* Fixed access denied error messages not being displayed in the Teleport web UI PostgreSQL client. [#57569](https://github.com/gravitational/teleport/pull/57569)
+* Use the bot details page to view and edit bot configuration, and see active instances with their upgrade status. [#57543](https://github.com/gravitational/teleport/pull/57543)
+* Fix a bug in the default discovery script that can happen discovering instances whose PATH doesn't contain `/usr/local/bin`. [#57531](https://github.com/gravitational/teleport/pull/57531)
+* Fix a race condition in the Terraform Provider potentially causing "does not exist" errors the following resources: `auth_preference`, `autoupdate_config`, `autoupdate_version`, `cluster_maintenance_config`, `cluster_network_config`, and `session_recording_config`. [#57528](https://github.com/gravitational/teleport/pull/57528)
+* Fix a Terraform provider bug causing resource creation to be retried more times than the MaxRetries setting. [#57528](https://github.com/gravitational/teleport/pull/57528)
+* Make it easier to identify Windows desktop certificate issuance on the audit log page. [#57520](https://github.com/gravitational/teleport/pull/57520)
+* Fix a bug in the TF provider happening when `autoupdate_version` or `autoupdate_config` have non-empty metadata. [#57517](https://github.com/gravitational/teleport/pull/57517)
+* Fix a bug on Windows where a forwarded SSH agent would become dysfunctional after a single connection using the agent. [#57512](https://github.com/gravitational/teleport/pull/57512)
+* Machine and Workload ID: Add experimental implementation of new `bound_keypair` join method for improved bot joining in on-prem environments. [#55037](https://github.com/gravitational/teleport/pull/55037)
+
 ## 17.7.1 (08/01/25)
 
 * Fixed usage print for global `--help` flag. [#57452](https://github.com/gravitational/teleport/pull/57452)
@@ -1720,7 +1750,7 @@ customers running **Teleport Enterprise Self-Hosted**. No action is required for
 customers running Teleport Enterprise (Cloud) or Teleport Community Edition.
 
 If, after updating to Teleport 16, you receive an error message regarding an
-outdated license file, follow our step-by-step [guide](docs/pages/admin-guides/deploy-a-cluster/license.mdx)
+outdated license file, follow our step-by-step [guide](docs/pages/zero-trust-access/deploy-a-cluster/license.mdx)
 to update your license file.
 
 #### Multi-factor authentication is now required for local users
@@ -4082,7 +4112,7 @@ By default, Teleport will accept the PROXY line but will prevent connections
 with IP pinning enabled. IP pinning users will need to explicitly enable/disable
 proxy protocol like explained above.
 
-See more details in our [documentation](docs/pages/admin-guides/management/security/proxy-protocol.mdx).
+See more details in our [documentation](docs/pages/zero-trust-access/management/security/proxy-protocol.mdx).
 
 #### Legacy deb/rpm package repositories are deprecated
 
@@ -7074,7 +7104,7 @@ if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
 
 ### Upgrade Notes
 
-Please follow our [standard upgrade procedure](docs/pages/admin-guides/management/admin/admin.mdx) to upgrade your cluster.
+Please follow our [standard upgrade procedure](docs/pages/zero-trust-access/management/admin/admin.mdx) to upgrade your cluster.
 
 Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
 
@@ -7298,7 +7328,7 @@ Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/access
 
 ##### Cluster Labels
 
-Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/admin-guides/management/admin/trustedclusters.mdx)
+Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx)
 
 Creating a trusted cluster join token for a production environment:
 
@@ -7355,7 +7385,7 @@ Enterprise Only:
 
 ### Documentation
 
-We've added an [API Guide](docs/pages/admin-guides/api/api.mdx) to simply developing applications against Teleport.
+We've added an [API Guide](docs/pages/zero-trust-access/api/api.mdx) to simply developing applications against Teleport.
 
 ### Upgrade Notes
 
@@ -7636,7 +7666,7 @@ teleport:
 ```
 
 Rotate the cluster CA, following [these
-docs](docs/pages/admin-guides/management/operations/ca-rotation.mdx).
+docs](docs/pages/zero-trust-access/management/operations/ca-rotation.mdx).
 
 ##### Web UI
 
@@ -7667,7 +7697,7 @@ the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
 [upgrade guidance](docs/pages/upgrading/upgrading.mdx).
 
-**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/admin-guides/management/operations/backup-restore.mdx) into the downgraded cluster.**
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/management/operations/backup-restore.mdx) into the downgraded cluster.**
 
 ## 4.2.12 
 
@@ -7789,7 +7819,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
 * Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/identity-governance/access-requests/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
-* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/admin-guides/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/zero-trust-access/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
 * Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
@@ -7798,7 +7828,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/admin-guides/management/admin/trustedclusters.mdx).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.13 
@@ -8030,7 +8060,7 @@ With this release of Teleport, we have built out the foundation to help Teleport
 
 ### Improvements
 
-* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/admin-guides/management/operations/scaling.mdx)
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/zero-trust-access/management/operations/scaling.mdx)
 * Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
 * Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 

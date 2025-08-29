@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -142,6 +143,10 @@ func (b *Bot) Client() *apiclient.Client {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+	b.log.InfoContext(
+		ctx, "Initializing tbot",
+		"version", versionLogValue(),
+	)
 	startedAt := time.Now()
 
 	if err := metrics.RegisterPrometheusCollectors(
@@ -1030,4 +1035,12 @@ func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Contex
 		return v, nil
 	})
 	return val.(bool), err
+}
+
+func versionLogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("teleport", teleport.Version),
+		slog.String("teleport_git", teleport.Gitref),
+		slog.String("go", runtime.Version()),
+	)
 }

@@ -12,21 +12,31 @@ and Access Request plugins.
 
 ## Installing Teleport as a cluster
 
-The [teleport-cluster](../reference/helm-reference/teleport-cluster.mdx) chart
-deploys the `teleport` daemon on Kubernetes with preset configurations for the
-Auth Service and Proxy Service and support for any Teleport service configuration.
+The `teleport-cluster` Helm chart deploys the `teleport` daemon on Kubernetes
+with preset configurations for the Auth Service and Proxy Service, with support
+for additional Teleport service configurations.
 
-See the [Helm chart reference guide](../reference/helm-reference/teleport-cluster.mdx) or our [README](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-cluster.mdx) on GitHub for available options and deployment examples.
+See [Guides for running Teleport using
+Helm](../zero-trust-access/deploy-a-cluster/helm-deployments/helm-deployments.mdx)
+for instructions on using the `teleport-cluster` chart to deploy a Teleport
+cluster on your Kubernetes platform.
 
-You can also follow our [getting started guide](../admin-guides/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx) that will walk you through deploying Teleport on a Kubernetes cluster using Helm.
+See the [Helm chart reference
+guide](../reference/helm-reference/teleport-cluster.mdx) for available options.
 
 ## Installing Teleport as an agent
 
-The [teleport-kube-agent](../reference/helm-reference/teleport-kube-agent.mdx) chart is used to configure a Teleport Agent that runs in a remote Kubernetes cluster to provide access to resources in your infrastructure.
+The `teleport-kube-agent` chart configures a Teleport Agent that runs in a
+remote Kubernetes cluster to provide access to resources in your infrastructure.
 
-The easiest way to deploy an agent in Kubernetes is in the Teleport Web UI at `web/discover` where the guide will lead you through a series of configuration steps and populate the full helm install command for you.
+The easiest way to deploy an agent in Kubernetes is in the Teleport Web UI at
+`web/discover`, where a guide will lead you through a series of configuration
+steps and populate the full `helm install` command for you.
 
-See our [Helm chart reference guide](../reference/helm-reference/teleport-kube-agent.mdx) or our [README](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-kube-agent) on GitHub for all available options as well as example deployments for the various types of agents.
+See the [Helm chart reference
+guide](../reference/helm-reference/teleport-kube-agent.mdx) for all available
+options as well as example deployments for the various types of agents.
 
 ## Other Helm charts
+
 Consult the [Helm chart reference](../reference/helm-reference/helm-reference.mdx) for documentation on all available Helm charts.

@@ -26,10 +26,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	autoupdateapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	vnetapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
+	"github.com/gravitational/teleport/lib/teleterm/autoupdate"
 	"github.com/gravitational/teleport/lib/teleterm/vnet"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -62,6 +64,14 @@ func New(cfg Config) (*APIServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	autoupdateService, err := autoupdate.New(autoupdate.Config{
+		ClusterProvider:    cfg.Daemon,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the listener, set up the server.
 
 	ls, err := newListener(cfg.HostAddr, cfg.ListeningC)
@@ -76,6 +86,7 @@ func New(cfg Config) (*APIServer, error) {
 
 	api.RegisterTerminalServiceServer(grpcServer, serviceHandler)
 	vnetapi.RegisterVnetServiceServer(grpcServer, vnetService)
+	autoupdateapi.RegisterAutoUpdateServiceServer(grpcServer, autoupdateService)
 
 	return &APIServer{
 		Config:      cfg,

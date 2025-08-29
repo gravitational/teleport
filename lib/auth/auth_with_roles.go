@@ -2539,6 +2539,12 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
+	// bound_keypair tokens have special creation/update logic and are handled
+	// separately
+	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
+		return trace.Wrap(a.authServer.UpsertBoundKeypairToken(ctx, token))
+	}
+
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2562,6 +2568,12 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 
 	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// bound_keypair tokens have special creation/update logic and are handled
+	// separately
+	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
+		return trace.Wrap(a.authServer.CreateBoundKeypairToken(ctx, token))
 	}
 
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
@@ -3663,7 +3675,7 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsR
 	}
 
 	identity := a.context.Identity.GetIdentity()
-	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
+	return trace.Wrap(dtauthz.VerifyTLSUser(context.TODO(), dt, identity))
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
@@ -6725,6 +6737,62 @@ func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Data
 	return result, nil
 }
 
+// ListDatabases returns a page of database resources.
+func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var nextKey string
+	var count int
+	var done bool
+	results, err := stream.Collect(
+		stream.FilterMap(
+			stream.PageFunc(func() ([]types.Database, error) {
+				if done {
+					return nil, io.EOF
+				}
+				items, next, err := a.authServer.ListDatabases(ctx, limit, startKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				startKey = next
+				if next == "" {
+					done = true
+				}
+				return items, nil
+			}),
+			func(db types.Database) (types.Database, bool) {
+				if nextKey != "" {
+					return nil, false
+				}
+
+				if err := a.checkAccessToDatabase(db); err != nil {
+					return nil, false
+				}
+
+				if count >= limit {
+					done = true
+					nextKey = db.GetName()
+					return nil, false
+				}
+
+				count++
+				return db, true
+			}),
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return results, nextKey, nil
+}
+
 // DeleteDatabase removes the specified database resource.
 func (a *ServerWithRoles) DeleteDatabase(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbDelete); err != nil {
@@ -7184,7 +7252,7 @@ func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) er
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(ctx, readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 
@@ -7911,22 +7979,22 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 	target := lock.Target()
 	switch {
 	case !target.Equals(types.LockTarget{User: target.User}):
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 
 	case target.User == "":
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 	}
 
 	targetUser, err := users.GetUser(ctx, target.User, false /* withSecrets */)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.AccessDenied(errorMsg)
+			return trace.AccessDenied("%s", errorMsg)
 		}
 		return trace.Wrap(err)
 	}
 
 	if targetUser.Origin() != types.OriginOkta {
-		return trace.AccessDenied(errorMsg)
+		return trace.AccessDenied("%s", errorMsg)
 	}
 
 	return nil

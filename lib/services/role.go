@@ -2637,7 +2637,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
-	deviceAllowed := !state.EnableDeviceVerification || state.DeviceVerified
+	deviceTrusted := !state.EnableDeviceVerification || state.DeviceVerified
 
 	var errs []error
 	allowed := false
@@ -2693,7 +2693,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// (and gets an early exit) or we need to check every applicable role to
 		// ensure the access is permitted.
 
-		if mfaAllowed && deviceAllowed {
+		if mfaAllowed && deviceTrusted {
 			debugf("Access to %v %q granted, allow rule in role %q matched.",
 				r.GetKind(), r.GetName(), role.GetName())
 			return nil
@@ -2707,7 +2707,19 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 
 		// Device verification.
-		if !deviceAllowed && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
+		var deviceVerificationPassed bool
+		switch role.GetOptions().DeviceTrustMode {
+		case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional, "":
+			// OK, extensions not enforced.
+			deviceVerificationPassed = true
+		case constants.DeviceTrustModeRequiredForHumans:
+			// Humans must use trusted devices, bots can use untrusted devices.
+			deviceVerificationPassed = deviceTrusted || state.IsBot
+		case constants.DeviceTrustModeRequired:
+			// Only trusted devices allowed for bot human and bot users.
+			deviceVerificationPassed = deviceTrusted
+		}
+		if !deviceVerificationPassed {
 			debugf("Access to %v %q denied, role %q requires a trusted device",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrTrustedDeviceRequired
@@ -3495,6 +3507,9 @@ type AccessState struct {
 	// It's recommended to set this in tandem with EnableDeviceVerification.
 	// See [dtauthz.IsTLSDeviceVerified] and [dtauthz.IsSSHDeviceVerified].
 	DeviceVerified bool
+	// IsBot determines whether the user certificate belongs to a bot. It's used
+	// when deciding whether to enforce device verification.
+	IsBot bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.
@@ -3535,7 +3550,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 
 	var role types.RoleV6
 	if err := utils.FastUnmarshal(bytes, &role); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if role.Version != version {
 		return nil, trace.BadParameter("inconsistent version in role data, got %q and %q", role.Version, version)
@@ -3596,5 +3611,6 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
+	state.IsBot = ident.IsBot()
 	return state, nil
 }

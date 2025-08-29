@@ -22,12 +22,19 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 //go:embed testdata/kinit.cache
@@ -220,4 +227,38 @@ func TestKRBConfString(t *testing.T) {
 	require.ElementsMatch(t, []string{"host.example.com:88"}, conf.Realms[0].KDC)
 	require.Equal(t, "example.com", conf.LibDefaults.DefaultRealm)
 	require.False(t, conf.LibDefaults.RDNS)
+}
+
+func TestGetCertificate(t *testing.T) {
+	auth := &mockAuthClient{
+		generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+			require.NotEmpty(t, request.CRLDomain)
+
+			csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			require.Equal(t, "CN=alice", csr.Subject.String())
+			return generateDatabaseCert(ctx, request)
+		},
+	}
+
+	getter := &DBCertGetter{
+		Logger:   slog.New(log.DiscardHandler{}),
+		Auth:     auth,
+		UserName: "alice",
+		ADConfig: types.AD{
+			KeytabFile:             "",
+			Krb5File:               "",
+			Domain:                 "example.com",
+			SPN:                    "",
+			LDAPCert:               "",
+			KDCHostName:            "",
+			LDAPServiceAccountName: "administrator",
+			LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
+		},
+	}
+
+	_, err := getter.GetCertificateBytes(context.Background())
+	require.NoError(t, err)
 }
