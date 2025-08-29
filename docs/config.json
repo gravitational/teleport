@@ -541,8 +541,8 @@
       "permanent": true
     },
     {
-      "source": "/admin-guides/deploy-a-cluster/linux-demo/",
-      "destination": "/linux-demo/",
+      "source": "/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     },
     {
@@ -1558,6 +1558,11 @@
     {
       "source": "/admin-guides/migrate-plans/",
       "destination": "/migrate-plans/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     },
     {
