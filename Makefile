@@ -491,7 +491,7 @@ endif
 
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
-build-ironrdp-wasm:
+build-ironrdp-wasm: ensure-wasm-deps
 	cargo build --package ironrdp --lib --target wasm32-unknown-unknown --release
 	wasm-opt target/wasm32-unknown-unknown/release/ironrdp.wasm -o target/wasm32-unknown-unknown/release/ironrdp.wasm -O
 	wasm-bindgen target/wasm32-unknown-unknown/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
