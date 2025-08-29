@@ -132,6 +132,7 @@ CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
+CARGO_TARGET_wasm := wasm32-unknown-unknown
 
 CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
 
@@ -1953,6 +1954,10 @@ rustup-set-version:
 .PHONY: rustup-install-target-toolchain
 rustup-install-target-toolchain: rustup-set-version
 	rustup target add $(RUST_TARGET_ARCH)
+
+.PHONY: rustup-install-wasm-toolchain
+rustup-install-wasm-toolchain: rustup-set-version
+	rustup target add $(CARGO_TARGET_wasm)
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
