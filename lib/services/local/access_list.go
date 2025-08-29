@@ -91,6 +91,12 @@ func (s *accessListAndMembersGetter) GetAccessList(ctx context.Context, name str
 	return s.service.GetResource(ctx, name)
 }
 
+// GetAccessListMember returns the specified access list member resource.
+// If a user is not directly a member of the access list the NotFound error is returned.
+func (s *accessListAndMembersGetter) GetAccessListMember(ctx context.Context, accessListName, memberName string) (*accesslist.AccessListMember, error) {
+	return s.memberService.WithPrefix(accessListName).GetResource(ctx, memberName)
+}
+
 // compile-time assertion that the AccessListService implements the AccessLists
 // interface
 var _ services.AccessLists = (*AccessListService)(nil)
