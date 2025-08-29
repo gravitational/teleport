@@ -4932,13 +4932,13 @@ func parseCopySpec(cf *CLIConf, config *client.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config.SrcHost = sources.Host.String()
+	config.SrcHost = sources.GetHost()
 	config.SrcLogin = sources.Login
 	dest, err := sftp.ParseTarget(cf.CopySpec[len(cf.CopySpec)-1], int(cf.NodePort))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config.DestHost = dest.Host.String()
+	config.DestHost = dest.GetHost()
 	config.DestLogin = dest.Login
 	return nil
 }

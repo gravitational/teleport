@@ -1624,17 +1624,23 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 	)
 	defer span.End()
 
-	if options != nil && options.HostAddress != "" {
-		return &TargetNode{
-			Hostname: options.HostAddress,
-			Addr:     options.HostAddress,
-		}, nil
+	defaultHost := tc.Host
+	if options != nil {
+		if options.HostAddress != "" {
+			return &TargetNode{
+				Hostname: options.HostAddress,
+				Addr:     options.HostAddress,
+			}, nil
+		}
+		if options.DefaultHost != "" {
+			defaultHost = options.DefaultHost
+		}
 	}
 
 	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
-		log.DebugContext(ctx, "Using provided host", "host", tc.Host)
+		log.DebugContext(ctx, "Using provided host", "host", defaultHost)
 
-		target, err := parseTargetNode(tc.Host, tc.HostPort)
+		target, err := parseTargetNode(defaultHost, tc.HostPort)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1718,24 +1724,6 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 	default:
 		return nil, trace.Wrap(err)
 	}
-}
-
-func (tc *TeleportClient) GetSCPTargetNodes() (src, dst *TargetNode, err error) {
-	if tc.SrcHost != "" {
-		srcTarget, err := parseTargetNode(tc.SrcHost, tc.HostPort)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		src = &srcTarget
-	}
-	if tc.DestHost != "" {
-		dstTarget, err := parseTargetNode(tc.DestHost, tc.HostPort)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		dst = &dstTarget
-	}
-	return src, dst, nil
 }
 
 // ReissueUserCerts issues new user certs based on params and stores them in
@@ -1947,6 +1935,8 @@ type SSHOptions struct {
 	// HostAddress is the address of the target host. If specified it
 	// will be used instead of the target provided when `tsh ssh` was invoked.
 	HostAddress string
+
+	DefaultHost string
 	// LocalCommandExecutor should be used to execute the command on the local
 	// machine. If provided, it will be used instead of establishing a connection
 	// to the target host and executing the command remotely.
@@ -2655,12 +2645,34 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if sources.Host != nil {
+		target, err := tc.GetTargetNode(ctx, clt.AuthClient, &SSHOptions{
+			DefaultHost: sources.Host.Host(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := sources.Host.Set(target.Addr); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	if sources.Login == "" {
 		sources.Login = tc.HostLogin
 	}
 	dest, err := sftp.ParseTarget(req.Destination, tc.HostPort)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if dest.Host != nil {
+		target, err := tc.GetTargetNode(ctx, clt.AuthClient, &SSHOptions{
+			DefaultHost: dest.Host.Host(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := dest.Host.Set(target.Addr); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if dest.Login == "" {
 		dest.Login = tc.HostLogin
