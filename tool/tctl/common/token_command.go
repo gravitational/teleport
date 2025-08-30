@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"slices"
 	"sort"
 	"strings"
@@ -33,10 +35,13 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	oidcclient "github.com/zitadel/oidc/v3/pkg/client"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -45,9 +50,11 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -95,6 +102,24 @@ type TokensCommand struct {
 	// dbURI is the address the database is reachable at.
 	dbURI string
 
+	// serviceAccountName is the Kubernetes Service Account the token should allow joining with.
+	serviceAccountName string
+	// namespace is the Kubernetes namespace the token should allow joining from
+	namespace string
+	// kubeContext is the kubectl context used to discover the Kubernetes cluster.
+	kubeContext string
+
+	kubeName string
+
+	tokenName string
+	// botName is the name of the bot the token allow joining as.
+	botName string
+	// outputPath is the path of the output file containing the Helm values
+	outputPath string
+	// updateGroup is the name of the update group for version detection and the generated values.yaml
+	updateGroup string
+	force       bool
+
 	// ttl is how long the token will live for.
 	ttl time.Duration
 
@@ -109,6 +134,9 @@ type TokensCommand struct {
 
 	// tokenList is used to view all tokens that Teleport knows about.
 	tokenList *kingpin.CmdClause
+
+	// tokenKubeOIDC is used to discover the OIDC provider of a Kube cluster and create the corresponding join token.
+	tokenKubeOIDC *kingpin.CmdClause
 
 	// stdout allows to switch the standard output source. Used in tests.
 	stdout io.Writer
@@ -148,6 +176,19 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
 	c.tokenList.Flag("labels", labelHelp).StringVar(&c.labels)
 
+	// "tctl tokens configure-kube-oidc ..."
+	c.tokenKubeOIDC = tokens.Command("configure-kube-oidc", "Makes Teleport trust the OIDC provider of a Kube cluster, allowing kube workload to join.")
+	c.tokenKubeOIDC.Flag("out", "Path of the output file.").Short('o').Default("./values.yaml").StringVar(&c.outputPath)
+	c.tokenKubeOIDC.Flag("context", "Kubernetes context to use. When not set, defaults to the active context.").StringVar(&c.kubeContext)
+	c.tokenKubeOIDC.Flag("cluster-name", "Name of the Kubernetes cluster. When not set, defaults to the context name.").StringVar(&c.kubeName)
+	c.tokenKubeOIDC.Flag("token-name", "Optional name of the created join token. When not set, default to '<CLUSTER_NAME>(-<BOT_NAME>)'").StringVar(&c.tokenName)
+	c.tokenKubeOIDC.Flag("bot", "Name of the bot that will use this token. When set, creates a bot token. Overrides --type").StringVar(&c.botName)
+	c.tokenKubeOIDC.Flag("type", "Type(s) of token to add, e.g. --type=kube,app,db,discovery,proxy,etc").Default("kube,app,discovery").StringVar(&c.tokenType)
+	c.tokenKubeOIDC.Flag("service-account", "Name of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release name.").Short('s').Required().StringVar(&c.serviceAccountName)
+	c.tokenKubeOIDC.Flag("namespace", "Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is release namespace.").Short('n').Default("teleport").StringVar(&c.namespace)
+	c.tokenKubeOIDC.Flag("update-group", "Optional update group used for version detection and agent updater configuration").StringVar(&c.updateGroup)
+	c.tokenKubeOIDC.Flag("force", "Force the token creation, even if the token already exists").Default("false").Short('f').BoolVar(&c.force)
+
 	if c.stdout == nil {
 		c.stdout = os.Stdout
 	}
@@ -163,6 +204,8 @@ func (c *TokensCommand) TryRun(ctx context.Context, cmd string, clientFunc commo
 		commandFunc = c.Del
 	case c.tokenList.FullCommand():
 		commandFunc = c.List
+	case c.tokenKubeOIDC.FullCommand():
+		commandFunc = c.KubeOIDC
 	default:
 		return false, nil
 	}
@@ -531,4 +574,319 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 		fmt.Fprint(c.stdout, tokensView())
 	}
 	return nil
+}
+
+// TODO: check if we have types for this
+type KubernetesOIDCResponse struct {
+	Issuer                           string   `json:"issuer"`
+	JwksUri                          string   `json:"jwks_uri"`
+	ResponseTypesSupported           []string `json:"response_types_supported"`
+	SubjectTypesSupported            []string `json:"subject_types_supported"`
+	IdTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
+}
+
+// KubeOIDC is called to execute "tctl tokens configure-kube-oidc ..." command
+func (c *TokensCommand) KubeOIDC(ctx context.Context, client *authclient.Client) error {
+	// preflight checks
+	var roles types.SystemRoles
+	var err error
+	if c.botName != "" {
+		roles = types.SystemRoles{types.RoleBot}
+	} else {
+		// Parse string to see if it's a type of role that Teleport supports.
+		roles, err = types.ParseTeleportRoles(c.tokenType)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Fprintln(os.Stderr, "📡 Looking up Teleport cluster settings")
+
+	// detect proxy address
+	authPong, err := client.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err, "failed to ping Teleport Auth")
+	}
+	proxyAddr := authPong.GetProxyPublicAddr()
+	if proxyAddr == "" {
+		return trace.BadParameter("failed to discover Teleport proxy address, make sure the Teleport Proxy service is running with `public_addr` set")
+	}
+	// detect autoupdate version
+	proxyPong, err := webclient.Ping(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: proxyAddr,
+		// TODO: handle insecure properly
+		Insecure:    false,
+		UpdateGroup: c.updateGroup,
+	})
+	if err != nil {
+		return trace.Wrap(err, "failed to ping Teleport Proxy")
+	}
+	agentVersion := proxyPong.AutoUpdate.AgentVersion
+	if agentVersion == "" {
+		return trace.NotFound("failed to discover Teleport Agent version")
+	}
+
+	kubectlPath, err := exec.LookPath("kubectl")
+	if err != nil {
+		return trace.Wrap(err, "failed to find kubectl")
+	}
+
+	fmt.Fprintln(os.Stderr, "📁 Finding local kubectl context")
+
+	kubeContext := c.kubeContext
+	// If kube context not set, we look it up
+	if kubeContext == "" {
+		var stdout, stderr bytes.Buffer
+		cmd := exec.Cmd{
+			Path:      kubectlPath,
+			Args:      []string{kubectlPath, "config", "current-context"},
+			Env:       os.Environ(),
+			Stdout:    &stdout,
+			Stderr:    &stderr,
+			WaitDelay: 30 * time.Second,
+		}
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "failed to detect current kubectl context")
+		}
+		kubeContext = strings.TrimSpace(stdout.String())
+		if kubeContext == "" {
+			return trace.BadParameter("context not set. and no active kubectl context found")
+		}
+	}
+
+	kubeName := c.kubeName
+	if kubeName == "" {
+		kubeName = kubeContext
+	}
+
+	tokenName := c.tokenName
+	if tokenName == "" {
+		tokenName = kubeName
+		if c.botName != "" {
+			tokenName = tokenName + "-" + c.botName
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "🔎 Detecting OIDC provider for Kubernetes cluster %q\n", kubeName)
+
+	kubectlArgs := []string{kubectlPath, "--context", kubeContext}
+
+	var kubectlStdout, kubectlStderr bytes.Buffer
+	var oidcResponse KubernetesOIDCResponse
+	kubectlArgs = append(kubectlArgs, "get", "--raw=/.well-known/openid-configuration")
+	// ping kube cluster OIDC endpoint
+	kubectl := exec.Cmd{
+		Path:      kubectlPath,
+		Args:      kubectlArgs,
+		Env:       os.Environ(),
+		Stdout:    &kubectlStdout,
+		Stderr:    &kubectlStderr,
+		WaitDelay: 30 * time.Second,
+	}
+
+	err = kubectl.Run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, kubectlStderr.String())
+		return trace.Wrap(err, "failed to run kubectl")
+	}
+	err = json.Unmarshal(kubectlStdout.Bytes(), &oidcResponse)
+	if err != nil {
+		// TODO: log the response
+		return trace.Wrap(err, "failed to parse oidc response")
+	}
+
+	if oidcResponse.Issuer == "" {
+		return trace.BadParameter("failed to discover OIDC issuer")
+	}
+
+	oidcDiscoverCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	// hit OIDC provider
+	dc, err := oidcclient.Discover(oidcDiscoverCtx, oidcResponse.Issuer, otelhttp.DefaultClient)
+	if err != nil {
+		// TODO: explain that the cluster might ot have OIDC enabled
+		return trace.Wrap(err, "failed to discover OIDC issuer")
+	}
+
+	fmt.Fprintf(os.Stderr, "⚙️ Configuring trust by creating token %q\n", tokenName)
+
+	// craft token for cluster
+	tokenSpec := types.ProvisionTokenSpecV2{
+		Roles:      roles,
+		Allow:      nil,
+		AWSIIDTTL:  0,
+		JoinMethod: types.JoinMethodKubernetes,
+		BotName:    c.botName,
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccount: fmt.Sprintf("%s:%s", c.namespace, c.serviceAccountName)},
+			},
+			Type: types.KubernetesJoinTypeOIDC,
+			OIDC: &types.ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+				Issuer:                  dc.Issuer,
+				InsecureAllowHTTPIssuer: false,
+			},
+		},
+	}
+	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Time{}, tokenSpec)
+	if err != nil {
+		return trace.Wrap(err, "error crafting provision token for the Kube cluster")
+	}
+	// apply token
+	if c.force {
+		err := client.UpsertToken(ctx, token)
+		if err != nil {
+			return trace.Wrap(err, "failed to upsert provision token")
+		}
+	} else {
+		err = client.CreateToken(ctx, token)
+		if err != nil {
+			if trace.IsAlreadyExists(err) {
+				return trace.AlreadyExists("token %q already exists, you can pick a different token name with --token-name, or overwrite the existing token with --force", tokenName)
+			}
+			return trace.Wrap(err, "failed to create provision token")
+		}
+	}
+
+	chartName := "teleport/teleport-kube-agent"
+	if c.botName != "" {
+		chartName = "teleport/tbot"
+	}
+
+	fmt.Fprintf(os.Stderr, "📝 Writing %s Helm values to: %q\n", chartName, c.outputPath)
+
+	var valueGenerator valueGeneratorFunc
+	if c.botName != "" {
+		valueGenerator = generateTbotValues
+	} else {
+		valueGenerator = generateAgentValues
+	}
+
+	values, err := valueGenerator(valueGeneratorInput{
+		botName:             c.botName,
+		roles:               roles,
+		proxyAddr:           proxyAddr,
+		enterprise:          proxyPong.Edition == modules.BuildEnterprise,
+		updateGroup:         c.updateGroup,
+		tokenName:           tokenName,
+		teleportClusterName: authPong.GetClusterName(),
+		kubeClusterName:     kubeName,
+	})
+	if err != nil {
+		return trace.Wrap(err, "error generating chart values")
+	}
+
+	if err := os.WriteFile(c.outputPath, values, 0644); err != nil {
+		return trace.Wrap(err, "error writing chart values to file %s", c.outputPath)
+	}
+
+	fmt.Fprintln(os.Stderr, "🚀 You can now deploy the Helm chart by running:\n")
+	fmt.Println(craftHelmCommand(craftHelmCommandInput{
+		releaseName: c.serviceAccountName,
+		chartName:   chartName,
+		namespace:   c.namespace,
+		version:     proxyPong.AutoUpdate.AgentVersion,
+		valuesPath:  c.outputPath,
+		kubeContext: kubeContext,
+	}))
+	return nil
+}
+
+type craftHelmCommandInput struct {
+	releaseName string
+	chartName   string
+	namespace   string
+	version     string
+	valuesPath  string
+	kubeContext string
+}
+
+func craftHelmCommand(input craftHelmCommandInput) string {
+	sb := &strings.Builder{}
+	fmt.Fprintf(sb, "helm repo add teleport %q; \n", teleportassets.HelmRepoURL().String())
+	sb.WriteString("helm repo update; \n")
+	fmt.Fprintf(sb, "helm upgrade --install %q %q", input.releaseName, input.chartName)
+	fmt.Fprintf(sb, "\\\n  --namespace %s --create-namespace ", input.namespace)
+	fmt.Fprintf(sb, "\\\n  --version %s ", input.version)
+	fmt.Fprintf(sb, "\\\n  --values %s ", input.valuesPath)
+	fmt.Fprintf(sb, "\\\n  --kube-context %s\n", input.kubeContext)
+	return sb.String()
+}
+
+type valueGeneratorInput struct {
+	botName             string
+	roles               types.SystemRoles
+	proxyAddr           string
+	enterprise          bool
+	updateGroup         string
+	tokenName           string
+	teleportClusterName string
+	kubeClusterName     string
+}
+type valueGeneratorFunc func(valueGeneratorInput) ([]byte, error)
+
+type TbotValues struct {
+	ClusterName          string `yaml:"clusterName"`
+	TeleportProxyAddress string `yaml:"teleportProxyAddress"`
+	DefaultOutput        struct {
+		SecretName string `yaml:"secretName"`
+	} `yaml:"defaultOutput"`
+	Token string `yaml:"token"`
+}
+
+func generateTbotValues(input valueGeneratorInput) ([]byte, error) {
+	tbotValues := TbotValues{
+		ClusterName:          input.teleportClusterName,
+		TeleportProxyAddress: input.proxyAddr,
+		DefaultOutput: struct {
+			SecretName string `yaml:"secretName"`
+		}{
+			SecretName: fmt.Sprintf("%s-output", input.botName),
+		},
+		Token: input.tokenName,
+	}
+	return yaml.Marshal(tbotValues)
+}
+
+type AgentValues struct {
+	Roles      string `yaml:"roles"`
+	ProxyAddr  string `yaml:"proxyAddr"`
+	Enterprise bool   `yaml:"enterprise"`
+	Updater    struct {
+		Enabled bool   `yaml:"enabled"`
+		Group   string `yaml:"group,omitempty"`
+	} `yaml:"updater,omitempty"`
+	JoinParams struct {
+		Method    string `yaml:"method"`
+		TokenName string `yaml:"tokenName"`
+	} `yaml:"joinParams"`
+	KubeClusterName     string `yaml:"kubeClusterName"`
+	TeleportClusterName string `yaml:"teleportClusterName"`
+}
+
+func generateAgentValues(input valueGeneratorInput) ([]byte, error) {
+	agentValues := AgentValues{
+		Roles:      strings.ToLower(input.roles.String()),
+		ProxyAddr:  input.proxyAddr,
+		Enterprise: input.enterprise,
+		Updater: struct {
+			Enabled bool   `yaml:"enabled"`
+			Group   string `yaml:"group,omitempty"`
+		}{
+			Enabled: true,
+			Group:   input.updateGroup,
+		},
+		JoinParams: struct {
+			Method    string `yaml:"method"`
+			TokenName string `yaml:"tokenName"`
+		}{
+			Method:    string(types.JoinMethodKubernetes),
+			TokenName: input.tokenName,
+		},
+		TeleportClusterName: input.teleportClusterName,
+		KubeClusterName:     input.kubeClusterName,
+	}
+
+	return yaml.Marshal(agentValues)
 }
