@@ -46,7 +46,7 @@ read and write Auth Connector, plugins, roles and Access Lists.
 - For demonstration, this guide references a Grafana application. You may use any other 
 [resource](../../enroll-resources/enroll-resources.mdx) type to get started. 
 
-## Step 1/4. Create groups in Entra ID
+## Step 1/3. Create groups in Entra ID
 
 <Admonition type="info" title="New Group">
   You may skip this step if you are using an existing Entra ID 
@@ -66,7 +66,7 @@ Every 5 minutes, Teleport imports groups from Entra ID and creates
 an Access List for each of the imported groups. Teleport will also preserve respective 
 group members as an Access List member.
 
-## Step 2/4. Create roles in Teleport
+## Step 2/3. Create roles in Teleport
 
 First, create a role template that grants access to Grafana. 
 
@@ -124,7 +124,7 @@ spec:
   rule if you are following through this guide with a different kind of resource.  
 </Admonition>
 
-## Step 3/4. Create a Nested Access List
+## Step 3/3. Create a Nested Access List
 
 Assuming Teleport has already imported new groups we created in Entra ID, 
 we will now create new Access Lists for short-term (Just-In-Time) 
