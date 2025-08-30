@@ -44,6 +44,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	joinserver "github.com/gravitational/teleport/lib/join/server"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -486,24 +487,23 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
-			ctx,
-			provisionToken,
-			req.RegisterUsingTokenRequest,
-			nil,
-			&workloadidentityv1pb.JoinAttrs{
-				Azure: joinAttrs,
-			},
-		)
-		return certs, trace.Wrap(err)
-	}
-	certs, err = a.generateCerts(
-		ctx,
-		provisionToken,
-		req.RegisterUsingTokenRequest,
-		nil,
-	)
+	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &joinserver.GenerateCertsForJoinRequest{
+		HostID:               req.RegisterUsingTokenRequest.HostID,
+		NodeName:             req.RegisterUsingTokenRequest.NodeName,
+		Role:                 req.RegisterUsingTokenRequest.Role,
+		PublicTLSKey:         req.RegisterUsingTokenRequest.PublicTLSKey,
+		PublicSSHKey:         req.RegisterUsingTokenRequest.PublicSSHKey,
+		AdditionalPrincipals: req.RegisterUsingTokenRequest.AdditionalPrincipals,
+		DNSNames:             req.RegisterUsingTokenRequest.DNSNames,
+		BotInstanceID:        req.RegisterUsingTokenRequest.BotInstanceID,
+		BotGeneration:        req.RegisterUsingTokenRequest.BotGeneration,
+		Expires:              req.RegisterUsingTokenRequest.Expires,
+		RemoteAddr:           req.RegisterUsingTokenRequest.RemoteAddr,
+		RawJoinClaims:        nil,
+		Attrs: &workloadidentityv1pb.JoinAttrs{
+			Azure: joinAttrs,
+		},
+	})
 	return certs, trace.Wrap(err)
 }
 

@@ -37,6 +37,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
+	joinserver "github.com/gravitational/teleport/lib/join/server"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -406,19 +407,23 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 		return nil, trace.Wrap(err, "checking iam request")
 	}
 
-	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
-			ctx,
-			provisionToken,
-			req.RegisterUsingTokenRequest,
-			verifiedIdentity,
-			&workloadidentityv1pb.JoinAttrs{
-				Iam: verifiedIdentity.JoinAttrs(),
-			},
-		)
-		return certs, trace.Wrap(err, "generating bot certs")
-	}
-	certs, err = a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, verifiedIdentity)
+	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &joinserver.GenerateCertsForJoinRequest{
+		HostID:               req.RegisterUsingTokenRequest.HostID,
+		NodeName:             req.RegisterUsingTokenRequest.NodeName,
+		Role:                 req.RegisterUsingTokenRequest.Role,
+		PublicTLSKey:         req.RegisterUsingTokenRequest.PublicTLSKey,
+		PublicSSHKey:         req.RegisterUsingTokenRequest.PublicSSHKey,
+		AdditionalPrincipals: req.RegisterUsingTokenRequest.AdditionalPrincipals,
+		DNSNames:             req.RegisterUsingTokenRequest.DNSNames,
+		BotInstanceID:        req.RegisterUsingTokenRequest.BotInstanceID,
+		BotGeneration:        req.RegisterUsingTokenRequest.BotGeneration,
+		Expires:              req.RegisterUsingTokenRequest.Expires,
+		RemoteAddr:           req.RegisterUsingTokenRequest.RemoteAddr,
+		RawJoinClaims:        verifiedIdentity,
+		Attrs: &workloadidentityv1pb.JoinAttrs{
+			Iam: verifiedIdentity.JoinAttrs(),
+		},
+	})
 	return certs, trace.Wrap(err, "generating certs")
 }
 

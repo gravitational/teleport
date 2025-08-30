@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	joinserver "github.com/gravitational/teleport/lib/join/server"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tpm"
 )
@@ -111,22 +112,24 @@ func (a *Server) RegisterUsingTPMMethod(
 		return nil, trace.Wrap(err)
 	}
 
-	if initReq.JoinRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
-			ctx,
-			ptv2,
-			initReq.JoinRequest,
-			validatedEK,
-			&workloadidentityv1pb.JoinAttrs{
-				Tpm: validatedEK.JoinAttrs(),
-			},
-		)
-		return certs, trace.Wrap(err, "generating certs for bot")
-	}
-	certs, err := a.generateCerts(
-		ctx, ptv2, initReq.JoinRequest, validatedEK,
-	)
-	return certs, trace.Wrap(err, "generating certs for host")
+	certs, err := a.GenerateCertsForJoin(ctx, provisionToken, &joinserver.GenerateCertsForJoinRequest{
+		HostID:               initReq.JoinRequest.HostID,
+		NodeName:             initReq.JoinRequest.NodeName,
+		Role:                 initReq.JoinRequest.Role,
+		PublicTLSKey:         initReq.JoinRequest.PublicTLSKey,
+		PublicSSHKey:         initReq.JoinRequest.PublicSSHKey,
+		AdditionalPrincipals: initReq.JoinRequest.AdditionalPrincipals,
+		DNSNames:             initReq.JoinRequest.DNSNames,
+		BotInstanceID:        initReq.JoinRequest.BotInstanceID,
+		BotGeneration:        initReq.JoinRequest.BotGeneration,
+		Expires:              initReq.JoinRequest.Expires,
+		RemoteAddr:           initReq.JoinRequest.RemoteAddr,
+		RawJoinClaims:        validatedEK,
+		Attrs: &workloadidentityv1pb.JoinAttrs{
+			Tpm: validatedEK.JoinAttrs(),
+		},
+	})
+	return certs, trace.Wrap(err)
 }
 
 func checkTPMAllowRules(tpm *tpm.ValidatedTPM, rules []*types.ProvisionTokenSpecV2TPM_Rule) error {
