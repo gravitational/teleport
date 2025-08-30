@@ -393,51 +393,68 @@ The Teleport Connect UI is implemented at the same time as the Web UI. Teleport 
 
 #### Prometheus Implementation
 
-Two Prometheus metrics are added to the `healthcheck` package:
+Three Prometheus metrics are added to the `healthcheck` package:
 
-- `teleport_health_resources` for the expected number of healthy resources
-- `teleport_health_resources_available` for the actual number of healthy resources
+- `teleport_resources_health_status_healthy` for the number of healthy resources
+- `teleport_resources_health_status_unhealthy` for the number of unhealthy resources
+- `teleport_resources_health_status_unknown` for the number of resources in an unknown health state
 
 The metrics are designed to observe resource health, support multiple resource types (databases, Kubernetes, etc), while keeping the quantity of Prometheus metrics to a minimum. Applying a Prometheus label `type="db|kubernetes|etc"` to a metric enables distinguishing one resource from another.
 
-A difference between `teleport_health_resources` and `teleport_health_resources_available` indicates the presence of unhealthy Kubernetes clusters. A PromQL expression added to a Prometheus alert rule automates detection of unhealthy Kubernetes clusters.
+Use a PromQL expression to determine the total number of Kubernetes clusters.
 ```promql
-(teleport_health_resources{type="kubernetes"} - 
- teleport_health_resources_available{type="kubernetes"}) > 0
+teleport_resources_health_status_healthy{type="kubernetes"} +
+teleport_resources_health_status_unhealthy{type="kubernetes"} +
+teleport_resources_health_status_unknown{type="kubernetes"}
+```
+
+Use a PromQL expression to detect unhealthy Kubernetes clusters.
+```promql
+teleport_resources_health_status_unhealthy{type="kubernetes"} > 0
 ```
 
 When an unhealthy Kubernetes cluster is detected, a Teleport administrator may use the Teleport Web UI, `tctl` command, or `kubectl` command to identify the Kubernetes cluster, and diagnose further.
 
+
+The metrics are implemented as gauges to enable both incrementing and decrementing (a counter only increments), and as a `Vec` to enable multiple resource types, `db|kubernetes|etc`.
+
 Example metric definitions:
 ```go
-  // teleport_health_resources
-	resourcesGauge = prometheus.NewGaugeVec(
+	// teleport_resources_health_status_healthy
+	resourceHealthyGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace, // teleport
-			Subsystem: teleport.MetricHealth,    // health,
-			Name:      teleport.MetricResources, // resources
-			Help:      "Number of resources being monitored for health.",
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricHealthy,
+			Help:      "Number of healthy resources",
 		},
-		[]string{teleport.TagType}, // db|kubernetes|etc
+		[]string{teleport.TagType}, // db|k8s|etc
 	)
-
-  // teleport_health_resources_available
-	resourcesAvailableGauge = prometheus.NewGaugeVec(
+	// teleport_resources_health_status_unhealthy
+	resourceUnhealthyGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,          // teleport
-			Subsystem: teleport.MetricHealth,             // health
-			Name:      teleport.MetricResourcesAvailable, // resources_available
-			Help:      "Number of resources in a healthy state.",
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricUnhealthy,
+			Help:      "Number of unhealthy resources",
 		},
-		[]string{teleport.TagType}, // db|kubernetes|etc
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+	// teleport_resources_health_status_unknown
+	resourceUnknownGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricUnknown,
+			Help:      "Number of resources in an unknown health state",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
 	)
 ```
 
-The metric is implemented as a `Gauge` to enable incrementing and decrementing (a counter only increments), and as a `Vec` to enable multiple resource types, `db|kubernetes|etc`.
+A polling approach is used to aggregate health statuses in 30s intervals with jittered timing. Metric calculations are thread-safe, labeled with a resource type (db, k8s, etc), and reset to zero on close.
 
-A resource in a healthy state increments `resourcesAvailableGauge`, and unhealthy and unknown states decrement `resourcesAvailableGauge`.
-
-The metric design in the `healthcheck` package adds Prometheus metrics for Kubernetes health checks as well as database health checks. Future users of the `healthcheck` package, such as MWI, would participate in health metrics.
+Database health checks, an existing user of the `healthcheck` package, will begin to emit health metrics. And any future users of the `healthcheck` package, such as MWI, will emit health metrics.
 
 The design is based on a [proposal by Tim Ross](https://github.com/gravitational/teleport/issues/50285#issuecomment-3198505619). 
 
