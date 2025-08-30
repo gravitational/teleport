@@ -82,6 +82,24 @@ func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken st
 	return accessLists, resp.GetNextToken(), nil
 }
 
+// ListAccessListsWithFilter returns a filtered and sorted paginated list of access lists.
+func (c *Client) ListAccessListsWithFilter(ctx context.Context, req *accesslistv1.ListAccessListsWithFilterRequest) ([]*accesslist.AccessList, string, error) {
+	resp, err := c.grpcClient.ListAccessListsWithFilter(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return accessLists, resp.GetNextPageToken(), nil
+}
+
 // GetAccessList returns the specified access list resource.
 func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{
