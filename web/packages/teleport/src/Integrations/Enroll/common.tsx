@@ -18,8 +18,7 @@
 
 import styled from 'styled-components';
 
-import { Box, Flex, H2, ResourceIcon } from 'design';
-import { P } from 'design/Text/Text';
+import { Box, Flex, H2, ResourceIcon, Text } from 'design';
 
 export const IntegrationTile = styled(Flex)<{
   disabled?: boolean;
@@ -36,7 +35,7 @@ export const IntegrationTile = styled(Flex)<{
   gap: ${({ theme }) => theme.space[3]}px;
   height: 170px;
   width: 170px;
-  background-color: ${({ theme }) => theme.colors.buttons.secondary.default};
+  background-color: ${({ theme }) => theme.colors.levels.sunken};
   text-align: center;
   cursor: ${({ disabled, $exists }) =>
     disabled || $exists ? 'not-allowed' : 'pointer'};
@@ -51,7 +50,7 @@ export const IntegrationTile = styled(Flex)<{
     opacity: ${props.disabled ? '0.45' : '1'};
     &:hover,
     &:focus-visible {
-      background-color: ${props.theme.colors.buttons.secondary.hover};
+      background-color: ${props.theme.colors.levels.surface};
     }
     `;
   }};
@@ -60,10 +59,10 @@ export const IntegrationTile = styled(Flex)<{
 export const NoCodeIntegrationDescription = () => (
   <Box mb={3}>
     <H2 mb={1}>No-Code Integrations</H2>
-    <P>
+    <Text>
       Set up Teleport to post notifications to messaging apps, discover and
       import resources from cloud providers and other services.
-    </P>
+    </Text>
   </Box>
 );
 
@@ -76,6 +75,6 @@ export const IntegrationIcon = styled(ResourceIcon).withConfig({
 })<{ size?: number }>`
   margin: 0 auto;
   height: 100%;
-  min-width: 0;
-  ${({ size }) => size && `max-width: ${size}px;`}
+  min-width: ${props => (props.size ? `${props.size}px` : 0)};
+  max-width: ${props => props.size || 72}px;
 `;

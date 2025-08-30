@@ -72,7 +72,7 @@ export function IntegrationTileWithSpec({
         data-testid="tile-external-audit-storage"
       >
         <Flex flexBasis={100}>
-          <IntegrationIcon name={spec.icon} size={80} />
+          <IntegrationIcon name={spec.icon} />
         </Flex>
         <Flex>
           <Text>{spec.name}</Text>
@@ -95,7 +95,7 @@ export function IntegrationTileWithSpec({
   );
 }
 
-function renderExternalAuditStorageBadge(
+export function renderExternalAuditStorageBadge(
   hasExternalAuditStorageAccess: boolean,
   isEnterprise: boolean
 ) {
@@ -106,15 +106,15 @@ function renderExternalAuditStorageBadge(
       </ToolTipNoPermBadge>
     );
 
-  return (
+  return !hasExternalAuditStorageAccess ? (
     <GenericNoPermBadge
       noAccess={!hasExternalAuditStorageAccess}
       kind="External Audit Storage"
     />
-  );
+  ) : undefined;
 }
 
-function GenericNoPermBadge({
+export function GenericNoPermBadge({
   noAccess,
   kind = 'integration',
 }: {
