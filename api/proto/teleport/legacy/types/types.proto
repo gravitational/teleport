@@ -5123,6 +5123,7 @@ message KubernetesClusterV3List {
 message KubernetesServerV3 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
+
   // Kind is the Kubernetes server resource kind. Always "kube_server".
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
@@ -5138,6 +5139,11 @@ message KubernetesServerV3 {
   KubernetesServerSpecV3 Spec = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
+  ];
+  // Status is the Kubernetes server status.
+  KubernetesServerStatusV3 Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
   ];
 }
 
@@ -5158,6 +5164,13 @@ message KubernetesServerSpecV3 {
   KubernetesClusterV3 Cluster = 5 [(gogoproto.jsontag) = "cluster"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+}
+
+// KubernetesServerStatusV3 is the Kubernetes cluster status.
+message KubernetesServerStatusV3 {
+  // TargetHealth is the health status of network connectivity between
+  // the agent and the Kubernetes cluster.
+  TargetHealth TargetHealth = 1 [(gogoproto.jsontag) = "target_health,omitempty"];
 }
 
 // WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
