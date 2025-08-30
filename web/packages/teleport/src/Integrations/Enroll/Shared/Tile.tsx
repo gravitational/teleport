@@ -249,7 +249,10 @@ const IntegrationCard = styled.div<{ disabled?: boolean }>`
       props.disabled
         ? 'transparent'
         : props.theme.colors.interactive.tonal.neutral[0]};
-    box-shadow: inset 0 0 0 2px transparent;
+    box-shadow: inset 0 0 0 2px ${props =>
+      props.disabled
+        ? props.theme.colors.interactive.tonal.neutral[0]
+        : 'transparent'};
   }
 
   &:focus-visible {
