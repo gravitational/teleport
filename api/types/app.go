@@ -482,6 +482,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Set an "app-sub-kind" label can be used for RBAC.
+	if a.SubKind != "" {
+		if a.Metadata.Labels == nil {
+			a.Metadata.Labels = make(map[string]string)
+		}
+		a.Metadata.Labels[AppSubKindLabel] = a.SubKind
+	}
 	return nil
 }
 
