@@ -168,6 +168,15 @@ func (w *worker) GetTargetResource() types.ResourceWithLabels {
 	return w.target.GetResource()
 }
 
+// GetCanonicalHealthStatus returns the worker's canonical target health status.
+//
+// Returns only a healthy, unhealthy, or unknown status.
+func (w *worker) GetCanonicalHealthStatus() types.TargetHealthStatus {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return types.TargetHealthStatus(w.targetHealth.Status).Canonical()
+}
+
 // UpdateHealthCheckConfig updates the worker to use a new health check
 // config.
 func (w *worker) UpdateHealthCheckConfig(newCfg *healthCheckConfig) {
