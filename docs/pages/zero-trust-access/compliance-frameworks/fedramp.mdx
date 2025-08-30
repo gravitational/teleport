@@ -318,8 +318,10 @@ cases where it is not strictly required.
 - **Restricted Cipher Suite Selection**
 
   The FIPS build only permits ciphers, key exchange mechanisms, and signature
-  algorithms that are approved under FIPS 140-2 and supported by BoringCrypto.
-  This means there is a lack of support for some modern algorithms with better
+  algorithms that are approved under the FIPS certification program and
+  supported by BoringCrypto. Due to the rigorous and lengthy certification
+  process, FIPS-approved algorithms often lag behind the state of the art.
+  As a result, the FIPS build lacks support for newer algorithms with improved
   performance or forward-looking security properties (e.g. ChaCha20-Poly1305, Ed25519).
 
 - **Reduced Performance**
