@@ -22,7 +22,9 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -34,7 +36,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -309,4 +313,28 @@ func getClusterDomain() string {
 		return envDomain
 	}
 	return "cluster.local"
+}
+
+// RewriteHeadersAndApplyValueTraits rewrites the provided request's headers
+// while applying value traits to them.
+func RewriteHeadersAndApplyValueTraits(r *http.Request, rewrites iter.Seq[*types.Header], traits wrappers.Traits, log *slog.Logger) {
+	for header := range rewrites {
+		values, err := ApplyValueTraits(header.Value, traits)
+		if err != nil {
+			log.DebugContext(r.Context(), "Failed to apply traits",
+				"header_value", header.Value,
+				"error", err,
+			)
+			continue
+		}
+		r.Header.Del(header.Name)
+		for _, value := range values {
+			switch http.CanonicalHeaderKey(header.Name) {
+			case teleport.HostHeader:
+				r.Host = value
+			default:
+				r.Header.Add(header.Name, value)
+			}
+		}
+	}
 }
