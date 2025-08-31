@@ -35,3 +35,18 @@ func Map[In, Out any](f func(In) Out, seq iter.Seq[In]) iter.Seq[Out] {
 		}
 	}
 }
+
+// Filter returns an iterator over seq that only includes the values v for which
+// f(v) is true.
+//
+// Copied from https://github.com/golang/go/issues/61898. We should switch to an
+// official package once it is available.
+func Filter[V any](f func(V) bool, seq iter.Seq[V]) iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for v := range seq {
+			if f(v) && !yield(v) {
+				return
+			}
+		}
+	}
+}
