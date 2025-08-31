@@ -521,11 +521,11 @@ importers:
         specifier: ^14.2.0
         version: 14.2.0
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.1.5
+        version: 4.1.5
       zod-to-json-schema:
         specifier: ^3.24.6
-        version: 3.24.6(zod@3.25.76)
+        version: 3.24.6(zod@4.1.5)
 
 packages:
 
@@ -4712,6 +4712,10 @@ packages:
     resolution: {integrity: sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==}
     engines: {node: '>=12'}
 
+  ip-address@10.0.1:
+    resolution: {integrity: sha512-NWv9YLW4PoW2B7xtzaS3NCot75m6nK7Icdv0o3lfMceJVRfSoQwqD4wEH5rLwoKJwUiZ/rfpiVBhnaF0FK4HoA==}
+    engines: {node: '>= 12'}
+
   ip-address@9.0.5:
     resolution: {integrity: sha512-zHtQzGojZXTwZTHQqra+ETKd4Sn3vgi7uBmlPoXVWZqYvuKmtI0l/VZTjqGmJY9x88GGOaZ9+G9ES8hC4T4X8g==}
     engines: {node: '>= 12'}
@@ -6193,6 +6197,10 @@ packages:
     resolution: {integrity: sha512-pe4Y2yzru68lXCb38aAqRf5gvN8YdjP1lok5o0J7BOHljkyCGKVz7H3vpVIXKD27rj2giOJ7DwVyk/GWrPHDWA==}
     engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
 
+  socks@2.8.7:
+    resolution: {integrity: sha512-HLpt+uLy/pxB+bum/9DzAgiKS8CX1EvbWxI4zlmgGCExImLdiad2iCwXT5Z4c9c3Eq8rP2318mPW2c+QbtjK8A==}
+    engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
@@ -6910,6 +6918,9 @@ packages:
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
+  zod@4.1.5:
+    resolution: {integrity: sha512-rcUUZqlLJgBC33IT3PNMgsCq6TzLQEG/Ei/KTCU0PedSWRMAXoOUN+4t/0H+Q8bdnLPdqUYnvboJT0bn/229qg==}
 
   zone.js@0.15.0:
     resolution: {integrity: sha512-9oxn0IIjbCZkJ67L+LkhYWRyAy7axphb3VgE2MBDlOqnmHMPWGYMxJxBYFueFq/JGY2GMwS0rU+UCLunEmy5UA==}
@@ -11922,6 +11933,8 @@ snapshots:
 
   internmap@2.0.3: {}
 
+  ip-address@10.0.1: {}
+
   ip-address@9.0.5:
     dependencies:
       jsbn: 1.1.0
@@ -13721,7 +13734,7 @@ snapshots:
     dependencies:
       agent-base: 6.0.2
       debug: 4.4.1
-      socks: 2.8.6
+      socks: 2.8.7
     transitivePeerDependencies:
       - supports-color
 
@@ -13736,6 +13749,11 @@ snapshots:
   socks@2.8.6:
     dependencies:
       ip-address: 9.0.5
+      smart-buffer: 4.2.0
+
+  socks@2.8.7:
+    dependencies:
+      ip-address: 10.0.1
       smart-buffer: 4.2.0
 
   source-map-js@1.2.1: {}
@@ -14502,14 +14520,16 @@ snapshots:
 
   yoctocolors-cjs@2.1.2: {}
 
-  zod-to-json-schema@3.24.6(zod@3.25.76):
+  zod-to-json-schema@3.24.6(zod@4.1.5):
     dependencies:
-      zod: 3.25.76
+      zod: 4.1.5
 
   zod-validation-error@3.5.3(zod@3.25.76):
     dependencies:
       zod: 3.25.76
 
   zod@3.25.76: {}
+
+  zod@4.1.5: {}
 
   zone.js@0.15.0: {}
