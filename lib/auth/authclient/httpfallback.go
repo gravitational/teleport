@@ -45,7 +45,7 @@ func (c *Client) ValidateTrustedCluster(ctx context.Context, validateRequest *Va
 	return ValidateTrustedClusterResponseFromProto(protoResp), nil
 }
 
-// TODO(noah): DELETE IN 20.0.0
+// TODO(noah): DELETE IN 21.0.0
 func (c *HTTPClient) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	validateRequestRaw, err := validateRequest.ToRaw()
 	if err != nil {
