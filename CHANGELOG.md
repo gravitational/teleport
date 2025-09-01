@@ -8,11 +8,13 @@
 
 ## 18.1.7 (08/27/25)
 
-**Warning:** This release includes a regression that prevents connecting to Windows desktops via the Web UI.
-The following workarounds are available:
-- Downgrade proxy servers to 18.1.4
-- Use Teleport Connect instead of the web UI to access desktops
-- Set your preferred keyboard layout (under account settings) to something other than _system_.
+> [!WARNING]
+> This release includes a regression that prevents connecting to Windows desktops via the Web UI.
+>
+> The following workarounds are available:
+> - Downgrade proxy servers to 18.1.4
+> - Use Teleport Connect instead of the web UI to access desktops
+> - Set your preferred keyboard layout (under account settings) to something other than _system_
 
 * Fixed an issue where VNet could not start because of "VNet is already running" error. [#58388](https://github.com/gravitational/teleport/pull/58388)
 * Fix MCP icon displaying as white/black blocks. [#58347](https://github.com/gravitational/teleport/pull/58347)
@@ -37,11 +39,13 @@ Enterprise:
 
 ## 18.1.6 (08/20/25)
 
-**Warning:** This release includes a regression that prevents connecting to Windows desktops via the Web UI.
-The following workarounds are available:
-- Downgrade proxy servers to 18.1.4
-- Use Teleport Connect instead of the web UI to access desktops
-- Set your preferred keyboard layout (under account settings) to something other than _system_.
+> [!WARNING]
+> This release includes a regression that prevents connecting to Windows desktops via the Web UI.
+>
+> The following workarounds are available:
+> - Downgrade proxy servers to 18.1.4
+> - Use Teleport Connect instead of the web UI to access desktops
+> - Set your preferred keyboard layout (under account settings) to something other than _system_
 
 * Fixed an uncaught exception in Teleport Connect on Windows when closing the app while the `TELEPORT_TOOLS_VERSION` environment variable is set. [#58131](https://github.com/gravitational/teleport/pull/58131)
 * Fixed a Teleport Connect crash that occurred when assuming an access request while an application or database connection was active. [#58109](https://github.com/gravitational/teleport/pull/58109)
@@ -55,11 +59,13 @@ The following workarounds are available:
 
 ## 18.1.5 (08/18/25)
 
-**Warning:** This release includes a regression that prevents connecting to Windows desktops via the Web UI.
-The following workarounds are available:
-- Downgrade proxy servers to 18.1.4
-- Use Teleport Connect instead of the web UI to access desktops
-- Set your preferred keyboard layout (under account settings) to something other than _system_.
+> [!WARNING]
+> This release includes a regression that prevents connecting to Windows desktops via the Web UI.
+>
+> The following workarounds are available:
+> - Downgrade proxy servers to 18.1.4
+> - Use Teleport Connect instead of the web UI to access desktops
+> - Set your preferred keyboard layout (under account settings) to something other than _system_
 
 * Fix AWS CLI access using AWS OIDC integration. [#57977](https://github.com/gravitational/teleport/pull/57977)
 * Fixed an issue that could cause revocation checks to fail in Windows environments. [#57880](https://github.com/gravitational/teleport/pull/57880)
