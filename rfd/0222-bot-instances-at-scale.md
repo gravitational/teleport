@@ -46,7 +46,7 @@ To support this use-case, the filter for bot instances will support the predicat
 
 **As a cluster owner (Infrastructure Security team), I want to know which Bot Instances are running with deprecated/problematic configuration.**
 
-Issues in `tbot` (or just typos) can be difficult to detect and logs may not adequately highlight these. To improve the rate of these events reaching users, `tbot` will detect and collate notices which are sent with the next heartbeat. They will then be available to view for a bot instance. To help in situations where it’s infeasible to check each individual instance, notices will be summarized by title and presented in aggregate form. Each aggregated item will be selectable and will filter the bot instances list. A filter such as `contains(notices, "Proxy URL not set")` will be pre-populated.
+Issues in `tbot` (or just typos) can be difficult to detect and logs may not adequately highlight these. To improve the rate of these events reaching users, `tbot` will detect and collate notices which are sent with the next heartbeat. They will then be available to view for a bot instance. To help in situations where it’s infeasible to check each individual instance, notices will be summarized by title and presented in aggregate form. Each aggregated item will be selectable and will filter the bot instances list. An advanced filter such as `contains(notices, "Proxy URL not set")` will be applied.
 
 **As a Bot Instance owner (Dev/Dev Ops team), I'd like help in understanding why my Bot Instance is not working properly.**
 
@@ -68,9 +68,9 @@ The right-hand half of the page displays the dashboard, which is a summary over 
 
 The Activity visualization shows the number of events (joins, authentications, and heartbeats) that occurred over time. This can be used to identify trends and patterns in activity. It is non-interactive.
 
-The Upgrade Status visualization show a summary of all instances grouped by upgrade status; up-to-date, upgrade available, patch available, or incompatible. Status labels are selectable, and will pre-populate the advanced search with the appropriate filter. For example, if the auth server is running v18 the filter will be populated with `older_than(version, "16.0.0")` when a user selects "not supported".
+The Upgrade Status visualization show a summary of all instances grouped by upgrade status; up-to-date, upgrade available, patch available, or incompatible. Status labels are selectable, and will populate the advanced search with the appropriate filter. For example, if the auth server is running v18 the filter will be populated with `older_than(version, "16.0.0")` when a user selects "not supported".
 
-The Notices visualization shows a summary of all notices across all instances. They're conveniently grouped by notice title and a count is included. Each item selectable, and will pre-populate the advanced filter (e.g. `contains(notices, "Proxy URL not set")`). This visualization will be hidden if there is no data to display.
+The Notices visualization shows a summary of all notices across all instances. They're conveniently grouped by notice title and a count is included. Each item is selectable, and will apply an advanced filter (e.g. `contains(notices, "Proxy URL not set")`). This visualization will be hidden if there is no data to display.
 
 ![](assets/0222-dashboard.png)
 
