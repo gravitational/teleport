@@ -315,3 +315,73 @@ func exceedsMaxDepth(
 		return totalDepth > accesslist.MaxAllowedDepth, nil
 	}
 }
+
+func maxDepthDownwards(
+	ctx context.Context,
+	currentListName string,
+	seen map[string]struct{},
+	g AccessListAndMembersGetter,
+) (int, error) {
+	if _, ok := seen[currentListName]; ok {
+		return 0, nil
+	}
+	seen[currentListName] = struct{}{}
+
+	maxDepth := 0
+
+	listMembers, err := fetchMembers(ctx, currentListName, g)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	for _, member := range listMembers {
+		if member.Spec.MembershipKind == accesslist.MembershipKindList {
+			childListName := member.GetName()
+			depth, err := maxDepthDownwards(ctx, childListName, seen, g)
+			if err != nil {
+				return 0, trace.Wrap(err)
+			}
+			depth += 1 // Edge to the child
+			if depth > maxDepth {
+				maxDepth = depth
+			}
+		}
+	}
+
+	delete(seen, currentListName)
+
+	return maxDepth, nil
+}
+
+func maxDepthUpwards(
+	ctx context.Context,
+	currentList *accesslist.AccessList,
+	seen map[string]struct{},
+	g AccessListAndMembersGetter,
+) (int, error) {
+	if _, ok := seen[currentList.GetName()]; ok {
+		return 0, nil
+	}
+	seen[currentList.GetName()] = struct{}{}
+
+	maxDepth := 0
+
+	// Traverse MemberOf relationships
+	for _, parentListName := range currentList.Status.MemberOf {
+		parentList, err := g.GetAccessList(ctx, parentListName)
+		if err != nil {
+			return 0, trace.Wrap(err) // Treat missing lists as depth 0
+		}
+		depth, err := maxDepthUpwards(ctx, parentList, seen, g)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		depth += 1 // Edge to the parent
+		if depth > maxDepth {
+			maxDepth = depth
+		}
+	}
+
+	delete(seen, currentList.GetName())
+
+	return maxDepth, nil
+}

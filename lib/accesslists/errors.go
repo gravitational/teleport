@@ -24,6 +24,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// IsUserLocked checks if the error was a result of the Access List member user having a lock.
+func IsUserLocked(err error) bool {
+	return errors.As(err, &userLockedError{})
+}
+
 // userLockedError is used to check specific condition of user being locked with [IsUserLocked]. It
 // is also being matched by [trace.IsAccessDenied] while allowing creating a dynamic error message
 // containing the username.
@@ -36,8 +41,3 @@ func newUserLockedError(user string) userLockedError {
 
 func (e userLockedError) Unwrap() error { return e.err }
 func (e userLockedError) Error() string { return e.err.Error() }
-
-// IsUserLocked checks if the error was a result of the Access List member user having a lock.
-func IsUserLocked(err error) bool {
-	return errors.As(err, &userLockedError{})
-}

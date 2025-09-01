@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -29,7 +29,6 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
@@ -54,6 +53,72 @@ type AccessListAndMembersGetter interface {
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+}
+
+type ancestorOptions struct {
+	validateUserRequirement bool
+	clock                   clockwork.Clock
+	user                    types.User
+}
+
+func (o *ancestorOptions) validate() error {
+	if o.validateUserRequirement {
+		if o.user == nil {
+			return trace.BadParameter("user is required when validateUserRequirement is true")
+		}
+		if o.clock == nil {
+			o.clock = clockwork.NewRealClock()
+		}
+	}
+	return nil
+}
+
+// ancestorOption is a functional option for configuring the behavior of GetAncestorsFor.
+type ancestorOption func(*ancestorOptions)
+
+func withUserRequirementsCheck(user types.User, clock clockwork.Clock) ancestorOption {
+	return func(opts *ancestorOptions) {
+		opts.validateUserRequirement = true
+		opts.user = user
+		opts.clock = clock
+	}
+}
+
+// HierarchyConfig holds dependencies for building access list hierarchies.
+type HierarchyConfig struct {
+	// AccessListService is used to fetch Access Lists and their members.
+	AccessListsService AccessListAndMembersGetter
+	// Getter is used to fetch Access Lists and their members.
+	Clock clockwork.Clock
+	// LockService is used to fetch user locks.
+	LockService services.LockGetter
+}
+
+// CheckAndSetDefaults validates the config and sets default values.
+func (c *HierarchyConfig) CheckAndSetDefaults() error {
+	if c.AccessListsService == nil {
+		return trace.BadParameter("AccessListsService is required")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
+// Hierarchy provides methods to compute access list hierarchies.
+type Hierarchy struct {
+	HierarchyConfig
+}
+
+// NewHierarchy constructs a HierarchyService with the given config.
+func NewHierarchy(cfg HierarchyConfig) (*Hierarchy, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Hierarchy{
+		HierarchyConfig: cfg,
+	}, nil
 }
 
 // GetMembersFor returns a flattened list of Members for an Access List, including inherited Members.
@@ -175,76 +240,6 @@ func (s *Hierarchy) GetOwnersFor(ctx context.Context, accessList *accesslist.Acc
 	return owners, nil
 }
 
-func maxDepthDownwards(
-	ctx context.Context,
-	currentListName string,
-	seen map[string]struct{},
-	g AccessListAndMembersGetter,
-) (int, error) {
-	if _, ok := seen[currentListName]; ok {
-		return 0, nil
-	}
-	seen[currentListName] = struct{}{}
-
-	maxDepth := 0
-
-	listMembers, err := fetchMembers(ctx, currentListName, g)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	for _, member := range listMembers {
-		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			childListName := member.GetName()
-			depth, err := maxDepthDownwards(ctx, childListName, seen, g)
-			if err != nil {
-				return 0, trace.Wrap(err)
-			}
-			depth += 1 // Edge to the child
-			if depth > maxDepth {
-				maxDepth = depth
-			}
-		}
-	}
-
-	delete(seen, currentListName)
-
-	return maxDepth, nil
-}
-
-func maxDepthUpwards(
-	ctx context.Context,
-	currentList *accesslist.AccessList,
-	seen map[string]struct{},
-	g AccessListAndMembersGetter,
-) (int, error) {
-	if _, ok := seen[currentList.GetName()]; ok {
-		return 0, nil
-	}
-	seen[currentList.GetName()] = struct{}{}
-
-	maxDepth := 0
-
-	// Traverse MemberOf relationships
-	for _, parentListName := range currentList.Status.MemberOf {
-		parentList, err := g.GetAccessList(ctx, parentListName)
-		if err != nil {
-			return 0, trace.Wrap(err) // Treat missing lists as depth 0
-		}
-		depth, err := maxDepthUpwards(ctx, parentList, seen, g)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-		depth += 1 // Edge to the parent
-		if depth > maxDepth {
-			maxDepth = depth
-		}
-	}
-
-	delete(seen, currentList.GetName())
-
-	return maxDepth, nil
-}
-
 func (s *Hierarchy) userIsLocked(ctx context.Context, user types.User) error {
 	if s.LockService != nil {
 		locks, err := s.LockService.GetLocks(ctx, true, types.LockTarget{
@@ -361,115 +356,6 @@ func (s *Hierarchy) IsAccessListMember(ctx context.Context, user types.User, acc
 	}
 
 	return userAssignUnspecified, trace.Wrap(membershipErr)
-}
-
-// UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
-func UserMeetsRequirements(identity types.User, requires accesslist.Requires) bool {
-	// Assemble the user's roles for easy look up.
-	userRolesMap := map[string]struct{}{}
-	for _, role := range identity.GetRoles() {
-		userRolesMap[role] = struct{}{}
-	}
-
-	// Check that the user meets the role requirements.
-	for _, role := range requires.Roles {
-		if _, ok := userRolesMap[role]; !ok {
-			return false
-		}
-	}
-
-	// Assemble traits for easy lookup.
-	userTraitsMap := map[string]map[string]struct{}{}
-	for k, values := range identity.GetTraits() {
-		if _, ok := userTraitsMap[k]; !ok {
-			userTraitsMap[k] = map[string]struct{}{}
-		}
-
-		for _, v := range values {
-			userTraitsMap[k][v] = struct{}{}
-		}
-	}
-
-	// Check that user meets trait requirements.
-	for k, values := range requires.Traits {
-		if _, ok := userTraitsMap[k]; !ok {
-			return false
-		}
-
-		for _, v := range values {
-			if _, ok := userTraitsMap[k][v]; !ok {
-				return false
-			}
-		}
-	}
-
-	// The user meets all requirements.
-	return true
-}
-
-type ancestorOptions struct {
-	validateUserRequirement bool
-	clock                   clockwork.Clock
-	user                    types.User
-}
-
-func (o *ancestorOptions) validate() error {
-	if o.validateUserRequirement {
-		if o.user == nil {
-			return trace.BadParameter("user is required when validateUserRequirement is true")
-		}
-		if o.clock == nil {
-			o.clock = clockwork.NewRealClock()
-		}
-	}
-	return nil
-}
-
-// ancestorOption is a functional option for configuring the behavior of GetAncestorsFor.
-type ancestorOption func(*ancestorOptions)
-
-func withUserRequirementsCheck(user types.User, clock clockwork.Clock) ancestorOption {
-	return func(opts *ancestorOptions) {
-		opts.validateUserRequirement = true
-		opts.user = user
-		opts.clock = clock
-	}
-}
-
-// HierarchyConfig holds dependencies for building access list hierarchies.
-type HierarchyConfig struct {
-	// AccessListService is used to fetch Access Lists and their members.
-	AccessListsService AccessListAndMembersGetter
-	// Getter is used to fetch Access Lists and their members.
-	Clock clockwork.Clock
-	// LockService is used to fetch user locks.
-	LockService services.LockGetter
-}
-
-// CheckAndSetDefaults validates the config and sets default values.
-func (c *HierarchyConfig) CheckAndSetDefaults() error {
-	if c.AccessListsService == nil {
-		return trace.BadParameter("AccessListsService is required")
-	}
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
-	}
-	return nil
-}
-
-// Hierarchy provides methods to compute access list hierarchies.
-type Hierarchy struct {
-	HierarchyConfig
-}
-
-// NewHierarchy constructs a HierarchyService with the given config.
-func NewHierarchy(cfg HierarchyConfig) (*Hierarchy, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &Hierarchy{
-		HierarchyConfig: cfg,
-	}, nil
 }
 
 // GetHierarchyForUser builds the hierarchy of Access Lists for a given user,
@@ -631,103 +517,5 @@ func (s *Hierarchy) collectAncestors(ctx context.Context, accessList *accesslist
 			return trace.Wrap(err)
 		}
 	}
-
 	return nil
-}
-
-// GetInheritedMembershipRequires returns the combined Requires for an Access List's members,
-// inherited from any ancestor lists, and the Access List's own MembershipRequires.
-func GetInheritedMembershipRequires(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Requires, error) {
-	ownRequires := accessList.GetMembershipRequires()
-	ancestors, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g)
-	if err != nil {
-		return &ownRequires, trace.Wrap(err)
-	}
-
-	roles := ownRequires.Roles
-	traits := ownRequires.Traits
-
-	for _, ancestor := range ancestors {
-		requires := ancestor.GetMembershipRequires()
-		roles = append(roles, requires.Roles...)
-		for traitKey, traitValues := range requires.Traits {
-			if _, exists := traits[traitKey]; !exists {
-				traits[traitKey] = []string{}
-			}
-			traits[traitKey] = append(traits[traitKey], traitValues...)
-		}
-	}
-
-	slices.Sort(roles)
-	roles = slices.Compact(roles)
-
-	for k, v := range traits {
-		slices.Sort(v)
-		traits[k] = slices.Compact(v)
-	}
-
-	return &accesslist.Requires{
-		Roles:  roles,
-		Traits: traits,
-	}, nil
-}
-
-// GetInheritedGrants returns the combined Grants for an Access List's members, inherited from any ancestor lists.
-func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Grants, error) {
-	grants := accesslist.Grants{
-		Traits: trait.Traits{},
-	}
-
-	collectedRoles := make(map[string]struct{})
-	collectedTraits := make(map[string]map[string]struct{})
-
-	addGrants := func(grantRoles []string, grantTraits trait.Traits) {
-		for _, role := range grantRoles {
-			if _, exists := collectedRoles[role]; !exists {
-				grants.Roles = append(grants.Roles, role)
-				collectedRoles[role] = struct{}{}
-			}
-		}
-		for traitKey, traitValues := range grantTraits {
-			if _, exists := collectedTraits[traitKey]; !exists {
-				collectedTraits[traitKey] = make(map[string]struct{})
-			}
-			for _, traitValue := range traitValues {
-				if _, exists := collectedTraits[traitKey][traitValue]; !exists {
-					grants.Traits[traitKey] = append(grants.Traits[traitKey], traitValue)
-					collectedTraits[traitKey][traitValue] = struct{}{}
-				}
-			}
-		}
-	}
-
-	// Get ancestors via member relationship
-	ancestorLists, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, ancestor := range ancestorLists {
-		memberGrants := ancestor.GetGrants()
-		addGrants(memberGrants.Roles, memberGrants.Traits)
-	}
-
-	// Get ancestors via owner relationship
-	ancestorOwnerLists, err := GetAncestorsFor(ctx, accessList, RelationshipKindOwner, g)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, ancestorOwner := range ancestorOwnerLists {
-		ownerGrants := ancestorOwner.GetOwnerGrants()
-		addGrants(ownerGrants.Roles, ownerGrants.Traits)
-	}
-
-	slices.Sort(grants.Roles)
-	grants.Roles = slices.Compact(grants.Roles)
-
-	for k, v := range grants.Traits {
-		slices.Sort(v)
-		grants.Traits[k] = slices.Compact(v)
-	}
-
-	return &grants, nil
 }
