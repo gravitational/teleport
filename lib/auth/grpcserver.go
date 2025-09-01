@@ -6102,3 +6102,30 @@ func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstr
 		}
 	}
 }
+
+// ValidateTrustedCluster is called by the Proxy when a leaf cluster is
+// requesting to join.
+func (g *GRPCServer) ValidateTrustedCluster(
+	ctx context.Context,
+	req *authpb.ValidateTrustedClusterRequest,
+) (*authpb.ValidateTrustedClusterResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nativeReq := authclient.ValidateTrustedClusterRequestFromProto(req)
+	nativeResp, err := auth.ValidateTrustedCluster(ctx, nativeReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoResp, err := nativeResp.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(
+			err,
+			"converting native ValidateTrustedClusterResponse to proto representation",
+		)
+	}
+
+	return protoResp, nil
+}
