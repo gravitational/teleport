@@ -67,11 +67,11 @@ func IsAccessListOwner(
 		Clock:              clock,
 	})
 	if err != nil {
-		return assUnspecified, trace.Wrap(err)
+		return userAssignUnspecified, trace.Wrap(err)
 	}
 	r, err := h.IsAccessListOwner(ctx, user, accessList)
 	if err != nil {
-		return assUnspecified, trace.Wrap(err)
+		return userAssignUnspecified, trace.Wrap(err)
 	}
 	return r, nil
 }
@@ -93,11 +93,11 @@ func IsAccessListMember(
 		Clock:              clock,
 	})
 	if err != nil {
-		return assUnspecified, trace.Wrap(err)
+		return userAssignUnspecified, trace.Wrap(err)
 	}
 	r, err := h.IsAccessListMember(ctx, user, accessList)
 	if err != nil {
-		return assUnspecified, trace.Wrap(err)
+		return userAssignUnspecified, trace.Wrap(err)
 	}
 	return r, nil
 }

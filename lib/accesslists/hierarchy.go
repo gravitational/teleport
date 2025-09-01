@@ -44,9 +44,9 @@ const (
 )
 
 var (
-	assUnspecified = accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
-	assExplicit    = accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT
-	assInherited   = accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED
+	userAssignUnspecified = accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
+	userAssignExplicit    = accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT
+	userAssignInherited   = accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED
 )
 
 // AccessListAndMembersGetter is a minimal interface for fetching AccessLists by name, and AccessListMembers for an Access List.
@@ -264,7 +264,7 @@ func (s *Hierarchy) userIsLocked(ctx context.Context, user types.User) error {
 // by [IsUserLocked] if the user is locked.
 func (s *Hierarchy) IsAccessListOwner(ctx context.Context, user types.User, accessList *accesslist.AccessList) (accesslistv1.AccessListUserAssignmentType, error) {
 	if err := s.userIsLocked(ctx, user); err != nil {
-		return assUnspecified, trace.Wrap(err)
+		return userAssignUnspecified, trace.Wrap(err)
 	}
 	var ownershipErr error
 	for _, owner := range accessList.Spec.Owners {
@@ -276,7 +276,7 @@ func (s *Hierarchy) IsAccessListOwner(ctx context.Context, user types.User, acce
 				ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 				continue
 			}
-			return assUnspecified, nil
+			return userAssignExplicit, nil
 		}
 		// Is user an inherited owner through any potential owner AccessLists?
 		if owner.MembershipKind == accesslist.MembershipKindList {
@@ -291,29 +291,29 @@ func (s *Hierarchy) IsAccessListOwner(ctx context.Context, user types.User, acce
 				ownershipErr = trace.Wrap(err)
 				continue
 			}
-			if membershipType != assUnspecified {
+			if membershipType != userAssignUnspecified {
 				if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
 					ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 					continue
 				}
-				return assInherited, nil
+				return userAssignInherited, nil
 			}
 		}
 	}
 
-	return assUnspecified, trace.Wrap(ownershipErr)
+	return userAssignUnspecified, trace.Wrap(ownershipErr)
 }
 
 // IsAccessListMember checks if the given user is the Access List member. It returns an error
 // matched by [IsUserLocked] if the user is locked.
 func (s *Hierarchy) IsAccessListMember(ctx context.Context, user types.User, accessList *accesslist.AccessList) (accesslistv1.AccessListUserAssignmentType, error) {
 	if err := s.userIsLocked(ctx, user); err != nil {
-		return assUnspecified, trace.Wrap(err)
+		return userAssignUnspecified, trace.Wrap(err)
 	}
 
 	members, err := fetchMembers(ctx, accessList.GetName(), s.AccessListsService)
 	if err != nil {
-		return assUnspecified, trace.Wrap(err)
+		return userAssignUnspecified, trace.Wrap(err)
 	}
 
 	var membershipErr error
@@ -331,7 +331,7 @@ func (s *Hierarchy) IsAccessListMember(ctx context.Context, user types.User, acc
 				membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
 				continue
 			}
-			return assExplicit, nil
+			return userAssignExplicit, nil
 		}
 		// Is user an inherited member through any potential member AccessLists?
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
@@ -346,7 +346,7 @@ func (s *Hierarchy) IsAccessListMember(ctx context.Context, user types.User, acc
 				membershipErr = trace.Wrap(err)
 				continue
 			}
-			if membershipType != assUnspecified {
+			if membershipType != userAssignUnspecified {
 				if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
 					membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 					continue
@@ -355,12 +355,12 @@ func (s *Hierarchy) IsAccessListMember(ctx context.Context, user types.User, acc
 					membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
 					continue
 				}
-				return assUnspecified, nil
+				return userAssignInherited, nil
 			}
 		}
 	}
 
-	return assUnspecified, trace.Wrap(membershipErr)
+	return userAssignUnspecified, trace.Wrap(membershipErr)
 }
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
