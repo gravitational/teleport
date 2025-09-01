@@ -100,138 +100,134 @@ In order to allow instance config to be viewed without needing log in to the mac
 
 ``` protobuf
 message BotInstanceStatusHeartbeat {
-	// ...[snip]...
+  // ...[snip]...
 
-	// Kind identifies whether the bot is running in the tbot binary or embedded
-	// in another component.
-	BotKind kind = 10;
-
-	// Notices emitted since the last heartbeat.
-	//
-	// The server will clear any previous notices if `is_startup` is true, so that
-	// editing tbot's configuration and restarting it clears any warnings from a
-	// previous bad configuration.
-	repeated BotInstanceNotice notices = 11;
-
-	// Snapshots of the bot instance services' health.
-  repeated BotInstanceServiceStatus service_statuses = 12;
+  // The health of the services/output `tbot` is running.
+  repeated BotInstanceServiceHealth service_health = 10;
 
   // tbot configuration, sourced from YAML configuration file and CLI flags.
   //
   // Will only be sent on startup. Could later be whenever the configuration
   // changes if we support reloading by sending SIGHUP or something.
-  structpb.Struct config = 13;
+  structpb.Struct config = 11;
+
+  // Kind identifies whether the bot is running in the tbot binary or embedded
+  // in another component.
+  BotKind kind = 12;
+
+  // Notices emitted since the last heartbeat.
+  //
+  // The server will clear any previous notices if `is_startup` is true, so that
+  // editing tbot's configuration and restarting it clears any warnings from a
+  // previous bad configuration.
+  repeated BotInstanceNotice notices = 13;
 }
 
 // BotKind identifies whether the bot is the tbot binary or embedded in another
 // component.
 enum BotKind {
-		// UNSET is the enum zero value.
-		UNSET = 0;
+  // The enum zero-value, it means no notice type was included.
+  BOT_KIND_UNSET = 0;
 
-		// TBOT_BINARY means the bot is running the tbot binary.
-		TBOT_BINARY = 1;
+  // Means the bot is running the tbot binary.
+  BOT_KIND_TBOT_BINARY = 1;
 
-		// TERRAFORM_PROVIDER means the bot is running inside the Teleport Terraform
-		// provider.
-		TERRAFORM_PROVIDER = 2;
+  // Means the bot is running inside the Teleport Terraform provider.
+  BOT_KIND_TERRAFORM_PROVIDER = 2;
 
-		// KUBERNETES_OPERATOR means the bot is running inside the Teleport Kubernetes
-		// operator.
-		KUBERNETES_OPERATOR = 3;
+  // Means the bot is running inside the Teleport Kubernetes operator.
+  BOT_KIND_KUBERNETES_OPERATOR = 3;
 }
 
 // BotInstanceNotice contains an error message, deprecation warning, etc. emitted
 // by the bot instance.
 message BotInstanceNotice {
-		// ID is a client-generated identifier (i.e. UUID) that can be used by the
-		// auth server to detect and discard duplicate notices caused by partially
-		// failed heartbeat RPCs.
-		string id = 1;
+  // ID is a client-generated identifier (i.e. UUID) that can be used by the
+  // auth server to detect and discard duplicate notices caused by partially
+  // failed heartbeat RPCs.
+  string id = 1;
 
-    // Type of notice (e.g. DEPRECATION_WARNING, MESSAGE).
-    BotInstanceNoticeType type = 1;
+  // Type of notice (e.g. deprecation or warning).
+  BotInstanceNoticeType type = 1;
 
-    // Service this notice relates to (or nil if it relates to the bot instance
-    // more generally).
-    optional BotInstanceService service = 2;
+  // Service this notice relates to (or nil if it relates to the bot instance
+  // more generally).
+  optional BotInstanceService service = 2;
 
-    // Timestamp at which this notice was emitted.
-    google.protobuf.Timestamp timestamp = 3;
+  // Timestamp at which this notice was emitted.
+  google.protobuf.Timestamp timestamp = 3;
 
-    oneof notice {
-        // Deprecation warning details.
-        BotInstanceDeprecationWarning deprecation_warning = 4;
+  oneof notice {
+    // Deprecation warning details.
+    BotInstanceDeprecationWarning deprecation_warning = 4;
 
-        // Generic message text.
-        string message = 5;
-    }
-}
-
-// BotInstanceService identifies an individual service the bot instance is running.
-message BotInstanceService {
-    // Type of service (e.g. "application-tunnel", "workload-identity-api").
-    string type = 1;
-
-    // Name given by the user or generated from their configuration.
-    string name = 2;
+    // Generic message text.
+    string message = 5;
+  }
 }
 
 // BotInstanceNoticeType identifies the type of notice.
 enum BotInstanceNoticeType {
-    // UNKNOWN is the enum's zero value.
-    UNKNOWN = 0;
+  // The enum zero-value, it means no notice type was included.
+  BOT_INSTANCE_NOTICE_TYPE_UNSPECIFIED = 0;
 
-    // DEPRECATION_WARNING means the notice contains a warning that the user is
-    // using a configuration option that will be removed in a future release.
-    DEPRECATION_WARNING = 1;
+  // Means the notice contains a warning that the user is using a configuration
+  // option that will be removed in a future release.
+  BOT_INSTANCE_NOTICE_TYPE_DEPRECATION_WARNING = 1;
 
-    // MESSAGE means the notice contains a generic error message.
-    MESSAGE = 2;
+  // Means the notice contains a generic error message.
+  BOT_INSTANCE_NOTICE_TYPE_MESSAGE = 2;
 }
 
 // BotInstanceDeprecationWarning contains the details of a deprecation warning.
 message BotInstanceDeprecationWarning {
-    // Message explaining the deprecation.
-    string message = 1;
+  // Message explaining the deprecation.
+  string message = 1;
 
-    // The major version in which the deprecated configuration will no longer
-    // work.
-    string removal_version = 2;
+  // The major version in which the deprecated configuration will no longer work.
+  string removal_version = 2;
 }
 
-// BotInstanceHealthStatus indicates the health of one of the bot instance's
-// services.
+// BotInstanceHealthStatus describes the healthiness of a `tbot` service.
 enum BotInstanceHealthStatus {
-    // UNKNOWN is the enum's zero value.
-    UNKNOWN = 0;
+  // The enum zero-value, it means no status was included.
+  BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED = 0;
 
-    // INITIALIZING means the service is still starting up.
-    INITIALIZING = 1;
+  // Means the service is still "starting up" and hasn't reported its status.
+  BOT_INSTANCE_HEALTH_STATUS_INITIALIZING = 1;
 
-    // HEALTHY means the service is operating correctly.
-    HEALTHY = 2;
+  // Means the service is healthy and ready to serve traffic, or it has
+  // recently succeeded in generating an output.
+  BOT_INSTANCE_HEALTH_STATUS_HEALTHY = 2;
 
-    // UNHEALTHY means the service has encountered an error and is not currently
-    // operating correctly.
-    UNHEALTHY = 3;
+  // Means the service is failing to serve traffic or generate output.
+  BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY = 3;
 }
 
-// BotInstanceServiceStatus is a snapshot of the health of a bot instance service.
-message BotInstanceServiceStatus {
-    // Service this status relates to.
-    BotInstanceService service = 1;
+// BotInstanceServiceIdentifier uniquely identifies a `tbot` service.
+message BotInstanceServiceIdentifier {
+  // Type of service (e.g. database-tunnel, ssh-multiplexer).
+  string type = 1;
 
-    // Status of the service.
-    BotInstanceHealthStatus status = 2;
-
-    // Human-readable explanation of the status (e.g. error message).
-    optional string reason = 3;
-
-    // When this status was last updated.
-    google.protobuf.Timestamp updated_at = 4;
+  // Name of the service, either given by the user or auto-generated.
+  string name = 2;
 }
-```
+
+// BotInstanceServiceHealth is a snapshot of a `tbot` service's health.
+message BotInstanceServiceHealth {
+  // Service identifies the service.
+  BotInstanceServiceIdentifier service = 1;
+
+  // Status describes the service's healthiness.
+  BotInstanceHealthStatus status = 2;
+
+  // Reason is a human-readable explanation for the service's status. It might
+  // include an error message.
+  optional string reason = 3;
+
+  // UpdatedAt is the time at which the service's health last changed.
+  google.protobuf.Timestamp updated_at = 4;
+}
 
 ### Data fields and expected quantities
 
