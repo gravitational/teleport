@@ -242,6 +242,9 @@ export class WindowsManager {
 
     this.window.show();
     this.isHidden = false;
+    this.window.webContents.send(WindowsManagerIpc.WindowVisibility, {
+      visible: true,
+    });
     void app.dock?.show();
   }
 
@@ -253,6 +256,9 @@ export class WindowsManager {
 
     this.window.hide();
     this.isHidden = true;
+    this.window.webContents.send(WindowsManagerIpc.WindowVisibility, {
+      visible: false,
+    });
     // One side effect to be aware of:
     // If you close the app window in one macOS space, switch to another space,
     // and then show the app again, macOS will return you to the original space.

@@ -197,6 +197,11 @@ export class MockMainProcessClient implements MainProcessClient {
   } {
     return { cleanup: () => undefined };
   }
+  subscribeToWindowVisibility(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
 }
 
 export const makeRuntimeSettings = (
