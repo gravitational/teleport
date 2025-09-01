@@ -1219,6 +1219,41 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	}, nil
 }
 
+func (v *ValidateTrustedClusterRequest) ToProto() (*proto.ValidateTrustedClusterRequest, error) {
+	// Convert from interface type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+
+	return &proto.ValidateTrustedClusterRequest{
+		Token:           v.Token,
+		TeleportVersion: v.TeleportVersion,
+		CertAuthorities: cas,
+	}, nil
+}
+
+func ValidateTrustedClusterRequestFromProto(
+	req *proto.ValidateTrustedClusterRequest,
+) *ValidateTrustedClusterRequest {
+	cas := make([]types.CertAuthority, 0, len(req.CertAuthorities))
+	for _, certAuthority := range req.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterRequest{
+		Token:           req.Token,
+		CAs:             cas,
+		TeleportVersion: req.TeleportVersion,
+	}
+}
+
 type ValidateTrustedClusterRequestRaw struct {
 	Token           string   `json:"token"`
 	CAs             [][]byte `json:"certificate_authorities"`
@@ -1263,6 +1298,39 @@ func (v *ValidateTrustedClusterResponse) ToRaw() (*ValidateTrustedClusterRespons
 	return &ValidateTrustedClusterResponseRaw{
 		CAs: cas,
 	}, nil
+}
+
+// ToProto converts ValidateTrustedClusterResponse to its proto representation.
+func (v *ValidateTrustedClusterResponse) ToProto() (*proto.ValidateTrustedClusterResponse, error) {
+	// Cast interface to underlying type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+	return &proto.ValidateTrustedClusterResponse{
+		CertAuthorities: cas,
+	}, nil
+}
+
+// ValidateTrustedClusterResponseFromProto converts the proto representation of
+// ValidateTrustedClusterResponse to its native representation.
+func ValidateTrustedClusterResponseFromProto(
+	resp *proto.ValidateTrustedClusterResponse,
+) *ValidateTrustedClusterResponse {
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthorities))
+	for _, certAuthority := range resp.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterResponse{
+		CAs: cas,
+	}
 }
 
 type ValidateTrustedClusterResponseRaw struct {

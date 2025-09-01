@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package services
 
 import (
 	"testing"
@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 )
 
 func TestRebuildResourceFromSessionEndEvent(t *testing.T) {
@@ -73,7 +72,7 @@ func TestRebuildResourceFromSessionEndEvent(t *testing.T) {
 					ClusterName: "test-cluster",
 				},
 				ConnectionMetadata: apievents.ConnectionMetadata{
-					Protocol: events.EventProtocolSSH,
+					Protocol: apievents.EventProtocolSSH,
 				},
 				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        "server-id-123",
@@ -110,7 +109,7 @@ func TestRebuildResourceFromSessionEndEvent(t *testing.T) {
 					ClusterName: "test-cluster",
 				},
 				ConnectionMetadata: apievents.ConnectionMetadata{
-					Protocol: events.EventProtocolKube,
+					Protocol: apievents.EventProtocolKube,
 				},
 				KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
 					KubernetesCluster: "kube-cluster-123",
@@ -194,6 +193,17 @@ func TestRebuildResourceFromSessionEndEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := rebuildResourceFromSessionEndEvent(tt.event)
 			require.Equal(t, tt.want, got)
+
+			if tt.want == nil {
+				return
+			}
+
+			sctx := &Context{}
+			checker := &accessChecker{}
+			sctx.ExtendWithSessionEnd(tt.event, checker)
+			require.Equal(t, tt.want, sctx.Resource)
+			require.Same(t, checker, sctx.AccessChecker)
+			require.Same(t, tt.event, sctx.Session)
 		})
 	}
 }

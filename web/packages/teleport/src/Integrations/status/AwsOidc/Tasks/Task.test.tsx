@@ -189,6 +189,11 @@ test('renders rds impacts', async () => {
     header: ['Name'],
     rows: [['i-016e32a5882f5ee81'], ['i-065818031835365cc']],
   });
+  const link = screen.getByRole('link', { name: 'IAM authentication' });
+  expect(link).toHaveAttribute(
+    'href',
+    'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html'
+  );
   jest.resetAllMocks();
 });
 
