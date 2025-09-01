@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -65,6 +67,8 @@ type ProxyService struct {
 	statusReporter            readyz.Reporter
 	identityGenerator         *identity.Generator
 	clientBuilder             *client.Builder
+
+	cache *utils.FnCache
 }
 
 func (s *ProxyService) Run(ctx context.Context) error {
@@ -86,6 +90,12 @@ func (s *ProxyService) Run(ctx context.Context) error {
 			}
 		}()
 	}
+
+	// Initialize the fnCache
+	fnCache, _ := utils.NewFnCache(utils.FnCacheConfig{
+		TTL: 1 * time.Minute,
+	})
+	s.cache = fnCache
 
 	// lp.Start will block and continues to block until lp.Close() is called.
 	// Despite taking a context, it will not exit until the first connection is
@@ -188,8 +198,21 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 
 	ctx := req.Context()
 
-	// TODO: We could cache these for their lifetime in a 'registry'
-	appCert, _, err := s.issueCert(ctx, appName)
+	var appCert *tls.Certificate
+	var err error
+	var cached bool
+
+	if s.cfg.CertificateCaching {
+		cached = true
+		appCert, err = utils.FnCacheGet(ctx, s.cache, appName, func(ctx context.Context) (*tls.Certificate, error) {
+			cached = false
+			s.log.InfoContext(ctx, fmt.Sprintf("(Re)issuing application Certificate for %s\n", appName))
+			cert, _, err := s.issueCert(ctx, appName)
+			return cert, err
+		})
+	} else {
+		appCert, _, err = s.issueCert(ctx, appName)
+	}
 
 	if err != nil {
 		http.Error(w, "An internal error occurred", http.StatusInternalServerError)
@@ -231,6 +254,7 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 
 	// Add extra Teleport header
 	w.Header().Add("X-Teleport-Application", appName)
+	w.Header().Add("X-Teleport-Application-Cached", strconv.FormatBool(cached))
 
 	// Write the StatusCode
 	w.WriteHeader(result.StatusCode)
