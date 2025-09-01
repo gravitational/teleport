@@ -26,8 +26,13 @@ func WithUser(t *testing.T, user string, roles ...string) func(*sutOptions) {
 	require.NoError(t, err)
 	userResource.SetRoles(roles)
 
+	return WithResources(userResource)
+}
+
+// WithResources adds resources to the SUT during initialization.
+func WithResources(resources ...types.Resource) func(*sutOptions) {
 	return func(o *sutOptions) {
-		o.resources = append(o.resources, userResource)
+		o.resources = append(o.resources, resources...)
 	}
 }
 

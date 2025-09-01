@@ -1211,9 +1211,22 @@ func installSCIMPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 	// and to make the plugin name more meaningful when listed via tctl or other tools.
 	const genericSCIMPluginName = "scim-generic"
 
-	samlConnectorName := r.FormValue("samlConnectorName")
-	if samlConnectorName == "" {
-		return nil, trace.BadParameter("missing parameter samlConnectorName")
+	var scimSettings *types.PluginSCIMSettings
+
+	connectorName := r.FormValue("connectorName")
+	if connectorName != "" {
+		connectorKind := r.FormValue("connectorKind")
+		scimSettings = &types.PluginSCIMSettings{
+			ConnectorInfo: &types.PluginSCIMSettings_ConnectorInfo{
+				Name: connectorName,
+				Type: connectorKind,
+			},
+		}
+	} else {
+		// TODO(smallinsky) Remove in v19.
+		scimSettings = &types.PluginSCIMSettings{
+			SamlConnectorName: r.FormValue("samlConnectorName"),
+		}
 	}
 
 	clientID, clientSecret, err := generateOAuthCredentials()
@@ -1232,9 +1245,7 @@ func installSCIMPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 			},
 			Spec: types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_Scim{
-					Scim: &types.PluginSCIMSettings{
-						SamlConnectorName: samlConnectorName,
-					},
+					Scim: scimSettings,
 				},
 			},
 		},

@@ -6,11 +6,11 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	typescommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/scim/service/lister"
@@ -33,13 +33,18 @@ func (h *userHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIM
 		types.OriginLabel:      typescommon.OriginSCIM,
 	}
 
+	connInfo, err := h.getConnectorInfo()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	scimUser, err := conv.UserFromResource(req.GetResource(),
 		conv.WithUserOptionClock(h.Clock),
 		conv.WithLabels(additionalLabels),
 		conv.WithConnectorRef(
 			&types.ConnectorRef{
-				ID:       h.Plugin.Spec.GetScim().SamlConnectorName,
-				Type:     constants.SAML,
+				ID:       connInfo.Name,
+				Type:     connInfo.Type,
 				Identity: req.GetResource().GetExternalId(),
 			}),
 	)
@@ -69,11 +74,14 @@ func (h *userHandler) createOrUpdateUser(ctx context.Context, scimUser types.Use
 			return nil, trace.Wrap(err)
 		}
 
-		scimConnectorID := h.Plugin.Spec.GetScim().SamlConnectorName
-		if !userCreatedByConnectorID(currentUser, scimConnectorID) {
+		connInfo, err := h.getConnectorInfo()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !userCreatedByConnector(currentUser, connInfo) {
 			return nil, trace.AlreadyExists(
 				"a user with the username %q already exists in Teleport and is not managed by the same %q SSO connector selected for the SCIM integration",
-				scimUser.GetName(), scimConnectorID)
+				scimUser.GetName(), connInfo.Name)
 		}
 
 		scimUser.SetRevision(currentUser.GetRevision())
@@ -92,11 +100,13 @@ func (h *userHandler) createOrUpdateUser(ctx context.Context, scimUser types.Use
 	}
 }
 
-func userCreatedByConnectorID(user types.User, connectorID string) bool {
+func userCreatedByConnector(user types.User, connectorInfo *types.PluginSCIMSettings_ConnectorInfo) bool {
 	if user.GetCreatedBy().Connector == nil {
 		return false
 	}
-	return user.GetCreatedBy().Connector.ID == connectorID
+	userConnector := user.GetCreatedBy().Connector
+	// Connector ID is not unique, we need to check both ID and Type since SCIM plugin supports both SAML and OIDC.
+	return userConnector.ID == connectorInfo.Name && userConnector.Type == connectorInfo.Type
 }
 
 // ListResources lists all SCIM user resources.
@@ -216,7 +226,6 @@ func (h *userHandler) getAccessListsForUser(ctx context.Context, userID string) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		_, err := h.AccessListsService.GetAccessListMember(ctx, acl.GetName(), userID)
 		if trace.IsNotFound(err) {
 			continue
@@ -236,4 +245,12 @@ func (h *userHandler) getAccessListsForUser(ctx context.Context, userID string) 
 // GetPlugin returns the plugin associated with the user handler.
 func (h *userHandler) GetPlugin() *types.PluginV1 {
 	return h.Plugin
+}
+
+func (h *userHandler) getConnectorInfo() (*types.PluginSCIMSettings_ConnectorInfo, error) {
+	connInfo, err := pluginsv1.GetSCIMPluginConnectorInfo(h.Plugin.Spec.GetScim())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connInfo, nil
 }

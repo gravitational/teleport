@@ -22,8 +22,29 @@ import (
 	"github.com/gravitational/teleport/e/tests/common"
 )
 
-func createGenericSCIMPlugin(t *testing.T, sut *common.SUT) string {
+type createSCIMPluginOptions struct {
+	scimSettings *types.PluginSCIMSettings
+}
+
+func withSCIMSettings(settings *types.PluginSCIMSettings) createSCIMPluginOptionsFunc {
+	return func(o *createSCIMPluginOptions) {
+		o.scimSettings = settings
+	}
+}
+
+type createSCIMPluginOptionsFunc func(*createSCIMPluginOptions)
+
+func createGenericSCIMPlugin(t *testing.T, sut *common.SUT, opts ...createSCIMPluginOptionsFunc) string {
 	t.Helper()
+	options := createSCIMPluginOptions{
+		scimSettings: &types.PluginSCIMSettings{
+			SamlConnectorName: "okta-pre-created-test",
+		},
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	var pluginClient = pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 	plugin := &types.PluginV1{
 		SubKind: types.PluginSubkindAccess,
@@ -35,9 +56,7 @@ func createGenericSCIMPlugin(t *testing.T, sut *common.SUT) string {
 		},
 		Spec: types.PluginSpecV1{
 			Settings: &types.PluginSpecV1_Scim{
-				Scim: &types.PluginSCIMSettings{
-					SamlConnectorName: "okta-pre-created-test",
-				},
+				Scim: options.scimSettings,
 			},
 		},
 	}

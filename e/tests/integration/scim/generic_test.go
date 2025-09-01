@@ -193,19 +193,86 @@ func TestSCIMDiscovery(t *testing.T) {
 func TestSCIMPluginWebHandler(t *testing.T) {
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithResources(createOIDConnector(t, "oidc-connector-for-scim")),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
 	)
 	webClient := createWebClientForUser(t, sut, "alice-admin")
+	auth := sut.Teleport.Process.GetAuthServer()
 
-	resp, err := doPluginsStaticAuth(t, webClient, "connector-that-does-not-exist")
+	resp, err := doPluginsStaticAuth(t, webClient, "connector-that-does-not-exist", types.KindSAML)
 	require.NoError(t, err)
 	resp.Body.Close()
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-	uiPluginResp := installSCIMPlugin(t, webClient, "okta-pre-created-test")
+	uiPluginResp := installSCIMPlugin(t, webClient, "okta-pre-created-test", types.KindSAML)
 	assertOAuthAccess(t, sut.ProxyAddr, uiPluginResp)
 	checkPluginStatus(t, webClient, types.PluginStatusCode_RUNNING)
+	require.NoError(t, auth.Plugins.DeleteAllPlugins(t.Context()))
+
+	t.Run("install should fail due the wrong connector type", func(t *testing.T) {
+		resp, err := doPluginsStaticAuth(t, webClient, "oidc-connector-for-scim", types.KindSAML)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("install with OIDC connector should succeed", func(t *testing.T) {
+		t.Cleanup(func() { require.NoError(t, auth.Plugins.DeleteAllPlugins(context.Background())) })
+		resp, err := doPluginsStaticAuth(t, webClient, "oidc-connector-for-scim", types.KindOIDC)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.NoError(t, auth.Plugins.DeleteAllPlugins(t.Context()))
+	})
+
+	t.Run("install missing samlConnectorName", func(t *testing.T) {
+		t.Cleanup(func() { require.NoError(t, auth.Plugins.DeleteAllPlugins(context.Background())) })
+		form := url.Values{
+			"type":              {types.PluginTypeSCIM},
+			"samlConnectorName": {""},
+		}
+		resp, err := doPluginsStaticAuthWithForm(t, webClient, form)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("connector type should be deduced", func(t *testing.T) {
+		t.Cleanup(func() { require.NoError(t, auth.Plugins.DeleteAllPlugins(context.Background())) })
+		form := url.Values{
+			"type":          {types.PluginTypeSCIM},
+			"connectorName": {"oidc-connector-for-scim"},
+			"connectorKind": {""}, // empty connector kind should trigger type deduction
+		}
+		resp, err := doPluginsStaticAuthWithForm(t, webClient, form)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var uiResp ui.Plugin
+		err = json.NewDecoder(resp.Body).Decode(&uiResp)
+		require.NoError(t, err)
+
+		gotPlugin, err := auth.GetPlugin(t.Context(), uiResp.Name, false)
+		require.NoError(t, err)
+		vPlugin, ok := gotPlugin.(*types.PluginV1)
+		require.True(t, ok)
+		require.Equal(t, types.KindOIDC, vPlugin.Spec.GetScim().ConnectorInfo.Type)
+	})
+
+	// TODO(smallinsky) Remove in v18
+	t.Run("install legacy form", func(t *testing.T) {
+		t.Cleanup(func() { require.NoError(t, auth.Plugins.DeleteAllPlugins(context.Background())) })
+		form := url.Values{
+			"type":              {types.PluginTypeSCIM},
+			"samlConnectorName": {"okta-pre-created-test"},
+		}
+		resp, err := doPluginsStaticAuthWithForm(t, webClient, form)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
 }
 
 func createWebClientForUser(t *testing.T, sut *common.SUT, user string) *helpers.WebClientPack {
@@ -214,8 +281,8 @@ func createWebClientForUser(t *testing.T, sut *common.SUT, user string) *helpers
 	return helpers.LoginWebClient(t, sut.ProxyAddr, user, pass)
 }
 
-func installSCIMPlugin(t *testing.T, webClient *helpers.WebClientPack, samlConnectorName string) ui.Plugin {
-	resp, err := doPluginsStaticAuth(t, webClient, samlConnectorName)
+func installSCIMPlugin(t *testing.T, webClient *helpers.WebClientPack, samlConnectorName, connectorKind string) ui.Plugin {
+	resp, err := doPluginsStaticAuth(t, webClient, samlConnectorName, connectorKind)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -229,11 +296,16 @@ func installSCIMPlugin(t *testing.T, webClient *helpers.WebClientPack, samlConne
 	return pluginResp
 }
 
-func doPluginsStaticAuth(t *testing.T, webClient *helpers.WebClientPack, samlConnectorName string) (*http.Response, error) {
+func doPluginsStaticAuth(t *testing.T, webClient *helpers.WebClientPack, connectorName, connectorKind string) (*http.Response, error) {
 	form := url.Values{
-		"type":              {types.PluginTypeSCIM},
-		"samlConnectorName": {samlConnectorName},
+		"type":          {types.PluginTypeSCIM},
+		"connectorName": {connectorName},
+		"connectorKind": {connectorKind},
 	}
+	return doPluginsStaticAuthWithForm(t, webClient, form)
+}
+
+func doPluginsStaticAuthWithForm(t *testing.T, webClient *helpers.WebClientPack, form url.Values) (*http.Response, error) {
 	endpoint := webClient.Endpoint("enterprise", "plugins", "staticauth")
 	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	require.NoError(t, err)
@@ -276,4 +348,22 @@ func checkPluginStatus(t *testing.T, webClient *helpers.WebClientPack, wantStatu
 		require.Empty(t, scimPlugin.Credentials)
 		require.Equal(t, wantStatus, scimPlugin.Status.Code)
 	}, time.Second, time.Millisecond*30)
+}
+
+func createOIDConnector(t *testing.T, name string) types.OIDCConnector {
+	var oidcSpec = types.OIDCConnectorSpecV3{
+		IssuerURL:    "https://issuer",
+		ClientID:     "client id",
+		ClientSecret: "client secret",
+		ClaimsToRoles: []types.ClaimMapping{{
+			Claim: "claim",
+			Value: "value",
+			Roles: []string{"roleA"},
+		}},
+		RedirectURLs: []string{"https://redirect"},
+		MaxAge:       &types.MaxAge{Value: types.Duration(time.Hour)},
+	}
+	oidc, err := types.NewOIDCConnector(name, oidcSpec)
+	require.NoError(t, err)
+	return oidc
 }

@@ -138,10 +138,14 @@ func TestSCIMGeneric(t *testing.T) {
 	t.Run("upgrade SSO ephemeral user to SCIM user", func(t *testing.T) {
 		fistUserName := "user-001@exmaple.com"
 		secondUserName := "user-002example.com"
-		u1 := newTeleportUser(t, fistUserName, "okta-pre-created-test")
-		u2 := newTeleportUser(t, secondUserName, "no-scim-plugin-connector")
+		thirdUserName := "user-003example.com"
+		u1 := newTeleportUser(t, fistUserName, types.ConnectorRef{ID: "okta-pre-created-test", Type: types.KindSAML})
+		u2 := newTeleportUser(t, secondUserName, types.ConnectorRef{ID: "no-scim-plugin-connector", Type: types.KindSAML})
+		// Test connector type logic where connector nane is not unique across SAML and OIDC connector.
+		// Depending on user origin SAML or OIDC ephemeral users upgrade should succeed or fail.
+		u3 := newTeleportUser(t, thirdUserName, types.ConnectorRef{ID: "okta-pre-created-test", Type: types.KindOIDC})
 
-		for _, u := range []types.User{u1, u2} {
+		for _, u := range []types.User{u1, u2, u3} {
 			_, err := authClient.CreateUser(context.Background(), u)
 			require.NoError(t, err)
 
@@ -172,16 +176,65 @@ func TestSCIMGeneric(t *testing.T) {
 			Active:     true,
 		})
 		require.Error(t, err)
+
+		// Attempt to create an SCIM users that duplicates with the existing user
+		// that are handled by OIDC connector where the SCIM plugin was configured
+		// with the SAML connector.
+		_, err = scimClient.CreateUser(context.Background(), &scimsdk.User{
+			ExternalID: thirdUserName,
+			UserName:   thirdUserName,
+			Active:     true,
+		})
+		require.Error(t, err)
 	})
 }
 
-func newTeleportUser(t *testing.T, userName, connectorID string) types.User {
+func TestOIDCConnector(t *testing.T) {
+	sut := common.InitSUT(t,
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithResources(createOIDConnector(t, "scim-oidc-connector")),
+	)
+
+	scimToken := createGenericSCIMPlugin(t, sut,
+		withSCIMSettings(&types.PluginSCIMSettings{
+			ConnectorInfo: &types.PluginSCIMSettings_ConnectorInfo{
+				Name: "scim-oidc-connector",
+				Type: types.KindOIDC,
+			},
+		}),
+	)
+	authClient := sut.Teleport.Process.GetAuthServer()
+	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
+
+	scimUser1 := newSCIMUser("scim-user-001")
+	scimUser2 := newSCIMUser("scim-user-002")
+
+	for _, user := range []*scimsdk.User{scimUser1, scimUser2} {
+		createdUser, err := scimClient.CreateUser(t.Context(), user)
+		require.NoError(t, err)
+		require.Equal(t, user.UserName, createdUser.UserName)
+
+		retrievedUser, err := scimClient.GetUser(t.Context(), createdUser.ID)
+		require.NoError(t, err)
+		require.Equal(t, createdUser.ID, retrievedUser.ID)
+
+		u, err := authClient.GetUser(t.Context(), createdUser.UserName, false)
+		require.NoError(t, err)
+
+		require.Equal(t, &types.ConnectorRef{
+			ID:       "scim-oidc-connector",
+			Type:     types.KindOIDC,
+			Identity: user.ExternalID,
+		}, u.GetCreatedBy().Connector)
+	}
+}
+
+func newTeleportUser(t *testing.T, userName string, connRef types.ConnectorRef) types.User {
 	user, err := types.NewUser(userName)
 	require.NoError(t, err)
 	user.SetCreatedBy(types.CreatedBy{
-		Connector: &types.ConnectorRef{
-			ID: connectorID,
-		},
+		Connector: &connRef,
 	})
 	return user
 }
