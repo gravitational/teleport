@@ -167,7 +167,10 @@ Create a role that can access servers with the `env:local-dev` label but not the
      allow:
        logins: [root]
        node_labels:
-         env: local-dev
+         env: local-*
+     deny:
+       node_labels:
+         env: local-prod
    ```
 
    The `allow` block indicates what the user is allowed to access. By default,
@@ -230,7 +233,7 @@ role, then list available servers and connect the one with the label
    only the server with the `env:local-dev` label is available to connect to.
 
 1. Access the server using the value of the `Node Name` field as shown in `tsh
-   ls`. Assign <Var name="ba2290caf694" /> to then ame of your server:
+   ls`. Assign <Var name="ba2290caf694" /> to the name of your server:
 
    ```code
    $ tsh ssh root@<Var name="ba2290caf694" />
