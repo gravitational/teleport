@@ -45,11 +45,19 @@ func (f Fields) GetStrings(key string) []string {
 	if !found {
 		return nil
 	}
+	res, _ := getStrings(val)
+	return res
+}
+
+func getStrings(val any) ([]string, bool) {
 	strings, ok := val.([]string)
 	if ok {
-		return strings
+		return strings, true
 	}
-	slice, _ := val.([]interface{})
+	slice, ok := val.([]any)
+	if !ok {
+		return nil, false
+	}
 	res := make([]string, 0, len(slice))
 	for _, v := range slice {
 		s, ok := v.(string)
@@ -57,7 +65,7 @@ func (f Fields) GetStrings(key string) []string {
 			res = append(res, s)
 		}
 	}
-	return res
+	return res, true
 }
 
 // GetInt returns an int representation of a field.
@@ -234,7 +242,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if !ok {
 					return false
 				}
-				strs, ok := val.([]string)
+				strs, ok := getStrings(val)
 				if !ok {
 					return false
 				}
@@ -263,7 +271,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if left.Field != "" {
 					strsVals = f.GetStrings(left.Field)
 				} else if left.Literal != nil {
-					strsVals, ok = left.Literal.([]string)
+					strsVals, ok = getStrings(left.Literal)
 					if !ok {
 						return false
 					}
@@ -273,7 +281,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 		case left.Field != "" && right.Field != "":
 			return func(f Fields) bool { return slices.Contains(f.GetStrings(left.Field), f.GetString(right.Field)) }, nil
 		case left.Literal != nil && right.Field != "":
-			if ss, ok := left.Literal.([]string); ok {
+			if ss, ok := getStrings(left.Literal); ok {
 				return func(f Fields) bool { return slices.Contains(ss, f.GetString(right.Field)) }, nil
 			}
 		case left.Field != "" && right.Literal != nil:
@@ -292,7 +300,8 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if !ok {
 					return false
 				}
-				strs, ok := val.([]string)
+
+				strs, ok := getStrings(val)
 				if !ok {
 					return false
 				}
@@ -300,7 +309,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if right.Field != "" {
 					strsVals = f.GetStrings(right.Field)
 				} else if right.Literal != nil {
-					strsVals, ok = right.Literal.([]string)
+					strsVals, ok = getStrings(right.Literal)
 					if !ok {
 						return false
 					}
@@ -313,7 +322,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if !ok {
 					return false
 				}
-				strs, ok := val.([]string)
+				strs, ok := getStrings(val)
 				if !ok {
 					return false
 				}
@@ -321,7 +330,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if left.Field != "" {
 					strsVals = f.GetStrings(left.Field)
 				} else if left.Literal != nil {
-					strsVals, ok = left.Literal.([]string)
+					strsVals, ok = getStrings(left.Literal)
 					if !ok {
 						return false
 					}
@@ -331,11 +340,11 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 		case left.Field != "" && right.Field != "":
 			return func(f Fields) bool { return containsAll(f.GetStrings(left.Field), f.GetStrings(right.Field)) }, nil
 		case left.Literal != nil && right.Field != "":
-			if ss, ok := left.Literal.([]string); ok {
+			if ss, ok := getStrings(left.Literal); ok {
 				return func(f Fields) bool { return containsAll(ss, f.GetStrings(right.Field)) }, nil
 			}
 		case left.Field != "" && right.Literal != nil:
-			if s, ok := right.Literal.([]string); ok {
+			if s, ok := getStrings(right.Literal); ok {
 				return func(f Fields) bool { return containsAll(f.GetStrings(left.Field), s) }, nil
 			}
 		}
@@ -350,7 +359,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if !ok {
 					return false
 				}
-				strs, ok := val.([]string)
+				strs, ok := getStrings(val)
 				if !ok {
 					return false
 				}
@@ -358,7 +367,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if right.Field != "" {
 					strsVals = f.GetStrings(right.Field)
 				} else if right.Literal != nil {
-					strsVals, ok = right.Literal.([]string)
+					strsVals, ok = getStrings(right.Literal)
 					if !ok {
 						return false
 					}
@@ -371,7 +380,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if !ok {
 					return false
 				}
-				strs, ok := val.([]string)
+				strs, ok := getStrings(val)
 				if !ok {
 					return false
 				}
@@ -379,7 +388,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if left.Field != "" {
 					strsVals = f.GetStrings(left.Field)
 				} else if left.Literal != nil {
-					strsVals, ok = left.Literal.([]string)
+					strsVals, ok = getStrings(left.Literal)
 					if !ok {
 						return false
 					}
@@ -389,11 +398,11 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 		case left.Field != "" && right.Field != "":
 			return func(f Fields) bool { return containsAny(f.GetStrings(left.Field), f.GetStrings(right.Field)) }, nil
 		case left.Literal != nil && right.Field != "":
-			if ss, ok := left.Literal.([]string); ok {
+			if ss, ok := getStrings(left.Literal); ok {
 				return func(f Fields) bool { return containsAny(ss, f.GetStrings(right.Field)) }, nil
 			}
 		case left.Field != "" && right.Literal != nil:
-			if s, ok := right.Literal.([]string); ok {
+			if s, ok := getStrings(right.Literal); ok {
 				return func(f Fields) bool { return containsAny(f.GetStrings(left.Field), s) }, nil
 			}
 		}
@@ -414,6 +423,9 @@ func containsAll(slice []string, items []string) bool {
 	for _, s := range slice {
 		set[s] = struct{}{}
 	}
+	if len(items) == 0 {
+		return false
+	}
 	for _, item := range items {
 		if _, ok := set[item]; !ok {
 			return false
@@ -426,6 +438,9 @@ func containsAny(slice []string, items []string) bool {
 	set := make(map[string]struct{}, len(slice))
 	for _, s := range slice {
 		set[s] = struct{}{}
+	}
+	if len(items) == 0 {
+		return false
 	}
 	for _, item := range items {
 		if _, ok := set[item]; ok {
