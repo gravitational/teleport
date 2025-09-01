@@ -224,6 +224,9 @@ export type MainProcessClient = {
   subscribeToOpenAppUpdateDialog(listener: () => void): {
     cleanup: () => void;
   };
+  subscribeToWindowVisibility(listener: (opts: { visible: boolean }) => void): {
+    cleanup: () => void;
+  };
 };
 
 export type ChildProcessAddresses = {
@@ -353,6 +356,7 @@ export enum MainProcessIpc {
 
 export enum WindowsManagerIpc {
   SignalUserInterfaceReadiness = 'windows-manager-signal-user-interface-readiness',
+  WindowVisibility = 'windows-manager-window-visibility',
 }
 
 /**

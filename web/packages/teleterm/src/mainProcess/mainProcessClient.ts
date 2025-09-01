@@ -253,5 +253,19 @@ export default function createMainProcessClient(): MainProcessClient {
           ipcRenderer.removeListener(RendererIpc.OpenAppUpdateDialog, listener),
       };
     },
+    subscribeToWindowVisibility: listener => {
+      const ipcListener = (_, { visible }) => {
+        listener({ visible });
+      };
+
+      ipcRenderer.addListener(WindowsManagerIpc.WindowVisibility, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            WindowsManagerIpc.WindowVisibility,
+            ipcListener
+          ),
+      };
+    },
   };
 }
