@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -47,8 +48,13 @@ type Client interface {
 
 // Config for the heartbeat service.
 type Config struct {
-	// Interval controls how frequently heartbeats are submitted.
-	Interval time.Duration
+	// MinInterval controls the minimum duration between heartbeats (i.e the
+	// maximum rate of heartbeats if the bot is unstable/flapping).
+	MinInterval time.Duration
+
+	// MaxInterval controls the maximum duration between heartbeats (i.e. how
+	// frequently a bot will heartbeat in its steady state).
+	MaxInterval time.Duration
 
 	// RetryLimit is the maximum number of times we'll retry sending a heartbeat.
 	RetryLimit int
@@ -72,6 +78,9 @@ type Config struct {
 	// StatusReporter is used to report the service's health.
 	StatusReporter readyz.Reporter
 
+	// StatusRegistry is used to capture the current health of all services.
+	StatusRegistry *readyz.Registry
+
 	// Clock that will be used to determine the current time.
 	Clock clockwork.Clock
 }
@@ -79,14 +88,18 @@ type Config struct {
 // CheckAndSetDefaults checks the service configuration and sets any default values.
 func (cfg *Config) CheckAndSetDefaults() error {
 	switch {
-	case cfg.Interval == 0:
-		return trace.BadParameter("Interval is required")
+	case cfg.MinInterval == 0:
+		return trace.BadParameter("MinInterval is required")
+	case cfg.MaxInterval == 0:
+		return trace.BadParameter("MaxInterval is required")
 	case cfg.RetryLimit == 0:
 		return trace.BadParameter("RetryLimit is required")
 	case cfg.Client == nil:
 		return trace.BadParameter("Client is required")
 	case cfg.JoinMethod == "":
 		return trace.BadParameter("JoinMethod is required")
+	case cfg.StatusRegistry == nil:
+		return trace.BadParameter("StatusRegistry is required")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -110,13 +123,17 @@ type Service struct{ cfg Config }
 
 // Run the service in long-running mode, submitting heartbeats periodically.
 func (s *Service) Run(ctx context.Context) error {
+	reloadCh, close := s.watchStatusChanges()
+	defer close()
+
 	isStartup := true
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:    s.String(),
 		Name:       "submit-heartbeat",
 		Log:        s.cfg.Logger,
-		Interval:   s.cfg.Interval,
+		Interval:   s.cfg.MaxInterval,
 		RetryLimit: s.cfg.RetryLimit,
+		ReloadCh:   reloadCh,
 		F: func(ctx context.Context) error {
 			err := s.heartbeat(ctx, false, isStartup)
 			// TODO(noah): Remove NotImplemented check at V18 assuming V17 first
@@ -164,15 +181,16 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 
 	now := s.cfg.Clock.Now()
 	hb := &machineidv1pb.BotInstanceStatusHeartbeat{
-		RecordedAt:   timestamppb.New(now),
-		Hostname:     hostName,
-		IsStartup:    isStartup,
-		Uptime:       durationpb.New(now.Sub(s.cfg.StartedAt)),
-		OneShot:      isOneShot,
-		JoinMethod:   string(s.cfg.JoinMethod),
-		Version:      teleport.Version,
-		Architecture: runtime.GOARCH,
-		Os:           runtime.GOOS,
+		RecordedAt:    timestamppb.New(now),
+		Hostname:      hostName,
+		IsStartup:     isStartup,
+		Uptime:        durationpb.New(now.Sub(s.cfg.StartedAt)),
+		OneShot:       isOneShot,
+		JoinMethod:    string(s.cfg.JoinMethod),
+		Version:       teleport.Version,
+		Architecture:  runtime.GOARCH,
+		Os:            runtime.GOOS,
+		ServiceHealth: s.cfg.StatusRegistry.ToProto(),
 	}
 
 	_, err = s.cfg.Client.SubmitHeartbeat(ctx, &machineidv1pb.SubmitHeartbeatRequest{
@@ -182,6 +200,56 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 		return trace.Wrap(err, "submitting heartbeat")
 	}
 
-	s.cfg.Logger.InfoContext(ctx, "Sent heartbeat", "data", hb.String())
+	s.cfg.Logger.DebugContext(ctx, "Sent heartbeat", "data", hb.String())
 	return nil
+}
+
+func (s *Service) watchStatusChanges() (<-chan struct{}, func()) {
+	notifCh, unsubscribe := s.cfg.StatusRegistry.Watch()
+
+	reloadCh := make(chan struct{})
+	closeCh := make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case <-notifCh:
+			case <-closeCh:
+				return
+			}
+
+			// Wait a few seconds for any other status changes triggered by the
+			// same thing (e.g. transient connection problems).
+			select {
+			case <-s.cfg.Clock.After(5 * time.Second):
+			case <-closeCh:
+				return
+			}
+
+			// Drain any notification that arrived while we were waiting.
+			select {
+			case <-notifCh:
+			default:
+			}
+
+			// Trigger the heartbeat.
+			select {
+			case reloadCh <- struct{}{}:
+			case <-closeCh:
+				return
+			}
+
+			// Don't trigger any more heartbeats until MinInterval has elapsed.
+			select {
+			case <-s.cfg.Clock.After(s.cfg.MinInterval):
+			case <-closeCh:
+				return
+			}
+		}
+	}()
+
+	return reloadCh, sync.OnceFunc(func() {
+		unsubscribe()
+		close(closeCh)
+	})
 }
