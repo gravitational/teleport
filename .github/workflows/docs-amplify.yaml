@@ -4,6 +4,7 @@ on:
     paths:
       - 'docs/**'
       - .github/workflows/docs-amplify.yaml
+      - CHANGELOG.md
   workflow_dispatch:
   
 permissions:
