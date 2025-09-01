@@ -348,7 +348,6 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		sessionSummarizer, err := summarizer.NewSessionSummarizer(summarizer.SummarizerConfig{
 			Backend:         p.authServer.AuthServer,
 			Streamer:        p.authServer.AuthServer,
-			ResourceGetter:  p.authServer.AuthServer,
 			SummaryUploader: p.authServer.AuthServer,
 			Clock:           p.authServer.AuthServer.GetClock(),
 		})

@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -19,10 +18,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
@@ -43,7 +42,6 @@ const (
 type SummarizerConfig struct {
 	Backend         services.Summarizer
 	Streamer        events.SessionStreamer
-	ResourceGetter  ResourceGetter
 	SummaryUploader SummaryUploader
 	// OpenAIClientFactory creates OpenAI clients. Defaults to a production
 	// implementation.
@@ -75,7 +73,6 @@ type SessionSummarizer struct {
 	// TODO(bl-nero): use cache instead of raw backend.
 	backend             services.Summarizer
 	streamer            events.SessionStreamer
-	resourceGetter      ResourceGetter
 	summaryUploader     SummaryUploader
 	openAIClientFactory openai.ClientFactory
 	clock               clockwork.Clock
@@ -85,13 +82,6 @@ type SessionSummarizer struct {
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
 
-// ResourceGetter retrieves resources from Teleport backend.
-type ResourceGetter interface {
-	services.UserGetter
-	// GetDatabaseServers returns all database servers.
-	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
-}
-
 // NewSessionSummarizer creates a new session summarizer with given
 // configuration.
 func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
@@ -100,9 +90,6 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	}
 	if cfg.Streamer == nil {
 		return nil, trace.BadParameter("streamer is required")
-	}
-	if cfg.ResourceGetter == nil {
-		return nil, trace.BadParameter("resource getter is required")
 	}
 	if cfg.SummaryUploader == nil {
 		return nil, trace.BadParameter("upload handler is required")
@@ -116,7 +103,6 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	return &SessionSummarizer{
 		backend:             cfg.Backend,
 		streamer:            cfg.Streamer,
-		resourceGetter:      cfg.ResourceGetter,
 		summaryUploader:     cfg.SummaryUploader,
 		openAIClientFactory: cfg.OpenAIClientFactory,
 		clock:               clock,
@@ -150,53 +136,7 @@ func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *a
 		ctx, "Summarizing session", "session_id", sessionID, "user", userName, "kind", kind,
 	)
 
-	// Remove the portion of server ID after the first dot, if any.
-	serverID, err := splitServerID(sessionEndEvent.ServerID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Recreate the node or k8s cluster from session event, as the node might
-	// have disappeared since then and wouldn't be available in the first place
-	// for Kubernetes sessions.
-	var resource types.Resource
-	switch sessionEndEvent.Protocol {
-	case events.EventProtocolSSH:
-		sm := sessionEndEvent.ServerMetadata
-		var err error
-		resource, err = types.NewServerWithLabels(
-			serverID,
-			types.KindNode,
-			types.ServerSpecV2{
-				Addr:     sm.ServerAddr,
-				Hostname: sm.ServerHostname,
-				Version:  sm.ServerVersion,
-			},
-			sm.ServerLabels,
-		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-	case events.EventProtocolKube:
-		km := sessionEndEvent.KubernetesClusterMetadata
-		var err error
-		resource, err = types.NewKubernetesClusterV3(
-			types.Metadata{
-				Name:   km.KubernetesCluster,
-				Labels: km.KubernetesLabels,
-			},
-			types.KubernetesClusterSpecV3{},
-		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-	default:
-		return trace.BadParameter("unsupported session protocol %s", sessionEndEvent.Protocol)
-	}
-
-	return trace.Wrap(s.summarize(ctx, sessionID, kind, sessionEndEvent, userName, resource))
+	return trace.Wrap(s.summarize(ctx, sessionID, kind, sessionEndEvent, userName))
 }
 
 // SummarizeDatabase summarizes the database session recording associated with
@@ -214,30 +154,7 @@ func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEve
 		ctx, "Summarizing a database session", "session_id", sessionID, "user", userName,
 	)
 
-	// TODO(bl-nero): extract and reuse rebuildResourceFromSessionEndEvent from
-	// lib/auth.ServerWithRoles.
-	database, err := s.getDatabase(ctx, sessionEndEvent.DatabaseService)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(s.summarize(ctx, sessionID, kind, sessionEndEvent, userName, database))
-}
-
-func (s *SessionSummarizer) getDatabase(ctx context.Context, name string) (types.Database, error) {
-	dbServers, err := s.resourceGetter.GetDatabaseServers(ctx, defaults.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, dbs := range dbServers {
-		db := dbs.GetDatabase()
-		if db != nil && db.GetName() == name {
-			return db, nil
-		}
-	}
-
-	return nil, trace.NotFound("database \"%s\" not found", name)
+	return trace.Wrap(s.summarize(ctx, sessionID, kind, sessionEndEvent, userName))
 }
 
 // summarize picks the appropriate inference provider and launches a
@@ -248,21 +165,16 @@ func (s *SessionSummarizer) summarize(
 	kind types.SessionKind,
 	sessionEndEvent apievents.AuditEvent,
 	userName string,
-	resource types.Resource,
 ) error {
-	// TODO(bl-nero): Reconstruct user from event data after
-	// https://github.com/gravitational/teleport/pull/58114/files is merged to
-	// fully support SSO users whose records expire after a while.
-	user, err := s.resourceGetter.GetUser(ctx, userName, false /* withSecrets */)
+	user, err := buildUserFromEvent(sessionEndEvent)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to build user from event")
 	}
 
 	sessionCtx := &services.Context{
-		User:     user,
-		Resource: resource,
-		Session:  sessionEndEvent,
+		User: user,
 	}
+	sessionCtx.ExtendWithSessionEnd(sessionEndEvent, nil) // nil AccessChecker for now
 
 	policy, err := s.matchPolicy(ctx, kind, sessionCtx)
 	if err != nil {
@@ -436,16 +348,6 @@ func (s *SessionSummarizer) findSessionEndEvent(ctx context.Context, sessionID s
 	}
 }
 
-// splitServerID splits a server ID into a node ID and cluster name.
-func splitServerID(address string) (string, error) {
-	split := strings.SplitN(address, ".", 2)
-	if len(split) == 0 || split[0] == "" {
-		return "", trace.BadParameter("invalid server id: \"%s\"", address)
-	}
-
-	return split[0], nil
-}
-
 // matchPolicy matches the session kind and context against the available
 // inference policies. It returns the first matching policy or nil if no policy
 // matches.
@@ -507,4 +409,51 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 	default:
 		return nil, trace.BadParameter("unsupported provider type: %T", model.Spec.Provider)
 	}
+}
+
+func buildUserFromEvent(event apievents.AuditEvent) (types.User, error) {
+	var (
+		username   string
+		userRoles  []string
+		userTraits wrappers.Traits
+	)
+
+	switch e := event.(type) {
+	case *apievents.SessionEnd:
+		if e == nil {
+			return nil, trace.BadParameter("nil %T event", e)
+		}
+		username = e.User
+		userRoles = e.UserMetadata.UserRoles
+		userTraits = e.UserMetadata.UserTraits
+	case *apievents.DatabaseSessionEnd:
+		if e == nil {
+			return nil, trace.BadParameter("nil %T event", e)
+		}
+		username = e.User
+		userRoles = e.UserMetadata.UserRoles
+		userTraits = e.UserMetadata.UserTraits
+	case *apievents.WindowsDesktopSessionEnd:
+		if e == nil {
+			return nil, trace.BadParameter("nil %T event", e)
+		}
+		username = e.User
+		userRoles = e.UserMetadata.UserRoles
+		userTraits = e.UserMetadata.UserTraits
+	default:
+		return nil, trace.BadParameter("unsupported event type %T", event)
+	}
+
+	if username == "" {
+		return nil, trace.BadParameter("empty user name in event")
+	}
+
+	user, err := types.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.SetRoles(userRoles)
+	user.SetTraits(userTraits)
+
+	return user, nil
 }

@@ -821,6 +821,9 @@ func newSessionEndEvent() *apievents.SessionEnd {
 		UserMetadata: apievents.UserMetadata{
 			User: "alice",
 		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			Protocol: apievents.EventProtocolSSH,
+		},
 		EnhancedRecording: true,
 		Interactive:       true,
 		Participants:      []string{"alice", "bob"},
@@ -971,6 +974,36 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	internSclt := internClt.SummarizerServiceClient()
 
 	_, err = internSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: summary1.SessionId,
+	})
+	require.Error(t, err)
+	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+
+	// Create a role that allows viewing all sessions, but only on nodes where
+	// the role labels match.
+	_, canViewUserRole, err := authtest.CreateUserAndRole(srv.Auth(), "can_view_user", []string{}, []types.Rule{
+		types.Rule{
+			Resources: []string{types.KindSession},
+			Verbs:     []string{types.VerbRead, types.VerbList},
+			Where:     `can_view()`,
+		},
+	})
+	require.NoError(t, err)
+	canViewUser, err := srv.NewClient(authtest.TestUser("can_view_user"))
+	require.NoError(t, err)
+
+	_, err = canViewUser.SummarizerServiceClient().GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		SessionId: summary1.SessionId,
+	})
+	require.NoError(t, err)
+
+	// Remove the node_labels condition from the role, which should make the
+	// user lose access to everything (because of the "can_view()" condition).
+	canViewUserRole.SetNodeLabels(types.Allow, nil)
+	_, err = srv.Auth().UpdateRole(ctx, canViewUserRole)
+	require.NoError(t, err)
+
+	_, err = canViewUser.SummarizerServiceClient().GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
 		SessionId: summary1.SessionId,
 	})
 	require.Error(t, err)

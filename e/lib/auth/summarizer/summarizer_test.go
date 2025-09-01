@@ -75,7 +75,6 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 	summarizer, err := NewSessionSummarizer(SummarizerConfig{
 		Backend:             authServer.AuthServer,
 		Streamer:            authServer.AuthServer,
-		ResourceGetter:      authServer.AuthServer,
 		SummaryUploader:     authServer.AuthServer,
 		OpenAIClientFactory: openAIClientFactory,
 		Clock:               authServer.AuthServer.GetClock(),
@@ -246,24 +245,6 @@ func TestSummarizer(t *testing.T) {
 	require.NoError(t, err)
 	sclt := clt.SummarizerServiceClient()
 	createSummarizerConfig(t, ctx, sclt)
-
-	// Add a database.
-	db, err := types.NewDatabaseV3(
-		types.Metadata{Name: "treasure-trove"},
-		types.DatabaseSpecV3{Protocol: types.DatabaseProtocolPostgreSQL, URI: "db.test:5432"},
-	)
-	require.NoError(t, err)
-	dbServer, err := types.NewDatabaseServerV3(
-		types.Metadata{Name: "my-db-server"},
-		types.DatabaseServerSpecV3{
-			HostID:   "1517bec3-ce77-466c-a988-6677a5743a64",
-			Hostname: "dbhost",
-			Database: db,
-		},
-	)
-	require.NoError(t, err)
-	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
-	require.NoError(t, err)
 
 	sshSessionID := "24d8542a-8a7d-4683-a59b-18adc3a71f11"
 	kubeSessionID := "8fef2bf5-3efa-4c5d-8502-9410dea3dc94"

@@ -491,8 +491,10 @@ func (s *Service) GetSummary(
 		)
 	}
 
+	// Extend the context with the session end event and rebuild the resource
+	// from the event.
+	sctx.ExtendWithSessionEnd(sessionAuditEvent, authCtx.Checker)
 	// Perform a fine-grained check that takes the session into consideration.
-	sctx.Session = sessionAuditEvent
 	err = authCtx.CheckAccessToRule(sctx, types.KindSession, types.VerbRead)
 	if err != nil {
 		return nil, trace.Wrap(err)
