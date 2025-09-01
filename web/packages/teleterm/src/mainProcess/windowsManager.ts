@@ -255,6 +255,9 @@ export class WindowsManager {
 
     this.window.show();
     this.isHidden = false;
+    this.window.webContents.send(WindowsManagerIpc.WindowVisibility, {
+      visible: true,
+    });
     // Shows the app icon in dock on macOS.
     void app.dock?.show();
   }
@@ -266,6 +269,9 @@ export class WindowsManager {
 
     this.window.hide();
     this.isHidden = true;
+    this.window.webContents.send(WindowsManagerIpc.WindowVisibility, {
+      visible: false,
+    });
     // Hides the app icon in dock on macOS.
     app.dock?.hide();
   }
