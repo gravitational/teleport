@@ -290,6 +290,17 @@ The actual configuration `tbot` uses at runtime is a combination of values from 
 
 While there are benefits to sending the raw inputs (e.g. the literal content of the YAML file) such as being able to spot typos, we think it’s more useful overall to send the “effective” configuration after it has been parsed, validated, and default values have been applied. This also gives us an opportunity to redact fields we know to contain sensitive information such as the join token.
 
+## Data aggregation
+
+To power the Upgrade Status and Notices sections of the bot instance dashboard, we will pre-aggregate the following metrics:
+
+- Number of instances per version
+- Number of instances emitting a given notice (i.e. use the same deprecated config option)
+
+As these metrics are intended to provide a rough overview of fleet health, and do not need to be strictly up-to-date, we will recalculate them on a timer (e.g. every 10 minutes). This is simpler, and in many cases likely more efficient than updating them incrementally by consuming the event stream, especially if we increase the rate of heartbeats to publish notices more quickly, which would generate a lot of chatter.
+
+To avoid the need to "elect" a leader to calculate these metrics, each auth server instance will calculate them independently. Users therefore may see the numbers change if they refresh the dashboard, but this is an acceptable trade-off.
+
 ## Web API
 
 **GET /v2/webapi/sites/:site/machine-id/bot-instance**
