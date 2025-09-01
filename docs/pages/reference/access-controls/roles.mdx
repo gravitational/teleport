@@ -375,8 +375,11 @@ unexpected changes to the configuration or state of your cluster.
 
 It is possible to further limit access to
 [session recordings](../architecture/session-recording.mdx).
-The examples below illustrate how to restrict session access only for the user
-who created the session.
+
+The `where` field in RBAC rules provides powerful filtering capabilities,
+allowing you to restrict access to session recordings based on user traits
+and resource metadata. This enables fine-grained control over who can view
+recordings based on contextual information.
 
 <Admonition
   type="warning"
@@ -387,7 +390,32 @@ have a more permissive role, like the preset `auditor` role, which allows access
 to all events, sessions, and session recordings.
 </Admonition>
 
-Role for restricted access to session recordings:
+### Understanding the `where` clause
+
+The `where` clause acts as a condition that must evaluate to true for access to be
+granted. It uses predicate expressions that can reference:
+
+- Attributes of the authenticated user (name, roles, traits)
+- Metadata about the session recording (participants, proto, creator, etc.)
+- Resource-specific attributes (server details, database info, etc.)
+
+Basic syntax example:
+
+```
+where: contains(session.participants, user.metadata.name)
+```
+
+This expression evaluates to true only when the current user is found in the session's
+participants list.
+
+
+### Common Access Control Recipes
+
+Here are practical examples of how to use `where` expressions to implement common access control patterns:
+
+1. Restrict to Session Participants
+
+Allow users to view only recordings of sessions they participated in:
 
 ```yaml
 version: v5
@@ -397,12 +425,102 @@ metadata:
 spec:
   allow:
     rules:
-    # Users can only view session recordings for sessions in which they
-    # participated.
     - resources: [session]
       verbs: [list, read]
       where: contains(session.participants, user.metadata.name)
 ```
+
+2. Restrict by User Role
+
+Allow access only to users that share a role with the session creator:
+
+```yaml
+version: v5
+kind: role
+metadata:
+  name: sessions-viewer
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: contains_any(user.spec.roles, session.user_roles)
+```
+
+3. Restrict by Team Trait
+
+Allow members of the same team to view each other's sessions:
+
+```yaml
+version: v5
+kind: role
+metadata:
+  name: team-sessions-viewer
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: contains_any(session.user_traits["team"], user.spec.traits["team"])
+```
+
+4. Restrict by Session Creator
+
+Allow viewing only sessions created by the user:
+
+```yaml
+version: v5
+kind: role
+metadata:
+  name: own-created-sessions
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: session.user == user.metadata.name
+```
+
+5. Restrict by Resource Type
+
+Allow viewing only SSH session recordings:
+
+```yaml
+version: v5
+kind: role
+metadata:
+  name: ssh-sessions-only
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: session.proto == "ssh"
+```
+
+6. Combine Multiple Conditions
+
+This rule allows users to view SSH session recordings only if they were a participant OR the node is owned by his team.
+
+```yaml
+version: v5
+kind: role
+metadata:
+  name: complex-sessions-access
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: >
+        (contains(session.participants, user.metadata.name) || 
+         contains(user.spec.traits["team"], session.server_labels["team"])) && 
+        session.proto == "ssh"
+```
+
+By leveraging these where expressions, you can implement sophisticated access control policies that precisely
+match your organization's security requirements while still allowing appropriate visibility for auditing and
+monitoring purposes.
 
 ### Filter fields
 
@@ -421,12 +539,6 @@ access the session recording.
 | `user.spec.traits` | The traits assigned to the user. | `dict<string, array<string>>` |
 | `user.spec.roles` | The roles assigned to the user. | `array<string> `|
 
-Examples:
-
-```yaml
-where: contains(user.spec.traits["team"], "devops")
-where: contains(user.spec.roles, "admin")
-```
 
 ### Session fields
 
@@ -444,7 +556,7 @@ updated, and the session’s RBAC will not reflect the changes.
 
 The following session fields can be used in `where` expressions to filter access.
 The `session` object represents the session resource being accessed.
-It contains metadata about the session, including the participants, protocol,
+It contains metadata about the session, including the participants, proto,
 resource type and the session creator (user who initiated the session) roles and traits.
 
 | Session Field | Description | Type |
@@ -452,25 +564,10 @@ resource type and the session creator (user who initiated the session) roles and
 | `session.id` | The unique identifier of the session. | `string` |
 | `session.kind` | The kind of session (e.g., "ssh", "kube", "db", "rdp"). | `string` |
 | `session.participants` | The list of users who participated in the session. | `array<string>` |
-| `session.protocol` | The protocol used for the session (e.g., "ssh", "kube", "db", "rdp"). | `string` |
+| `session.proto` | The proto used for the session (e.g., "ssh", "kube", "db", "rdp"). | `string` |
 | `session.user` | The user who initiated the session. | `string` |
 | `session.user_roles` | The roles assigned to the user who initiated the session. | `array<string>` |
 | `session.user_traits` | The traits assigned to the user who initiated the session. | `dict<string, array<string>>` |
-
-Examples:
-
-```yaml
-# List only sessions initiated by the user
-where: session.user == user.metadata.name
-# List sessions where the user has the "devops" team trait
-where: contains(session.user_traits["team"], "devops")
-# List sessions initiated by users with the "admin" role
-where: contains(session.user_roles, "admin")
-# List sessions for users with the same "department" trait as the authenticated user
-where: contains_any(session.user_traits["department"], user.spec.traits["department"])
-# List sessions for users with the same roles as the authenticated user
-where: contains_any(session.user_roles, user.spec.roles)
-```
 
 Depending on the session kind, additional session fields are available for filtering.
 
@@ -551,10 +648,6 @@ session recordings:
 | `can_view` | `can_view() -> bool` | Returns true if the user can view the SSH Node, Kubernetes Cluster, Database or Windows machine in Teleport. |
 | `equals` | `equals(array<string>, array<string>) -> bool` | Returns true if the two strings or two arrays are equal. |
 | `set` | `set(string,string...) -> array<string>` | Converts one or multiple strings into an array. |
-| `all_end_with` | `all_end_with(array<string>, string) -> bool` | Returns true if all elements in the array end with the specified suffix. |
-| `all_equal` | `all_equal(array<string>, string) -> bool` | Returns true if all elements in the array are equal to the specified value. |
-| `has_prefix` | `has_prefix(string, string) -> bool` | Returns true if the string starts with the specified prefix. |
-| `is_subset` | `is_subset(array<string>, [string...]) -> bool` | Returns true if all elements of the second array are contained in the first array. |
 
 
 ## RBAC for active sessions
