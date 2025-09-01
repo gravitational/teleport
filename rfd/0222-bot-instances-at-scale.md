@@ -48,10 +48,6 @@ To support this use-case, the filter for bot instances will support the predicat
 
 Issues in `tbot` (or just typos) can be difficult to detect and logs may not adequately highlight these. To improve the rate of these events reaching users, `tbot` will detect and collate notices which are sent with the next heartbeat. They will then be available to view for a bot instance. To help in situations where it’s infeasible to check each individual instance, notices will be summarized by title and presented in aggregate form. Each aggregated item will be selectable and will filter the bot instances list. A filter such as `contains(notices, "Proxy URL not set")` will be pre-populated.
 
-**As a cluster owner (Infrastructure Security team), I'd like to be able to figure out what a Bot Instance is for/who it belongs to when making decisions (e.g can we upgrade/break this Bot safely).**
-
-How bot/instances are tagged with an owner, organizational area or purpose will be the subject of a later phase of delivery. As such it is left undefined for the time being. It may simply be a series of optional fields (or labels) which can be included in the `tbot` configuration, via flags or environment variables. These would be sent along with heartbeats and be visible in the web UI.
-
 **As a Bot Instance owner (Dev/Dev Ops team), I'd like help in understanding why my Bot Instance is not working properly.**
 
 For somebody diagnosing an issue with `tbot`, they’re likely to have access to the `tbot` log output. Such as;
@@ -409,7 +405,7 @@ In the situation where a new web client sends a request to an old proxy (in a lo
 
 **GET /webapi/:site/machine-id/bot-instance/dashboard**
 
-A new endpoint to return summary data for bot instances. The result will contain multiple named datasets for the requested timeframe (last 24 hours, last week, last month, etc), as well as an indication of other timeframes that can be chosen. A “last updated at” timestamp will be included to give users a sense of recency.
+A new endpoint to return summary data for bot instances. The result will contain multiple named datasets (one for each supported visualization). A “last updated at” timestamp will be included to give users a sense of recency.
 
 ## Backward Compatibility
 
@@ -459,12 +455,10 @@ An aggregated dashboard will help to give a high-level overview of the MWI estat
 
 ## Phase 3
 
-**tl;dr**: notices, ownership tagging, and activity dashboard
+**tl;dr**: notices
 
 **Backports**: v17 and v18
 
-This phase focuses on reducing the risk of users using deprecated config, or sub-optimal config while deploying `tbot`. This is done by allowing `tbot` to raise notices.
+This phase focuses on reducing the risk of users using deprecated config, or sub-optimal config while deploying `tbot`. This is done by allowing `tbot` to raise notices. Notices provide a way to surface helpful events and warnings to users, and are easily accessed via the web interface.
 
-Notices provide a way to surface helpful events and warnings to users, and are easily accessed via the web interface.
-
-In addition, the instances dashboard will be expanded to include a breakdown of notices across all instances, as well as a general activity heat-map.
+In addition, the instances dashboard will be expanded to include a breakdown of notices across all instances.
