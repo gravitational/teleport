@@ -226,6 +226,7 @@ message BotInstanceServiceHealth {
   // UpdatedAt is the time at which the service's health last changed.
   google.protobuf.Timestamp updated_at = 4;
 }
+```
 
 ### Data fields and expected quantities
 
