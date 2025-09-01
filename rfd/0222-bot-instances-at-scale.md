@@ -66,19 +66,40 @@ Once found, the instance's details can be seen. Here a health status can be foun
 
 ### Instances dashboard
 
+This mock-up shows the bot instance page as it would be when first arriving at the page. No filters are set, so all instances are available in the list. Results are paginated, and the default sort order is by recency - instances with the most recent heartbeat are displayed first. Sorting can be toggled between ascending and descending, and the following sort fields are available; recency, version, hostname. Filtering can be performed using a basic text search over supported fields, or an advanced search using the Teleport predcate language.
+
+The right-hand half of the page displays the dashboard, which is a summary over all instances. The visualizations use aggregate data prepared and updated by the auth server. An indication of when the data current is provided, as well as a refresh button which retrieves the most recently available data. A selection of timeframes is also available.
+
+The Activity visualization shows the number of events (joins, authentications, and heartbeats) that occurred over time. This can be used to identify trends and patterns in activity. It is non-interactable.
+
+The Upgrade Status visualization show a summary of all instances grouped by upgrade status; up-to-date, upgrade available, patch available, or incompatible. Status labels are selectable, and will prepopulate the advanced search with the appropriate filter. For example, if the auth server is running v18 the filter will be populated with `semver_lt(version, "16.0.0")` when a user selects "not supported".
+
+The Notices visualization shows a summary of all notices across all instances. They're conveniently grouped by notice title and a count is included. Each item selectable, and will prepopulate the advances fiilter (e.g. `contains(notices, "Proxy URL not set")`). This visualization will be hidded if there is no data to display.
+
 ![](assets/0222-dashboard.png)
 
 ### Instance details
+These mock-ups shows the state of the page once an item had been selected from the instances list by clicking it. The dashboard section is replaced by the selected instance's details.
+
+The overview tab is displayed by default when an instance is selected. It shows further infomation about the instance, the join token that was used to enrol, and a summary of service health.
 
 ![](assets/0222-details-overview.png)
 
+The services tab shows a list of all configurted services (or outputs). Each includes it's name, type and health status. If there is extra health info available (such as and error message), this is also displayed.
+
 ![](assets/0222-details-services.png)
 
+The notices tab is a listing of all notices raised since the instance was started. Notices have a type, a title and a message body. Some notice types contain extra data such as a planned removal version for deprecation notices. An indication of when the notice was raised is included, and notices are ordered by most recent first and this is not user-configurable.
+
 ![](assets/0222-details-notices.png)
+
+The configuration tab show the _effective_ `tbot` configuration as readonly yaml.
 
 ![](assets/0222-details-config.png)
 
 ### tctl bots instances ls --search [freetext] --query [tql]
+
+The list bot instances command will include extra information about each instance; version, health status and notices count. A search term or advanced query can be used to filter the results - in this case a filter summary is included below the results confirming the applied filter and giving a result count. The data is not paginated and all instances are returned and displayed.
 
 ```diff
 - ID                                         Join Method Hostname      Joined               Last Seen            Generation
@@ -100,6 +121,8 @@ To view more information on a particular instance, run:
 ```
 
 ### tctl bots instances show [id]
+
+The should bot instance command gives an overall health summary as well as a listing of services and their respective health status. A list of notices is also included.
 
 ```diff
 Bot: w2w-demo-app-bot
