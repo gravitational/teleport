@@ -110,8 +110,7 @@ export function createTshdEventsContextBridgeService(
     },
 
     promptHardwareKeyPIN: async ({ request, onRequestCancelled }) => {
-      await ctx.mainProcessClient.forceFocusWindow();
-      const { pin, hasCanceledModal } = await new Promise<{
+      const dialog = new Promise<{
         pin: string;
         hasCanceledModal: boolean;
       }>(resolve => {
@@ -130,6 +129,9 @@ export function createTshdEventsContextBridgeService(
         onRequestCancelled(closeDialog);
       });
 
+      await ctx.mainProcessClient.forceFocusWindow();
+      const { hasCanceledModal, pin } = await dialog;
+
       if (hasCanceledModal) {
         throw {
           isCrossContextError: true,
@@ -142,8 +144,7 @@ export function createTshdEventsContextBridgeService(
     },
 
     promptHardwareKeyTouch: async ({ request, onRequestCancelled }) => {
-      await ctx.mainProcessClient.forceFocusWindow();
-      const { hasCanceledModal } = await new Promise<{
+      const dialog = new Promise<{
         hasCanceledModal: boolean;
       }>(resolve => {
         const { closeDialog } = ctx.modalsService.openImportantDialog({
@@ -158,6 +159,9 @@ export function createTshdEventsContextBridgeService(
         // When a tap is detected, tshd cancels this request.
         onRequestCancelled(closeDialog);
       });
+
+      await ctx.mainProcessClient.forceFocusWindow();
+      const { hasCanceledModal } = await dialog;
 
       if (hasCanceledModal) {
         throw {
