@@ -144,34 +144,41 @@ func newRequirementsEvaluator(u types.User) *requirementsEvaluator {
 	}
 }
 
-func (e requirementsEvaluator) createLazyRoleLookupMap() {
+func (e *requirementsEvaluator) createLazyRoleLookupMap() {
 	if e.rolesSet != nil {
 		return
 	}
 	// Assemble the user's roles for easy look up.
-	e.rolesSet = make(map[string]struct{}, len(e.user.GetRoles()))
-	for _, r := range e.user.GetRoles() {
-		e.rolesSet[r] = struct{}{}
+	userRolesMap := map[string]struct{}{}
+	for _, role := range e.user.GetRoles() {
+		userRolesMap[role] = struct{}{}
 	}
+	e.rolesSet = userRolesMap
 }
 
-func (e requirementsEvaluator) createLazyTraitsLookupMap() {
+func (e *requirementsEvaluator) createLazyTraitsLookupMap() {
 	if e.traits != nil {
 		return
 	}
 	// Assemble traits for easy lookup.
-	e.traits = map[string]map[string]struct{}{}
+	userTraitsMap := map[string]map[string]struct{}{}
 	for k, values := range e.user.GetTraits() {
-		if _, ok := e.traits[k]; !ok {
-			e.traits[k] = map[string]struct{}{}
+		if _, ok := userTraitsMap[k]; !ok {
+			userTraitsMap[k] = map[string]struct{}{}
 		}
+
 		for _, v := range values {
-			e.traits[k][v] = struct{}{}
+			userTraitsMap[k][v] = struct{}{}
 		}
 	}
+	e.traits = userTraitsMap
 }
 
-func (e requirementsEvaluator) meets(requires accesslist.Requires) bool {
+func (e *requirementsEvaluator) meets(requires accesslist.Requires) bool {
+	if requires.IsEmpty() {
+		// No requirements to meet return early to avoid unnecessary work.
+		return true
+	}
 	if len(requires.Roles) > 0 {
 		e.createLazyRoleLookupMap()
 	}
