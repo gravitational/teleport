@@ -36,6 +36,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |client_redirect_settings|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
 |client_secret|string|ClientSecret is used to authenticate the client. This field supports secret lookup. See the operator documentation for more details.|
 |display|string|Display is the friendly name for this provider.|
+|entra_id_groups_provider|[object](#specentra_id_groups_provider)|EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for the "groups" claim when the user's group membership exceeds 200 max item limit.|
 |google_admin_email|string|GoogleAdminEmail is the email of a google admin to impersonate.|
 |google_service_account|string|GoogleServiceAccount is a string containing google service account credentials.|
 |google_service_account_uri|string|GoogleServiceAccountURI is a path to a google service account uri.|
@@ -65,6 +66,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
 |insecure_allowed_cidr_ranges|[]string|a list of CIDRs allowed for HTTP or HTTPS client redirect URLs|
+
+### spec.entra_id_groups_provider
+
+|Field|Type|Description|
+|---|---|---|
+|disabled|boolean|Disabled specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.|
+|graph_endpoint|string|GraphEndpoint is a Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint ("https://graph.windows.net"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.|
+|group_type|string|GroupType is a user group type filter. Defaults to "security-groups". Value can be "security-groups", "directory-roles", "all-groups".|
 
 ### spec.mfa
 
