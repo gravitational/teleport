@@ -876,7 +876,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 
 	// lock interactions
+	// TODO(nicholasmarais1158): DELETE IN 20.0.0 - Replaced by /v2/webapi/sites/:site/locks endpoint
 	h.GET("/webapi/sites/:site/locks", h.WithClusterAuth(h.getClusterLocks))
+	h.GET("/v2/webapi/sites/:site/locks", h.WithClusterAuth(h.getClusterLocksV2))
 	h.PUT("/webapi/sites/:site/locks", h.WithClusterAuth(h.createClusterLock))
 	h.DELETE("/webapi/sites/:site/locks/:uuid", h.WithClusterAuth(h.deleteClusterLock))
 
@@ -3521,6 +3523,71 @@ func (h *Handler) getClusterLocks(
 	}
 
 	return ui.MakeLocks(locks), nil
+}
+
+type GetClusterLocksV2Response struct {
+	Locks []ui.Lock `json:"items"`
+}
+
+func (h *Handler) getClusterLocksV2(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sessionCtx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+) (any, error) {
+	ctx := r.Context()
+	clt, err := sessionCtx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var targets []types.LockTarget
+	if r.URL.Query().Has("target") {
+		ts := r.URL.Query()["target"]
+		for _, ts := range ts {
+			parts := strings.Split(ts, "|")
+			if len(parts) != 2 {
+				return nil, trace.BadParameter("invalid target %q", ts)
+			}
+			var target types.LockTarget
+			switch parts[0] {
+			case "user":
+				target.User = parts[1]
+			case "role":
+				target.Role = parts[1]
+			case "login":
+				target.Login = parts[1]
+			case "mfa_device":
+				target.MFADevice = parts[1]
+			case "windows_desktop":
+				target.WindowsDesktop = parts[1]
+			case "access_request":
+				target.AccessRequest = parts[1]
+			case "device":
+				target.Device = parts[1]
+			case "server_id":
+				target.ServerID = parts[1]
+			default:
+				return nil, trace.BadParameter("invalid target type %q", parts[0])
+			}
+			targets = append(targets, target)
+		}
+	}
+
+	inForceOnly := false
+	if r.URL.Query().Has("in_force_only") {
+		inForceOnly = r.URL.Query().Get("in_force_only") == "true"
+	}
+
+	locks, err := clt.GetLocks(ctx, inForceOnly, targets...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &GetClusterLocksV2Response{
+		Locks: ui.MakeLocks(locks),
+	}, nil
 }
 
 type createLockReq struct {
