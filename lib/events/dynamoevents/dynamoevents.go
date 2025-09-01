@@ -1094,6 +1094,31 @@ type condFilterParams struct {
 	attrNames  map[string]string
 }
 
+// fromWhereExpr converts a types.WhereExpr into a DynamoDB condition expression.
+// It fills in the provided condFilterParams with attribute names and values
+// that need to be supplied when executing the query.
+// For example, a condition like
+//
+// !(equals(login, "root") || equals(login, "admin")) && contains(participants, "test-user")
+// would be converted into a condition expression like
+//
+// "NOT ((#condName0 = :condValue0) OR (#condName1 = :condValue1)) AND (contains(#condName2, :condValue2))"
+// with condFilterParams containing:
+//
+//	attrNames: {"#condName0": "FieldsMap.login", "#condName1": "FieldsMap.login", "#condName2": "FieldsMap.participants"}
+//	attrValues: {":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"}
+//
+// This function supports a subset of the types.WhereExpr AST. Supported operations are:
+//   - Binary predicates: equals, notEquals
+//   - Logical operators: and, or, not
+//   - Map references: map_name["key"]
+//   - Literals: string
+//   - Functions: contains, contains_all, contains_any, can_view
+//
+// `can_view` is a special function that checks if the current user can view the underlying resource
+// based on their roles. This is a runtime check, so it cannot be converted into a static condition expression.
+// For this reason, `can_view` is handled by returning an always-true condition expression and setting a filter function
+// in condFilterParams that can be applied to the results after the query is executed.
 func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, error) {
 	if cond == nil {
 		return "", trace.BadParameter("missing condition")
@@ -1297,7 +1322,7 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 		if !ok {
 			return "", trace.BadParameter("map key must be a string, got %T", cond.MapRef.R.Literal)
 		}
-		return addAttrName(cond.MapRef.L.Field + "." + key), nil
+		return addMultiAttrNames(cond.MapRef.L.Field, key), nil
 	}
 
 	if cond.CanView != nil {
