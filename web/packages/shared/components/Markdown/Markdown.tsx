@@ -63,7 +63,7 @@ const parsers: MarkdownParser[] = [
     render: (activeParsers, content, key) => <code key={key}>{content}</code>,
   },
   {
-    condition: (opts: MarkdownOptions) => opts.enableLinks,
+    condition: (opts: MarkdownOptions) => !!opts.enableLinks,
     pattern: /\[(?<content>[^\]]*)](?:\((?<url>https?:\/\/[^)]+|[^:)]+)\))?/,
     render: (activeParsers, content, key, url) => (
       <StyledLink key={key} href={url}>
