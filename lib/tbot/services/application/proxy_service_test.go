@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -161,6 +162,157 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 		}
 		assert.Equal(t, wantBody, body)
 	}, 10*time.Second, 100*time.Millisecond)
+
+	// Do a second request to test caching
+	resp, err := httpClient.Get("http://" + appName)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer resp.Body.Close()
+	assert.Equal(t, wantStatus, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Equal(t, wantBody, body)
+	assert.Equal(t, resp.Header.Get("X-Teleport-Application-Cached"), strconv.FormatBool(proxyServiceConfig.CertificateCaching))
+}
+
+func TestE2E_ApplicationProxyServiceWithCaching(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	// Spin up a test HTTP server
+	wantStatus := http.StatusTeapot
+	wantBody := []byte("hello this is a test")
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(wantStatus)
+		w.Write(wantBody)
+	}))
+	t.Cleanup(httpSrv.Close)
+
+	// Make a new auth server.
+	appName := "my-test-app"
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name: appName,
+					URI:  httpSrv.URL,
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Create role that allows the bot to access the app.
+	role, err := types.NewRole("app-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	role, err = rootClient.UpsertRole(t.Context(), role)
+	require.NoError(t, err)
+
+	botListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		botListener.Close()
+	})
+
+	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
+
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+
+	proxyServiceConfig := &ProxyServiceConfig{
+		Listener:           botListener,
+		Applications:       []string{appName},
+		CertificateCaching: true,
+		Listen:             "localhost:12345",
+	}
+
+	connCfg := connection.Config{
+		Address:     proxyAddr.Addr,
+		AddressKind: connection.AddressKindProxy,
+		Insecure:    true,
+	}
+	b, err := bot.New(bot.Config{
+		Connection: connCfg,
+		Logger:     log,
+		Onboarding: *onboarding,
+		Services: []bot.ServiceBuilder{
+			ProxyServiceBuilder(
+				proxyServiceConfig,
+				connCfg,
+				bot.DefaultCredentialLifetime,
+			),
+		},
+	})
+	require.NoError(t, err)
+
+	// Spin up goroutine for bot to run in
+	ctx, cancel := context.WithCancel(ctx)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := b.Run(ctx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancel()
+	}()
+	t.Cleanup(func() {
+		// Shut down bot and make sure it exits.
+		cancel()
+		wg.Wait()
+	})
+
+	proxyUrl, err := url.Parse("http://" + proxyServiceConfig.Listen)
+	httpClient := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyUrl)}}
+
+	// We can't predict exactly when the tunnel will be ready so we use
+	// EventuallyWithT to retry.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := httpClient.Get("http://" + appName)
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer resp.Body.Close()
+		assert.Equal(t, wantStatus, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, wantBody, body)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Do a second request to test caching
+	resp, err := httpClient.Get("http://" + appName)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer resp.Body.Close()
+	assert.Equal(t, wantStatus, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Equal(t, wantBody, body)
+	assert.Equal(t, resp.Header.Get("X-Teleport-Application-Cached"), strconv.FormatBool(proxyServiceConfig.CertificateCaching))
 }
 
 func TestE2E_ApplicationProxyServiceWhitelist(t *testing.T) {
