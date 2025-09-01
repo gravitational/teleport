@@ -28,7 +28,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -63,21 +69,21 @@ func TestSendTelemetry(t *testing.T) {
 		}
 		cfg := &config.BotConfig{
 			Oneshot: true,
-			Onboarding: config.OnboardingConfig{
+			Onboarding: onboarding.Config{
 				JoinMethod: types.JoinMethodGitHub,
 			},
 			Services: config.ServiceConfigs{
-				&config.IdentityOutput{
-					Destination: &config.DestinationDirectory{},
+				&identitysvc.OutputConfig{
+					Destination: &destination.Memory{},
 				},
-				&config.KubernetesOutput{
-					Destination: &config.DestinationDirectory{},
+				&k8s.OutputV1Config{
+					Destination: &destination.Directory{},
 				},
-				&config.ApplicationOutput{
-					Destination: &config.DestinationDirectory{},
+				&application.OutputConfig{
+					Destination: &destination.Directory{},
 				},
-				&config.DatabaseOutput{
-					Destination: &config.DestinationDirectory{},
+				&database.OutputConfig{
+					Destination: &destination.Directory{},
 				},
 			},
 		}

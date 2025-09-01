@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -96,7 +96,7 @@ func (c *issueX509Command) run(cf *CLIConf) error {
 	}
 	tc.AllowHeadless = true
 
-	selector := config.WorkloadIdentitySelector{}
+	selector := bot.WorkloadIdentitySelector{}
 	switch {
 	case c.nameSelector != "" && c.labelSelector != "":
 		return trace.BadParameter("cannot specify both name and label selectors")
