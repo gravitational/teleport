@@ -62,26 +62,26 @@ Once found, the instance's details can be seen. Here a health status can be foun
 
 ### Instances dashboard
 
-This mock-up shows the bot instance page as it would be when first arriving at the page. No filters are set, so all instances are available in the list. Results are paginated, and the default sort order is by recency - instances with the most recent heartbeat are displayed first. Sorting can be toggled between ascending and descending, and the following sort fields are available; recency, version, hostname. Filtering can be performed using a basic text search over supported fields, or an advanced search using the Teleport predcate language.
+This mock-up shows the bot instance page as it would be when first arriving at the page. No filters are set, so all instances are available in the list. Results are paginated, and the default sort order is by recency - instances with the most recent heartbeat are displayed first. Sorting can be toggled between ascending and descending, and the following sort fields are available; recency, version, hostname. Filtering can be performed using a basic text search over supported fields, or an advanced search using the Teleport predicate language.
 
 The right-hand half of the page displays the dashboard, which is a summary over all instances. The visualizations use aggregate data prepared and updated by the auth server. An indication of when the data current is provided, as well as a refresh button which retrieves the most recently available data. A selection of timeframes is also available.
 
-The Activity visualization shows the number of events (joins, authentications, and heartbeats) that occurred over time. This can be used to identify trends and patterns in activity. It is non-interactable.
+The Activity visualization shows the number of events (joins, authentications, and heartbeats) that occurred over time. This can be used to identify trends and patterns in activity. It is non-interactive.
 
-The Upgrade Status visualization show a summary of all instances grouped by upgrade status; up-to-date, upgrade available, patch available, or incompatible. Status labels are selectable, and will prepopulate the advanced search with the appropriate filter. For example, if the auth server is running v18 the filter will be populated with `older_than(version, "16.0.0")` when a user selects "not supported".
+The Upgrade Status visualization show a summary of all instances grouped by upgrade status; up-to-date, upgrade available, patch available, or incompatible. Status labels are selectable, and will pre-populate the advanced search with the appropriate filter. For example, if the auth server is running v18 the filter will be populated with `older_than(version, "16.0.0")` when a user selects "not supported".
 
-The Notices visualization shows a summary of all notices across all instances. They're conveniently grouped by notice title and a count is included. Each item selectable, and will prepopulate the advances fiilter (e.g. `contains(notices, "Proxy URL not set")`). This visualization will be hidded if there is no data to display.
+The Notices visualization shows a summary of all notices across all instances. They're conveniently grouped by notice title and a count is included. Each item selectable, and will pre-populate the advanced filter (e.g. `contains(notices, "Proxy URL not set")`). This visualization will be hidden if there is no data to display.
 
 ![](assets/0222-dashboard.png)
 
 ### Instance details
 These mock-ups shows the state of the page once an item had been selected from the instances list by clicking it. The dashboard section is replaced by the selected instance's details.
 
-The overview tab is displayed by default when an instance is selected. It shows further infomation about the instance, the join token that was used to enrol, and a summary of service health.
+The overview tab is displayed by default when an instance is selected. It shows further information about the instance, the join token that was used to enrol, and a summary of service health.
 
 ![](assets/0222-details-overview.png)
 
-The services tab shows a list of all configurted services (or outputs). Each includes it's name, type and health status. If there is extra health info available (such as and error message), this is also displayed.
+The services tab shows a list of all configured services (or outputs). Each includes it's name, type and health status. If there is extra health info available (such as and error message), this is also displayed.
 
 ![](assets/0222-details-services.png)
 
@@ -93,7 +93,7 @@ The configuration tab show the _effective_ `tbot` configuration as readonly yaml
 
 ![](assets/0222-details-config.png)
 
-### tctl bots instances ls --search [freetext] --query [tql]
+### tctl bots instances ls --search [term] --query [tql]
 
 The list bot instances command will include extra information about each instance; version, health status and notices count. A search term or advanced query can be used to filter the results - in this case a filter summary is included below the results confirming the applied filter and giving a result count. The data is not paginated and all instances are returned and displayed.
 
@@ -158,9 +158,9 @@ Latest Heartbeat:
 + UNHEALTHY prod-aws-01 X509-output-service out of bananas 2025-09-01T12:49:26Z
 +
 + Notices:
-+ Type                Service     Message                              Raised At
-+ ------------------- ----------- ------------------------------------ --------------------
-+ DEPRECATION_WARNING prod-aws-01 Lorem ipsum delor sit amet (v19.0.0) 2025-09-01T12:49:26Z
++ Type                Service     Message               Raised At
++ ------------------- ----------- --------------------- --------------------
++ DEPRECATION_WARNING prod-aws-01 Lorem ipsum (v19.0.0) 2025-09-01T12:49:26Z
 
 To view a full, machine-readable record including past heartbeats and authentication records, run:
 > /Users/nick.marais/.tsh/bin/tctl get bot_instance/w2w-demo-app-bot/d83b381d-b46c-4b92-a899-755991a6d0f5
