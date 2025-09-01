@@ -39,10 +39,12 @@ export class ReloginService {
     request: ReloginRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
-    await this.mainProcessClient.forceFocusWindow();
     const reason = this.getReason(request);
 
-    return new Promise((resolve, reject) => {
+    // Open the dialog before showing the window to defer connecting to
+    // resources that could show per-session MFA dialogs
+    // (see the comment for ForegroundSession in DocumentsRenderer.tsx).
+    const dialog = new Promise<void>((resolve, reject) => {
       // GatewayCertReissuer in tshd makes sure that we only ever have one concurrent request to the
       // relogin event. So at the moment, ReloginService won't ever call openImportantDialog twice.
       const { closeDialog } = this.modalsService.openImportantDialog({
@@ -57,6 +59,9 @@ export class ReloginService {
 
       onRequestCancelled(closeDialog);
     });
+
+    await this.mainProcessClient.forceFocusWindow();
+    await dialog;
   }
 
   private getReason(request: ReloginRequest): ClusterConnectReason {
