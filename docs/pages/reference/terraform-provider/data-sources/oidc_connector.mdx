@@ -38,6 +38,7 @@ Optional:
 - `client_redirect_settings` (Attributes) ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones. (see [below for nested schema](#nested-schema-for-specclient_redirect_settings))
 - `client_secret` (String, Sensitive) ClientSecret is used to authenticate the client.
 - `display` (String) Display is the friendly name for this provider.
+- `entra_id_groups_provider` (Attributes) EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for the "groups" claim when the user's group membership exceeds 200 max item limit. (see [below for nested schema](#nested-schema-for-specentra_id_groups_provider))
 - `google_admin_email` (String) GoogleAdminEmail is the email of a google admin to impersonate.
 - `google_service_account` (String, Sensitive) GoogleServiceAccount is a string containing google service account credentials.
 - `google_service_account_uri` (String) GoogleServiceAccountURI is a path to a google service account uri.
@@ -68,6 +69,15 @@ Optional:
 
 - `allowed_https_hostnames` (List of String) a list of hostnames allowed for https client redirect URLs
 - `insecure_allowed_cidr_ranges` (List of String) a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+
+
+### Nested Schema for `spec.entra_id_groups_provider`
+
+Optional:
+
+- `disabled` (Boolean) Disabled specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.
+- `graph_endpoint` (String) GraphEndpoint is a Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint ("https://graph.windows.net"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.
+- `group_type` (String) GroupType is a user group type filter. Defaults to "security-groups". Value can be "security-groups", "directory-roles", "all-groups".
 
 
 ### Nested Schema for `spec.mfa`
