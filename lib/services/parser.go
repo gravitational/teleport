@@ -155,6 +155,12 @@ func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
 			AND: predicate.And,
 			OR:  predicate.Or,
 			NOT: predicate.Not,
+			EQ:  predicate.Equals,
+			NEQ: func(a any, b any) predicate.BoolPredicate {
+				return func() bool {
+					return !predicate.Equals(a, b)()
+				}
+			},
 		},
 		Functions: map[string]any{
 			"equals":       predicate.Equals,
@@ -219,7 +225,7 @@ type WhereParserOpt func(RuleContext, *predicate.Def)
 // specified in the context.
 func WithCanViewFunction() WhereParserOpt {
 	return func(ctx RuleContext, def *predicate.Def) {
-		def.Functions["can_view"] = canViewResourceFunc(ctx)
+		def.Functions["can_view"] = CanViewResourceFunc(ctx)
 	}
 }
 
@@ -242,7 +248,9 @@ func NewWhereParser(ctx RuleContext, opts ...WhereParserOpt) (predicate.Parser, 
 	return predicate.NewParser(def)
 }
 
-func canViewResourceFunc(ctx RuleContext) func() predicate.BoolPredicate {
+// CanViewResourceFunc returns a function that checks if the user has access
+// to the resource specified in the context.
+func CanViewResourceFunc(ctx RuleContext) func() predicate.BoolPredicate {
 	return func() predicate.BoolPredicate {
 		return func() bool {
 			resource, err := ctx.GetResource()
@@ -775,6 +783,30 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 				}
 				return types.WhereExpr{Not: &expr}
 			},
+			EQ: func(a, b any) types.WhereExpr {
+				aExpr, ok := a.(types.WhereExpr)
+				if !ok {
+					aExpr = types.WhereExpr{Literal: a}
+				}
+				bExpr, ok := b.(types.WhereExpr)
+				if !ok {
+					bExpr = types.WhereExpr{Literal: b}
+				}
+				return types.WhereExpr{Equals: types.WhereExpr2{L: &aExpr, R: &bExpr}}
+			},
+			NEQ: func(a, b any) types.WhereExpr {
+				aExpr, ok := a.(types.WhereExpr)
+				if !ok {
+					aExpr = types.WhereExpr{Literal: a}
+				}
+				bExpr, ok := b.(types.WhereExpr)
+				if !ok {
+					bExpr = types.WhereExpr{Literal: b}
+				}
+				return types.WhereExpr{
+					Not: &types.WhereExpr{Equals: types.WhereExpr2{L: &aExpr, R: &bExpr}},
+				}
+			},
 		},
 		Functions: map[string]any{
 			"equals": binaryPred(predicate.Equals, func(a, b types.WhereExpr) types.WhereExpr {
@@ -783,6 +815,24 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			"contains": binaryPred(predicate.Contains, func(a, b types.WhereExpr) types.WhereExpr {
 				return types.WhereExpr{Contains: types.WhereExpr2{L: &a, R: &b}}
 			}),
+			"contains_all": binaryPred(predicateContainsAll, func(a, b types.WhereExpr) types.WhereExpr {
+				return types.WhereExpr{ContainsAll: types.WhereExpr2{L: &a, R: &b}}
+			}),
+			"contains_any": binaryPred(predicateContainsAny, func(a, b types.WhereExpr) types.WhereExpr {
+				return types.WhereExpr{ContainsAny: types.WhereExpr2{L: &a, R: &b}}
+			}),
+			"set": func(a ...any) types.WhereExpr {
+				aVal := make([]string, 0, len(a))
+				for _, v := range a {
+					if str, ok := v.(string); ok {
+						aVal = append(aVal, str)
+					}
+				}
+				return types.WhereExpr{Literal: aVal}
+			},
+			"can_view": func() types.WhereExpr {
+				return types.WhereExpr{CanView: &types.WhereNoExpr{}}
+			},
 		},
 		GetIdentifier: func(fields []string) (any, error) {
 			if fields[0] == identifier {
@@ -804,6 +854,14 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			keyExpr, keyOK := keyVal.(types.WhereExpr)
 			if !keyOK {
 				keyExpr = types.WhereExpr{Literal: keyVal}
+			}
+			if mapExpr.Field != "" && keyExpr.Literal != nil {
+				return types.WhereExpr{
+					MapRef: &types.WhereExpr2{
+						L: &mapExpr,
+						R: &keyExpr,
+					},
+				}, nil
 			}
 			if mapExpr.Literal == nil || keyExpr.Literal == nil {
 				// TODO: Add support for general WhereExpr.

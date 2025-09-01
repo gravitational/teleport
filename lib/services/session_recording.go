@@ -16,14 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package services
 
 import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 )
+
+// ExtendWithSessionEnd extends the context with a session end event and
+// rebuilds the resource from the event. An AccessChecker must be provided
+// to allow access checks to other resources in the where clause.
+func (ctx *Context) ExtendWithSessionEnd(sessionEnd apievents.AuditEvent, checker AccessChecker) {
+	ctx.Session = sessionEnd
+	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
+	// AccessCheker is set here to allow access checks to other resources
+	// in the where clause.
+	ctx.AccessChecker = checker
+}
 
 // rebuildResourceFromSessionEndEvent rebuilds a resource from a session end event.
 // This is used to reconstruct the resource that was active at the time of the session end event
@@ -35,7 +45,7 @@ func rebuildResourceFromSessionEndEvent(event apievents.AuditEvent) types.Resour
 			return nil
 		}
 		switch sEnd.Protocol {
-		case events.EventProtocolSSH:
+		case apievents.EventProtocolSSH:
 			return &types.ServerV2{
 				Kind:    types.KindNode,
 				Version: types.V2,
@@ -49,7 +59,7 @@ func rebuildResourceFromSessionEndEvent(event apievents.AuditEvent) types.Resour
 					Hostname: sEnd.ServerMetadata.ServerHostname,
 				},
 			}
-		case events.EventProtocolKube:
+		case apievents.EventProtocolKube:
 			return &types.KubernetesClusterV3{
 				Kind:    types.KindKubernetesCluster,
 				Version: types.V3,

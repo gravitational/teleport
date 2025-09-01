@@ -61,7 +61,9 @@ func TestToFieldsCondition(t *testing.T) {
 		R: &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "test-user"}}},
 	}}
 
-	cond, err := ToFieldsCondition(expr)
+	cond, err := ToFieldsCondition(ToFieldsConditionConfig{
+		Expr: expr,
+	})
 	require.NoError(t, err)
 
 	require.False(t, cond(Fields{}))

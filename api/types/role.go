@@ -1871,7 +1871,13 @@ type WhereExpr struct {
 	Not                      *WhereExpr
 	Equals, Contains         WhereExpr2
 	ContainsAny, ContainsAll WhereExpr2
+	CanView                  *WhereNoExpr
+	MapRef                   *WhereExpr2
 }
+
+// WhereNoExpr is an empty `where` expression used by
+// functions without arguments like `can_view()`.
+type WhereNoExpr struct{}
 
 // WhereExpr2 is a pair of `where` (sub-)expressions.
 type WhereExpr2 struct {
@@ -1906,6 +1912,12 @@ func (e WhereExpr) String() string {
 	}
 	if e.ContainsAll.L != nil && e.ContainsAll.R != nil {
 		return fmt.Sprintf("contains_all(%s, %s)", e.ContainsAll.L, e.ContainsAll.R)
+	}
+	if e.CanView != nil {
+		return "can_view()"
+	}
+	if e.MapRef != nil && e.MapRef.L != nil && e.MapRef.R != nil {
+		return fmt.Sprintf("%s[%q]", e.MapRef.L, e.MapRef.R)
 	}
 	return ""
 }
