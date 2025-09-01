@@ -94,9 +94,7 @@ The proposed changes are mainly capturing extra data and presenting it in the we
 
 In order to allow instance config to be viewed without needing log in to the machine running `tbot` the complete configuration will be included in the start-up heartbeat and stored for the lifetime of the instance. Instead of capturing the config YAML verbatim, the _effective_ configuration will be used. This includes any environment variable and flag overrides. For security reasons, the join token will be omitted. For privacy reasons, any unrecognized values as well as comments will also be omitted. There may be other sensitive information such as service/output names, but these are only visible to authorised users.
 
-## Proto Specification
-
-### Heartbeat protobuf additions
+## Heartbeat additions
 
 ``` protobuf
 message BotInstanceStatusHeartbeat {
@@ -250,7 +248,7 @@ message BotInstanceServiceHealth {
 | Health status |  | INITIALIZING, HEALTHY, UNHEALTHY,
 UNKNOWN | Once per service |  |
 
-### Notices
+## Notices
 
 Today, when `tbot` encounters a configuration that is suboptimal or will not be supported in an upcoming release, it typically logs a message with the `WARN` severity. These messages can easily be missed because `tbot`'s logs are noisy, it is often running non-interactively (e.g. in CI/CD pipeline), and because many users do not have a decent centralized logging solution.
 
@@ -282,7 +280,7 @@ On the auth server, notices will be stored on the bot instance record like all o
 
 If the heartbeat message’s `is_startup` flag is set, the auth server will discard all previous notices so that if the user fixes their configuration and restarts `tbot`, any warnings from their previous bad configuration will be immediately cleared to avoid confusion. This decision will also prevent us from treating notices as a general logging solution, as they will inherently be ephemeral and only representative of the most recent run.
 
-### Configuration
+## Configuration
 
 For visibility, `tbot` will also send its full configuration to the auth server. As we do not yet support dynamically reloading `tbot`'s configuration (e.g. by sending a `SIGHUP`) we will only include it in the first heartbeat after the bot starts up, but this may change if we support dynamic configuration in the future.
 
@@ -292,7 +290,7 @@ The actual configuration `tbot` uses at runtime is a combination of values from 
 
 While there are benefits to sending the raw inputs (e.g. the literal content of the YAML file) such as being able to spot typos, we think it’s more useful overall to send the “effective” configuration after it has been parsed, validated, and default values have been applied. This also gives us an opportunity to redact fields we know to contain sensitive information such as the join token.
 
-### Web API
+## Web API
 
 **GET /v2/webapi/sites/:site/machine-id/bot-instance**
 
