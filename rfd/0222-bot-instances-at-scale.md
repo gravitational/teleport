@@ -58,7 +58,7 @@ INFO [TBOT:IDENTITY] Fetched new bot identity identity:mwi-demo-aws-manager, id=
 
 This log entry contains the bot name (as `identity`) and the instance’s ID. The instance ID can be used to filter the instances list in the web UI, and should make finding the relevant instance easy. In the CLI (`tctl`), both the bot name and instance ID are required to perform the look-up; `tctl bots instances show [bot_name]/[instance_id]`.
 
-Once found, the instance's details can be seen. Here a health status can be found for each `tbot` service (outputs, tunnels, etc), which includes failure info for those services which are unhealthy. Additionally, a listing of all notices raised by the instance in it’s last run can be viewed, which may reveal the root cause of a failure. Notices are raised by `tbot` for actionable items that require attention, such as invalid config or deprecations.
+Once found, in the web UI or CLI, the instance's details can be seen. Here a health status can be found for each `tbot` service (outputs, tunnels, etc), which includes failure info for those services which are unhealthy. Additionally, a listing of all notices raised by the instance in it’s last run can be viewed, which may reveal the root cause of a failure. Notices are raised by `tbot` for actionable items that require attention, such as invalid config or deprecations.
 
 ### Instances dashboard
 
