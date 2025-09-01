@@ -226,8 +226,28 @@ as a series of parts (in cloud storage or on an Auth Service instance's disk) an
 responsibility of the Auth Service's upload completer to detect the abandoned upload and
 complete it.
 
+## Recording summaries
+
+Teleport allows running language models against session recordings to generate
+session summaries. This feature supports SSH, Kubernetes, and database
+sessions and is only available if Identity Security is enabled.
+
+After each recording is uploaded, Teleport Auth Server matches session metadata
+against all `inference_policy` resources. If a match is found, it will then use
+configuration from a corresponding `inference_model` resource to generate
+session recording. The inference model specifies, among other options, which
+inference provider and provider-specific model is used to generate a summary.
+
+No more than 150 concurrent summary jobs will be executed per auth server. If
+more sessions arrive, the auth server will wait until the previous ones are
+summarized.
+
+Session recording summaries are stored along with session recordings and can be
+viewed using the Teleport web app.
+
 ## Related reading
 
 - [Recording Proxy Mode](../../enroll-resources/server-access/guides/recording-proxy-mode.mdx)
 - [SSH recording modes](../monitoring/audit.mdx)
 - [Session recording for desktops](../agent-services/desktop-access-reference/sessions.mdx)
+- [Session recording summaries](../../identity-security/session-summaries.mdx)
