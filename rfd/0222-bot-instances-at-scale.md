@@ -36,13 +36,13 @@ The upgrade process can vary depending on the flavour of Teleport in use (cloud,
 
 As such, it is a difficult task to identify bot instances that may be running an old version of `tbot`. This is especially difficult at scale. The current bot instance list available in the web UI allows filtering by version, although it’s a text search and it is not aware of semantic versioning - finding versions older than a given version is not possible.
 
-A breakdown of active instance versions will make the process of monitoring the version status easy at a glance, as well as provide convenient links to filter the instance list for versions already one or more major versions behind the control plane (thereby preventing a safe upgrade). To facilitate this in the web UI, the filter will allow queries such as `semver_lt(version, "18.1.0")`. The instance list will also indicate the status of an instance’s most recent version (as up-to-date, upgrade available, patch available, or incompatible). For the CLI, the `query` flag can be used to filter instances (e.g. `tctl bots instances ls --query=semver_lt(version, "18.1.0")`).
+A breakdown of active instance versions will make the process of monitoring the version status easy at a glance, as well as provide convenient links to filter the instance list for versions already one or more major versions behind the control plane (thereby preventing a safe upgrade). To facilitate this in the web UI, the filter will allow queries such as `older_than(version, "18.1.0")`. The instance list will also indicate the status of an instance’s most recent version (as up-to-date, upgrade available, patch available, or incompatible). For the CLI, the `query` flag can be used to filter instances (e.g. `tctl bots instances ls --query=older_than(version, "18.1.0")`).
 
 **As a cluster owner (Infrastructure Security team), I want to know which Bot Instances, across all Bots, are running vulnerable versions.**
 
 Currently in the web UI the instances list can be filtered by version, but this is a text search and it is not aware of semantic versioning. It’s possible to find a specific version number, but it’s not easy to isolate a range of versions, such as “>18 & <18.2.1”, which is likely required to find instances between a vulnerable and patched version.
 
-To support this use-case, the filter for bot instances will support the predicate language and allow queries such as `semver_gte(version, "18.1.0") && semver_lt(version, "19.0.0")`. This works though the web UI and the CLI (`tctl`).
+To support this use-case, the filter for bot instances will support the predicate language and allow queries such as `newer_than_or_equal(version, "18.1.0") && older_than(version, "19.0.0")`. This works though the web UI and the CLI (`tctl`).
 
 **As a cluster owner (Infrastructure Security team), I want to know which Bot Instances are running with deprecated/problematic configuration.**
 
@@ -72,7 +72,7 @@ The right-hand half of the page displays the dashboard, which is a summary over 
 
 The Activity visualization shows the number of events (joins, authentications, and heartbeats) that occurred over time. This can be used to identify trends and patterns in activity. It is non-interactable.
 
-The Upgrade Status visualization show a summary of all instances grouped by upgrade status; up-to-date, upgrade available, patch available, or incompatible. Status labels are selectable, and will prepopulate the advanced search with the appropriate filter. For example, if the auth server is running v18 the filter will be populated with `semver_lt(version, "16.0.0")` when a user selects "not supported".
+The Upgrade Status visualization show a summary of all instances grouped by upgrade status; up-to-date, upgrade available, patch available, or incompatible. Status labels are selectable, and will prepopulate the advanced search with the appropriate filter. For example, if the auth server is running v18 the filter will be populated with `older_than(version, "16.0.0")` when a user selects "not supported".
 
 The Notices visualization shows a summary of all notices across all instances. They're conveniently grouped by notice title and a count is included. Each item selectable, and will prepopulate the advances fiilter (e.g. `contains(notices, "Proxy URL not set")`). This visualization will be hidded if there is no data to display.
 
@@ -112,7 +112,7 @@ The list bot instances command will include extra information about each instanc
 +
 + Filter:
 + Search text: "ip-10-0-15"
-+ Query: semver_lt(version, "18.0.0")
++ Query: older_than(version, "18.0.0")
 + Results: 128
 +
 To view more information on a particular instance, run:
@@ -177,12 +177,12 @@ To onboard a new instance for this bot, run:
 
 The predicate language will be used to provide advanced filtering for instances. The filter query will be applied in the same way the existing filters work, and no changes to indexes are required. As items are read out of the backend storage, they are filtered one by one until the page size is reached or the end of the list. For a narrow filter, many or even all records will be scanned - this inefficiency is mitigated by the in-memory caching layer's performance.
 
-Instance-specific functions will be supported, such as those in the table below.
+Instance-specific functions will be supported by implementing a custom `typical.ParserSpec`, such as those in the table below.
 
 | Purpose | Example |
 | --- | --- |
-| Find instances running versions less than a given version - based on the most recent heartbeat | `semver_lt(version, 18.1.0)` |
-| Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat | `semver_gte(version, "18.0.0") && semver_lt(version, "18.1.0")` |
+| Find instances running versions less than a given version - based on the most recent heartbeat | `older_than(version, 18.1.0)` |
+| Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat | `newer_than_or_equal(version, "18.0.0") && older_than(version, "18.1.0")` |
 | Find instances which have a particular notice (by title) | `contains(notices, "Proxy URL not set")` |
 
 ## Privacy and Security
@@ -403,7 +403,7 @@ To avoid the need to "elect" a leader to calculate these metrics, each auth serv
 
 **GET /v2/webapi/sites/:site/machine-id/bot-instance**
 
-A new version of an existing API with a `query` parameter added to accept a string query in the Teleport predicate language (e.g. `semver_lt(version, 18.1)`) which is used to filter returned instances.
+A new version of an existing API with a `query` parameter added to accept a string query in the Teleport predicate language (e.g. `older_than(version, 18.1)`) which is used to filter returned instances.
 
 In the situation where a new web client sends a request to an old proxy (in a load balanced setup), the old proxy will not host the new endpoint and will return a 404 and the proxy’s version. A helpful message is then displayed to the user advising that the proxy needs to be upgraded to support the operation.
 
@@ -439,7 +439,7 @@ In this phase we’ll focus on the requirements to manage the versions of bot in
 
 The instances list from the bot details will be reused with minimal changes (except the addition of bot name), and the details view will simply house the full instance yaml (including auth records and heartbeats). This lays the UI foundation for the following phases.
 
-The search field will get an ‘advanced’ mode where the Teleport predicate language can be used to filter items using semver-aware functions (such as `semver_lt` and `semver_gte`).
+The search field will get an ‘advanced’ mode where the Teleport predicate language can be used to filter items using semver-aware functions (such as `older_than` and `newer_than_or_equal`).
 
 An additional sort, by version, will also be included.
 
