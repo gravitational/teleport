@@ -118,7 +118,7 @@ To view more information on a particular instance, run:
 
 ### tctl bots instances show [id]
 
-The should bot instance command gives an overall health summary as well as a listing of services and their respective health status. A list of notices is also included.
+The show bot instance command gives an overall health summary as well as a listing of services and their respective health status. A list of notices is also included.
 
 ```diff
 Bot: w2w-demo-app-bot
@@ -421,7 +421,7 @@ A new endpoint to return summary data for bot instances. The result will contain
 
 > Include any changes or additions that will need to be made to the [Test Plan](https://www.notion.so/.github/ISSUE_TEMPLATE/testplan.md) to appropriately test the changes in your design doc and prevent any regressions from happening in the future.
 
-// TODO
+Addition after a Machine ID bot is created and an instance enrolled: "In the UI, a single Bot Instance record shows, with a heartbeat and an authentication record." and "In the CLI, using `tctl bot instance show [bot name]/[instance id]`, a single Bot Instance record shows, with a heartbeat and an authentication record.".
 
 # Delivery phases
 
