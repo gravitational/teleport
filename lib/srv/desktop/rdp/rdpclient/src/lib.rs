@@ -45,12 +45,15 @@ use std::ptr;
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
+mod decoder;
 mod license;
 mod network_client;
 mod piv;
 mod rdpdr;
 mod ssl;
 mod util;
+
+use decoder::{ProcessorOutput, RdpDecoder};
 
 /// rdpclient_init_log should be called at initialization time to set up
 /// logging on the rdpclient side.
@@ -810,4 +813,379 @@ pub struct CGOLicenseRequest {
     issuer: *const c_char,
     company: *const c_char,
     product_id: *const c_char,
+}
+
+// RDP Decoder FFI structures
+#[repr(C)]
+pub struct CGOFrameUpdate {
+    pub x: u16,
+    pub y: u16,
+    pub width: u16,
+    pub height: u16,
+    pub data_len: u32,
+    pub data: *mut u8,
+}
+
+#[repr(C)]
+pub struct CGOPointerUpdate {
+    pub width: u16,
+    pub height: u16,
+    pub hotspot_x: u16,
+    pub hotspot_y: u16,
+    pub data_len: u32,
+    pub data: *mut u8,
+}
+
+#[repr(C)]
+pub enum CGOProcessorOutputType {
+    GraphicsUpdate = 0,
+    ResponseFrame = 1,
+    PointerBitmap = 2,
+    PointerDefault = 3,
+    PointerHidden = 4,
+    PointerPosition = 5,
+}
+
+#[repr(C)]
+pub struct CGOProcessorOutput {
+    pub output_type: CGOProcessorOutputType,
+    // For GraphicsUpdate
+    pub frame_update: CGOFrameUpdate,
+    // For ResponseFrame
+    pub response_len: u32,
+    pub response_data: *mut u8,
+    // For PointerBitmap
+    pub pointer_update: CGOPointerUpdate,
+    // For PointerPosition
+    pub pointer_x: u16,
+    pub pointer_y: u16,
+}
+
+#[repr(C)]
+pub struct CGOProcessResult {
+    pub outputs_len: u32,
+    pub outputs: *mut CGOProcessorOutput,
+    pub error_message: *mut c_char,
+}
+
+/// rdp_decoder_new creates a new RDP decoder instance
+///
+/// # Safety
+///
+/// The returned pointer must be freed with rdp_decoder_free
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_new(
+    width: u16,
+    height: u16,
+    io_channel_id: u16,
+    user_channel_id: u16,
+) -> *mut RdpDecoder {
+    Box::into_raw(Box::new(RdpDecoder::new(width, height, io_channel_id, user_channel_id)))
+}
+
+/// rdp_decoder_free frees the RDP decoder instance
+///
+/// # Safety
+///
+/// The decoder pointer must be valid and created by rdp_decoder_new
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_free(decoder: *mut RdpDecoder) {
+    if !decoder.is_null() {
+        drop(Box::from_raw(decoder));
+    }
+}
+
+/// rdp_decoder_resize resizes the decoder's frame buffer
+///
+/// # Safety
+///
+/// The decoder pointer must be valid
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_resize(
+    decoder: *mut RdpDecoder,
+    width: u16,
+    height: u16,
+) -> CGOErrCode {
+    if decoder.is_null() {
+        return CGOErrCode::ErrCodeClientPtr;
+    }
+    
+    let decoder = &mut *decoder;
+    match decoder.resize(width, height) {
+        Ok(_) => CGOErrCode::ErrCodeSuccess,
+        Err(_) => CGOErrCode::ErrCodeFailure,
+    }
+}
+
+/// rdp_decoder_process processes a TDP fast path frame
+/// 
+/// Caller must free the returned CGOProcessResult using rdp_decoder_free_result
+///
+/// # Safety
+///
+/// The decoder pointer must be valid
+/// The frame_data pointer must be valid
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_process(
+    decoder: *mut RdpDecoder,
+    frame_data: *const u8,
+    frame_len: u32,
+) -> CGOProcessResult {
+    if decoder.is_null() {
+        return CGOProcessResult {
+            outputs_len: 0,
+            outputs: ptr::null_mut(),
+            error_message: CString::new("decoder is null")
+                .map(|c| c.into_raw())
+                .unwrap_or(ptr::null_mut()),
+        };
+    }
+
+    let decoder = &mut *decoder;
+    let frame_slice = std::slice::from_raw_parts(frame_data, frame_len as usize);
+    
+    match decoder.process(frame_slice) {
+        Ok(result) => {
+            let outputs_len = result.outputs.len();
+            let mut cgo_outputs = Vec::with_capacity(outputs_len);
+            
+            for output in result.outputs {
+                let cgo_output = match output {
+                    ProcessorOutput::GraphicsUpdate(update) => {
+                        let data_len = update.data.len();
+                        let mut data_copy = update.data.into_boxed_slice();
+                        let data_ptr = data_copy.as_mut_ptr();
+                        std::mem::forget(data_copy);
+                        
+                        CGOProcessorOutput {
+                            output_type: CGOProcessorOutputType::GraphicsUpdate,
+                            frame_update: CGOFrameUpdate {
+                                x: update.x,
+                                y: update.y,
+                                width: update.width,
+                                height: update.height,
+                                data_len: data_len as u32,
+                                data: data_ptr,
+                            },
+                            response_len: 0,
+                            response_data: ptr::null_mut(),
+                            pointer_update: CGOPointerUpdate {
+                                width: 0,
+                                height: 0,
+                                hotspot_x: 0,
+                                hotspot_y: 0,
+                                data_len: 0,
+                                data: ptr::null_mut(),
+                            },
+                            pointer_x: 0,
+                            pointer_y: 0,
+                        }
+                    }
+                    ProcessorOutput::ResponseFrame(data) => {
+                        let data_len = data.len();
+                        let mut data_copy = data.into_boxed_slice();
+                        let data_ptr = data_copy.as_mut_ptr();
+                        std::mem::forget(data_copy);
+                        
+                        CGOProcessorOutput {
+                            output_type: CGOProcessorOutputType::ResponseFrame,
+                            frame_update: CGOFrameUpdate {
+                                x: 0,
+                                y: 0,
+                                width: 0,
+                                height: 0,
+                                data_len: 0,
+                                data: ptr::null_mut(),
+                            },
+                            response_len: data_len as u32,
+                            response_data: data_ptr,
+                            pointer_update: CGOPointerUpdate {
+                                width: 0,
+                                height: 0,
+                                hotspot_x: 0,
+                                hotspot_y: 0,
+                                data_len: 0,
+                                data: ptr::null_mut(),
+                            },
+                            pointer_x: 0,
+                            pointer_y: 0,
+                        }
+                    }
+                    ProcessorOutput::PointerBitmap(update) => {
+                        let data_len = update.bitmap_data.len();
+                        let mut data_copy = update.bitmap_data.into_boxed_slice();
+                        let data_ptr = data_copy.as_mut_ptr();
+                        std::mem::forget(data_copy);
+                        
+                        CGOProcessorOutput {
+                            output_type: CGOProcessorOutputType::PointerBitmap,
+                            frame_update: CGOFrameUpdate {
+                                x: 0,
+                                y: 0,
+                                width: 0,
+                                height: 0,
+                                data_len: 0,
+                                data: ptr::null_mut(),
+                            },
+                            response_len: 0,
+                            response_data: ptr::null_mut(),
+                            pointer_update: CGOPointerUpdate {
+                                width: update.width,
+                                height: update.height,
+                                hotspot_x: update.hotspot_x,
+                                hotspot_y: update.hotspot_y,
+                                data_len: data_len as u32,
+                                data: data_ptr,
+                            },
+                            pointer_x: 0,
+                            pointer_y: 0,
+                        }
+                    }
+                    ProcessorOutput::PointerDefault => CGOProcessorOutput {
+                        output_type: CGOProcessorOutputType::PointerDefault,
+                        frame_update: CGOFrameUpdate {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0,
+                            data_len: 0,
+                            data: ptr::null_mut(),
+                        },
+                        response_len: 0,
+                        response_data: ptr::null_mut(),
+                        pointer_update: CGOPointerUpdate {
+                            width: 0,
+                            height: 0,
+                            hotspot_x: 0,
+                            hotspot_y: 0,
+                            data_len: 0,
+                            data: ptr::null_mut(),
+                        },
+                        pointer_x: 0,
+                        pointer_y: 0,
+                    },
+                    ProcessorOutput::PointerHidden => CGOProcessorOutput {
+                        output_type: CGOProcessorOutputType::PointerHidden,
+                        frame_update: CGOFrameUpdate {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0,
+                            data_len: 0,
+                            data: ptr::null_mut(),
+                        },
+                        response_len: 0,
+                        response_data: ptr::null_mut(),
+                        pointer_update: CGOPointerUpdate {
+                            width: 0,
+                            height: 0,
+                            hotspot_x: 0,
+                            hotspot_y: 0,
+                            data_len: 0,
+                            data: ptr::null_mut(),
+                        },
+                        pointer_x: 0,
+                        pointer_y: 0,
+                    },
+                    ProcessorOutput::PointerPosition { x, y } => CGOProcessorOutput {
+                        output_type: CGOProcessorOutputType::PointerPosition,
+                        frame_update: CGOFrameUpdate {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0,
+                            data_len: 0,
+                            data: ptr::null_mut(),
+                        },
+                        response_len: 0,
+                        response_data: ptr::null_mut(),
+                        pointer_update: CGOPointerUpdate {
+                            width: 0,
+                            height: 0,
+                            hotspot_x: 0,
+                            hotspot_y: 0,
+                            data_len: 0,
+                            data: ptr::null_mut(),
+                        },
+                        pointer_x: x,
+                        pointer_y: y,
+                    },
+                };
+                cgo_outputs.push(cgo_output);
+            }
+            
+            let mut outputs_boxed = cgo_outputs.into_boxed_slice();
+            let outputs_ptr = outputs_boxed.as_mut_ptr();
+            std::mem::forget(outputs_boxed);
+            
+            CGOProcessResult {
+                outputs_len: outputs_len as u32,
+                outputs: outputs_ptr,
+                error_message: ptr::null_mut(),
+            }
+        }
+        Err(e) => CGOProcessResult {
+            outputs_len: 0,
+            outputs: ptr::null_mut(),
+            error_message: CString::new(e)
+                .map(|c| c.into_raw())
+                .unwrap_or(ptr::null_mut()),
+        },
+    }
+}
+
+/// rdp_decoder_free_result frees the memory allocated for CGOProcessResult
+///
+/// # Safety
+///
+/// The result must be from rdp_decoder_process
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_free_result(result: CGOProcessResult) {
+    // Free the outputs array
+    if !result.outputs.is_null() && result.outputs_len > 0 {
+        let outputs = Vec::from_raw_parts(
+            result.outputs,
+            result.outputs_len as usize,
+            result.outputs_len as usize,
+        );
+        
+        // Free each output's data
+        for output in outputs {
+            match output.output_type {
+                CGOProcessorOutputType::GraphicsUpdate => {
+                    if !output.frame_update.data.is_null() && output.frame_update.data_len > 0 {
+                        drop(Vec::from_raw_parts(
+                            output.frame_update.data,
+                            output.frame_update.data_len as usize,
+                            output.frame_update.data_len as usize,
+                        ));
+                    }
+                }
+                CGOProcessorOutputType::ResponseFrame => {
+                    if !output.response_data.is_null() && output.response_len > 0 {
+                        drop(Vec::from_raw_parts(
+                            output.response_data,
+                            output.response_len as usize,
+                            output.response_len as usize,
+                        ));
+                    }
+                }
+                CGOProcessorOutputType::PointerBitmap => {
+                    if !output.pointer_update.data.is_null() && output.pointer_update.data_len > 0 {
+                        drop(Vec::from_raw_parts(
+                            output.pointer_update.data,
+                            output.pointer_update.data_len as usize,
+                            output.pointer_update.data_len as usize,
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    
+    // Free error message
+    if !result.error_message.is_null() {
+        drop(CString::from_raw(result.error_message));
+    }
 }
