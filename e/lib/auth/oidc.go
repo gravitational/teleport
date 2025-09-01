@@ -994,12 +994,25 @@ func (oas *OIDCAuthService) retrieveIDTokenClaims(ctx context.Context, connector
 
 	idToken.IDTokenClaims.SetUserInfo(userInfo)
 
-	if isGoogleWorkspaceConnector(connector) {
+	switch {
+	case isGoogleWorkspaceConnector(connector):
 		if err = addGoogleWorkspaceClaims(ctx, connector, idToken); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case isEntraIDConnector(connector):
+		provider := entraIDGroupsProvider{
+			connector:  connector,
+			idToken:    idToken,
+			logger:     logger,
+			httpClient: oas.client,
+		}
+		if err := provider.maybeFetchEntraIDGroups(ctx, nil /* graph client for test */); err != nil {
+			// swallowing error here to let the program continue
+			// with other claims that may be vaid enough for the
+			// SSO to succeed.
+			logger.ErrorContext(ctx, "Entra ID groups provider", "error", err)
+		}
 	}
-
 	return idToken, nil
 }
 
