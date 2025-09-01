@@ -34,15 +34,15 @@ It’s the responsibility of the **infrastructure security team** to own and man
 
 The upgrade process can vary depending on the flavour of Teleport in use (cloud, oss, etc), and how it’s deployed. A common step is to query for agents running a version which would become incompatible should an upgrade be done - using `tctl inventory ls --older-than=v18.0.0`. This command does not include bot instances, and `tctl bots instances ls` doesn’t return versions numbers for instances.
 
-As such, it is a difficult task to identify bot instances that may be running an old version of `tbot`. This is especially difficult at scale. The current bot instance list available in the web app allows filtering by version, although it’s a text search and it is not aware of semantic versioning - finding versions older than a given version is not possible.
+As such, it is a difficult task to identify bot instances that may be running an old version of `tbot`. This is especially difficult at scale. The current bot instance list available in the web UI allows filtering by version, although it’s a text search and it is not aware of semantic versioning - finding versions older than a given version is not possible.
 
-A breakdown of active instance versions will make the process of monitoring the version status easy at a glance, as well as provide convenient links to filter the instance list for versions already one or more major version behind the control plane (thereby preventing a safe upgrade). To facilitate this, the filter will allow queries such as `semver_lt(version, "18.1")`. The instance list will also indicate the status of an instance’s most recent version (as up-to-date, upgrade available, patch available, or incompatible).
+A breakdown of active instance versions will make the process of monitoring the version status easy at a glance, as well as provide convenient links to filter the instance list for versions already one or more major versions behind the control plane (thereby preventing a safe upgrade). To facilitate this in the web UI, the filter will allow queries such as `semver_lt(version, "18.1.0")`. The instance list will also indicate the status of an instance’s most recent version (as up-to-date, upgrade available, patch available, or incompatible). For the CLI, the `query` flag can be used to filter instances (e.g. `tctl bots instances ls --query=semver_lt(version, "18.1.0")`).
 
 **As a cluster owner (Infrastructure Security team), I want to know which Bot Instances, across all Bots, are running vulnerable versions.**
 
-Currently the instances list can be filtered by version, but this is a text search and it is not aware of semantic versioning. It’s possible to find a specific version number, but it’s not easy to isolate a range of versions, such as “>18 & <18.2.1”, which is likely required to find instances between a vulnerable and patched version.
+Currently in the web UI the instances list can be filtered by version, but this is a text search and it is not aware of semantic versioning. It’s possible to find a specific version number, but it’s not easy to isolate a range of versions, such as “>18 & <18.2.1”, which is likely required to find instances between a vulnerable and patched version.
 
-To support this use-case, the filter for bot instances will support the predicate language and allow queries such as `semver_gte(version, "18.1.0") && semver_lt(version, "19")`.
+To support this use-case, the filter for bot instances will support the predicate language and allow queries such as `semver_gte(version, "18.1.0") && semver_lt(version, "19.0.0")`. This works though the web UI and the CLI (`tctl`).
 
 **As a cluster owner (Infrastructure Security team), I want to know which Bot Instances are running with deprecated/problematic configuration.**
 
@@ -60,9 +60,9 @@ For somebody diagnosing an issue with `tbot`, they’re likely to have access to
 INFO [TBOT:IDENTITY] Fetched new bot identity identity:mwi-demo-aws-manager, id=5c6af2e6-13a4-48c1-855f-74d8b8e01d86 | valid: after=2025-08-21T12:10:15Z, before=2025-08-21T12:31:13Z, duration=20m58s | kind=tls, renewable=false, disallow-reissue=false, roles=[bot-mwi-demo-aws-manager], principals=[-teleport-internal-join], generation=1 tbot/service_bot_identity.go:224
 ```
 
-This log entry contains the bot name (as `identity`) and the instance’s ID. Either of these values can be used to filter the instances list, and should make finding the relevant instance easy.
+This log entry contains the bot name (as `identity`) and the instance’s ID. The instance ID can be used to filter the instances list in the web UI, and should make finding the relevant instance easy. In the CLI (`tctl`), both the bot name and instance ID are required to perform the look-up; `tctl bots instances show [bot_name]/[instance_id]`.
 
-Once found, the instance can be selected to view instance details. Here a health status can be found for each `tbot` service (outputs, tunnels, etc), which includes failure info for those services which are unhealthy. Additionally, a listing of all notices raised by the instance in it’s last run can be viewed, which may reveal the root cause of a failure.
+Once found, the instance's details can be seen. Here a health status can be found for each `tbot` service (outputs, tunnels, etc), which includes failure info for those services which are unhealthy. Additionally, a listing of all notices raised by the instance in it’s last run can be viewed, which may reveal the root cause of a failure. Notices are raised by `tbot` for actionable items that require attention, such as invalid config or deprecations.
 
 ### Instances dashboard
 
@@ -78,14 +78,88 @@ Once found, the instance can be selected to view instance details. Here a health
 
 ![](assets/0222-details-config.png)
 
+### tctl bots instances ls --search [freetext] --query [tql]
+
+```diff
+- ID                                         Join Method Hostname      Joined               Last Seen            Generation
+- ------------------------------------------ ----------- ------------- -------------------- -------------------- ----------
+- bot-1/d83b381d-b46c-4b92-a899-755991a6d0f5 iam         ip-10-0-15-34 2025-08-29T06:09:26Z 2025-09-01T12:49:26Z 237
+-
++ ID                                         Join Method Version Hostname      Status    Notices Last Seen
++ ------------------------------------------ ----------- ------- ------------- --------- ------- --------------------
++ bot-1/d83b381d-b46c-4b92-a899-755991a6d0f5 iam         v18.2.1 ip-10-0-15-34 UNHEALTHY 6       2025-09-01T12:49:26Z
++
++ Filter:
++ Search text: "ip-10-0-15"
++ Query: semver_lt(version, "18.0.0")
++ Results: 128
++
+To view more information on a particular instance, run:
+
+> /Users/nick.marais/.tsh/bin/tctl bots instances show [id]
+```
+
+### tctl bots instances show [id]
+
+```diff
+Bot: w2w-demo-app-bot
+ID:  d83b381d-b46c-4b92-a899-755991a6d0f5
++ Status: UNHEALTHY
+
+Initial Authentication:
+  Authenticated At: 2025-08-29T06:09:26Z
+  Join Method:      iam
+  Join Token:       w2w-demo-web-bot
+  Join Metadata:    meta:{join_token_name:"w2w-demo-web-bot" join_method:"iam"} iam:{account:"668558765449" arn:"arn:aws:sts::668558765449:assumed-role/MWIw2wDemoInstance/i-0b7667843950debfd"}
+  Generation:       1
+  Public Key:       <178 bytes>
+
+Latest Authentication:
+  Authenticated At: 2025-09-01T12:49:26Z
+  Join Method:      iam
+  Join Token:       w2w-demo-web-bot
+  Join Metadata:    meta:{join_token_name:"w2w-demo-web-bot" join_method:"iam"} iam:{account:"668558765449" arn:"arn:aws:sts::668558765449:assumed-role/MWIw2wDemoInstance/i-0b7667843950debfd"}
+  Generation:       237
+  Public Key:       <178 bytes>
+
+Latest Heartbeat:
+  Recorded At:  2025-09-01T12:39:26Z
+  Is Startup:   false
+  Version:      18.1.5
+  Hostname:     ip-10-0-15-34
+  Uptime:       78h30m0.539099441s
+  Join Method:  iam
+  One Shot:     false
+  Architecture: arm64
+  OS:           linux
++
++ Service status:
++ Status    Name        Type                Reason         Updated At
++ --------- ----------- ------------------- -------------- --------------------
++ UNHEALTHY prod-aws-01 X509-output-service out of bananas 2025-09-01T12:49:26Z
++
++ Notices:
++ Type                Service     Message                              Raised At
++ ------------------- ----------- ------------------------------------ --------------------
++ DEPRECATION_WARNING prod-aws-01 Lorem ipsum delor sit amet (v19.0.0) 2025-09-01T12:49:26Z
+
+To view a full, machine-readable record including past heartbeats and authentication records, run:
+> /Users/nick.marais/.tsh/bin/tctl get bot_instance/w2w-demo-app-bot/d83b381d-b46c-4b92-a899-755991a6d0f5
+
+To onboard a new instance for this bot, run:
+> /Users/nick.marais/.tsh/bin/tctl bots instances add w2w-demo-app-bot
+```
+
 ### Predicate language for instance filters
 
-The predicate language will be used to provide advanced filtering for instances. The filter query will be applied in the same way the existing filters work, and no changes to indexes are required. As items are read out of the backend storage, they are filtered one by one until the page size is reached or the end of the list. For a narrow filter, many or even all records will be scanned - this inefficiency is mitigated by the in-memory caching layer's performance. A custom language parser will be used to provide instance-specific functions such as those in the table below.
+The predicate language will be used to provide advanced filtering for instances. The filter query will be applied in the same way the existing filters work, and no changes to indexes are required. As items are read out of the backend storage, they are filtered one by one until the page size is reached or the end of the list. For a narrow filter, many or even all records will be scanned - this inefficiency is mitigated by the in-memory caching layer's performance.
+
+Instance-specific functions will be supported, such as those in the table below.
 
 | Purpose | Example |
 | --- | --- |
-| Find instances running versions less than a given version - based on the most recent heartbeat | `semver_lt(version, 18.1)` |
-| Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat | `semver_gte(version, "18") && semver_lt(version, "18.1")` |
+| Find instances running versions less than a given version - based on the most recent heartbeat | `semver_lt(version, 18.1.0)` |
+| Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat | `semver_gte(version, "18.0.0") && semver_lt(version, "18.1.0")` |
 | Find instances which have a particular notice (by title) | `contains(notices, "Proxy URL not set")` |
 
 ## Privacy and Security
@@ -96,7 +170,7 @@ In order to allow instance config to be viewed without needing log in to the mac
 
 ## Heartbeat additions
 
-``` protobuf
+```protobuf
 message BotInstanceStatusHeartbeat {
   // ...[snip]...
 
