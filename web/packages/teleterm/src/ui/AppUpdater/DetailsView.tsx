@@ -172,7 +172,7 @@ function UpdaterState({
           {event.update && (
             <AvailableUpdate update={event.update} platform={platform} />
           )}
-          <Alert mb={1} details={event.error.message}>
+          <Alert mb={1} details={event.error.message} width="100%">
             {event.update
               ? 'Update failed'
               : event.error.name === UnsupportedVersionError.name
