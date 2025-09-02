@@ -20,8 +20,11 @@ package services
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
@@ -40,6 +43,8 @@ type AccessListsGetter interface {
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// ListAccessLists returns a paginated list of access lists.
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
+	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 	// GetAccessListsToReview returns access lists that the user needs to review.
@@ -275,4 +280,110 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 		review.SetExpiry(cfg.Expires)
 	}
 	return &review, nil
+}
+
+// MatchAccessList returns true if the access list matches the given filter criteria.
+// The function applies filters in sequence: owners, then roles, then search.
+// All provided filters must match for the access list to be included.
+//
+//   - If owners filter is provided, the access list must have at least one matching owner
+//   - If roles filter is provided, the access list must grant at least one matching role
+//   - If search filter is provided, all search terms must be found across the access list's
+//     title, name, owner names, description, granted roles, and origin fields
+//
+// All matching is case-insensitive and supports partial matches.
+func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFilter) bool {
+	search := req.GetSearch()
+	owners := req.GetOwners()
+	roles := req.GetRoles()
+	origin := req.GetOrigin()
+
+	if search == "" && len(owners) == 0 && len(roles) == 0 && origin == "" {
+		return true
+	}
+
+	// Step 1: Check owner filter if provided
+	if len(owners) > 0 {
+		ownerMatched := slices.ContainsFunc(owners, func(filterOwner string) bool {
+			return slices.ContainsFunc(al.Spec.Owners, func(alOwner accesslist.Owner) bool {
+				return strcase.Contains(alOwner.Name, filterOwner)
+			})
+		})
+		if !ownerMatched {
+			return false
+		}
+	}
+
+	// Step 2: Check role filter if provided
+	if len(roles) > 0 {
+		roleMatched := slices.ContainsFunc(roles, func(filterRole string) bool {
+			return slices.ContainsFunc(al.Spec.Grants.Roles, func(alRole string) bool {
+				return strcase.Contains(alRole, filterRole)
+			})
+		})
+		if !roleMatched {
+			return false
+		}
+	}
+
+	// Step 3: check the origin
+	if origin != "" && !strcase.Contains(al.Origin(), origin) {
+		return false
+	}
+
+	// Step 4: Check search filter if provided
+	if searchTerms := strings.Fields(search); len(searchTerms) > 0 {
+		// Check if all search terms are found across the access list fields
+		// without creating an intermediate slice
+		for _, term := range searchTerms {
+			termFound := false
+
+			// Check title
+			if strcase.Contains(al.Spec.Title, term) {
+				termFound = true
+			}
+
+			// Check name
+			if !termFound && strcase.Contains(al.GetName(), term) {
+				termFound = true
+			}
+
+			// Check description
+			if !termFound && strcase.Contains(al.Spec.Description, term) {
+				termFound = true
+			}
+
+			// Check origin
+			if !termFound && strcase.Contains(al.Origin(), term) {
+				termFound = true
+			}
+
+			// Check owner names
+			if !termFound {
+				for _, owner := range al.Spec.Owners {
+					if strcase.Contains(owner.Name, term) {
+						termFound = true
+						break
+					}
+				}
+			}
+
+			// Check roles
+			if !termFound {
+				for _, role := range al.Spec.Grants.Roles {
+					if strcase.Contains(role, term) {
+						termFound = true
+						break
+					}
+				}
+			}
+
+			// If this term wasn't found in any field, the search fails
+			if !termFound {
+				return false
+			}
+		}
+	}
+
+	return true
 }
