@@ -434,6 +434,7 @@ loop:
 	)
 
 	sessionEndEvent.SetTime(lastEvent.GetTime())
+	sessionEndEvent.SetIndex(lastEvent.GetIndex() + 1)
 
 	// Check and set event fields
 	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {

@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/internal"
@@ -83,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1508,7 +1510,24 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 		Protocol:   events.EventProtocolKube,
 	}
 
-	sessionStartEvent := &apievents.SessionStart{
+	recorder, err := recorder.New(recorder.Config{
+		SessionID:    tsession.ID(sessionMetadata.SessionID),
+		ServerID:     serverMetadata.ServerID,
+		Namespace:    serverMetadata.ServerNamespace,
+		ClusterName:  f.cfg.ClusterName,
+		RecordingCfg: sess.recordingConfig,
+		SyncStreamer: f.cfg.AuthClient,
+		DataDir:      f.cfg.DataDir,
+		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		// Session stream is using forwarder context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context: f.ctx,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessionStartEvent, err := recorder.PrepareSessionEvent(&apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
@@ -1523,9 +1542,12 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 
 		InitialCommand:   request.cmd,
 		SessionRecording: ctx.recordingConfig.GetMode(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
+	if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, sessionStartEvent.GetAuditEvent()); err != nil {
 		f.log.WarnContext(f.ctx, "Failed to emit event", "error", err)
 		return trace.Wrap(err)
 	}
@@ -1551,7 +1573,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 			f.log.WarnContext(f.ctx, "Failed to emit exec event", "error", err)
 		}
 
-		sessionEndEvent := &apievents.SessionEnd{
+		sessionEndEvent, err := recorder.PrepareSessionEvent(&apievents.SessionEnd{
 			Metadata: apievents.Metadata{
 				Type:        events.SessionEndEvent,
 				Code:        events.SessionEndCode,
@@ -1568,9 +1590,13 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 			SessionRecording:          ctx.recordingConfig.GetMode(),
+		})
+		if err != nil {
+			f.log.WarnContext(f.ctx, "Failed to prepare session end event", "error", err)
+			return
 		}
 
-		if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
+		if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, sessionEndEvent.GetAuditEvent()); err != nil {
 			f.log.WarnContext(f.ctx, "Failed to emit session end event", "error", err)
 		}
 	}()
