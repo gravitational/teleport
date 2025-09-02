@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { IntegrationPicker, titleOrName } from './IntegrationPicker';
+export { IntegrationPicker, displayName } from './IntegrationPicker';
 export {
   type IntegrationTag,
   type BaseIntegration,
