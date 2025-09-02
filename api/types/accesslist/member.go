@@ -119,9 +119,12 @@ func (a *AccessListMember) MatchSearch(values []string) bool {
 
 // Clone returns a copy of the member.
 func (a *AccessListMember) Clone() *AccessListMember {
-	var copy *AccessListMember
-	utils.StrictObjectToStruct(a, &copy)
-	return copy
+	if a == nil {
+		return nil
+	}
+	n := &AccessListMember{}
+	deriveDeepCopy(n, a)
+	return n
 }
 
 // IsExpired checks if the access list member is expired based on the current time.
