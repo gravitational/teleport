@@ -84,6 +84,11 @@ type HoverTooltipProps = {
    * Child to render. The type allows only a single child.
    */
   children: ReactElement<{ ref: Ref<HTMLElement> }>;
+  /**
+   * Optional HTMLElement to render the portal into.
+   * Defaults to `document.body`.
+   */
+  portalRoot?: HTMLElement;
 };
 
 /**
@@ -103,6 +108,7 @@ export const HoverTooltip = ({
   delay = 0,
   disableFlip = false,
   disableTransitions = false,
+  portalRoot,
 }: HoverTooltipProps) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
@@ -197,7 +203,7 @@ export const HoverTooltip = ({
     <>
       {childWithRef}
       {isMounted && tipContent && (
-        <FloatingPortal>
+        <FloatingPortal root={portalRoot}>
           <StyledTooltip
             data-testid="tooltip"
             ref={refs.setFloating}

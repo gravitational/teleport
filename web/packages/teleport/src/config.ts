@@ -526,6 +526,8 @@ const cfg = {
     sessionRecording: {
       metadata:
         '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws',
+      playback:
+        '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
   },
@@ -934,6 +936,13 @@ const cfg = {
       clusterId,
       sessionId,
       fqdn,
+    });
+  },
+
+  getSessionRecordingPlaybackUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.playback, {
+      clusterId,
+      sessionId,
     });
   },
 

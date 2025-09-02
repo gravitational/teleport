@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+import { flexShrink, type FlexShrinkProps } from 'styled-system';
 
 import {
   alignItems,
@@ -51,7 +52,8 @@ export interface FlexProps
     BoxShadowProps,
     RowGapProps,
     ColumnGapProps,
-    GapProps {
+    GapProps,
+    FlexShrinkProps {
   /**
    * Uses inline-flex instead of just flex as the display property.
    */
@@ -71,6 +73,7 @@ const Flex = styled(Box)<FlexProps>`
   ${rowGap}
   ${columnGap}
   ${gap}
+  ${flexShrink}
 
   ${props =>
     props.fullWidth &&

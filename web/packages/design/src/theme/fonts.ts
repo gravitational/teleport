@@ -34,7 +34,7 @@ export const fonts: Fonts = {
   mono: getMonoFont(),
 };
 
-function getMonoFont() {
+export function getMonoFont() {
   const platform = getPlatformType();
 
   if (platform.isLinux) {

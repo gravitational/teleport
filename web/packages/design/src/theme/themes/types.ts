@@ -225,6 +225,14 @@ export type ThemeColors = {
   sessionRecording: {
     resource: string;
     user: string;
+    player: {
+      background: string;
+      progressBar: {
+        background: string;
+        seeking: string;
+        progress: string;
+      };
+    };
   };
 
   sessionRecordingTimeline: {
