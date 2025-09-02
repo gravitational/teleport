@@ -1900,7 +1900,7 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt rustup-install-wasm-toolchain
 
 # Get the version of wasm-bindgen from cargo
 # Note, has 'v' prefix, e.g., v0.2.99

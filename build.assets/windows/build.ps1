@@ -172,7 +172,6 @@ function Install-WasmDeps {
     
     Write-Host "::group::Installing wasm-bindgen-cli, wasm-opt, and wasm32-unknown-unknown toolchain"
     make -C "$TeleportSourceDirectory" ensure-wasm-deps
-    make -C "$TeleportSourceDirectory" rustup-install-wasm-toolchain
     Write-Host "::endgroup::"
 }
 
