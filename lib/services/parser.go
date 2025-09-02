@@ -167,14 +167,14 @@ func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
 			"contains":     predicate.Contains,
 			"contains_all": predicateContainsAll,
 			"contains_any": predicateContainsAny,
-			"set": func(a ...any) types.WhereExpr {
+			"set": func(a ...any) []string {
 				aVal := make([]string, 0, len(a))
 				for _, v := range a {
 					if str, ok := v.(string); ok {
 						aVal = append(aVal, str)
 					}
 				}
-				return types.WhereExpr{Literal: aVal}
+				return aVal
 			},
 			"all_end_with": predicateAllEndWith,
 			"all_equal":    predicateAllEqual,
