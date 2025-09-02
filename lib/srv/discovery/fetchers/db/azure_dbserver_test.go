@@ -50,8 +50,8 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		subscription2 = "sub2"
 	)
 
-	azureSub1 := makeAzureSubscription(t, subscription1)
-	azureSub2 := makeAzureSubscription(t, subscription2)
+	azureSub1 := makeAzureSubscription(subscription1)
+	azureSub2 := makeAzureSubscription(subscription2)
 
 	azMySQLServer1, azMySQLDB1 := makeAzureMySQLServer(t, "server-1", subscription1, group1, eastus, map[string]string{"env": "prod"})
 	azMySQLServer2, _ := makeAzureMySQLServer(t, "server-2", subscription1, group1, eastus, map[string]string{"env": "dev"})
@@ -307,7 +307,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 	}
 }
 
-func makeAzureSubscription(t *testing.T, subID string) *armsubscription.Subscription {
+func makeAzureSubscription(subID string) *armsubscription.Subscription {
 	return &armsubscription.Subscription{
 		SubscriptionID: &subID,
 		State:          to.Ptr(armsubscription.SubscriptionStateEnabled),

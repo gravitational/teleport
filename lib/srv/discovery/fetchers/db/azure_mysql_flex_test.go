@@ -37,7 +37,7 @@ import (
 func TestAzureMySQLFlexFetchers(t *testing.T) {
 	t.Parallel()
 
-	azureSub := makeAzureSubscription(t, "sub123")
+	azureSub := makeAzureSubscription("sub123")
 	azMySQLFlexServer, azMySQLFlexDB := makeAzureMySQLFlexServer(t, "mysql-flex", "sub123", "group 1", "East US", map[string]string{"env": "prod"})
 	azureMatchers := []types.AzureMatcher{{
 		Types:        []string{types.AzureMatcherMySQL},
