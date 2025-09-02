@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -33,6 +34,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/google/uuid"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -40,6 +43,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // graphVersion is the default version of the MS Graph API endpoint.
@@ -90,6 +95,7 @@ type Config struct {
 	PageSize int
 	// GraphEndpoint specifies root domain of the Graph API.
 	GraphEndpoint string
+	Logger        *slog.Logger
 }
 
 // SetDefaults sets the default values for optional fields.
@@ -108,6 +114,9 @@ func (cfg *Config) SetDefaults() {
 	}
 	if cfg.GraphEndpoint == "" {
 		cfg.GraphEndpoint = types.MSGraphDefaultEndpoint
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, "msgraph")
 	}
 }
 
@@ -132,6 +141,7 @@ type Client struct {
 	retryConfig   retryutils.RetryV2Config
 	baseURL       *url.URL
 	pageSize      int
+	logger        *slog.Logger
 }
 
 // NewClient returns a new client for the given config.
@@ -151,6 +161,7 @@ func NewClient(cfg Config) (*Client, error) {
 		retryConfig:   *cfg.RetryConfig,
 		baseURL:       base.JoinPath(graphVersion),
 		pageSize:      cfg.PageSize,
+		logger:        cfg.Logger,
 	}, nil
 }
 
@@ -202,13 +213,32 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 	}
 
 	var lastErr error
-	for range maxRetries {
+	for retryCount := range maxRetries {
 		if retryAfter > 0 {
 			select {
 			case <-c.clock.After(retryAfter):
 			case <-ctx.Done():
 				return nil, trace.NewAggregate(ctx.Err(), trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path))
 			}
+		}
+
+		{
+			authz := req.Header.Get("Authorization")
+			req.Header.Set("Authorization", "redacted")
+
+			// Unescape the query for clearer logs.
+			u := uri
+			if val, err := url.QueryUnescape(uri); err == nil {
+				u = val
+			}
+
+			c.logger.Log(req.Context(), log.TraceLevel, "Executing HTTP request",
+				"url", u,
+				"header", req.Header,
+				"retry_count", retryCount,
+				"clock_time", c.clock.Now(),
+			)
+			req.Header.Set("Authorization", authz)
 		}
 
 		resp, err := c.httpClient.Do(req)
@@ -220,8 +250,21 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			return resp, nil
 		}
 
-		graphError, err := readError(resp.Body, resp.StatusCode)
-		resp.Body.Close()
+		respBody, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := resp.Body.Close(); err != nil {
+			c.logger.WarnContext(req.Context(), "Failed to close http.Responde body", "error", err)
+		}
+
+		c.logger.DebugContext(req.Context(), "Request failed",
+			"body", string(respBody),
+			"status", resp.StatusCode,
+			"url", req.URL,
+		)
+
+		graphError, err := readError(respBody, resp.StatusCode)
 		if err != nil {
 			lastErr = err // error while reading the graph error, relay
 		} else if graphError != nil {

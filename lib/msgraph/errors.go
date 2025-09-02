@@ -71,9 +71,9 @@ func (g *GraphError) Error() string {
 	return strings.Join(parts, ": ")
 }
 
-func readError(r io.Reader, statusCode int) (*GraphError, error) {
+func readError(body []byte, statusCode int) (*GraphError, error) {
 	var errResponse graphErrorResponse
-	if err := json.NewDecoder(r).Decode(&errResponse); err != nil {
+	if err := json.Unmarshal(body, &errResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if errResponse.Error == nil {
