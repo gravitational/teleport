@@ -47,8 +47,11 @@ func deriveTeleportEqual_(this, that *Spec) bool {
 			deriveTeleportEqual_3(this.OriginalTraits, that.OriginalTraits) &&
 			deriveTeleportEqual_2(this.Roles, that.Roles) &&
 			deriveTeleportEqual_3(this.Traits, that.Traits) &&
+			deriveTeleportEqual_2(this.AccessListRoles, that.AccessListRoles) &&
+			deriveTeleportEqual_3(this.AccessListTraits, that.AccessListTraits) &&
 			this.UserType == that.UserType &&
-			deriveTeleportEqual_4(this.GitHubIdentity, that.GitHubIdentity)
+			deriveTeleportEqual_4(this.GitHubIdentity, that.GitHubIdentity) &&
+			deriveTeleportEqual_5(this.SAMLIdentities, that.SAMLIdentities)
 }
 
 // deriveDeepCopy recursively copies the contents of src into dst.
@@ -113,12 +116,54 @@ func deriveDeepCopy_(dst, src *Spec) {
 	} else {
 		dst.Traits = nil
 	}
+	if src.AccessListRoles == nil {
+		dst.AccessListRoles = nil
+	} else {
+		if dst.AccessListRoles != nil {
+			if len(src.AccessListRoles) > len(dst.AccessListRoles) {
+				if cap(dst.AccessListRoles) >= len(src.AccessListRoles) {
+					dst.AccessListRoles = (dst.AccessListRoles)[:len(src.AccessListRoles)]
+				} else {
+					dst.AccessListRoles = make([]string, len(src.AccessListRoles))
+				}
+			} else if len(src.AccessListRoles) < len(dst.AccessListRoles) {
+				dst.AccessListRoles = (dst.AccessListRoles)[:len(src.AccessListRoles)]
+			}
+		} else {
+			dst.AccessListRoles = make([]string, len(src.AccessListRoles))
+		}
+		copy(dst.AccessListRoles, src.AccessListRoles)
+	}
+	if src.AccessListTraits != nil {
+		dst.AccessListTraits = make(map[string][]string, len(src.AccessListTraits))
+		deriveDeepCopy_2(dst.AccessListTraits, src.AccessListTraits)
+	} else {
+		dst.AccessListTraits = nil
+	}
 	dst.UserType = src.UserType
 	if src.GitHubIdentity == nil {
 		dst.GitHubIdentity = nil
 	} else {
 		dst.GitHubIdentity = new(ExternalIdentity)
-		*dst.GitHubIdentity = *src.GitHubIdentity
+		deriveDeepCopy_3(dst.GitHubIdentity, src.GitHubIdentity)
+	}
+	if src.SAMLIdentities == nil {
+		dst.SAMLIdentities = nil
+	} else {
+		if dst.SAMLIdentities != nil {
+			if len(src.SAMLIdentities) > len(dst.SAMLIdentities) {
+				if cap(dst.SAMLIdentities) >= len(src.SAMLIdentities) {
+					dst.SAMLIdentities = (dst.SAMLIdentities)[:len(src.SAMLIdentities)]
+				} else {
+					dst.SAMLIdentities = make([]ExternalIdentity, len(src.SAMLIdentities))
+				}
+			} else if len(src.SAMLIdentities) < len(dst.SAMLIdentities) {
+				dst.SAMLIdentities = (dst.SAMLIdentities)[:len(src.SAMLIdentities)]
+			}
+		} else {
+			dst.SAMLIdentities = make([]ExternalIdentity, len(src.SAMLIdentities))
+		}
+		deriveDeepCopy_4(dst.SAMLIdentities, src.SAMLIdentities)
 	}
 }
 
@@ -128,7 +173,7 @@ func deriveTeleportEqual_1(this, that *header.Metadata) bool {
 		this != nil && that != nil &&
 			this.Name == that.Name &&
 			this.Description == that.Description &&
-			deriveTeleportEqual_5(this.Labels, that.Labels) &&
+			deriveTeleportEqual_6(this.Labels, that.Labels) &&
 			this.Expires.Equal(that.Expires)
 }
 
@@ -172,8 +217,27 @@ func deriveTeleportEqual_3(this, that map[string][]string) bool {
 func deriveTeleportEqual_4(this, that *ExternalIdentity) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
+			this.ConnectorID == that.ConnectorID &&
 			this.UserID == that.UserID &&
-			this.Username == that.Username
+			this.Username == that.Username &&
+			deriveTeleportEqual_2(this.GrantedRoles, that.GrantedRoles) &&
+			deriveTeleportEqual_3(this.GrantedTraits, that.GrantedTraits)
+}
+
+// deriveTeleportEqual_5 returns whether this and that are equal.
+func deriveTeleportEqual_5(this, that []ExternalIdentity) bool {
+	if this == nil || that == nil {
+		return this == nil && that == nil
+	}
+	if len(this) != len(that) {
+		return false
+	}
+	for i := 0; i < len(this); i++ {
+		if !(deriveTeleportEqual_4(&this[i], &that[i])) {
+			return false
+		}
+	}
+	return true
 }
 
 // deriveDeepCopy_1 recursively copies the contents of src into dst.
@@ -182,13 +246,13 @@ func deriveDeepCopy_1(dst, src *header.Metadata) {
 	dst.Description = src.Description
 	if src.Labels != nil {
 		dst.Labels = make(map[string]string, len(src.Labels))
-		deriveDeepCopy_3(dst.Labels, src.Labels)
+		deriveDeepCopy_5(dst.Labels, src.Labels)
 	} else {
 		dst.Labels = nil
 	}
 	func() {
 		field := new(time.Time)
-		deriveDeepCopy_4(field, &src.Expires)
+		deriveDeepCopy_6(field, &src.Expires)
 		dst.Expires = *field
 	}()
 	dst.Revision = src.Revision
@@ -221,8 +285,50 @@ func deriveDeepCopy_2(dst, src map[string][]string) {
 	}
 }
 
-// deriveTeleportEqual_5 returns whether this and that are equal.
-func deriveTeleportEqual_5(this, that map[string]string) bool {
+// deriveDeepCopy_3 recursively copies the contents of src into dst.
+func deriveDeepCopy_3(dst, src *ExternalIdentity) {
+	dst.ConnectorID = src.ConnectorID
+	dst.UserID = src.UserID
+	dst.Username = src.Username
+	if src.GrantedRoles == nil {
+		dst.GrantedRoles = nil
+	} else {
+		if dst.GrantedRoles != nil {
+			if len(src.GrantedRoles) > len(dst.GrantedRoles) {
+				if cap(dst.GrantedRoles) >= len(src.GrantedRoles) {
+					dst.GrantedRoles = (dst.GrantedRoles)[:len(src.GrantedRoles)]
+				} else {
+					dst.GrantedRoles = make([]string, len(src.GrantedRoles))
+				}
+			} else if len(src.GrantedRoles) < len(dst.GrantedRoles) {
+				dst.GrantedRoles = (dst.GrantedRoles)[:len(src.GrantedRoles)]
+			}
+		} else {
+			dst.GrantedRoles = make([]string, len(src.GrantedRoles))
+		}
+		copy(dst.GrantedRoles, src.GrantedRoles)
+	}
+	if src.GrantedTraits != nil {
+		dst.GrantedTraits = make(map[string][]string, len(src.GrantedTraits))
+		deriveDeepCopy_2(dst.GrantedTraits, src.GrantedTraits)
+	} else {
+		dst.GrantedTraits = nil
+	}
+}
+
+// deriveDeepCopy_4 recursively copies the contents of src into dst.
+func deriveDeepCopy_4(dst, src []ExternalIdentity) {
+	for src_i, src_value := range src {
+		func() {
+			field := new(ExternalIdentity)
+			deriveDeepCopy_3(field, &src_value)
+			dst[src_i] = *field
+		}()
+	}
+}
+
+// deriveTeleportEqual_6 returns whether this and that are equal.
+func deriveTeleportEqual_6(this, that map[string]string) bool {
 	if this == nil || that == nil {
 		return this == nil && that == nil
 	}
@@ -241,14 +347,14 @@ func deriveTeleportEqual_5(this, that map[string]string) bool {
 	return true
 }
 
-// deriveDeepCopy_3 recursively copies the contents of src into dst.
-func deriveDeepCopy_3(dst, src map[string]string) {
+// deriveDeepCopy_5 recursively copies the contents of src into dst.
+func deriveDeepCopy_5(dst, src map[string]string) {
 	for src_key, src_value := range src {
 		dst[src_key] = src_value
 	}
 }
 
-// deriveDeepCopy_4 recursively copies the contents of src into dst.
-func deriveDeepCopy_4(dst, src *time.Time) {
+// deriveDeepCopy_6 recursively copies the contents of src into dst.
+func deriveDeepCopy_6(dst, src *time.Time) {
 	*dst = *src
 }
