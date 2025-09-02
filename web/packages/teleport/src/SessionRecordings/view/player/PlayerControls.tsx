@@ -25,7 +25,6 @@ import {
   type RefObject,
 } from 'react';
 import styled from 'styled-components';
-
 import Box from 'web/packages/design/src/Box';
 import Flex from 'web/packages/design/src/Flex';
 import {
@@ -34,7 +33,6 @@ import {
   CornersIn,
   CornersOut,
   FilmStrip,
-  Keyboard,
   Layout,
   Refresh,
   Spinner,
@@ -217,15 +215,6 @@ export function PlayerControls({
           <ProgressBar ref={progressBarRef} />
         </ProgressBarContainer>
       </ProgressBarArea>
-
-      <HoverTooltip
-        tipContent="Keyboard Shortcuts"
-        portalRoot={containerRef.current}
-      >
-        <PlayerButton>
-          <Keyboard size="small" />
-        </PlayerButton>
-      </HoverTooltip>
 
       {onToggleTimeline && (
         <HoverTooltip
