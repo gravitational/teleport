@@ -123,7 +123,7 @@ func (a *AccessListMember) Clone() *AccessListMember {
 		return nil
 	}
 	n := &AccessListMember{}
-	deriveDeepCopy(n, a)
+	deriveDeepCopyAccessListMember(n, a)
 	return n
 }
 

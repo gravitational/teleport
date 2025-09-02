@@ -440,9 +440,12 @@ func (a *AccessList) MatchSearch(values []string) bool {
 
 // Clone returns a copy of the list.
 func (a *AccessList) Clone() *AccessList {
-	var copy *AccessList
-	utils.StrictObjectToStruct(a, &copy)
-	return copy
+	if a == nil {
+		return nil
+	}
+	n := &AccessList{}
+	deriveDeepCopyAccessList(n, a)
+	return n
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
