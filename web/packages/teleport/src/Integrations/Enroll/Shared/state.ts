@@ -17,8 +17,6 @@
  */
 
 import {
-  startTransition,
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -140,39 +138,19 @@ export function statesAreEqual(
   );
 }
 
+// useIntegrationPickerState is a custom hook that manages the state of the the Integration Picker,
+// syncing it with the URL search parameters.
+// It allows for state updates and ensures that the URL reflects the current state.
+// It also listens for changes in the URL to update the state accordingly.
+// Repurposed from SessionRecordings/list/state.ts
 export function useIntegrationPickerState(): [
   IntegrationPickerState,
   Dispatch<SetStateAction<IntegrationPickerState>>,
 ] {
   const history = useHistory();
 
-  const [state, _setState] = useState<IntegrationPickerState>(() =>
+  const [state, setState] = useState<IntegrationPickerState>(() =>
     searchParamsToState(new URLSearchParams(history.location.search))
-  );
-
-  const setState = useCallback(
-    (action: SetStateAction<IntegrationPickerState>) => {
-      startTransition(() => {
-        _setState(prev => {
-          let next: IntegrationPickerState;
-
-          if (typeof action === 'function') {
-            next = action(prev);
-
-            if (statesAreEqual(prev, next)) {
-              next = prev;
-            }
-          } else if (statesAreEqual(prev, action)) {
-            next = prev;
-          } else {
-            next = action;
-          }
-
-          return next;
-        });
-      });
-    },
-    []
   );
 
   const currentSearch = useRef<string>(history.location.search);
@@ -192,22 +170,19 @@ export function useIntegrationPickerState(): [
     }
 
     if (history.location.search !== currentSearch.current) {
-      history.replace({
-        hash: history.location.hash,
-        search: currentSearch.current,
-      });
+      history.replace({ search: currentSearch.current });
     }
   }, [history, state]);
 
   useEffect(() => {
     return history.listen(next => {
       if (next.search !== currentSearch.current) {
-        _setState(searchParamsToState(new URLSearchParams(next.search)));
+        setState(searchParamsToState(new URLSearchParams(next.search)));
 
         currentSearch.current = next.search;
       }
     });
   }, [history]);
 
-  return [state, setState] as const;
+  return [state, setState];
 }
