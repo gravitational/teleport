@@ -47,7 +47,7 @@ export const testQueryClient = new QueryClient({
   },
 });
 
-function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={testQueryClient}>
       <ConfiguredThemeProvider theme={darkTheme}>
