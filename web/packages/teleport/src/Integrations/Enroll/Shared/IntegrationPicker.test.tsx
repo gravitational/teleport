@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
+import { createMemoryHistory } from 'history';
+import type { PropsWithChildren } from 'react';
+import { Router } from 'react-router';
 
-import { ResourceFilter } from 'teleport/services/agents';
+import { Providers, render, screen } from 'design/utils/testing';
 
 import { type BaseIntegration } from './common';
 import { IntegrationPicker } from './IntegrationPicker';
@@ -52,8 +54,6 @@ const defaultProps = {
       {i.title || i.name}
     </div>
   ),
-  params: {} as ResourceFilter,
-  setParams: jest.fn(),
   canCreate: true,
   initialSort: (a: TestIntegration, b: TestIntegration) => {
     const aName = a.title || a.name;
@@ -62,6 +62,20 @@ const defaultProps = {
   },
 };
 
+function makeWrapper(route: string = '/') {
+  const history = createMemoryHistory({
+    initialEntries: [route],
+  });
+
+  return function wrapper({ children }: PropsWithChildren) {
+    return (
+      <Providers>
+        <Router history={history}>{children}</Router>
+      </Providers>
+    );
+  };
+}
+
 describe('IntegrationPicker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -69,8 +83,9 @@ describe('IntegrationPicker', () => {
 
   describe('filtering', () => {
     test('filters integrations by search term', () => {
-      const params = { search: 'aws' };
-      render(<IntegrationPicker {...defaultProps} params={params} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper('/?search=aws'),
+      });
 
       expect(screen.getByTestId('integration-aws-oidc')).toBeInTheDocument();
       expect(screen.queryByTestId('integration-gcp')).not.toBeInTheDocument();
@@ -80,8 +95,9 @@ describe('IntegrationPicker', () => {
     });
 
     test('filters integrations by search term matches tags', () => {
-      const params = { search: 'cicd' };
-      render(<IntegrationPicker {...defaultProps} params={params} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper('/?search=cicd'),
+      });
 
       expect(screen.getByTestId('integration-jenkins')).toBeInTheDocument();
       expect(
@@ -91,8 +107,9 @@ describe('IntegrationPicker', () => {
     });
 
     test('filters integrations by multiple search terms', () => {
-      const params = { search: 'aws oidc' };
-      render(<IntegrationPicker {...defaultProps} params={params} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper('/?search=aws%20oidc'),
+      });
 
       expect(screen.getByTestId('integration-aws-oidc')).toBeInTheDocument();
       expect(screen.queryByTestId('integration-gcp')).not.toBeInTheDocument();
@@ -102,8 +119,9 @@ describe('IntegrationPicker', () => {
     });
 
     test('filters integrations by tags', () => {
-      const params = { kinds: ['cicd'] };
-      render(<IntegrationPicker {...defaultProps} params={params} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper('/?tags=cicd'),
+      });
 
       expect(screen.getByTestId('integration-jenkins')).toBeInTheDocument();
       expect(
@@ -113,8 +131,9 @@ describe('IntegrationPicker', () => {
     });
 
     test('filters integrations by multiple tags', () => {
-      const params = { kinds: ['idp', 'cicd'] };
-      render(<IntegrationPicker {...defaultProps} params={params} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper('/?tags=idp&tags=cicd'),
+      });
 
       expect(screen.getByTestId('integration-aws-oidc')).toBeInTheDocument();
       expect(screen.getByTestId('integration-jenkins')).toBeInTheDocument();
@@ -122,8 +141,9 @@ describe('IntegrationPicker', () => {
     });
 
     test('combines search and tag filters', () => {
-      const params = { search: 'jEnKiNs', kinds: ['cicd'] };
-      render(<IntegrationPicker {...defaultProps} params={params} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper('/?search=jEnKiNs&tags=cicd'),
+      });
 
       expect(screen.getByTestId('integration-jenkins')).toBeInTheDocument();
       expect(
@@ -133,8 +153,9 @@ describe('IntegrationPicker', () => {
     });
 
     test('shows no results when nothing matches', () => {
-      const params = { search: 'netbsd' };
-      render(<IntegrationPicker {...defaultProps} params={params} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper('/?search=netbsd'),
+      });
 
       expect(screen.getByText('No results found')).toBeInTheDocument();
       expect(
@@ -147,7 +168,9 @@ describe('IntegrationPicker', () => {
     });
 
     test('shows all integrations when no filters applied', () => {
-      render(<IntegrationPicker {...defaultProps} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper(),
+      });
 
       expect(screen.getByTestId('integration-aws-oidc')).toBeInTheDocument();
       expect(screen.getByTestId('integration-gcp')).toBeInTheDocument();
@@ -157,8 +180,9 @@ describe('IntegrationPicker', () => {
 
   describe('sorting', () => {
     test('sorts by name in ascending order', () => {
-      const params = { sort: { fieldName: 'name', dir: 'ASC' as const } };
-      render(<IntegrationPicker {...defaultProps} params={params} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper('/?sort=name&direction=ASC'),
+      });
 
       const integrations = screen.getAllByTestId(/integration-/);
       expect(integrations[0]).toHaveTextContent('AWS OIDC');
@@ -167,8 +191,9 @@ describe('IntegrationPicker', () => {
     });
 
     test('sorts by name in descending order', () => {
-      const params = { sort: { fieldName: 'name', dir: 'DESC' as const } };
-      render(<IntegrationPicker {...defaultProps} params={params} />);
+      render(<IntegrationPicker {...defaultProps} />, {
+        wrapper: makeWrapper('/?sort=name&direction=DESC'),
+      });
 
       const integrations = screen.getAllByTestId(/integration-/);
       expect(integrations[0]).toHaveTextContent('Jenkins');
@@ -180,7 +205,12 @@ describe('IntegrationPicker', () => {
       const jenkinsSort = jest.fn((a: TestIntegration, b: TestIntegration) => {
         return a.title === 'Jenkins' ? -1 : b.title === 'Jenkins' ? 1 : 0;
       });
-      render(<IntegrationPicker {...defaultProps} initialSort={jenkinsSort} />);
+      render(
+        <IntegrationPicker {...defaultProps} initialSort={jenkinsSort} />,
+        {
+          wrapper: makeWrapper(),
+        }
+      );
 
       expect(jenkinsSort).toHaveBeenCalled();
       const integrations = screen.getAllByTestId(/integration-/);
@@ -190,7 +220,9 @@ describe('IntegrationPicker', () => {
 
   describe('loading and error states', () => {
     test('shows loading indicator when isLoading is true', async () => {
-      render(<IntegrationPicker {...defaultProps} isLoading={true} />);
+      render(<IntegrationPicker {...defaultProps} isLoading={true} />, {
+        wrapper: makeWrapper(),
+      });
 
       expect(await screen.findByTestId('indicator')).toBeInTheDocument();
       expect(
@@ -201,7 +233,10 @@ describe('IntegrationPicker', () => {
     test('shows error message when ErrorMessage is provided', () => {
       const ErrorMessage = <div>Something went wrong</div>;
       render(
-        <IntegrationPicker {...defaultProps} ErrorMessage={ErrorMessage} />
+        <IntegrationPicker {...defaultProps} ErrorMessage={ErrorMessage} />,
+        {
+          wrapper: makeWrapper(),
+        }
       );
 
       expect(screen.getByText('Something went wrong')).toBeInTheDocument();
@@ -211,7 +246,9 @@ describe('IntegrationPicker', () => {
 
   describe('permission notification', () => {
     test('shows permission notification when canCreate is false', () => {
-      render(<IntegrationPicker {...defaultProps} canCreate={false} />);
+      render(<IntegrationPicker {...defaultProps} canCreate={false} />, {
+        wrapper: makeWrapper(),
+      });
 
       expect(
         screen.getByText(/You do not have permission to create Integrations/)
@@ -221,7 +258,9 @@ describe('IntegrationPicker', () => {
     });
 
     test('does not show permission alert when canCreate is true', () => {
-      render(<IntegrationPicker {...defaultProps} canCreate={true} />);
+      render(<IntegrationPicker {...defaultProps} canCreate={true} />, {
+        wrapper: makeWrapper(),
+      });
 
       expect(
         screen.queryByText(/You do not have permission to create Integrations/)

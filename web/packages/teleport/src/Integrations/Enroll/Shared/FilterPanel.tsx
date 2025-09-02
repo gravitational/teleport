@@ -16,72 +16,82 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import { type Dispatch, type SetStateAction } from 'react';
 
 import { Box, Flex } from 'design';
-import { SortType } from 'design/DataTable/types';
-import * as Icons from 'design/Icon';
+import InputSearch from 'design/DataTable/InputSearch';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
 import { SortMenu } from 'shared/components/Controls/SortMenu';
 
-import { type IntegrationTag } from './common';
+import {
+  integrationTagOptions,
+  isIntegrationTag,
+  type IntegrationTag,
+} from './common';
+import {
+  IntegrationPickerFilterKey,
+  IntegrationPickerSortDirection,
+  IntegrationPickerSortKey,
+  IntegrationPickerState,
+} from './state';
 
-export function FilterPanel({ integrationTagOptions, params, setParams }) {
-  const { sort, kinds } = params;
-
+export function FilterPanel({
+  state,
+  setState,
+}: {
+  state: IntegrationPickerState;
+  setState: Dispatch<SetStateAction<IntegrationPickerState>>;
+}) {
   const sortFieldOptions = [{ label: 'Name', value: 'name' }];
 
-  const defaultSort: SortType = { dir: 'ASC', fieldName: 'name' };
-
-  const activeSort = sort || defaultSort;
-
-  const activeSortFieldOption = sortFieldOptions.find(
-    opt => opt.value === activeSort.fieldName
-  );
-
-  function oppositeSort(sort: SortType): SortType {
-    switch (sort?.dir) {
-      case 'ASC':
-        return { ...sort, dir: 'DESC' };
-      case 'DESC':
-        return { ...sort, dir: 'ASC' };
-      default:
-        return sort;
-    }
-  }
-
-  const onSortFieldChange = (value: string) => {
-    setParams({ ...params, sort: { ...activeSort, fieldName: value } });
+  const handleSortChange = (newSort: {
+    fieldName: IntegrationPickerSortKey;
+    dir: IntegrationPickerSortDirection;
+  }) => {
+    setState(prev => ({
+      ...prev,
+      sortKey: newSort.fieldName,
+      sortDirection: newSort.dir,
+    }));
   };
 
-  const onSortOrderButtonClicked = () => {
-    setParams({ ...params, sort: oppositeSort(activeSort) });
+  const handleFilterChange = (
+    key: IntegrationPickerFilterKey,
+    value: IntegrationTag[]
+  ) => {
+    setState(prev => ({
+      ...prev,
+      filters: {
+        ...prev.filters,
+        [key]: value,
+      },
+    }));
   };
 
-  function setSearch(search: string) {
-    setParams({ ...params, search: search });
+  function handleSearchChange(search: string) {
+    setState(prev => ({
+      ...prev,
+      search: search,
+    }));
   }
 
   return (
     <>
       <Box maxWidth="600px" width="100%">
-        <DebouncedSearchInput
-          onSearch={value => {
-            setSearch(value);
-          }}
-          placeholder={'Search for integrations...'}
-          initialValue={params.search || ''}
+        <InputSearch
+          searchValue={state.search}
+          setSearchValue={handleSearchChange}
+          placeholder="Search for integrations..."
         />
       </Box>
       <Flex justifyContent="space-between" minWidth="419px">
         <Flex justifyContent="flex-start">
           <MultiselectMenu
             options={integrationTagOptions}
-            onChange={integrationTags =>
-              setParams({ ...params, kinds: integrationTags as string[] })
+            onChange={tags =>
+              handleFilterChange('tags', tags.filter(isIntegrationTag))
             }
-            selected={(kinds as IntegrationTag[]) || []}
+            selected={state.filters.tags}
             label="Integration Type"
             tooltip="Filter by integration type"
           />
@@ -89,113 +99,14 @@ export function FilterPanel({ integrationTagOptions, params, setParams }) {
         <Flex justifyContent="flex-end">
           <SortMenu
             current={{
-              fieldName: activeSortFieldOption.value,
-              dir: activeSort.dir,
+              fieldName: state.sortKey || 'name',
+              dir: state.sortDirection,
             }}
             fields={sortFieldOptions}
-            onChange={newSort => {
-              if (newSort.dir !== activeSort.dir) {
-                onSortOrderButtonClicked();
-              }
-              if (newSort.fieldName !== activeSort.fieldName) {
-                onSortFieldChange(newSort.fieldName);
-              }
-            }}
+            onChange={handleSortChange}
           />
         </Flex>
       </Flex>
     </>
   );
 }
-
-const DebouncedSearchInput = ({
-  onSearch,
-  placeholder = '',
-  initialValue = '',
-}: {
-  onSearch: (searchValue: string) => void;
-  placeholder?: string;
-  initialValue?: string;
-}) => {
-  const [searchTerm, setSearchTerm] = useState(initialValue);
-  const [debouncedTerm, setDebouncedTerm] = useState('');
-  const isFirstRender = useRef(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedTerm(searchTerm);
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    if (isFirstRender.current && debouncedTerm === '') {
-      isFirstRender.current = false;
-      return;
-    }
-
-    onSearch(debouncedTerm);
-  }, [debouncedTerm]);
-
-  return (
-    <InputWrapper
-      onSubmit={e => {
-        e.preventDefault();
-        onSearch(searchTerm);
-      }}
-    >
-      <Icons.Magnifier size={16} color="text.slightlyMuted" />
-      <StyledInput
-        placeholder={placeholder}
-        autoFocus
-        max={100}
-        name="searchValue"
-        value={searchTerm}
-        onChange={e => setSearchTerm(e.target.value)}
-      />
-    </InputWrapper>
-  );
-};
-
-const InputWrapper = styled.form`
-  border-radius: ${props => props.theme.radii[5]}px;
-  height: 40px;
-  border: 1px solid ${props => props.theme.colors.interactive.tonal.neutral[2]};
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0 ${props => props.theme.space[3]}px 0
-    ${props => props.theme.space[3]}px;
-  background-color: transparent;
-  transition:
-    background-color 150ms ease,
-    border-color 150ms ease;
-
-  &:focus-within,
-  &:active {
-    border-color: ${p => p.theme.colors.brand};
-  }
-
-  &:hover,
-  &:focus-within,
-  &:active {
-    background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0]};
-  }
-`;
-
-const StyledInput = styled.input`
-  border: none;
-  outline: none;
-  box-sizing: border-box;
-  height: 100%;
-  width: 100%;
-  transition: all 200ms ease;
-  color: ${props => props.theme.colors.text.main};
-  background: transparent;
-  padding: ${props => props.theme.space[3]}px ${props => props.theme.space[3]}px
-    ${props => props.theme.space[3]}px ${props => props.theme.space[2]}px;
-  flex: 1;
-`;

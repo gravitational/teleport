@@ -24,15 +24,11 @@ import * as Icons from 'design/Icon';
 
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { TextIcon } from 'teleport/Discover/Shared';
-import { filterIntegrations } from 'teleport/Integrations/Enroll/utils/filters';
-import { ResourceFilter } from 'teleport/services/agents';
 
-import {
-  integrationTagOptions,
-  type BaseIntegration,
-  type IntegrationTag,
-} from './common';
+import { type BaseIntegration } from './common';
 import { FilterPanel } from './FilterPanel';
+import { filterIntegrations } from './filters';
+import { useIntegrationPickerState } from './state';
 
 export function titleOrName<T extends BaseIntegration>(i: T) {
   if ('title' in i) {
@@ -42,15 +38,21 @@ export function titleOrName<T extends BaseIntegration>(i: T) {
   }
 }
 
-export function sortByTitleOrName<T extends BaseIntegration>(a: T, b: T) {
-  return titleOrName(a).localeCompare(titleOrName(b));
+export function displayTitle<T extends BaseIntegration>(i: T) {
+  const baseTitle = titleOrName(i);
+  if ('type' in i && i.type === 'bot') {
+    return `Machine ID: ${baseTitle}`;
+  }
+  return baseTitle;
+}
+
+export function sortByDisplayName<T extends BaseIntegration>(a: T, b: T) {
+  return displayTitle(a).localeCompare(displayTitle(b));
 }
 
 export interface IntegrationPickerProps<T extends BaseIntegration> {
   integrations: T[];
   renderIntegration: (integration: T) => ReactNode;
-  params: ResourceFilter;
-  setParams: (params: ResourceFilter) => void;
   initialSort?: (a: T, b: T) => number;
   isLoading?: boolean;
   canCreate?: boolean;
@@ -60,38 +62,34 @@ export interface IntegrationPickerProps<T extends BaseIntegration> {
 export function IntegrationPicker<T extends BaseIntegration>({
   integrations,
   renderIntegration,
-  params,
-  setParams,
-  initialSort = sortByTitleOrName,
+  initialSort = sortByDisplayName,
   isLoading,
   canCreate,
   ErrorMessage,
 }: IntegrationPickerProps<T>) {
+  const [state, setState] = useIntegrationPickerState();
+
   const sortedIntegrations = useMemo(() => {
     const sorted = integrations.toSorted((a, b) => {
-      switch (params.sort?.fieldName) {
+      switch (state.sortKey) {
         case 'name':
-          return sortByTitleOrName(a, b);
+          return sortByDisplayName(a, b);
         default:
           return initialSort(a, b);
       }
     });
 
-    if (params.sort?.dir === 'DESC') {
+    if (state.sortDirection === 'DESC') {
       sorted.reverse();
     }
 
     return sorted;
-  }, [integrations, params.sort]);
+  }, [integrations, state.sortDirection, state.sortKey]);
 
   const filteredIntegrations = useMemo(
     () =>
-      filterIntegrations(
-        sortedIntegrations,
-        (params.kinds as IntegrationTag[]) || [],
-        params.search || ''
-      ),
-    [params.kinds, sortedIntegrations, params.search]
+      filterIntegrations(sortedIntegrations, state.filters.tags, state.search),
+    [sortedIntegrations, state.filters.tags, state.search]
   );
 
   const renderPermissionsNotice = () => {
@@ -118,23 +116,17 @@ export function IntegrationPicker<T extends BaseIntegration>({
     } else {
       return (
         <>
-          <FilterPanel
-            params={params}
-            setParams={setParams}
-            integrationTagOptions={integrationTagOptions}
-          />
+          <FilterPanel state={state} setState={setState} />
           {!filteredIntegrations.length && (
             <TextIcon>
               <Icons.Magnifier size="small" /> No results found
             </TextIcon>
           )}
-          <Box mb={4}>
-            <Container role="grid">
-              {filteredIntegrations.map(i => {
-                return renderIntegration(i);
-              })}
-            </Container>
-          </Box>
+          <Container role="grid">
+            {filteredIntegrations.map(i => {
+              return renderIntegration(i);
+            })}
+          </Container>
         </>
       );
     }
@@ -142,14 +134,14 @@ export function IntegrationPicker<T extends BaseIntegration>({
 
   return (
     <>
-      <Box my={3}>
-        <FeatureHeader>
+      <Box>
+        <FeatureHeader mb={0}>
           <FeatureHeaderTitle>Enroll a New Integration</FeatureHeaderTitle>
         </FeatureHeader>
       </Box>
       {renderPermissionsNotice()}
 
-      <Flex flexDirection="column" gap={4}>
+      <Flex flexDirection="column" gap={3}>
         {ErrorMessage ? ErrorMessage : renderIntegrations()}
       </Flex>
     </>
@@ -159,5 +151,6 @@ export function IntegrationPicker<T extends BaseIntegration>({
 const Container = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 16px;
+  gap: ${props => props.theme.space[3]}px;
+  margin-bottom: ${props => props.theme.space[4]}px;
 `;

@@ -21,7 +21,6 @@ import {
   integrations as botIntegrations,
   BotTile,
 } from 'teleport/Bots/Add/AddBotsPicker';
-import { useUrlFiltering } from 'teleport/components/hooks';
 import { FeatureBox } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
@@ -82,8 +81,6 @@ export function IntegrationPicker() {
   const hasExternalAuditStorage =
     ctx.storeUser.getExternalAuditStorageAccess().create;
 
-  const { params, setParams } = useUrlFiltering({});
-
   const integrations = [...installableIntegrations(), ...botIntegrations];
   useNoMinWidth();
 
@@ -113,8 +110,6 @@ export function IntegrationPicker() {
   return (
     <SharedIntegrationPicker
       integrations={integrations}
-      params={params}
-      setParams={setParams}
       renderIntegration={renderIntegration}
       initialSort={initialSort}
       canCreate={true}
