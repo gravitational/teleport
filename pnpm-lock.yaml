@@ -419,6 +419,9 @@ importers:
       events:
         specifier: 3.3.0
         version: 3.3.0
+      fscreen:
+        specifier: ^1.2.0
+        version: 1.2.0
     devDependencies:
       '@gravitational/build':
         specifier: workspace:*
@@ -426,6 +429,9 @@ importers:
       '@gravitational/teleport':
         specifier: workspace:*
         version: 'link:'
+      '@types/fscreen':
+        specifier: ^1.0.4
+        version: 1.0.4
       babel-plugin-transform-import-meta:
         specifier: 2.3.3
         version: 2.3.3(@babel/core@7.28.0)
@@ -2791,6 +2797,9 @@ packages:
   '@types/fs-extra@9.0.13':
     resolution: {integrity: sha512-nEnwB++1u5lVDM2UI4c1+5R+FYaKfaAzS4OococimjVm3nQw3TuzH5UNsocrcTBbhnerblyHj4A49qXbIiZdpA==}
 
+  '@types/fscreen@1.0.4':
+    resolution: {integrity: sha512-TsjxyAUvlvuQyao9vNk0yES4nY07K9xoAbkhgXU948JG39EqlLxniWuW9OiZde9Q8ACSpu3fmbXXRAfb/l/HqQ==}
+
   '@types/history@4.7.11':
     resolution: {integrity: sha512-qjDJRrmvBMiTx+jyLxvLfJU7UznFuokDv4f3WRuriHKERccVpFU+8XMQUAbDzoiJCsmexxRExQeMwwCdamSKDA==}
 
@@ -4424,6 +4433,9 @@ packages:
 
   fs.realpath@1.0.0:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
+
+  fscreen@1.2.0:
+    resolution: {integrity: sha512-hlq4+BU0hlPmwsFjwGGzZ+OZ9N/wq9Ljg/sq3pX+2CD7hrJsX9tJgWWK/wiNTFM212CLHWhicOoqwXyZGGetJg==}
 
   fsevents@2.3.2:
     resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
@@ -9580,6 +9592,8 @@ snapshots:
     dependencies:
       '@types/node': 22.17.1
 
+  '@types/fscreen@1.0.4': {}
+
   '@types/history@4.7.11': {}
 
   '@types/http-cache-semantics@4.0.4': {}
@@ -11612,6 +11626,8 @@ snapshots:
       minipass: 7.1.2
 
   fs.realpath@1.0.0: {}
+
+  fscreen@1.2.0: {}
 
   fsevents@2.3.2:
     optional: true
