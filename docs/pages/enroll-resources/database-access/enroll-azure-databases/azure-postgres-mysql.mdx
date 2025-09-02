@@ -418,31 +418,7 @@ $ tsh db ls
 
 </Tabs>
 
-To retrieve credentials for a database and connect to it:
-
-<Tabs>
-<TabItem label="MySQL">
-
-```code
-$ tsh db connect --db-user=teleport azure-db
-```
-
-</TabItem>
-<TabItem label="PostgreSQL">
-
-```code
-$ tsh db connect --db-user=teleport --db-name=postgres azure-db
-```
-
-</TabItem>
-</Tabs>
-
-(!docs/pages/includes/database-access/pg-access-webui.mdx!)
-
-<Admonition type="note">
-The appropriate database command-line client (`psql`, `mysql`) should be
-available in the `PATH` of the machine you're running `tsh db connect` from.
-</Admonition>
+(!docs/pages/includes/database-access/pg-mysql-connect.mdx dbUser="teleport" dbService="azure-db"!)
 
 To log out of the database and remove credentials:
 
