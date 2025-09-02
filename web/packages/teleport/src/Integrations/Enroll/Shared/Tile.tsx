@@ -37,7 +37,7 @@ import {
 import { integrationTagOptions, type IntegrationTag } from './common';
 
 type IntegrationLink = {
-  url: string;
+  url: string | undefined;
   external?: boolean;
   onClick?: () => void;
 };
@@ -55,34 +55,47 @@ export function IntegrationTileWithSpec({
     ? { external: false, url: cfg.getIntegrationEnrollRoute(spec.kind) }
     : null;
 
-  let renderBadge = null;
-  const dataTestID = `tile-${spec.kind}`;
-
-  if (spec.kind === IntegrationKind.ExternalAuditStorage) {
-    const externalAuditStorageEnabled =
-      cfg.entitlements.ExternalAuditStorage.enabled;
-
-    hasIntegrationAccess =
-      hasIntegrationAccess &&
-      hasExternalAuditStorage &&
-      externalAuditStorageEnabled;
-
-    renderBadge = () => {
-      return renderExternalAuditStorageBadge(
-        hasExternalAuditStorage,
+  const hasAccess = (() => {
+    if (spec.kind === IntegrationKind.ExternalAuditStorage) {
+      const externalAuditStorageEnabled =
+        cfg.entitlements.ExternalAuditStorage.enabled;
+      return (
+        hasIntegrationAccess &&
+        hasExternalAuditStorage &&
         externalAuditStorageEnabled
       );
-    };
-  } else if (!hasIntegrationAccess) {
-    renderBadge = () => {
-      return <GenericNoPermBadge noAccess={!hasIntegrationAccess} />;
-    };
-  }
+    }
+
+    return hasIntegrationAccess;
+  })();
+
+  const renderBadge = (() => {
+    if (spec.kind === IntegrationKind.ExternalAuditStorage) {
+      const externalAuditStorageEnabled =
+        cfg.entitlements.ExternalAuditStorage.enabled;
+
+      return () => {
+        return renderExternalAuditStorageBadge(
+          hasExternalAuditStorage,
+          externalAuditStorageEnabled
+        );
+      };
+    }
+    if (!hasIntegrationAccess) {
+      return () => {
+        return <GenericNoPermBadge noAccess={!hasIntegrationAccess} />;
+      };
+    }
+
+    return undefined;
+  })();
+
+  const dataTestID = `tile-${spec.kind}`;
 
   return (
     <Tile
       title={spec.name}
-      hasAccess={hasIntegrationAccess}
+      hasAccess={hasAccess}
       link={link}
       tags={spec.tags}
       icon={spec.icon}
@@ -100,7 +113,7 @@ export function Tile({
   icon,
   link,
   tags = [],
-  enrolled,
+  enrolled = false,
   renderBadge,
   'data-testid': dataTestID,
 }: {
@@ -120,7 +133,7 @@ export function Tile({
   };
 
   let tileProps = {};
-  if (link && hasAccess) {
+  if (hasAccess && link?.url) {
     if (link.external) {
       tileProps = {
         as: ExternalLink,
@@ -148,6 +161,7 @@ export function Tile({
       title={title}
       data-testid={dataTestID}
       disabled={!hasAccess}
+      $enrolled={enrolled}
       {...tileProps}
     >
       {renderBadge?.() ??
@@ -156,7 +170,7 @@ export function Tile({
         ) : (
           <BadgeSelfHosted>
             Self-Hosted
-            <NewTabIcon size={14} ml={1} />
+            <NewTab size={14} ml={1} color="text.slightlyMuted" />
           </BadgeSelfHosted>
         ))}
       <Flex flexDirection="row" width={'100%'}>
@@ -199,10 +213,6 @@ export function Tile({
   );
 }
 
-const NewTabIcon = styled(NewTab)`
-  transition: color 0.3s;
-`;
-
 const StyledText = styled(Text)`
   white-space: nowrap;
   font-size: 16px;
@@ -219,7 +229,7 @@ const StyledLabel = styled(Label)`
   line-height: 18px;
 `;
 
-const IntegrationCard = styled.div<{ disabled?: boolean }>`
+const IntegrationCard = styled.div<{ disabled?: boolean; $enrolled?: boolean }>`
   align-items: flex-start;
   display: inline-flex;
   margin: 0;
@@ -231,40 +241,37 @@ const IntegrationCard = styled.div<{ disabled?: boolean }>`
   height: 132px;
   width: 100%;
   border-radius: ${props => props.theme.radii[3]}px;
-  box-shadow: inset 0 0 0 2px ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  box-shadow: inset 0 0 0 2px
+    ${props => props.theme.colors.interactive.tonal.neutral[0]};
   background-color: transparent;
   transition: background-color 0.3s ease;
-  
+
   color: ${props => props.theme.colors.text.main};
   line-height: inherit;
   font-size: inherit;
   font-family: inherit;
 
-  cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
-  
+  cursor: ${({ disabled, $enrolled }) =>
+    disabled || $enrolled ? 'not-allowed' : 'pointer'};
+
   opacity: ${props => (props.disabled ? '0.45' : '1')};
- 
+
   &:hover {
     background-color: ${props =>
-      props.disabled
+      props.disabled || props.$enrolled
         ? 'transparent'
         : props.theme.colors.interactive.tonal.neutral[0]};
-    box-shadow: inset 0 0 0 2px ${props =>
-      props.disabled
-        ? props.theme.colors.interactive.tonal.neutral[0]
-        : 'transparent'};
+    box-shadow: inset 0 0 0 2px
+      ${props =>
+        props.disabled || props.$enrolled
+          ? props.theme.colors.interactive.tonal.neutral[0]
+          : 'transparent'};
   }
 
   &:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px ${props => props.theme.colors.brand};
   }
-
-  &:hover,
-  &:focus-visible {
-    ${NewTabIcon} {
-    color: ${props => props.theme.colors.text.slightlyMuted};
-    }    
 `;
 
 const BadgeSelfHosted = styled.div`
