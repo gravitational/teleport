@@ -70,7 +70,9 @@ type ProxyService struct {
 	identityGenerator         *identity.Generator
 	clientBuilder             *client.Builder
 
-	cache *utils.FnCache
+	cache     *utils.FnCache
+	proxyAddr string
+	proxyUrl  *url.URL
 }
 
 func (s *ProxyService) Run(ctx context.Context) error {
@@ -177,6 +179,26 @@ func (s *ProxyService) issueCert(
 }
 
 func (s *ProxyService) startProxy(ctx context.Context) error {
+	// Ping the Teleport Proxy
+	proxyPing, err := s.proxyPinger.Ping(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Retrieve the Proxy Address to use for the Application Request
+	proxyAddr, err := proxyPing.ProxyWebAddr()
+	if err != nil {
+		return err
+	}
+	s.proxyAddr = proxyAddr
+
+	// Build the proxy url to use in the http Client.
+	proxyUrl, err := url.Parse("https://" + proxyAddr)
+	if err != nil {
+		return err
+	}
+	s.proxyUrl = proxyUrl
+
 	// This router expects the requests to come in via the style "GET <fqdn>:<port>/"
 	// It doesn't really consider the CONNECT method, but it should work nonetheless.
 	proxyHttpServer := http.Server{
@@ -195,7 +217,7 @@ func (s *ProxyService) startProxy(ctx context.Context) error {
 		}
 	})
 
-	err := proxyHttpServer.ListenAndServe()
+	err = proxyHttpServer.ListenAndServe()
 	if err != nil {
 		return err
 	}
@@ -243,31 +265,14 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		},
 	}
 
-	// Ping the Teleport Proxy
-	proxyPing, err := s.proxyPinger.Ping(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Retrieve the Proxy Address to use for the Application Request
-	proxyAddr, err := proxyPing.ProxyWebAddr()
-	if err != nil {
-		return err
-	}
-
-	proxyUrl, err := url.Parse("https://" + proxyAddr)
-	if err != nil {
-		return err
-	}
-
 	// Build the Application Request
 	upstreamRequest := http.Request{
 		Proto:  "https",
 		Method: req.Method,
 		Body:   req.Body,
 
-		Host: proxyAddr,
-		URL:  proxyUrl,
+		Host: s.proxyAddr,
+		URL:  s.proxyUrl,
 	}
 
 	// Execute the Application Request
