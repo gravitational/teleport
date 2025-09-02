@@ -90,7 +90,7 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 			}
 
 			if app.GetPublicAddr() == proxyHost.Host() {
-				return trace.BadParameter("application %q public address %q conflicts with a proxy public address", app.GetName(), app.GetPublicAddr())
+				return trace.BadParameter("Application %q has a public address %q that conflicts with a proxy public address. Update the application configuration to use a unique address", app.GetName(), app.GetPublicAddr())
 			}
 		}
 	}
