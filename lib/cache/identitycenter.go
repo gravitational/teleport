@@ -201,7 +201,7 @@ func (c *Cache) GetIdentityCenterAccountAssignment(ctx context.Context, id strin
 		return nil, trace.Wrap(err)
 	}
 
-	return assignment, nil
+	return proto.CloneOf(assignment), nil
 }
 
 // ListIdentityCenterAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
@@ -230,7 +230,7 @@ func (c *Cache) ListIdentityCenterAccountAssignments(ctx context.Context, pageSi
 			return assignments, assignment.GetMetadata().Name, nil
 		}
 
-		assignments = append(assignments, assignment)
+		assignments = append(assignments, proto.CloneOf(assignment))
 	}
 	return assignments, "", nil
 }
