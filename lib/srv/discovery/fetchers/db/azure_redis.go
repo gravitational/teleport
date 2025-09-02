@@ -32,7 +32,7 @@ import (
 
 // newAzureRedisFetcher creates a fetcher for Azure Redis.
 func newAzureRedisFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher[*armredis.ResourceInfo, azure.RedisClient](config, &azureRedisPlugin{})
+	return newAzureFetcher(config, &azureRedisPlugin{})
 }
 
 // azureRedisPlugin implements azureFetcherPlugin for Azure Redis.
