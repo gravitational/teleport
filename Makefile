@@ -1903,7 +1903,7 @@ else
 ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt rustup-install-wasm-toolchain
 
 # Get the version of wasm-bindgen from cargo
-# Note, has 'v' prefix, e.g., v0.2.99
+# Note, output has 'v' prefix. e.g., v0.2.99
 WASM_BINDGEN_VERSION = $(shell cargo tree -i wasm-bindgen | head -n 1 | cut -d ' ' -f  2)
 
 .PHONY: print-wasm-bindgen-version
