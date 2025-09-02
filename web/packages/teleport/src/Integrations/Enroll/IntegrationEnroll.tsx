@@ -33,9 +33,9 @@ import {
   IntegrationTileSpec,
 } from './IntegrationTiles/integrations';
 import {
+  displayName,
   IntegrationTileWithSpec,
   IntegrationPicker as SharedIntegrationPicker,
-  titleOrName,
 } from './Shared';
 
 export function IntegrationEnroll() {
@@ -64,7 +64,7 @@ const isGuided = (i: Integration) => {
 };
 
 const sortByName = (a: Integration, b: Integration) => {
-  return titleOrName(a).localeCompare(titleOrName(b));
+  return displayName(a).localeCompare(displayName(b));
 };
 
 const initialSort = (a: Integration, b: Integration) => {

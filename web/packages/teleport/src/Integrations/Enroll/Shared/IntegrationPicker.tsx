@@ -30,7 +30,7 @@ import { FilterPanel } from './FilterPanel';
 import { filterIntegrations } from './filters';
 import { useIntegrationPickerState } from './state';
 
-export function titleOrName<T extends BaseIntegration>(i: T) {
+function titleOrName<T extends BaseIntegration>(i: T) {
   if ('title' in i) {
     return i.title;
   } else if ('name' in i) {
@@ -38,16 +38,16 @@ export function titleOrName<T extends BaseIntegration>(i: T) {
   }
 }
 
-export function displayTitle<T extends BaseIntegration>(i: T) {
-  const baseTitle = titleOrName(i);
+export function displayName<T extends BaseIntegration>(i: T) {
+  const name = titleOrName(i);
   if ('type' in i && i.type === 'bot') {
-    return `Machine ID: ${baseTitle}`;
+    return `Machine ID: ${name}`;
   }
-  return baseTitle;
+  return name;
 }
 
 export function sortByDisplayName<T extends BaseIntegration>(a: T, b: T) {
-  return displayTitle(a).localeCompare(displayTitle(b));
+  return displayName(a).localeCompare(displayName(b));
 }
 
 export interface IntegrationPickerProps<T extends BaseIntegration> {
