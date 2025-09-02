@@ -315,28 +315,27 @@ FedRAMP), not to increase security in general-purpose deployments.
 There are several tradeoffs when considering using Teleport FIPS builds in
 cases where it is not strictly required.
 
-- **Restricted Cipher Suite Selection**
+### Restricted cipher suite selection
 
-  The FIPS build only permits ciphers, key exchange mechanisms, and signature
-  algorithms that are approved under the FIPS certification program and
-  supported by BoringCrypto. Due to the rigorous and lengthy certification
-  process, FIPS-approved algorithms often lag behind the state of the art.
-  As a result, the FIPS build lacks support for newer algorithms with improved
-  performance or forward-looking security properties (e.g. ChaCha20-Poly1305, Ed25519).
+The FIPS build only permits ciphers, key exchange mechanisms, and signature
+algorithms that are approved under the FIPS certification program and supported
+by BoringCrypto. Due to the rigorous and lengthy certification process,
+FIPS-approved algorithms often lag behind the state of the art. As a result,
+the FIPS build lacks support for newer algorithms with improved performance or
+forward-looking security properties (e.g. ChaCha20-Poly1305, Ed25519).
 
-- **Reduced Performance**
+### Reduced performance
 
-  Cryptographic operations may be up to 2× slower compared to the standard build.
-  This can impact throughput for high-volume clusters.
+Cryptographic operations may be up to 2× slower compared to the standard build.
+This can impact throughput for high-volume clusters.
 
-- **Operational Complexity**
+### Operational complexity
 
-  Running the FIPS build can introduce additional maintenance burden, such as
-  troubleshooting connection issues where peers expect different cipher
-  support.
+Running the FIPS build can introduce additional maintenance burden, such as
+troubleshooting connection issues where peers expect different cipher support.
 
-- **No Security Benefit Without Compliance Need**
+### No security benefit without compliance need
 
-  Outside of regulated environments, using the FIPS binary does not increase
-  Teleport’s security posture. In fact, it may result in a net negative effect
-  by limiting use of modern cryptographic algorithms.
+Outside of regulated environments, using the FIPS binary does not increase
+Teleport’s security posture. In fact, it may result in a net negative effect by
+limiting use of modern cryptographic algorithms.
