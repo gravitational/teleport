@@ -17,7 +17,6 @@ type ProxyServiceConfig struct {
 	Name               string                 `yaml:"name,omitempty"`
 	Listen             string                 `yaml:"listen"`
 	Roles              []string               `yaml:"roles,omitempty"`
-	Applications       []string               `yaml:"applications,omitempty"`
 	CertificateCaching bool                   `yaml:"certificate_caching,omitempty"`
 	CredentialLifetime bot.CredentialLifetime `yaml:"credential-lifetime,omitempty"`
 	Listener           net.Listener           `yaml:"-"`
@@ -49,8 +48,6 @@ func (c *ProxyServiceConfig) CheckAndSetDefaults() error {
 	switch {
 	case c.Listen == "" && c.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")
-	case c.Applications == nil || len(c.Applications) == 0:
-		return trace.BadParameter("applications: should not be empty")
 	}
 
 	if _, err := url.Parse(c.Listen); err != nil {
