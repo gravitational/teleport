@@ -438,6 +438,7 @@ func TestParserHostCertContext(t *testing.T) {
 				`all_equal(host_cert.principals, "foo.example.com")`,
 				`is_subset(host_cert.principals, "a", "b", "foo.example.com")`,
 				`all_end_with(host_cert.principals, ".example.com")`,
+				`contains_any(set("a", "b", "foo.example.com"), host_cert.principals)`,
 			},
 			negative: []string{
 				`all_equal(host_cert.principals, "foo")`,
