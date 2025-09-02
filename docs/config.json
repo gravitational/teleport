@@ -890,6 +890,16 @@
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
     },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/",
+      "destination": "/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/mwi-ci-cd/",
+      "destination": "/machine-workload-identity/mwi-ci-cd/",
+      "permanent": true
+    },
     {
       "source": "/reference/architecture/proxy-peering/",
       "destination": "/zero-trust-access/management/operations/proxy-peering/",
