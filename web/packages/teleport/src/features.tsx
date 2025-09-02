@@ -346,7 +346,7 @@ export class FeatureAddBotsShortcut implements TeleportFeature {
     icon: AddCircle,
     exact: true,
     getLink() {
-      return `${cfg.getIntegrationEnrollRoute()}?kinds=bot`;
+      return cfg.getBotsNewRoute();
     },
   };
 }
