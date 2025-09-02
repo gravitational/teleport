@@ -34,3 +34,13 @@ func (t Traits) Clone() Traits {
 	}
 	return out
 }
+
+func Merge(dst, src Traits) {
+	for key, values := range src {
+		dst[key] = append(dst[key], values...)
+	}
+	for key, values := range dst {
+		slices.Sort(values)
+		dst[key] = slices.Compact(values)
+	}
+}
