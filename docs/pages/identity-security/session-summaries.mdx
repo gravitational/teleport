@@ -268,13 +268,13 @@ Here is an example configuration:
 kind: inference_model
 version: v1
 metadata:
-  name: litellm-summary-model
+  name: lite-llm-summary-model
 spec:
   openai:
     # In case of LiteLLM Proxy, the openai_model_id is the public model name as
     # configured in LiteLLM.
     openai_model_id: my-custom-model
-    api_key_secret_ref: litellm-master-key
+    api_key_secret_ref: lite-llm-master-key
     base_url: http://llm-host:4000/
 
 ---
@@ -282,7 +282,7 @@ spec:
 kind: inference_secret
 version: v1
 metadata:
-  name: litellm-master-key
+  name: lite-llm-master-key
 spec:
   # In case of LiteLLM, the API key is *not* your OpenAI key; instead, use your
   # LiteLLM master key.
