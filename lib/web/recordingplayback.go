@@ -394,7 +394,6 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 
 // streamEvents streams session events to the client.
 func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest, eventsChan <-chan apievents.AuditEvent, errorsChan <-chan error) {
-
 	startSent := false
 	screenSent := false
 	inTimeRange := false
