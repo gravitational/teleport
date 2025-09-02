@@ -48,11 +48,11 @@ supports the same functions and operators as in the [allow/deny rules in role
 resources](#scoping-allowdeny-rules-in-role-resources). The following objects
 are always available:
 
-| Field    | Meaning                                                     | Example                                        |
-|----------|-------------------------------------------------------------|------------------------------------------------|
-| user     | User that created the session                               | `contains(user.spec.traits["teams"], "alpha")` |
-| resource | Resource that this session connects to (server or database) | `contains(user.spec.traits["teams"], "alpha")` |
-| session  | The session that is being matched                           | `contains(session.participants, "admin")`      |
+| Field    | Meaning                                                     | Example                                           |
+|----------|-------------------------------------------------------------|---------------------------------------------------|
+| user     | User that created the session                               | `contains(user.spec.traits["teams"], "alpha")`    |
+| resource | Resource that this session connects to (server or database) | `equals(resource.metadata.labels["env"], "prod")` |
+| session  | The session that is being matched                           | `contains(session.participants, "admin")`         |
 
 For more information, see:
 
