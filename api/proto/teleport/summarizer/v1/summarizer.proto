@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.summarizer.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
@@ -164,4 +165,170 @@ message Summary {
   // ErrorMessage is an error message if the summarization failed. Available if
   // the state is SUMMARY_STATE_ERROR.
   string error_message = 8;
+  repeated string loading_messages = 9;
+  // RiskLevel is the highest risk level identified in the timeline items.
+  RiskLevel risk_level = 10;
+  SessionSummary extended_summary = 11;
+}
+
+// RiskLevel represents the risk level associated with a timeline item.
+enum RiskLevel {
+  // RISK_LEVEL_UNSPECIFIED is the default value, indicating no specific risk level.
+  RISK_LEVEL_UNSPECIFIED = 0;
+  // RISK_LEVEL_LOW indicates a low risk level.
+  RISK_LEVEL_LOW = 1;
+  // RISK_LEVEL_MEDIUM indicates a medium risk level.
+  RISK_LEVEL_MEDIUM = 2;
+  // RISK_LEVEL_HIGH indicates a high risk level.
+  RISK_LEVEL_HIGH = 3;
+  // RISK_LEVEL_CRITICAL indicates a critical risk level.
+  RISK_LEVEL_CRITICAL = 4;
+}
+
+// CommandStatus represents the status of a command executed during a session.
+enum CommandStatus {
+  // COMMAND_STATUS_UNSPECIFIED is the default value, indicating an unspecified status.
+  COMMAND_STATUS_UNSPECIFIED = 0;
+  // COMMAND_STATUS_SUCCESS indicates that the command executed successfully.
+  COMMAND_STATUS_SUCCESS = 1;
+  // COMMAND_STATUS_FAILED indicates that the command execution failed.
+  COMMAND_STATUS_FAILED = 2;
+  // COMMAND_STATUS_UNKNOWN indicates that the command status is unknown.
+  COMMAND_STATUS_UNKNOWN = 3;
+}
+
+// CommandCategory represents the category of a command executed during a session.
+enum CommandCategory {
+  // COMMAND_CATEGORY_UNSPECIFIED is the default value, indicating an unspecified category.
+  COMMAND_CATEGORY_UNSPECIFIED = 0;
+  // COMMAND_CATEGORY_FILE indicates that the command is related to file operations.
+  COMMAND_CATEGORY_FILE = 1;
+  // COMMAND_CATEGORY_NETWORK indicates that the command is related to network operations.
+  COMMAND_CATEGORY_NETWORK = 2;
+  // COMMAND_CATEGORY_SYSTEM indicates that the command is related to system operations.
+  COMMAND_CATEGORY_SYSTEM = 3;
+  // COMMAND_CATEGORY_USER_MANAGEMENT indicates that the command is related to user management operations.
+  COMMAND_CATEGORY_USER_MANAGEMENT = 4;
+  // COMMAND_CATEGORY_PROCESS_MANAGEMENT indicates that the command is related to process management operations.
+  COMMAND_CATEGORY_PROCESS_MANAGEMENT = 5;
+  // COMMAND_CATEGORY_PACKAGE_MANAGEMENT indicates that the command is related to package management operations.
+  COMMAND_CATEGORY_PACKAGE_MANAGEMENT = 6;
+  // COMMAND_CATEGORY_SHELL_BUILTIN indicates that the command is a shell builtin command.
+  COMMAND_CATEGORY_SHELL_BUILTIN = 7;
+  // COMMAND_CATEGORY_DEVELOPMENT indicates that the command is related to development operations.
+  COMMAND_CATEGORY_DEVELOPMENT = 8;
+  // COMMAND_CATEGORY_DATABASE indicates that the command is related to database operations.
+  COMMAND_CATEGORY_DATABASE = 9;
+  // COMMAND_CATEGORY_MALICIOUS indicates that the command is potentially malicious.
+  COMMAND_CATEGORY_MALICIOUS = 10;
+  // COMMAND_CATEGORY_RECONNAISSANCE indicates that the command is related to reconnaissance activities.
+  COMMAND_CATEGORY_RECONNAISSANCE = 11;
+  // COMMAND_CATEGORY_PRIVILEGE_ESCALATION indicates that the command is related to privilege escalation activities.
+  COMMAND_CATEGORY_PRIVILEGE_ESCALATION = 12;
+  // COMMAND_CATEGORY_PERSISTENCE indicates that the command is related to persistence mechanisms.
+  COMMAND_CATEGORY_PERSISTENCE = 13;
+  // COMMAND_CATEGORY_EXFILTRATION indicates that the command is related to data exfiltration activities.
+  COMMAND_CATEGORY_EXFILTRATION = 14;
+  // COMMAND_CATEGORY_LATERAL_MOVEMENT indicates that the command is related to lateral movement activities
+  COMMAND_CATEGORY_LATERAL_MOVEMENT = 15;
+  // COMMAND_CATEGORY_DEFENSE_EVASION indicates that the command is related to defense evasion
+  COMMAND_CATEGORY_DEFENSE_EVASION = 16;
+  // COMMAND_CATEGORY_OTHER indicates that the command does not fit into any other category.
+  COMMAND_CATEGORY_OTHER = 17;
+}
+
+// CommandSummary represents a structured summary of a command.
+message CommandSummary {
+  // Command is the actual command that was executed.
+  string command = 1;
+  // TimelineTitle is a short catchy title for timeline display.
+  string timeline_title = 2;
+  // ShortDescription is a brief one-line summary for display.
+  string short_description = 3;
+  // Description is a detailed description of what the command did and its output.
+  string description = 4;
+  // Success indicates whether the command executed successfully.
+  bool success = 5;
+  // ErrorMessages contains any error messages from the command execution.
+  repeated string error_messages = 6;
+  // SuspiciousFlags contains security concerns detected.
+  repeated string suspicious_flags = 7;
+  // RiskLevel indicates the risk level of the command.
+  RiskLevel risk_level = 8;
+  // Category indicates the category of the command.
+  CommandCategory category = 9;
+}
+
+// SecurityAnalysis represents security-related findings.
+message SecurityAnalysis {
+  // HasSensitiveData indicates whether sensitive data was found.
+  bool has_sensitive_data = 1;
+  // SensitiveItems lists specific sensitive data found (IPs, passwords, keys, etc).
+  repeated string sensitive_items = 2;
+  // SuspiciousPatterns lists suspicious behaviors detected.
+  repeated string suspicious_patterns = 3;
+  // IOCs lists indicators of compromise.
+  repeated string iocs = 4;
+  // PrivilegeEscalation indicates attempted privilege escalation.
+  bool privilege_escalation = 5;
+  // DataExfiltration indicates potential data exfiltration.
+  bool data_exfiltration = 6;
+  // Persistence indicates persistence mechanisms detected.
+  bool persistence = 7;
+}
+
+// TechnicalMetrics represents technical metrics and artifacts extracted from the output.
+message TechnicalMetrics {
+  // ExecutionTime is the time taken to execute the command.
+  string execution_time = 1;
+  // NetworkConnections lists IPs, domains, ports accessed.
+  repeated string network_connections = 2;
+  // FileAccess lists files read/written/executed.
+  repeated string file_access = 3;
+  // ProcessActivity lists processes spawned/killed.
+  repeated string process_activity = 4;
+  // SystemChanges lists system configuration changes.
+  repeated string system_changes = 5;
+}
+
+// AnalysisResult contains all analysis outputs.
+message AnalysisResult {
+  // Summary contains the command summary.
+  CommandSummary summary = 1;
+  // Security contains security analysis findings.
+  SecurityAnalysis security = 2;
+  // TechnicalMetrics contains technical metrics and artifacts.
+  TechnicalMetrics technical_metrics = 3;
+  // RawAnalysis contains the raw analysis output.
+  string raw_analysis = 4;
+  // StartTime is when the command started (as duration from session start).
+  google.protobuf.Duration start_time = 5;
+  // EndTime is when the command ended (as duration from session start).
+  google.protobuf.Duration end_time = 6;
+}
+
+// SessionSummary represents an overall summary of a session with multiple commands.
+message SessionSummary {
+  // Username is the username of the person whose session this was.
+  string username = 1;
+  // TotalCommands is the total number of commands executed in the session.
+  int32 total_commands = 2;
+  // CommandCategories maps command categories to their counts.
+  repeated CommandCategory command_categories = 3;
+  // OverallRiskLevel is the overall risk level of the session.
+  RiskLevel overall_risk_level = 4;
+  // SessionDescription is a plain language description of what happened.
+  string session_description = 5;
+  // SuspiciousActivities lists concerning behaviors.
+  repeated string suspicious_activities = 6;
+  // SecurityIncidents lists potential security incidents.
+  repeated string security_incidents = 7;
+  // SensitiveDataFound indicates whether sensitive data was found in the session.
+  bool sensitive_data_found = 8;
+  // CompromiseIndicators indicates if session shows signs of compromise.
+  bool compromise_indicators = 9;
+  // NotableCommandIndexes contains indexes of most important/interesting commands to highlight.
+  repeated int32 notable_command_indexes = 10;
+  // CommandAnalyses contains analyses for each command in the session.
+  repeated AnalysisResult command_analyses = 11;
 }

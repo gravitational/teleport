@@ -37,7 +37,10 @@ import {
   type RecordingTimelineHandle,
 } from 'teleport/SessionRecordings/view/Timeline/RecordingTimeline';
 
-export type SummarySlot = (sessionId: string) => ReactNode;
+export type SummarySlot = (
+  sessionId: string,
+  goToTime: (time: number) => void
+) => ReactNode;
 
 interface RecordingWithMetadataProps {
   clusterId: string;
@@ -96,8 +99,8 @@ export function RecordingWithMetadata({
   }, [timelineHidden, setTimelineHidden]);
 
   const summary = useMemo(
-    () => summarySlot?.(sessionId),
-    [summarySlot, sessionId]
+    () => summarySlot?.(sessionId, handleTimelineTimeChange),
+    [summarySlot, sessionId, handleTimelineTimeChange]
   );
 
   const startTime = new Date(data.metadata.startTime * 1000);
@@ -122,12 +125,12 @@ export function RecordingWithMetadata({
         <Sidebar>
           <Flex
             flexDirection="column"
-            gap={4}
+            gap={2}
             pt={3}
             minHeight={0}
             height="100%"
           >
-            <Flex pl={3} pr={2} justifyContent="space-between">
+            <Flex pl={3} pr={2} justifyContent="space-between" mb={2}>
               <BackLink to={cfg.getRecordingsRoute(clusterId)}>
                 <ChevronLeft size="small" />
                 Back to Session Recordings
@@ -168,7 +171,7 @@ export function RecordingWithMetadata({
               <div>{format(endTime, 'MMM dd, yyyy HH:mm')}</div>
             </InfoGrid>
 
-            {summary && <Summary>{summary}</Summary>}
+            {summary}
           </Flex>
         </Sidebar>
       )}
@@ -224,17 +227,11 @@ const Sidebar = styled.div`
   border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
   overflow: hidden;
   display: flex;
+  min-height: 0;
   flex-direction: column;
 `;
 
-const Summary = styled.div`
-  border-top: 1px solid ${p => p.theme.colors.spotBackground[1]};
-  overflow-y: auto;
-  height: 100%;
-  flex: 1;
-  min-height: 0;
-  padding: ${p => p.theme.space[3]}px ${p => p.theme.space[3]}px 0;
-`;
+const Summary = styled.div``;
 
 const InfoGridLabel = styled.div`
   font-weight: bold;

@@ -24,6 +24,7 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
@@ -89,6 +90,237 @@ func (x SummaryState) Number() protoreflect.EnumNumber {
 // Deprecated: Use SummaryState.Descriptor instead.
 func (SummaryState) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{0}
+}
+
+// RiskLevel represents the risk level associated with a timeline item.
+type RiskLevel int32
+
+const (
+	// RISK_LEVEL_UNSPECIFIED is the default value, indicating no specific risk level.
+	RiskLevel_RISK_LEVEL_UNSPECIFIED RiskLevel = 0
+	// RISK_LEVEL_LOW indicates a low risk level.
+	RiskLevel_RISK_LEVEL_LOW RiskLevel = 1
+	// RISK_LEVEL_MEDIUM indicates a medium risk level.
+	RiskLevel_RISK_LEVEL_MEDIUM RiskLevel = 2
+	// RISK_LEVEL_HIGH indicates a high risk level.
+	RiskLevel_RISK_LEVEL_HIGH RiskLevel = 3
+	// RISK_LEVEL_CRITICAL indicates a critical risk level.
+	RiskLevel_RISK_LEVEL_CRITICAL RiskLevel = 4
+)
+
+// Enum value maps for RiskLevel.
+var (
+	RiskLevel_name = map[int32]string{
+		0: "RISK_LEVEL_UNSPECIFIED",
+		1: "RISK_LEVEL_LOW",
+		2: "RISK_LEVEL_MEDIUM",
+		3: "RISK_LEVEL_HIGH",
+		4: "RISK_LEVEL_CRITICAL",
+	}
+	RiskLevel_value = map[string]int32{
+		"RISK_LEVEL_UNSPECIFIED": 0,
+		"RISK_LEVEL_LOW":         1,
+		"RISK_LEVEL_MEDIUM":      2,
+		"RISK_LEVEL_HIGH":        3,
+		"RISK_LEVEL_CRITICAL":    4,
+	}
+)
+
+func (x RiskLevel) Enum() *RiskLevel {
+	p := new(RiskLevel)
+	*p = x
+	return p
+}
+
+func (x RiskLevel) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RiskLevel) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[1].Descriptor()
+}
+
+func (RiskLevel) Type() protoreflect.EnumType {
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[1]
+}
+
+func (x RiskLevel) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RiskLevel.Descriptor instead.
+func (RiskLevel) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{1}
+}
+
+// CommandStatus represents the status of a command executed during a session.
+type CommandStatus int32
+
+const (
+	// COMMAND_STATUS_UNSPECIFIED is the default value, indicating an unspecified status.
+	CommandStatus_COMMAND_STATUS_UNSPECIFIED CommandStatus = 0
+	// COMMAND_STATUS_SUCCESS indicates that the command executed successfully.
+	CommandStatus_COMMAND_STATUS_SUCCESS CommandStatus = 1
+	// COMMAND_STATUS_FAILED indicates that the command execution failed.
+	CommandStatus_COMMAND_STATUS_FAILED CommandStatus = 2
+	// COMMAND_STATUS_UNKNOWN indicates that the command status is unknown.
+	CommandStatus_COMMAND_STATUS_UNKNOWN CommandStatus = 3
+)
+
+// Enum value maps for CommandStatus.
+var (
+	CommandStatus_name = map[int32]string{
+		0: "COMMAND_STATUS_UNSPECIFIED",
+		1: "COMMAND_STATUS_SUCCESS",
+		2: "COMMAND_STATUS_FAILED",
+		3: "COMMAND_STATUS_UNKNOWN",
+	}
+	CommandStatus_value = map[string]int32{
+		"COMMAND_STATUS_UNSPECIFIED": 0,
+		"COMMAND_STATUS_SUCCESS":     1,
+		"COMMAND_STATUS_FAILED":      2,
+		"COMMAND_STATUS_UNKNOWN":     3,
+	}
+)
+
+func (x CommandStatus) Enum() *CommandStatus {
+	p := new(CommandStatus)
+	*p = x
+	return p
+}
+
+func (x CommandStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CommandStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[2].Descriptor()
+}
+
+func (CommandStatus) Type() protoreflect.EnumType {
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[2]
+}
+
+func (x CommandStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CommandStatus.Descriptor instead.
+func (CommandStatus) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{2}
+}
+
+// CommandCategory represents the category of a command executed during a session.
+type CommandCategory int32
+
+const (
+	// COMMAND_CATEGORY_UNSPECIFIED is the default value, indicating an unspecified category.
+	CommandCategory_COMMAND_CATEGORY_UNSPECIFIED CommandCategory = 0
+	// COMMAND_CATEGORY_FILE indicates that the command is related to file operations.
+	CommandCategory_COMMAND_CATEGORY_FILE CommandCategory = 1
+	// COMMAND_CATEGORY_NETWORK indicates that the command is related to network operations.
+	CommandCategory_COMMAND_CATEGORY_NETWORK CommandCategory = 2
+	// COMMAND_CATEGORY_SYSTEM indicates that the command is related to system operations.
+	CommandCategory_COMMAND_CATEGORY_SYSTEM CommandCategory = 3
+	// COMMAND_CATEGORY_USER_MANAGEMENT indicates that the command is related to user management operations.
+	CommandCategory_COMMAND_CATEGORY_USER_MANAGEMENT CommandCategory = 4
+	// COMMAND_CATEGORY_PROCESS_MANAGEMENT indicates that the command is related to process management operations.
+	CommandCategory_COMMAND_CATEGORY_PROCESS_MANAGEMENT CommandCategory = 5
+	// COMMAND_CATEGORY_PACKAGE_MANAGEMENT indicates that the command is related to package management operations.
+	CommandCategory_COMMAND_CATEGORY_PACKAGE_MANAGEMENT CommandCategory = 6
+	// COMMAND_CATEGORY_SHELL_BUILTIN indicates that the command is a shell builtin command.
+	CommandCategory_COMMAND_CATEGORY_SHELL_BUILTIN CommandCategory = 7
+	// COMMAND_CATEGORY_DEVELOPMENT indicates that the command is related to development operations.
+	CommandCategory_COMMAND_CATEGORY_DEVELOPMENT CommandCategory = 8
+	// COMMAND_CATEGORY_DATABASE indicates that the command is related to database operations.
+	CommandCategory_COMMAND_CATEGORY_DATABASE CommandCategory = 9
+	// COMMAND_CATEGORY_MALICIOUS indicates that the command is potentially malicious.
+	CommandCategory_COMMAND_CATEGORY_MALICIOUS CommandCategory = 10
+	// COMMAND_CATEGORY_RECONNAISSANCE indicates that the command is related to reconnaissance activities.
+	CommandCategory_COMMAND_CATEGORY_RECONNAISSANCE CommandCategory = 11
+	// COMMAND_CATEGORY_PRIVILEGE_ESCALATION indicates that the command is related to privilege escalation activities.
+	CommandCategory_COMMAND_CATEGORY_PRIVILEGE_ESCALATION CommandCategory = 12
+	// COMMAND_CATEGORY_PERSISTENCE indicates that the command is related to persistence mechanisms.
+	CommandCategory_COMMAND_CATEGORY_PERSISTENCE CommandCategory = 13
+	// COMMAND_CATEGORY_EXFILTRATION indicates that the command is related to data exfiltration activities.
+	CommandCategory_COMMAND_CATEGORY_EXFILTRATION CommandCategory = 14
+	// COMMAND_CATEGORY_LATERAL_MOVEMENT indicates that the command is related to lateral movement activities
+	CommandCategory_COMMAND_CATEGORY_LATERAL_MOVEMENT CommandCategory = 15
+	// COMMAND_CATEGORY_DEFENSE_EVASION indicates that the command is related to defense evasion
+	CommandCategory_COMMAND_CATEGORY_DEFENSE_EVASION CommandCategory = 16
+	// COMMAND_CATEGORY_OTHER indicates that the command does not fit into any other category.
+	CommandCategory_COMMAND_CATEGORY_OTHER CommandCategory = 17
+)
+
+// Enum value maps for CommandCategory.
+var (
+	CommandCategory_name = map[int32]string{
+		0:  "COMMAND_CATEGORY_UNSPECIFIED",
+		1:  "COMMAND_CATEGORY_FILE",
+		2:  "COMMAND_CATEGORY_NETWORK",
+		3:  "COMMAND_CATEGORY_SYSTEM",
+		4:  "COMMAND_CATEGORY_USER_MANAGEMENT",
+		5:  "COMMAND_CATEGORY_PROCESS_MANAGEMENT",
+		6:  "COMMAND_CATEGORY_PACKAGE_MANAGEMENT",
+		7:  "COMMAND_CATEGORY_SHELL_BUILTIN",
+		8:  "COMMAND_CATEGORY_DEVELOPMENT",
+		9:  "COMMAND_CATEGORY_DATABASE",
+		10: "COMMAND_CATEGORY_MALICIOUS",
+		11: "COMMAND_CATEGORY_RECONNAISSANCE",
+		12: "COMMAND_CATEGORY_PRIVILEGE_ESCALATION",
+		13: "COMMAND_CATEGORY_PERSISTENCE",
+		14: "COMMAND_CATEGORY_EXFILTRATION",
+		15: "COMMAND_CATEGORY_LATERAL_MOVEMENT",
+		16: "COMMAND_CATEGORY_DEFENSE_EVASION",
+		17: "COMMAND_CATEGORY_OTHER",
+	}
+	CommandCategory_value = map[string]int32{
+		"COMMAND_CATEGORY_UNSPECIFIED":          0,
+		"COMMAND_CATEGORY_FILE":                 1,
+		"COMMAND_CATEGORY_NETWORK":              2,
+		"COMMAND_CATEGORY_SYSTEM":               3,
+		"COMMAND_CATEGORY_USER_MANAGEMENT":      4,
+		"COMMAND_CATEGORY_PROCESS_MANAGEMENT":   5,
+		"COMMAND_CATEGORY_PACKAGE_MANAGEMENT":   6,
+		"COMMAND_CATEGORY_SHELL_BUILTIN":        7,
+		"COMMAND_CATEGORY_DEVELOPMENT":          8,
+		"COMMAND_CATEGORY_DATABASE":             9,
+		"COMMAND_CATEGORY_MALICIOUS":            10,
+		"COMMAND_CATEGORY_RECONNAISSANCE":       11,
+		"COMMAND_CATEGORY_PRIVILEGE_ESCALATION": 12,
+		"COMMAND_CATEGORY_PERSISTENCE":          13,
+		"COMMAND_CATEGORY_EXFILTRATION":         14,
+		"COMMAND_CATEGORY_LATERAL_MOVEMENT":     15,
+		"COMMAND_CATEGORY_DEFENSE_EVASION":      16,
+		"COMMAND_CATEGORY_OTHER":                17,
+	}
+)
+
+func (x CommandCategory) Enum() *CommandCategory {
+	p := new(CommandCategory)
+	*p = x
+	return p
+}
+
+func (x CommandCategory) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CommandCategory) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[3].Descriptor()
+}
+
+func (CommandCategory) Type() protoreflect.EnumType {
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[3]
+}
+
+func (x CommandCategory) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CommandCategory.Descriptor instead.
+func (CommandCategory) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{3}
 }
 
 // InferenceModel resource specifies a session summarization inference model
@@ -651,9 +883,13 @@ type Summary struct {
 	SessionEndEvent *structpb.Struct `protobuf:"bytes,7,opt,name=session_end_event,json=sessionEndEvent,proto3" json:"session_end_event,omitempty"`
 	// ErrorMessage is an error message if the summarization failed. Available if
 	// the state is SUMMARY_STATE_ERROR.
-	ErrorMessage  string `protobuf:"bytes,8,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ErrorMessage    string   `protobuf:"bytes,8,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	LoadingMessages []string `protobuf:"bytes,9,rep,name=loading_messages,json=loadingMessages,proto3" json:"loading_messages,omitempty"`
+	// RiskLevel is the highest risk level identified in the timeline items.
+	RiskLevel       RiskLevel       `protobuf:"varint,10,opt,name=risk_level,json=riskLevel,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"risk_level,omitempty"`
+	ExtendedSummary *SessionSummary `protobuf:"bytes,11,opt,name=extended_summary,json=extendedSummary,proto3" json:"extended_summary,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Summary) Reset() {
@@ -742,11 +978,559 @@ func (x *Summary) GetErrorMessage() string {
 	return ""
 }
 
+func (x *Summary) GetLoadingMessages() []string {
+	if x != nil {
+		return x.LoadingMessages
+	}
+	return nil
+}
+
+func (x *Summary) GetRiskLevel() RiskLevel {
+	if x != nil {
+		return x.RiskLevel
+	}
+	return RiskLevel_RISK_LEVEL_UNSPECIFIED
+}
+
+func (x *Summary) GetExtendedSummary() *SessionSummary {
+	if x != nil {
+		return x.ExtendedSummary
+	}
+	return nil
+}
+
+// CommandSummary represents a structured summary of a command.
+type CommandSummary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Command is the actual command that was executed.
+	Command string `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
+	// TimelineTitle is a short catchy title for timeline display.
+	TimelineTitle string `protobuf:"bytes,2,opt,name=timeline_title,json=timelineTitle,proto3" json:"timeline_title,omitempty"`
+	// ShortDescription is a brief one-line summary for display.
+	ShortDescription string `protobuf:"bytes,3,opt,name=short_description,json=shortDescription,proto3" json:"short_description,omitempty"`
+	// Description is a detailed description of what the command did and its output.
+	Description string `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	// Success indicates whether the command executed successfully.
+	Success bool `protobuf:"varint,5,opt,name=success,proto3" json:"success,omitempty"`
+	// ErrorMessages contains any error messages from the command execution.
+	ErrorMessages []string `protobuf:"bytes,6,rep,name=error_messages,json=errorMessages,proto3" json:"error_messages,omitempty"`
+	// SuspiciousFlags contains security concerns detected.
+	SuspiciousFlags []string `protobuf:"bytes,7,rep,name=suspicious_flags,json=suspiciousFlags,proto3" json:"suspicious_flags,omitempty"`
+	// RiskLevel indicates the risk level of the command.
+	RiskLevel RiskLevel `protobuf:"varint,8,opt,name=risk_level,json=riskLevel,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"risk_level,omitempty"`
+	// Category indicates the category of the command.
+	Category      CommandCategory `protobuf:"varint,9,opt,name=category,proto3,enum=teleport.summarizer.v1.CommandCategory" json:"category,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandSummary) Reset() {
+	*x = CommandSummary{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandSummary) ProtoMessage() {}
+
+func (x *CommandSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandSummary.ProtoReflect.Descriptor instead.
+func (*CommandSummary) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *CommandSummary) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *CommandSummary) GetTimelineTitle() string {
+	if x != nil {
+		return x.TimelineTitle
+	}
+	return ""
+}
+
+func (x *CommandSummary) GetShortDescription() string {
+	if x != nil {
+		return x.ShortDescription
+	}
+	return ""
+}
+
+func (x *CommandSummary) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *CommandSummary) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CommandSummary) GetErrorMessages() []string {
+	if x != nil {
+		return x.ErrorMessages
+	}
+	return nil
+}
+
+func (x *CommandSummary) GetSuspiciousFlags() []string {
+	if x != nil {
+		return x.SuspiciousFlags
+	}
+	return nil
+}
+
+func (x *CommandSummary) GetRiskLevel() RiskLevel {
+	if x != nil {
+		return x.RiskLevel
+	}
+	return RiskLevel_RISK_LEVEL_UNSPECIFIED
+}
+
+func (x *CommandSummary) GetCategory() CommandCategory {
+	if x != nil {
+		return x.Category
+	}
+	return CommandCategory_COMMAND_CATEGORY_UNSPECIFIED
+}
+
+// SecurityAnalysis represents security-related findings.
+type SecurityAnalysis struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// HasSensitiveData indicates whether sensitive data was found.
+	HasSensitiveData bool `protobuf:"varint,1,opt,name=has_sensitive_data,json=hasSensitiveData,proto3" json:"has_sensitive_data,omitempty"`
+	// SensitiveItems lists specific sensitive data found (IPs, passwords, keys, etc).
+	SensitiveItems []string `protobuf:"bytes,2,rep,name=sensitive_items,json=sensitiveItems,proto3" json:"sensitive_items,omitempty"`
+	// SuspiciousPatterns lists suspicious behaviors detected.
+	SuspiciousPatterns []string `protobuf:"bytes,3,rep,name=suspicious_patterns,json=suspiciousPatterns,proto3" json:"suspicious_patterns,omitempty"`
+	// IOCs lists indicators of compromise.
+	Iocs []string `protobuf:"bytes,4,rep,name=iocs,proto3" json:"iocs,omitempty"`
+	// PrivilegeEscalation indicates attempted privilege escalation.
+	PrivilegeEscalation bool `protobuf:"varint,5,opt,name=privilege_escalation,json=privilegeEscalation,proto3" json:"privilege_escalation,omitempty"`
+	// DataExfiltration indicates potential data exfiltration.
+	DataExfiltration bool `protobuf:"varint,6,opt,name=data_exfiltration,json=dataExfiltration,proto3" json:"data_exfiltration,omitempty"`
+	// Persistence indicates persistence mechanisms detected.
+	Persistence   bool `protobuf:"varint,7,opt,name=persistence,proto3" json:"persistence,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SecurityAnalysis) Reset() {
+	*x = SecurityAnalysis{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SecurityAnalysis) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SecurityAnalysis) ProtoMessage() {}
+
+func (x *SecurityAnalysis) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SecurityAnalysis.ProtoReflect.Descriptor instead.
+func (*SecurityAnalysis) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SecurityAnalysis) GetHasSensitiveData() bool {
+	if x != nil {
+		return x.HasSensitiveData
+	}
+	return false
+}
+
+func (x *SecurityAnalysis) GetSensitiveItems() []string {
+	if x != nil {
+		return x.SensitiveItems
+	}
+	return nil
+}
+
+func (x *SecurityAnalysis) GetSuspiciousPatterns() []string {
+	if x != nil {
+		return x.SuspiciousPatterns
+	}
+	return nil
+}
+
+func (x *SecurityAnalysis) GetIocs() []string {
+	if x != nil {
+		return x.Iocs
+	}
+	return nil
+}
+
+func (x *SecurityAnalysis) GetPrivilegeEscalation() bool {
+	if x != nil {
+		return x.PrivilegeEscalation
+	}
+	return false
+}
+
+func (x *SecurityAnalysis) GetDataExfiltration() bool {
+	if x != nil {
+		return x.DataExfiltration
+	}
+	return false
+}
+
+func (x *SecurityAnalysis) GetPersistence() bool {
+	if x != nil {
+		return x.Persistence
+	}
+	return false
+}
+
+// TechnicalMetrics represents technical metrics and artifacts extracted from the output.
+type TechnicalMetrics struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ExecutionTime is the time taken to execute the command.
+	ExecutionTime string `protobuf:"bytes,1,opt,name=execution_time,json=executionTime,proto3" json:"execution_time,omitempty"`
+	// NetworkConnections lists IPs, domains, ports accessed.
+	NetworkConnections []string `protobuf:"bytes,2,rep,name=network_connections,json=networkConnections,proto3" json:"network_connections,omitempty"`
+	// FileAccess lists files read/written/executed.
+	FileAccess []string `protobuf:"bytes,3,rep,name=file_access,json=fileAccess,proto3" json:"file_access,omitempty"`
+	// ProcessActivity lists processes spawned/killed.
+	ProcessActivity []string `protobuf:"bytes,4,rep,name=process_activity,json=processActivity,proto3" json:"process_activity,omitempty"`
+	// SystemChanges lists system configuration changes.
+	SystemChanges []string `protobuf:"bytes,5,rep,name=system_changes,json=systemChanges,proto3" json:"system_changes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TechnicalMetrics) Reset() {
+	*x = TechnicalMetrics{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TechnicalMetrics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TechnicalMetrics) ProtoMessage() {}
+
+func (x *TechnicalMetrics) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TechnicalMetrics.ProtoReflect.Descriptor instead.
+func (*TechnicalMetrics) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *TechnicalMetrics) GetExecutionTime() string {
+	if x != nil {
+		return x.ExecutionTime
+	}
+	return ""
+}
+
+func (x *TechnicalMetrics) GetNetworkConnections() []string {
+	if x != nil {
+		return x.NetworkConnections
+	}
+	return nil
+}
+
+func (x *TechnicalMetrics) GetFileAccess() []string {
+	if x != nil {
+		return x.FileAccess
+	}
+	return nil
+}
+
+func (x *TechnicalMetrics) GetProcessActivity() []string {
+	if x != nil {
+		return x.ProcessActivity
+	}
+	return nil
+}
+
+func (x *TechnicalMetrics) GetSystemChanges() []string {
+	if x != nil {
+		return x.SystemChanges
+	}
+	return nil
+}
+
+// AnalysisResult contains all analysis outputs.
+type AnalysisResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Summary contains the command summary.
+	Summary *CommandSummary `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
+	// Security contains security analysis findings.
+	Security *SecurityAnalysis `protobuf:"bytes,2,opt,name=security,proto3" json:"security,omitempty"`
+	// TechnicalMetrics contains technical metrics and artifacts.
+	TechnicalMetrics *TechnicalMetrics `protobuf:"bytes,3,opt,name=technical_metrics,json=technicalMetrics,proto3" json:"technical_metrics,omitempty"`
+	// RawAnalysis contains the raw analysis output.
+	RawAnalysis string `protobuf:"bytes,4,opt,name=raw_analysis,json=rawAnalysis,proto3" json:"raw_analysis,omitempty"`
+	// StartTime is when the command started (as duration from session start).
+	StartTime *durationpb.Duration `protobuf:"bytes,5,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	// EndTime is when the command ended (as duration from session start).
+	EndTime       *durationpb.Duration `protobuf:"bytes,6,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AnalysisResult) Reset() {
+	*x = AnalysisResult{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AnalysisResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AnalysisResult) ProtoMessage() {}
+
+func (x *AnalysisResult) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AnalysisResult.ProtoReflect.Descriptor instead.
+func (*AnalysisResult) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *AnalysisResult) GetSummary() *CommandSummary {
+	if x != nil {
+		return x.Summary
+	}
+	return nil
+}
+
+func (x *AnalysisResult) GetSecurity() *SecurityAnalysis {
+	if x != nil {
+		return x.Security
+	}
+	return nil
+}
+
+func (x *AnalysisResult) GetTechnicalMetrics() *TechnicalMetrics {
+	if x != nil {
+		return x.TechnicalMetrics
+	}
+	return nil
+}
+
+func (x *AnalysisResult) GetRawAnalysis() string {
+	if x != nil {
+		return x.RawAnalysis
+	}
+	return ""
+}
+
+func (x *AnalysisResult) GetStartTime() *durationpb.Duration {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *AnalysisResult) GetEndTime() *durationpb.Duration {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+// SessionSummary represents an overall summary of a session with multiple commands.
+type SessionSummary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Username is the username of the person whose session this was.
+	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	// TotalCommands is the total number of commands executed in the session.
+	TotalCommands int32 `protobuf:"varint,2,opt,name=total_commands,json=totalCommands,proto3" json:"total_commands,omitempty"`
+	// CommandCategories maps command categories to their counts.
+	CommandCategories []CommandCategory `protobuf:"varint,3,rep,packed,name=command_categories,json=commandCategories,proto3,enum=teleport.summarizer.v1.CommandCategory" json:"command_categories,omitempty"`
+	// OverallRiskLevel is the overall risk level of the session.
+	OverallRiskLevel RiskLevel `protobuf:"varint,4,opt,name=overall_risk_level,json=overallRiskLevel,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"overall_risk_level,omitempty"`
+	// SessionDescription is a plain language description of what happened.
+	SessionDescription string `protobuf:"bytes,5,opt,name=session_description,json=sessionDescription,proto3" json:"session_description,omitempty"`
+	// SuspiciousActivities lists concerning behaviors.
+	SuspiciousActivities []string `protobuf:"bytes,6,rep,name=suspicious_activities,json=suspiciousActivities,proto3" json:"suspicious_activities,omitempty"`
+	// SecurityIncidents lists potential security incidents.
+	SecurityIncidents []string `protobuf:"bytes,7,rep,name=security_incidents,json=securityIncidents,proto3" json:"security_incidents,omitempty"`
+	// SensitiveDataFound indicates whether sensitive data was found in the session.
+	SensitiveDataFound bool `protobuf:"varint,8,opt,name=sensitive_data_found,json=sensitiveDataFound,proto3" json:"sensitive_data_found,omitempty"`
+	// CompromiseIndicators indicates if session shows signs of compromise.
+	CompromiseIndicators bool `protobuf:"varint,9,opt,name=compromise_indicators,json=compromiseIndicators,proto3" json:"compromise_indicators,omitempty"`
+	// NotableCommandIndexes contains indexes of most important/interesting commands to highlight.
+	NotableCommandIndexes []int32 `protobuf:"varint,10,rep,packed,name=notable_command_indexes,json=notableCommandIndexes,proto3" json:"notable_command_indexes,omitempty"`
+	// CommandAnalyses contains analyses for each command in the session.
+	CommandAnalyses []*AnalysisResult `protobuf:"bytes,11,rep,name=command_analyses,json=commandAnalyses,proto3" json:"command_analyses,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SessionSummary) Reset() {
+	*x = SessionSummary{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionSummary) ProtoMessage() {}
+
+func (x *SessionSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionSummary.ProtoReflect.Descriptor instead.
+func (*SessionSummary) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SessionSummary) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *SessionSummary) GetTotalCommands() int32 {
+	if x != nil {
+		return x.TotalCommands
+	}
+	return 0
+}
+
+func (x *SessionSummary) GetCommandCategories() []CommandCategory {
+	if x != nil {
+		return x.CommandCategories
+	}
+	return nil
+}
+
+func (x *SessionSummary) GetOverallRiskLevel() RiskLevel {
+	if x != nil {
+		return x.OverallRiskLevel
+	}
+	return RiskLevel_RISK_LEVEL_UNSPECIFIED
+}
+
+func (x *SessionSummary) GetSessionDescription() string {
+	if x != nil {
+		return x.SessionDescription
+	}
+	return ""
+}
+
+func (x *SessionSummary) GetSuspiciousActivities() []string {
+	if x != nil {
+		return x.SuspiciousActivities
+	}
+	return nil
+}
+
+func (x *SessionSummary) GetSecurityIncidents() []string {
+	if x != nil {
+		return x.SecurityIncidents
+	}
+	return nil
+}
+
+func (x *SessionSummary) GetSensitiveDataFound() bool {
+	if x != nil {
+		return x.SensitiveDataFound
+	}
+	return false
+}
+
+func (x *SessionSummary) GetCompromiseIndicators() bool {
+	if x != nil {
+		return x.CompromiseIndicators
+	}
+	return false
+}
+
+func (x *SessionSummary) GetNotableCommandIndexes() []int32 {
+	if x != nil {
+		return x.NotableCommandIndexes
+	}
+	return nil
+}
+
+func (x *SessionSummary) GetCommandAnalyses() []*AnalysisResult {
+	if x != nil {
+		return x.CommandAnalyses
+	}
+	return nil
+}
+
 var File_teleport_summarizer_v1_summarizer_proto protoreflect.FileDescriptor
 
 const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xd3\x01\n" +
+	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xd3\x01\n" +
 	"\x0eInferenceModel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -780,7 +1564,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x13InferencePolicySpec\x12\x14\n" +
 	"\x05kinds\x18\x01 \x03(\tR\x05kinds\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12\x16\n" +
-	"\x06filter\x18\x03 \x01(\tR\x06filter\"\xa5\x03\n" +
+	"\x06filter\x18\x03 \x01(\tR\x06filter\"\xe5\x04\n" +
 	"\aSummary\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12:\n" +
@@ -791,12 +1575,95 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\n" +
 	"model_name\x18\x06 \x01(\tR\tmodelName\x12C\n" +
 	"\x11session_end_event\x18\a \x01(\v2\x17.google.protobuf.StructR\x0fsessionEndEvent\x12#\n" +
-	"\rerror_message\x18\b \x01(\tR\ferrorMessage*|\n" +
+	"\rerror_message\x18\b \x01(\tR\ferrorMessage\x12)\n" +
+	"\x10loading_messages\x18\t \x03(\tR\x0floadingMessages\x12@\n" +
+	"\n" +
+	"risk_level\x18\n" +
+	" \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\triskLevel\x12Q\n" +
+	"\x10extended_summary\x18\v \x01(\v2&.teleport.summarizer.v1.SessionSummaryR\x0fextendedSummary\"\x93\x03\n" +
+	"\x0eCommandSummary\x12\x18\n" +
+	"\acommand\x18\x01 \x01(\tR\acommand\x12%\n" +
+	"\x0etimeline_title\x18\x02 \x01(\tR\rtimelineTitle\x12+\n" +
+	"\x11short_description\x18\x03 \x01(\tR\x10shortDescription\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x18\n" +
+	"\asuccess\x18\x05 \x01(\bR\asuccess\x12%\n" +
+	"\x0eerror_messages\x18\x06 \x03(\tR\rerrorMessages\x12)\n" +
+	"\x10suspicious_flags\x18\a \x03(\tR\x0fsuspiciousFlags\x12@\n" +
+	"\n" +
+	"risk_level\x18\b \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\triskLevel\x12C\n" +
+	"\bcategory\x18\t \x01(\x0e2'.teleport.summarizer.v1.CommandCategoryR\bcategory\"\xb0\x02\n" +
+	"\x10SecurityAnalysis\x12,\n" +
+	"\x12has_sensitive_data\x18\x01 \x01(\bR\x10hasSensitiveData\x12'\n" +
+	"\x0fsensitive_items\x18\x02 \x03(\tR\x0esensitiveItems\x12/\n" +
+	"\x13suspicious_patterns\x18\x03 \x03(\tR\x12suspiciousPatterns\x12\x12\n" +
+	"\x04iocs\x18\x04 \x03(\tR\x04iocs\x121\n" +
+	"\x14privilege_escalation\x18\x05 \x01(\bR\x13privilegeEscalation\x12+\n" +
+	"\x11data_exfiltration\x18\x06 \x01(\bR\x10dataExfiltration\x12 \n" +
+	"\vpersistence\x18\a \x01(\bR\vpersistence\"\xdd\x01\n" +
+	"\x10TechnicalMetrics\x12%\n" +
+	"\x0eexecution_time\x18\x01 \x01(\tR\rexecutionTime\x12/\n" +
+	"\x13network_connections\x18\x02 \x03(\tR\x12networkConnections\x12\x1f\n" +
+	"\vfile_access\x18\x03 \x03(\tR\n" +
+	"fileAccess\x12)\n" +
+	"\x10process_activity\x18\x04 \x03(\tR\x0fprocessActivity\x12%\n" +
+	"\x0esystem_changes\x18\x05 \x03(\tR\rsystemChanges\"\x82\x03\n" +
+	"\x0eAnalysisResult\x12@\n" +
+	"\asummary\x18\x01 \x01(\v2&.teleport.summarizer.v1.CommandSummaryR\asummary\x12D\n" +
+	"\bsecurity\x18\x02 \x01(\v2(.teleport.summarizer.v1.SecurityAnalysisR\bsecurity\x12U\n" +
+	"\x11technical_metrics\x18\x03 \x01(\v2(.teleport.summarizer.v1.TechnicalMetricsR\x10technicalMetrics\x12!\n" +
+	"\fraw_analysis\x18\x04 \x01(\tR\vrawAnalysis\x128\n" +
+	"\n" +
+	"start_time\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\tstartTime\x124\n" +
+	"\bend_time\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\aendTime\"\x83\x05\n" +
+	"\x0eSessionSummary\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12%\n" +
+	"\x0etotal_commands\x18\x02 \x01(\x05R\rtotalCommands\x12V\n" +
+	"\x12command_categories\x18\x03 \x03(\x0e2'.teleport.summarizer.v1.CommandCategoryR\x11commandCategories\x12O\n" +
+	"\x12overall_risk_level\x18\x04 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\x10overallRiskLevel\x12/\n" +
+	"\x13session_description\x18\x05 \x01(\tR\x12sessionDescription\x123\n" +
+	"\x15suspicious_activities\x18\x06 \x03(\tR\x14suspiciousActivities\x12-\n" +
+	"\x12security_incidents\x18\a \x03(\tR\x11securityIncidents\x120\n" +
+	"\x14sensitive_data_found\x18\b \x01(\bR\x12sensitiveDataFound\x123\n" +
+	"\x15compromise_indicators\x18\t \x01(\bR\x14compromiseIndicators\x126\n" +
+	"\x17notable_command_indexes\x18\n" +
+	" \x03(\x05R\x15notableCommandIndexes\x12Q\n" +
+	"\x10command_analyses\x18\v \x03(\v2&.teleport.summarizer.v1.AnalysisResultR\x0fcommandAnalyses*|\n" +
 	"\fSummaryState\x12\x1d\n" +
 	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +
 	"\x15SUMMARY_STATE_SUCCESS\x10\x02\x12\x17\n" +
-	"\x13SUMMARY_STATE_ERROR\x10\x03BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
+	"\x13SUMMARY_STATE_ERROR\x10\x03*\x80\x01\n" +
+	"\tRiskLevel\x12\x1a\n" +
+	"\x16RISK_LEVEL_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eRISK_LEVEL_LOW\x10\x01\x12\x15\n" +
+	"\x11RISK_LEVEL_MEDIUM\x10\x02\x12\x13\n" +
+	"\x0fRISK_LEVEL_HIGH\x10\x03\x12\x17\n" +
+	"\x13RISK_LEVEL_CRITICAL\x10\x04*\x82\x01\n" +
+	"\rCommandStatus\x12\x1e\n" +
+	"\x1aCOMMAND_STATUS_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16COMMAND_STATUS_SUCCESS\x10\x01\x12\x19\n" +
+	"\x15COMMAND_STATUS_FAILED\x10\x02\x12\x1a\n" +
+	"\x16COMMAND_STATUS_UNKNOWN\x10\x03*\x84\x05\n" +
+	"\x0fCommandCategory\x12 \n" +
+	"\x1cCOMMAND_CATEGORY_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15COMMAND_CATEGORY_FILE\x10\x01\x12\x1c\n" +
+	"\x18COMMAND_CATEGORY_NETWORK\x10\x02\x12\x1b\n" +
+	"\x17COMMAND_CATEGORY_SYSTEM\x10\x03\x12$\n" +
+	" COMMAND_CATEGORY_USER_MANAGEMENT\x10\x04\x12'\n" +
+	"#COMMAND_CATEGORY_PROCESS_MANAGEMENT\x10\x05\x12'\n" +
+	"#COMMAND_CATEGORY_PACKAGE_MANAGEMENT\x10\x06\x12\"\n" +
+	"\x1eCOMMAND_CATEGORY_SHELL_BUILTIN\x10\a\x12 \n" +
+	"\x1cCOMMAND_CATEGORY_DEVELOPMENT\x10\b\x12\x1d\n" +
+	"\x19COMMAND_CATEGORY_DATABASE\x10\t\x12\x1e\n" +
+	"\x1aCOMMAND_CATEGORY_MALICIOUS\x10\n" +
+	"\x12#\n" +
+	"\x1fCOMMAND_CATEGORY_RECONNAISSANCE\x10\v\x12)\n" +
+	"%COMMAND_CATEGORY_PRIVILEGE_ESCALATION\x10\f\x12 \n" +
+	"\x1cCOMMAND_CATEGORY_PERSISTENCE\x10\r\x12!\n" +
+	"\x1dCOMMAND_CATEGORY_EXFILTRATION\x10\x0e\x12%\n" +
+	"!COMMAND_CATEGORY_LATERAL_MOVEMENT\x10\x0f\x12$\n" +
+	" COMMAND_CATEGORY_DEFENSE_EVASION\x10\x10\x12\x1a\n" +
+	"\x16COMMAND_CATEGORY_OTHER\x10\x11BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
 var (
 	file_teleport_summarizer_v1_summarizer_proto_rawDescOnce sync.Once
@@ -810,39 +1677,60 @@ func file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP() []byte {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescData
 }
 
-var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(SummaryState)(0),             // 0: teleport.summarizer.v1.SummaryState
-	(*InferenceModel)(nil),        // 1: teleport.summarizer.v1.InferenceModel
-	(*InferenceModelSpec)(nil),    // 2: teleport.summarizer.v1.InferenceModelSpec
-	(*OpenAIProvider)(nil),        // 3: teleport.summarizer.v1.OpenAIProvider
-	(*InferenceSecret)(nil),       // 4: teleport.summarizer.v1.InferenceSecret
-	(*InferenceSecretSpec)(nil),   // 5: teleport.summarizer.v1.InferenceSecretSpec
-	(*InferencePolicy)(nil),       // 6: teleport.summarizer.v1.InferencePolicy
-	(*InferencePolicySpec)(nil),   // 7: teleport.summarizer.v1.InferencePolicySpec
-	(*Summary)(nil),               // 8: teleport.summarizer.v1.Summary
-	(*v1.Metadata)(nil),           // 9: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),       // 11: google.protobuf.Struct
+	(RiskLevel)(0),                // 1: teleport.summarizer.v1.RiskLevel
+	(CommandStatus)(0),            // 2: teleport.summarizer.v1.CommandStatus
+	(CommandCategory)(0),          // 3: teleport.summarizer.v1.CommandCategory
+	(*InferenceModel)(nil),        // 4: teleport.summarizer.v1.InferenceModel
+	(*InferenceModelSpec)(nil),    // 5: teleport.summarizer.v1.InferenceModelSpec
+	(*OpenAIProvider)(nil),        // 6: teleport.summarizer.v1.OpenAIProvider
+	(*InferenceSecret)(nil),       // 7: teleport.summarizer.v1.InferenceSecret
+	(*InferenceSecretSpec)(nil),   // 8: teleport.summarizer.v1.InferenceSecretSpec
+	(*InferencePolicy)(nil),       // 9: teleport.summarizer.v1.InferencePolicy
+	(*InferencePolicySpec)(nil),   // 10: teleport.summarizer.v1.InferencePolicySpec
+	(*Summary)(nil),               // 11: teleport.summarizer.v1.Summary
+	(*CommandSummary)(nil),        // 12: teleport.summarizer.v1.CommandSummary
+	(*SecurityAnalysis)(nil),      // 13: teleport.summarizer.v1.SecurityAnalysis
+	(*TechnicalMetrics)(nil),      // 14: teleport.summarizer.v1.TechnicalMetrics
+	(*AnalysisResult)(nil),        // 15: teleport.summarizer.v1.AnalysisResult
+	(*SessionSummary)(nil),        // 16: teleport.summarizer.v1.SessionSummary
+	(*v1.Metadata)(nil),           // 17: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil), // 18: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),       // 19: google.protobuf.Struct
+	(*durationpb.Duration)(nil),   // 20: google.protobuf.Duration
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
-	9,  // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
-	2,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
-	3,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	9,  // 3: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
-	5,  // 4: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	9,  // 5: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
-	7,  // 6: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
+	17, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
+	5,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	6,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	17, // 3: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
+	8,  // 4: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	17, // 5: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
+	10, // 6: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
 	0,  // 7: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
-	10, // 8: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
-	10, // 9: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
-	11, // 10: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	18, // 8: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
+	18, // 9: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
+	19, // 10: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
+	1,  // 11: teleport.summarizer.v1.Summary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	16, // 12: teleport.summarizer.v1.Summary.extended_summary:type_name -> teleport.summarizer.v1.SessionSummary
+	1,  // 13: teleport.summarizer.v1.CommandSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	3,  // 14: teleport.summarizer.v1.CommandSummary.category:type_name -> teleport.summarizer.v1.CommandCategory
+	12, // 15: teleport.summarizer.v1.AnalysisResult.summary:type_name -> teleport.summarizer.v1.CommandSummary
+	13, // 16: teleport.summarizer.v1.AnalysisResult.security:type_name -> teleport.summarizer.v1.SecurityAnalysis
+	14, // 17: teleport.summarizer.v1.AnalysisResult.technical_metrics:type_name -> teleport.summarizer.v1.TechnicalMetrics
+	20, // 18: teleport.summarizer.v1.AnalysisResult.start_time:type_name -> google.protobuf.Duration
+	20, // 19: teleport.summarizer.v1.AnalysisResult.end_time:type_name -> google.protobuf.Duration
+	3,  // 20: teleport.summarizer.v1.SessionSummary.command_categories:type_name -> teleport.summarizer.v1.CommandCategory
+	1,  // 21: teleport.summarizer.v1.SessionSummary.overall_risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	15, // 22: teleport.summarizer.v1.SessionSummary.command_analyses:type_name -> teleport.summarizer.v1.AnalysisResult
+	23, // [23:23] is the sub-list for method output_type
+	23, // [23:23] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }
@@ -858,8 +1746,8 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   8,
+			NumEnums:      4,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

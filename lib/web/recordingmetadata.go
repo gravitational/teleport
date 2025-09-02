@@ -30,7 +30,9 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 type sessionRecordingMessageType string
@@ -180,6 +182,59 @@ func (h *Handler) getSessionRecordingThumbnail(
 	}
 
 	return encodeSessionRecordingThumbnail(response.Thumbnail), nil
+}
+
+type tresizeEvent struct {
+	Time         int64  `json:"time"`
+	TerminalSize string `json:"terminalSize"`
+}
+
+type printEvent struct {
+	data []byte `json:"data"`
+	Time   int64  `json:"time"`
+}
+
+type startEvent struct {
+	time int64 `json:"time"`
+	user string
+}
+
+func (h *Handler) getSessionRecordingEvents(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	sessionId := p.ByName("session_id")
+	if sessionId == "" {
+		return nil, trace.BadParameter("session_id is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	evts, errs := clt.StreamSessionEvents(r.Context(), session.ID(sessionId), 0)
+
+	var allEvents []apievents.AuditEvent
+
+	for {
+		select {
+		case err := <-errs:
+			return nil, trace.Wrap(err)
+		case evt, ok := <-evts:
+			if !ok {
+				return nil, trace.NotFound("could not find end event for session %v", sessionId)
+			}
+
+			switch evt := evt.(type) {
+			case *apievents.SessionEnd:
+				allEvents = append(allEvents, evt)
+				return allEvents, nil
+
+			case *apievents.SessionStart, *apievents.Resize, *apievents.SessionPrint:
+				allEvents = append(allEvents, evt)
+			}
+		}
+	}
 }
 
 type baseEvent struct {

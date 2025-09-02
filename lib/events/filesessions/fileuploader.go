@@ -112,6 +112,7 @@ func (l *Handler) Close() error {
 
 // Download reads a session recording from a local directory.
 func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	fmt.Println("downloading from", l.recordingPath(sessionID))
 	return downloadFile(l.recordingPath(sessionID), writer)
 }
 
