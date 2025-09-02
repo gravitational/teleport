@@ -217,6 +217,9 @@ type IdentityContext struct {
 	// TeleportUser is the Teleport user associated with the connection.
 	TeleportUser string
 
+	// ClusterName is the name of the cluster the user authenticated with.
+	TeleportClusterName string
+
 	// Impersonator is a user acting on behalf of other user
 	Impersonator string
 
@@ -510,6 +513,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		Conn:                  child.ServerConn,
 		Context:               cancelContext,
 		TeleportUser:          child.Identity.TeleportUser,
+		TeleportClusterName:   child.Identity.TeleportClusterName,
 		Login:                 child.Identity.Login,
 		ServerID:              child.srv.ID(),
 		Logger:                child.Logger,
@@ -1099,14 +1103,15 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	}
 
 	return apievents.UserMetadata{
-		Login:          id.Login,
-		User:           id.TeleportUser,
-		Impersonator:   id.Impersonator,
-		AccessRequests: id.ActiveRequests,
-		TrustedDevice:  id.UnmappedIdentity.GetDeviceMetadata(),
-		UserKind:       userKind,
-		BotName:        id.BotName,
-		BotInstanceID:  id.BotInstanceID,
+		Login:           id.Login,
+		User:            id.TeleportUser,
+		Impersonator:    id.Impersonator,
+		AccessRequests:  id.ActiveRequests,
+		TrustedDevice:   id.UnmappedIdentity.GetDeviceMetadata(),
+		UserKind:        userKind,
+		BotName:         id.BotName,
+		BotInstanceID:   id.BotInstanceID,
+		UserClusterName: id.TeleportClusterName,
 	}
 }
 

@@ -992,10 +992,11 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 
 	s.log.DebugContext(s.forwarder.ctx, "Tracking participant", "participant_id", p.ID)
 	participant := &types.Participant{
-		ID:         p.ID.String(),
-		User:       p.Ctx.User.GetName(),
-		Mode:       string(p.Mode),
-		LastActive: time.Now().UTC(),
+		ID:              p.ID.String(),
+		User:            p.Ctx.Identity.GetIdentity().Username,
+		TeleportCluster: p.Ctx.Identity.GetIdentity().TeleportCluster,
+		Mode:            string(p.Mode),
+		LastActive:      time.Now().UTC(),
 	}
 	if err := s.tracker.AddParticipant(s.forwarder.ctx, participant); err != nil {
 		return trace.Wrap(err)

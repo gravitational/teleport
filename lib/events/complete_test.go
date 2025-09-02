@@ -292,7 +292,6 @@ func TestCheckUploadsSkipsUploadsInProgress(t *testing.T) {
 
 	uc.CheckUploads(context.Background())
 	require.Empty(t, completedUploads)
-
 }
 
 func TestCheckUploadsContinuesOnError(t *testing.T) {
@@ -409,7 +408,7 @@ func (m *mockSessionTrackerService) RemoveSessionTracker(ctx context.Context, se
 	return trace.NotImplemented("RemoveSessionTracker is not implemented")
 }
 
-func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
+func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user, teleportCluster string) error {
 	return trace.NotImplemented("UpdatePresence is not implemented")
 }
 

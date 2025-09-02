@@ -256,6 +256,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		BotInstanceID:                       unmappedIdentity.BotInstanceID,
 		JoinToken:                           unmappedIdentity.JoinToken,
 		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
+		TeleportClusterName:                 certAuthority.GetClusterName(),
 	}, nil
 }
 

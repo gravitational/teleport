@@ -576,7 +576,7 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
+func (c *Client) UpdatePresence(ctx context.Context, sessionID, user, teleportCluster string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

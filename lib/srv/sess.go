@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	usersutils "github.com/gravitational/teleport/lib/utils/users"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -1226,14 +1227,17 @@ func (s *session) emitSessionEndEvent() {
 		SessionRecording:  s.sessionRecordingLocation(),
 	}
 
+	localClusterName := ctx.ClusterName
 	for _, p := range s.participants {
-		sessionEndEvent.Participants = append(sessionEndEvent.Participants, p.user)
+		participantName := usersutils.UsernameForCluster(p.user, localClusterName, p.userTeleportCluster)
+		sessionEndEvent.Participants = append(sessionEndEvent.Participants, participantName)
 	}
 
 	// If there are 0 participants, this is an exec session.
 	// Use the user from the session context.
 	if len(s.participants) == 0 {
-		sessionEndEvent.Participants = []string{s.scx.Identity.TeleportUser}
+		participantName := usersutils.UsernameForCluster(s.scx.Identity.TeleportUser, localClusterName, s.scx.Identity.TeleportClusterName)
+		sessionEndEvent.Participants = []string{participantName}
 	}
 
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionEndEvent)
@@ -2204,10 +2208,11 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 
 	s.logger.DebugContext(s.serverCtx, "Tracking participant.", "party", p)
 	participant := &types.Participant{
-		ID:         p.id.String(),
-		User:       p.user,
-		Mode:       string(p.mode),
-		LastActive: time.Now().UTC(),
+		ID:              p.id.String(),
+		User:            p.user,
+		TeleportCluster: p.userTeleportCluster,
+		Mode:            string(p.mode),
+		LastActive:      time.Now().UTC(),
 	}
 	if err := s.tracker.AddParticipant(s.serverCtx, participant); err != nil {
 		return trace.Wrap(err)
@@ -2232,19 +2237,20 @@ func (s *session) getParties() (parties []*party) {
 type party struct {
 	sync.Mutex
 
-	log        *slog.Logger
-	login      string
-	user       string
-	serverID   string
-	site       string
-	id         rsession.ID
-	s          *session
-	sconn      *ssh.ServerConn
-	ch         ssh.Channel
-	ctx        *ServerContext
-	lastActive time.Time
-	mode       types.SessionParticipantMode
-	closeOnce  sync.Once
+	log                 *slog.Logger
+	login               string
+	user                string
+	userTeleportCluster string
+	serverID            string
+	site                string
+	id                  rsession.ID
+	s                   *session
+	sconn               *ssh.ServerConn
+	ch                  ssh.Channel
+	ctx                 *ServerContext
+	lastActive          time.Time
+	mode                types.SessionParticipantMode
+	closeOnce           sync.Once
 }
 
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
@@ -2254,16 +2260,17 @@ func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx
 			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			"party_id", pid,
 		),
-		user:     ctx.Identity.TeleportUser,
-		login:    ctx.Identity.Login,
-		serverID: s.registry.Srv.ID(),
-		site:     ctx.ServerConn.RemoteAddr().String(),
-		id:       rsession.NewID(),
-		ch:       ch,
-		ctx:      ctx,
-		s:        s,
-		sconn:    ctx.ServerConn,
-		mode:     mode,
+		user:                ctx.Identity.TeleportUser,
+		userTeleportCluster: ctx.Identity.TeleportClusterName,
+		login:               ctx.Identity.Login,
+		serverID:            s.registry.Srv.ID(),
+		site:                ctx.ServerConn.RemoteAddr().String(),
+		id:                  rsession.NewID(),
+		ch:                  ch,
+		ctx:                 ctx,
+		s:                   s,
+		sconn:               ctx.ServerConn,
+		mode:                mode,
 	}
 }
 
@@ -2336,10 +2343,11 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		Created:      s.registry.clock.Now().UTC(),
 		Participants: []types.Participant{
 			{
-				ID:         p.id.String(),
-				User:       p.user,
-				Mode:       string(p.mode),
-				LastActive: s.registry.clock.Now().UTC(),
+				ID:              p.id.String(),
+				User:            p.user,
+				TeleportCluster: p.userTeleportCluster,
+				Mode:            string(p.mode),
+				LastActive:      s.registry.clock.Now().UTC(),
 			},
 		},
 		HostID:         s.registry.Srv.ID(),

@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usersutils "github.com/gravitational/teleport/lib/utils/users"
 )
 
 const matchAllExpression = `"" == ""`
@@ -8899,7 +8900,7 @@ type mockRemoteUser struct {
 
 // GetName returns the username from the remote cluster's view.
 func (u mockRemoteUser) GetName() string {
-	return UsernameForRemoteCluster(u.mockCurrentUser.GetName(), u.localClusterName)
+	return usersutils.UsernameForRemoteCluster(u.mockCurrentUser.GetName(), u.localClusterName)
 }
 
 func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
