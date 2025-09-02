@@ -37,6 +37,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeOpenAI,
 	PluginTypeOkta,
 	PluginTypeJamf,
+	PluginTypeIntune,
 	PluginTypeJira,
 	PluginTypeOpsgenie,
 	PluginTypePagerDuty,
@@ -62,6 +63,8 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
+	// PluginTypeIntune is the Intune MDM plugin
+	PluginTypeIntune = "intune"
 	// PluginTypeJira is the Jira access plugin
 	PluginTypeJira = "jira"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
@@ -245,7 +248,23 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
-
+	case *PluginSpecV1_Intune:
+		if settings.Intune == nil {
+			return trace.BadParameter("missing Intune settings")
+		}
+		if err := settings.Intune.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Intune plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
 	case *PluginSpecV1_Jira:
 		if settings.Jira == nil {
 			return trace.BadParameter("missing Jira settings")
@@ -566,6 +585,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeOkta
 	case *PluginSpecV1_Jamf:
 		return PluginTypeJamf
+	case *PluginSpecV1_Intune:
+		return PluginTypeIntune
 	case *PluginSpecV1_Jira:
 		return PluginTypeJira
 	case *PluginSpecV1_Opsgenie:
@@ -996,7 +1017,7 @@ func (c *PluginNetIQSettings) Validate() error {
 	return nil
 }
 
-// CheckAndSetDefaults checks that the required fields for the Github plugin are set.
+// Validate checks that the required fields for the Github plugin are set.
 func (c *PluginGithubSettings) Validate() error {
 	if c.ClientId == "" {
 		return trace.BadParameter("client_id must be set")
@@ -1004,5 +1025,18 @@ func (c *PluginGithubSettings) Validate() error {
 	if c.OrganizationName == "" {
 		return trace.BadParameter("organization_name must be set")
 	}
+	return nil
+}
+
+// Validate checks that the required fields for the Intune plugin are set.
+func (c *PluginIntuneSettings) Validate() error {
+	if c.Tenant == "" {
+		return trace.BadParameter("tenant must be set")
+	}
+
+	if err := ValidateMSGraphEndpoints(c.LoginEndpoint, c.GraphEndpoint); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
