@@ -293,6 +293,7 @@ export type PluginKind =
   | 'okta'
   | 'servicenow'
   | 'jamf'
+  | 'intune'
   | 'entra-id'
   | 'datadog'
   | 'aws-identity-center'
