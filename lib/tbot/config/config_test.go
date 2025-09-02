@@ -303,8 +303,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						},
 					},
 					&application.ProxyServiceConfig{
-						Listen:       "tcp://127.0.0.1:8080",
-						Applications: []string{"my-app"},
+						Listen: "tcp://127.0.0.1:8080",
 						CredentialLifetime: bot.CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
