@@ -22,12 +22,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -133,18 +136,13 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 	}, nil
 }
 
-// Generate will generate the user login state for the given user.
-func (g *Generator) Generate(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
-	return g.generate(ctx, user, ulsService, false)
-}
-
 // GeneratePureULS is a variant of user login state generation that emits no usage events and ignores any existing user login state
 // in the backend. Used for auditing/introspection purposes.
 func (g *Generator) GeneratePureULS(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
 	return g.generate(ctx, user, nil, true)
 }
 
-// generate is the underlying implementation for Generate and GeneratePure.
+// Generate will generate the user login state for the given user.
 func (g *Generator) generate(ctx context.Context, user types.User, ulsService services.UserLoginStates, pure bool) (*userloginstate.UserLoginState, error) {
 	var originalTraits map[string][]string
 	var traits map[string][]string
@@ -166,6 +164,22 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 		}
 	}
 
+	var samlIdentities []userloginstate.ExternalIdentity
+	if !pure {
+		connector := user.GetCreatedBy().Connector
+		if connector != nil && connector.Type == constants.SAML {
+			samlIdentities = []userloginstate.ExternalIdentity{
+				{
+					ConnectorID:   connector.ID,
+					UserID:        connector.Identity,
+					Username:      connector.Identity,
+					GrantedRoles:  slices.Clone(user.GetRoles()),
+					GrantedTraits: maps.Clone(traits),
+				},
+			}
+		}
+	}
+
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(
 		header.Metadata{
@@ -178,6 +192,7 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 			Traits:         traits,
 			UserType:       user.GetUserType(),
 			GitHubIdentity: githubIdentity,
+			SAMLIdentities: samlIdentities,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -190,8 +205,7 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 	}
 
 	if !pure {
-		// Preserve states like GitHub identities across logins.
-		if err := UpdatePreservedAttributes(ctx, uls, ulsService); err != nil {
+		if err := updatePreservedAttributes(ctx, uls, ulsService); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -322,13 +336,20 @@ func selectGrants(acl *accesslist.AccessList, owner bool) accesslist.Grants {
 // returning inherited roles and traits if AccessListUserAssignmentType is inherited.
 func (g *Generator) grantRolesAndTraits(grants accesslist.Grants, state *userloginstate.UserLoginState) {
 	state.Spec.Roles = append(state.Spec.Roles, grants.Roles...)
+	state.Spec.AccessListRoles = append(state.Spec.AccessListRoles, grants.Roles...)
 
-	if state.Spec.Traits == nil && len(grants.Traits) > 0 {
-		state.Spec.Traits = map[string][]string{}
+	if len(grants.Traits) > 0 {
+		if state.Spec.Traits == nil {
+			state.Spec.Traits = map[string][]string{}
+		}
+		if state.Spec.AccessListTraits == nil {
+			state.Spec.AccessListTraits = map[string][]string{}
+		}
 	}
 
 	for k, values := range grants.Traits {
 		state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
+		state.Spec.AccessListTraits[k] = append(state.Spec.AccessListTraits[k], values...)
 	}
 }
 
@@ -338,6 +359,10 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 	state.Spec.Roles = utils.Deduplicate(state.Spec.Roles)
 	for k, v := range state.Spec.Traits {
 		state.Spec.Traits[k] = utils.Deduplicate(v)
+	}
+	state.Spec.AccessListRoles = utils.Deduplicate(state.Spec.AccessListRoles)
+	for k, v := range state.Spec.AccessListTraits {
+		state.Spec.AccessListTraits[k] = utils.Deduplicate(v)
 	}
 
 	// Make sure all the roles exist. If they don't, error out.
@@ -406,34 +431,44 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 	return nil
 }
 
-// UpdatePreservedAttributes retrieves attributes that can be preserved in user
-// login state cross logins.
-func UpdatePreservedAttributes(ctx context.Context, user services.UserState, ulsService services.UserLoginStates) error {
-	// Use the new/existing GitHubIdentities.
-	// TODO(greedy52) implement a way to remove the identity or find a way to
-	// avoid keeping the identity forever in user login state.
-	if len(user.GetGithubIdentities()) > 0 {
+// updatePreservedAttributes that should be preserved in user login state across logins.
+func updatePreservedAttributes(ctx context.Context, uls *userloginstate.UserLoginState, ulsService services.UserLoginStates) error {
+	existingULS, err := ulsService.GetUserLoginState(ctx, uls.GetName())
+	if trace.IsNotFound(err) {
 		return nil
-	}
-
-	// Find the old state if exists.
-	old, err := ulsService.GetUserLoginState(ctx, user.GetName())
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil
-		}
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if githubIdentities := old.GetGithubIdentities(); len(githubIdentities) > 0 {
-		user.SetGithubIdentities(githubIdentities)
+	if len(uls.GetGithubIdentities()) == 0 {
+		uls.SetGithubIdentities(existingULS.GetGithubIdentities())
 	}
+	preserveSAMLIdentities(uls, existingULS)
 	return nil
+}
+
+// preserveSAMLIdentities merges SAML identities from u2 to u1.
+func preserveSAMLIdentities(dst, src *userloginstate.UserLoginState) {
+	ids1 := dst.Spec.SAMLIdentities
+	ids2 := src.Spec.SAMLIdentities
+
+	for _, id2 := range ids2 {
+		ok := slices.ContainsFunc(ids1, func(id1 userloginstate.ExternalIdentity) bool {
+			return id1.ConnectorID == id2.ConnectorID
+		})
+		if !ok {
+			ids1 = append(ids1, id2)
+		}
+	}
+	slices.SortFunc(ids1, func(x, y userloginstate.ExternalIdentity) int {
+		return strings.Compare(x.ConnectorID, y.ConnectorID)
+	})
+
+	dst.Spec.SAMLIdentities = ids1
 }
 
 // Refresh will take the user and update the user login state in the backend.
 func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
-	uls, err := g.Generate(ctx, user, ulsService)
+	uls, err := g.generate(ctx, user, ulsService, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -59,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
-	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3529,8 +3528,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// preserved in user login state, where local users may get updated roles
 	// from ConnectMyComputer setup. So here we retrieve additional fields from
 	// user login state. Ideally we should solve this some other way.
-	if err := userloginstate.UpdatePreservedAttributes(ctx, user, a.authServer.Services); err != nil {
-		return nil, trace.Wrap(err, "updating preserved attributes")
+	if githubIdentities := user.GetGithubIdentities(); len(githubIdentities) == 0 {
+		uls, err := a.authServer.Services.GetUserLoginState(ctx, user.GetName())
+		if trace.IsNotFound(err) {
+			// Nothing to do.
+		} else if err != nil {
+			return nil, trace.Wrap(err, "updating GitHub identities")
+		} else if githubIdentities := uls.GetGithubIdentities(); len(githubIdentities) > 0 {
+			user.SetGithubIdentities(githubIdentities)
+		}
 	}
 
 	// Do not allow SSO users to be impersonated.
