@@ -156,6 +156,11 @@ loop:
 					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
 
+				if metadata.StartCols == 0 && metadata.StartRows == 0 {
+					metadata.StartCols = int32(size.W)
+					metadata.StartRows = int32(size.H)
+				}
+
 				metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
 					StartOffset: durationpb.New(e.Time.Sub(startTime)),
 					Event: &pb.SessionRecordingEvent_Resize{
@@ -229,9 +234,6 @@ loop:
 					metadata.ResourceName = e.KubernetesCluster
 					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
 				}
-
-				metadata.StartCols = int32(size.W)
-				metadata.StartRows = int32(size.H)
 
 				vt.Resize(size.W, size.H)
 			}
