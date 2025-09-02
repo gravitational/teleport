@@ -72,7 +72,7 @@ const (
 // encodeScreenEvent encodes the current terminal screen state into a byte slice.
 func encodeScreenEvent(state vt10x.TerminalState, cols, rows int, cursor vt10x.Cursor) []byte {
 	var buf bytes.Buffer
-	buf.Write(make([]byte, requestHeaderSize))
+	buf.Write(make([]byte, responseHeaderSize))
 
 	terminal.VtStateToANSI(&buf, state)
 
@@ -82,7 +82,7 @@ func encodeScreenEvent(state vt10x.TerminalState, cols, rows int, cursor vt10x.C
 	binary.BigEndian.PutUint32(eventData[5:9], uint32(rows))
 	binary.BigEndian.PutUint32(eventData[9:13], uint32(cursor.X))
 	binary.BigEndian.PutUint32(eventData[13:17], uint32(cursor.Y))
-	binary.BigEndian.PutUint32(eventData[17:21], uint32(len(eventData)-requestHeaderSize))
+	binary.BigEndian.PutUint32(eventData[17:21], uint32(len(eventData)-responseHeaderSize))
 
 	return eventData
 }
