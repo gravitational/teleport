@@ -2496,26 +2496,8 @@ app_service:
       uri: "http://127.0.0.1:8080"
       public_addr: foo.example.com
 `,
-			name:   "app has a different public address compared to the proxy server",
+			name:   "app's public address differs from the proxy server",
 			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-proxy_service:
-  public_addr: proxy.example.com
-app_service:
-  enabled: true
-  apps:
-    -
-      name: foo
-      uri: "http://127.0.0.1:8080"
-      public_addr: proxy.example.com
-`,
-			name: "app has the same public address as the proxy server",
-			outErr: func(t require.TestingT, err error, i ...any) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, `application "foo" public_addr "proxy.example.com" can not be the same as a web proxy public address`)
-			},
 		},
 		{
 			inConfigString: `
@@ -2529,10 +2511,9 @@ app_service:
       uri: "http://127.0.0.1:8080"
       public_addr: proxy.example.com
 `,
-			name: "app has the same public address as the proxy server when the proxy server contains a port",
+			name: "app's public address conflicts with the proxy server",
 			outErr: func(t require.TestingT, err error, i ...any) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, `application "foo" public_addr "proxy.example.com" can not be the same as a web proxy public address`)
+				require.ErrorIs(t, err, trace.BadParameter("application \"foo\" public_addr \"proxy.example.com\" conflicts with a proxy public address"))
 			},
 		},
 		{

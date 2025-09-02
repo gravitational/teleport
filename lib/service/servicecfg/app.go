@@ -158,9 +158,9 @@ type PortRange struct {
 	EndPort int
 }
 
-// CheckAndSetDefaults validates an application. The addresses to the proxy are used to validate that the application
-// has a unique public address compared to the proxy addresses.
-func (a *App) CheckAndSetDefaults(proxyAddrs ...utils.NetAddr) error {
+// CheckAndSetDefaults validates the application's configuration. It ensures the application's public address does not
+// conflict with any proxy addresses provided.
+func (a *App) CheckAndSetDefaults(proxyAddrs []utils.NetAddr) error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
 	}
@@ -199,7 +199,7 @@ func (a *App) CheckAndSetDefaults(proxyAddrs ...utils.NetAddr) error {
 				return a.PublicAddr == proxyAddr.Host()
 			},
 		) {
-			return trace.BadParameter("application %q public_addr %q can not be the same as a web proxy public address", a.Name, a.PublicAddr)
+			return trace.BadParameter("application %q public_addr %q conflicts with a proxy public address", a.Name, a.PublicAddr)
 		}
 	}
 	// Mark the app as coming from the static configuration.
