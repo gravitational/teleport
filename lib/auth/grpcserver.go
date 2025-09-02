@@ -1489,19 +1489,7 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		}
 	}
 
-	proxyServers, err := auth.GetProxies()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var proxyAddrs []string
-	for _, proxyServer := range proxyServers {
-		if proxyServer.GetPublicAddr() != "" {
-			proxyAddrs = append(proxyAddrs, proxyServer.GetPublicAddr())
-		}
-	}
-
-	if err := services.ValidateApp(app, proxyAddrs); err != nil {
+	if err := services.ValidateApp(app, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3862,21 +3850,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
-
-	proxyServers, err := auth.GetProxies()
-	if err != nil {
+	if err := services.ValidateApp(app, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	proxyAddrs := make([]string, 0, len(proxyServers))
-	for _, proxyServer := range proxyServers {
-		proxyAddrs = append(proxyAddrs, proxyServer.GetPublicAddr())
-	}
-
-	if err := services.ValidateApp(app, proxyAddrs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3892,21 +3868,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
-
-	proxyServers, err := auth.GetProxies()
-	if err != nil {
+	if err := services.ValidateApp(app, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	proxyAddrs := make([]string, 0, len(proxyServers))
-	for _, proxyServer := range proxyServers {
-		proxyAddrs = append(proxyAddrs, proxyServer.GetPublicAddr())
-	}
-
-	if err := services.ValidateApp(app, proxyAddrs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}

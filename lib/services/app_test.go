@@ -82,7 +82,7 @@ func TestValidateApp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateApp(tt.app, tt.proxyAddrs)
+			err := ValidateApp(tt.app, &mockProxyGetter{addrs: tt.proxyAddrs})
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {
@@ -90,6 +90,28 @@ func TestValidateApp(t *testing.T) {
 			}
 		})
 	}
+}
+
+// mockProxyGetter is a test implementation of ProxyGetter.
+type mockProxyGetter struct {
+	addrs []string
+}
+
+func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
+	servers := make([]types.Server, 0, len(m.addrs))
+
+	for _, addr := range m.addrs {
+		servers = append(
+			servers,
+			&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					PublicAddrs: []string{addr},
+				},
+			},
+		)
+	}
+
+	return servers, nil
 }
 
 // TestApplicationUnmarshal verifies an app resource can be unmarshaled.

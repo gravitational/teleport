@@ -65,10 +65,20 @@ type Applications interface {
 }
 
 // ValidateApp validates the Application resource.
-func ValidateApp(app types.Application, proxyAddrs []string) error {
+func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 	// Check that the app server's public address does not match any web proxy public address. If an app's public
 	// address is the same as a proxy's public address, routing conflicts will occur.
 	if app.GetPublicAddr() != "" {
+		proxyServers, err := proxyGetter.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		proxyAddrs := make([]string, 0, len(proxyServers))
+		for _, proxyServer := range proxyServers {
+			proxyAddrs = append(proxyAddrs, proxyServer.GetPublicAddr())
+		}
+
 		for _, proxyAddr := range proxyAddrs {
 			if proxyAddr == "" {
 				continue
