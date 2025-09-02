@@ -16,7 +16,6 @@
 * Fixed auto-updated client tools not using the intended version. [#57872](https://github.com/gravitational/teleport/pull/57872)
 * Updated Go to 1.24.6. [#57861](https://github.com/gravitational/teleport/pull/57861)
 * Newly enrolled Kubernetes agents in will now use Managed Updates by default. [#57782](https://github.com/gravitational/teleport/pull/57782)
-* Updated Go to 1.23.12. [#57768](https://github.com/gravitational/teleport/pull/57768)
 * Fixed Alt+Click not being registered in remote desktop sessions. [#57755](https://github.com/gravitational/teleport/pull/57755)
 * Kubernetes Access: `kubectl port-forward` now exits cleanly when backend pods are removed. [#57741](https://github.com/gravitational/teleport/pull/57741)
 * Kubernetes Access: Fixed a bug when forwarding multiple ports to a single pod. [#57739](https://github.com/gravitational/teleport/pull/57739)
