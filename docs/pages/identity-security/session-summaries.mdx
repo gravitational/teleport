@@ -18,14 +18,21 @@ Teleport doesn't currently support any spend controls; controlling the LLM
 token budget is your responsibility.
 </Admonition>
 
-## Prerequisites
-
-- A running Teleport Enterprise cluster v18.2.0 or later with Identity Security
-  enabled.
-- Access to OpenAI or OpenAI-compatible inference API, either public or
-  self-hosted.
-
 ## How session recording summarization works
+
+Teleport can automatically summarize any recorded interactive SSH or Kubernetes
+session, as well as any recorded database session.
+
+After each session finishes, Teleport decides if it should be summarized by
+matching it against a set of policies which route sessions to LLMs. Exactly
+which sessions are summarized and which model is used can be decided on using
+session, resource, and user metadata, such as session kind, session
+participants, resource labels, user traits, etc.
+
+If a match is found, Teleport proceeds to summarize the session recording. It
+uses an inference model configuration indicated by the policy to generate a
+summary using an external inference provider, such as OpenAI. There is no way
+to run this process on demand.
 
 There are three fundamental concepts to that underpin session summarization:
 
@@ -36,24 +43,21 @@ There are three fundamental concepts to that underpin session summarization:
 - **Inference policies** indicate *what* gets summarized and which inference
   model is used in given case.
 
-After each session finishes, Teleport decides whether it should be summarized
-or not by matching it against a set of inference policies. If a match is found,
-Teleport uses an inference model configuration indicated by the policy to
-generate a session recording summary using an inference provider. There is no
-way to run this process on demand.
+## Prerequisites
 
-## Step 1: Access control
+- A running Teleport Enterprise cluster v18.2.0 or later with Identity Security
+  enabled.
+- Access to OpenAI or OpenAI-compatible inference API, either public or
+  self-hosted.
 
-Every user who has access to given session recording also has access to its
-summary through a `session` resource kind. The built-in `access` role allows
-users to only view their sessions; in order to allow a user to view all
-recordings and summaries, it's easiest to use the built-in `auditor` role.
+## Step 1/4: Configure access to inference configuration
 
-In order to manage the inference configuration, you need a write access to
-`inference_model`, `inference_secret`, and `inference_policy` resources, which
-is granted by default through the built-in `editor` role.
+In order to manage the summary inference configuration, you need a write access
+to `inference_model`, `inference_secret`, and `inference_policy` resources,
+which is granted by default through the built-in `editor` role.
 
-You can either use the built-in roles or create a new one to make sure you have access to all necessary resources. To create a new role:
+You can either use the built-in roles or create a new one to make sure you have
+access to all necessary resources. To create a new role:
 
 1. Create a `summarizer-admin.yaml` file with the following content:
 
@@ -74,11 +78,6 @@ You can either use the built-in roles or create a new one to make sure you have 
          - create
          - update
          - delete
-       - resources:
-         - session
-         verbs:
-         - read
-         - list
    version: v7
    ```
 
@@ -92,28 +91,31 @@ You can either use the built-in roles or create a new one to make sure you have 
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="summarizer-admin"!)
 
-## Step 2: Create the inference configuration resources
+## Step 2/4: Create the inference configuration resources
 
 Let's start by defining an `inference_model` resource. It tells Teleport how to
-summarize a session by pointing it to a language model API. In particular, it
-contains an API-specific model name. Note that the *Teleport inference model
-name* and *API-specific model name* are two different things. This allows, for
-example, using the same OpenAI model with different temperature settings or
-using different API gateways by creating multiple Teleport inference models
-with the same OpenAI model name.
+summarize a session by pointing it to a large language model (LLM) API. In
+particular, it contains an API-specific model name. Note that the *Teleport
+inference model name* and *API-specific model name* are two different things.
+This allows, for example, using the same OpenAI model with different
+temperature settings or using different API gateways by creating multiple
+Teleport inference models with the same OpenAI model name.
 
 To communicate with OpenAI, an inference model needs an API key. It's stored
 separately in an `inference_secret` resource and referenced by the
-`inference_model`.
+`inference_model`'s `spec.openai.api_key_secret_ref` field.
 
 <Admonition type="warning">
 To protect your API key, once written, an `inference_secret` value cannot be
-retrieved through `tctl` or Teleport API.
+retrieved through `tctl` or Teleport API. It can only be updated or deleted.
 </Admonition>
 
 Finally, we add an `inference_policy` that routes sessions to inference models
-using session kinds and optional custom filters. Here are some example
-scenarios that can be expressed using inference policies:
+using session kinds and optional custom filters. Only one policy is allowed to
+match a given session to guarantee that its recording will be summarized at
+most once. Policies are checked in alphabetical order of names and the first
+one that matches is used. Here are some example scenarios that can be expressed
+using inference policies:
 
 - Only summarize sessions to your production resources using resource labels.
 - Use different models for summarizing shell and database sessions.
@@ -126,7 +128,7 @@ To create the required configuration resources:
    kind: inference_model
    version: v1
    metadata:
-     name: ssh-summary-model
+     name: shell-summary-model
    spec:
      # "openai" is currently the only supported inference provider.
      openai:
@@ -164,7 +166,7 @@ To create the required configuration resources:
      - db
      # Name of the `inference_model` resource that will be used for summarizing
      # these sessions.
-     model: ssh-summary-model
+     model: shell-summary-model
    ```
 
 1. Create the configuration resources in the backend:
@@ -180,11 +182,49 @@ sections of [Teleport Resources Reference](../reference/resources.mdx):
 - [`inference_secret`](../reference/resources.mdx#inference-secret)
 - [`inference_policy`](../reference/resources.mdx#inference-policy)
 
-## Step 3: Conduct a session and view its summary
+## Step 3/4: Configure access to session summaries.
+
+Every user who has access to
+[given session recording](../reference/access-controls/roles.mdx#rbac-for-session-recordings)
+also has access to its summary through a `session` resource kind. The built-in
+`access` role allows users to only view their sessions; in order to allow a
+user to view all recordings and summaries, it's easiest to use the built-in
+`auditor` role.
+
+You can either use the built-in roles or create a new one to make sure you have
+access to all recordings. To create a new role:
+
+1. Create a `summary-auditor.yaml` file with the following content:
+
+   ```yaml
+   kind: role
+   metadata:
+     name: summary-auditor
+   spec:
+     allow:
+       rules:
+       - resources:
+         - session
+         verbs:
+         - read
+         - list
+   version: v7
+   ```
+
+1. Apply your changes:
+
+   ```code
+   $ tctl create -f summary-auditor
+   ```
+
+1. (!docs/pages/includes/add-role-to-user.mdx role="summary-auditor"!)
+
+
+## Step 4/4: Conduct a session and view its summary
 
 That's it! We are ready to conduct a test session. Connect to any of your
 cluster resources using `tsh ssh`, `kubectl`, `tsh db connect`, or a web
-terminal. Execute any command, quit the session, and go to **Audit -> Session
+terminal. Start an interactive session and execute any command, quit the session, and go to **Audit -> Session
 Recordings**. You should see the corresponding recording tile with a summary
 button ![summary button](../../img/identity-security/summary-button.png).
 Clicking the summary button will show the summary.
@@ -194,7 +234,7 @@ Clicking the summary button will show the summary.
 <Admonition type="info">
 It can take a while to generate a summary, and the time depends on multiple
 factors, including session size, model, and its temperature. Usually it should
-appear up to a minute after the session finishes.
+appear up to a minute after the session is uploaded to Auth service.
 </Admonition>
 
 ## Limitations
@@ -211,8 +251,8 @@ the model and input.
 
 ## Selecting sessions to summarize
 
-Indiscriminately summarizing all sessions in your cluster can quickly drain
-your wallet, so it's possible to be specific about which sessions will be
+Indiscriminately summarizing all sessions in your cluster can increase
+costs, so it's possible to be specific about which sessions will be
 summarized and which model will be used for inference. One of these mechanisms
 — selecting sessions by kind — was mentioned already in the above example. In
 addition to matching by kind, it's also possible to add a custom filter to each
@@ -236,7 +276,7 @@ spec:
   kinds:
   - k8s
   filter: 'equals(resource.metadata.labels["env"], "prod")'
-  model: ssh-summary-model
+  model: shell-summary-model
 ```
 
 It's possible to build predicates using information about target resource,
