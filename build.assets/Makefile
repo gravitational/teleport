@@ -734,13 +734,6 @@ print-rust-version:
 	@echo $(RUST_VERSION)
 
 #
-# Print the wasm-bindgen version used to build Teleport.
-#
-.PHONY: print-wasm-bindgen-cli-version
-print-wasm-bindgen-cli-version:
-	@make -C $(SRCDIR) print-wasm-bindgen-version
-
-#
 # Print the Node version used to build Teleport Connect.
 #
 .PHONY:print-node-version

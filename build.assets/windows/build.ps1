@@ -167,19 +167,13 @@ function Enable-Node {
 function Install-WasmDeps {
     <#
     .SYNOPSIS
-        Builds and installs wasm-bindgen-cli.
+        Builds and installs wasm-bindgen-cli, wasm-opt, and wasm32-unknown-unknown toolchain.
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $WasmBindgenVersion
-    )
-    begin {
-        Write-Host "::group::Installing wasm-bindgen-cli $WasmBindgenVersion"
-        # TODO(camscale): Don't hard-code wasm-binden-cli version
-        cargo install wasm-bindgen-cli --locked --version $WasmBindgenVersion
-        Write-Host "::endgroup::"
-    }
+    
+    Write-Host "::group::Installing wasm-bindgen-cli, wasm-opt, and wasm32-unknown-unknown toolchain"
+    make -C "$TeleportSourceDirectory" ensure-wasm-deps
+    make -C "$TeleportSourceDirectory" rustup-install-wasm-toolchain
+    Write-Host "::endgroup::"
 }
 
 function Install-Wintun {
@@ -348,8 +342,7 @@ function Install-BuildRequirements {
         $GoVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-go-version).TrimStart("go")
         Install-Go -GoVersion "$GoVersion" -ToolchainDir "$InstallDirectory"
 
-        $WasmBindgenVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-wasm-bindgen-cli-version).Trim()
-        Install-WasmDeps -WasmBindgenVersion "$WasmBindgenVersion"
+        Install-WasmDeps
     }
     Write-Host $("All build requirements installed in {0:g}" -f $CommandDuration)
 }
