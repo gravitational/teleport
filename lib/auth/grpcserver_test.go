@@ -3778,6 +3778,34 @@ func TestAppServersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, resources.Resources)
+
+	t.Run("App server with public_addr matching web proxy address should fail", func(t *testing.T) {
+		err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+			Kind: types.KindProxy,
+			Metadata: types.Metadata{
+				Name: "proxy",
+			},
+			Spec: types.ServerSpecV2{
+				PublicAddrs: []string{"proxy.example.com:443"},
+			},
+		})
+		require.NoError(t, err)
+
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   "misconfigured-app",
+			Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		}, types.AppSpecV3{
+			URI:        "localhost1",
+			PublicAddr: "proxy.example.com",
+		})
+		require.NoError(t, err)
+
+		appServer, err := types.NewAppServerV3FromApp(app, "misconfigured-app", "hostID")
+		require.NoError(t, err)
+
+		_, err = clt.UpsertApplicationServer(ctx, appServer)
+		require.ErrorIs(t, err, trace.BadParameter("application \"misconfigured-app\" public_addr \"proxy.example.com\" conflicts with a proxy public address"))
+	})
 }
 
 // TestDatabasesCRUD tests database resource operations.

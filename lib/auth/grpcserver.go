@@ -1489,26 +1489,26 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		}
 	}
 
-	// Ensure app public_addr is not the same as any of the web proxy public addresses. This is a defensive check to
-	// prevent misconfigurations.
-	// TODO: Move to lib/services/local/apps.go?
-	// TODO: Update tests.
-	proxyServers, err := auth.GetProxies()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, proxyServer := range proxyServers {
-		if proxyServer.GetPublicAddr() == "" {
-			continue
-		}
-
-		proxyHost, err := utils.ParseAddr(proxyServer.GetPublicAddr())
+	// Check that the app server's public_addr does not match any web proxy public_addr. If an app's public_addr is the
+	// same as a proxy's public_addr, routing conflicts will occur.
+	if app.GetPublicAddr() != "" {
+		proxyServers, err := auth.GetProxies()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		for _, proxyServer := range proxyServers {
+			if proxyServer.GetPublicAddr() == "" {
+				continue
+			}
 
-		if app.GetPublicAddr() == proxyHost.Host() {
-			return nil, trace.BadParameter("application %q public_addr %q can not be the same as a web proxy public address", app.GetName(), app.GetPublicAddr())
+			proxyHost, err := utils.ParseAddr(proxyServer.GetPublicAddr())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if app.GetPublicAddr() == proxyHost.Host() {
+				return nil, trace.BadParameter("application %q public_addr %q conflicts with a proxy public address", app.GetName(), app.GetPublicAddr())
+			}
 		}
 	}
 
