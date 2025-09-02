@@ -40,11 +40,20 @@ type graphErrorResponse struct {
 }
 
 // GraphError defines the structure of errors returned from MS Graph API.
+// https://learn.microsoft.com/en-us/graph/errors#json-representation
 type GraphError struct {
-	Code       string       `json:"code,omitempty"`
-	Message    string       `json:"message,omitempty"`
-	InnerError *GraphError  `json:"innerError,omitempty"`
-	Details    []GraphError `json:"details,omitempty"`
+	// Code is the code for the error, e.g. "UnknownError", "BadRequest".
+	Code string `json:"code,omitempty"`
+	// Message is a developer ready message about the error that occurred. This shouldn't be displayed
+	// to the user directly.
+	Message string `json:"message,omitempty"`
+	// InnerError is an optional additional error object that is more specific than the top-level
+	// error.
+	InnerError *GraphError `json:"innerError,omitempty"`
+	// Details is an optional list of more error objects that provide a breakdown of multiple errors
+	// encountered while processing the request.
+	Details []GraphError `json:"details,omitempty"`
+	// StatusCode is the status code of the HTTP response that GraphError arrived with.
 	StatusCode int
 }
 
