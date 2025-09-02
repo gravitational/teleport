@@ -64,6 +64,30 @@ type Applications interface {
 	DeleteAllApps(context.Context) error
 }
 
+// ValidateApp validates the Application resource.
+func ValidateApp(app types.Application, proxyAddrs []string) error {
+	// Check that the app server's public address does not match any web proxy public address. If an app's public
+	// address is the same as a proxy's public address, routing conflicts will occur.
+	if app.GetPublicAddr() != "" {
+		for _, proxyAddr := range proxyAddrs {
+			if proxyAddr == "" {
+				continue
+			}
+
+			proxyHost, err := utils.ParseAddr(proxyAddr)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if app.GetPublicAddr() == proxyHost.Host() {
+				return trace.BadParameter("application %q public address %q conflicts with a proxy public address", app.GetName(), app.GetPublicAddr())
+			}
+		}
+	}
+
+	return nil
+}
+
 // MarshalApp marshals Application resource to JSON.
 func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)

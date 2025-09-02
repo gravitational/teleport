@@ -174,7 +174,7 @@ func TestCheckApp(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			err := tt.inApp.CheckAndSetDefaults(nil)
+			err := tt.inApp.CheckAndSetDefaults()
 			if tt.err != "" {
 				require.Contains(t, err.Error(), tt.err)
 			} else {
@@ -274,7 +274,7 @@ func TestCheckAppTCPPorts(t *testing.T) {
 				app.URI = tc.uri
 			}
 
-			err := app.CheckAndSetDefaults(nil)
+			err := app.CheckAndSetDefaults()
 			tc.check(t, err)
 		})
 	}

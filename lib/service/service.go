@@ -6399,6 +6399,20 @@ func (process *TeleportProcess) initApps() {
 				return trace.Wrap(err)
 			}
 
+			proxyServers, err := accessPoint.GetProxies()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			proxyAddrs := make([]string, 0, len(proxyServers))
+			for _, proxyServer := range proxyServers {
+				proxyAddrs = append(proxyAddrs, proxyServer.GetPublicAddr())
+			}
+
+			if err := services.ValidateApp(a, proxyAddrs); err != nil {
+				return trace.Wrap(err)
+			}
+
 			applications = append(applications, a)
 		}
 

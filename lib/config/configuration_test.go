@@ -2486,38 +2486,6 @@ app_service:
 		},
 		{
 			inConfigString: `
-proxy_service:
-  public_addr: proxy.example.com:443
-app_service:
-  enabled: true
-  apps:
-    -
-      name: foo
-      uri: "http://127.0.0.1:8080"
-      public_addr: foo.example.com
-`,
-			name:   "app's public address differs from the proxy server",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-proxy_service:
-  public_addr: proxy.example.com:443
-app_service:
-  enabled: true
-  apps:
-    -
-      name: foo
-      uri: "http://127.0.0.1:8080"
-      public_addr: proxy.example.com
-`,
-			name: "app's public address conflicts with the proxy server",
-			outErr: func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, trace.BadParameter("application \"foo\" public_addr \"proxy.example.com\" conflicts with a proxy public address"))
-			},
-		},
-		{
-			inConfigString: `
 app_service:
   enabled: true
   apps:

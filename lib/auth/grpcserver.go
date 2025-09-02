@@ -1489,27 +1489,20 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		}
 	}
 
-	// Check that the app server's public_addr does not match any web proxy public_addr. If an app's public_addr is the
-	// same as a proxy's public_addr, routing conflicts will occur.
-	if app.GetPublicAddr() != "" {
-		proxyServers, err := auth.GetProxies()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, proxyServer := range proxyServers {
-			if proxyServer.GetPublicAddr() == "" {
-				continue
-			}
+	proxyServers, err := auth.GetProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-			proxyHost, err := utils.ParseAddr(proxyServer.GetPublicAddr())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if app.GetPublicAddr() == proxyHost.Host() {
-				return nil, trace.BadParameter("application %q public_addr %q conflicts with a proxy public address", app.GetName(), app.GetPublicAddr())
-			}
+	var proxyAddrs []string
+	for _, proxyServer := range proxyServers {
+		if proxyServer.GetPublicAddr() != "" {
+			proxyAddrs = append(proxyAddrs, proxyServer.GetPublicAddr())
 		}
+	}
+
+	if err := services.ValidateApp(app, proxyAddrs); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
@@ -3869,6 +3862,21 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
+
+	proxyServers, err := auth.GetProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyAddrs := make([]string, 0, len(proxyServers))
+	for _, proxyServer := range proxyServers {
+		proxyAddrs = append(proxyAddrs, proxyServer.GetPublicAddr())
+	}
+
+	if err := services.ValidateApp(app, proxyAddrs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3884,6 +3892,21 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
+
+	proxyServers, err := auth.GetProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyAddrs := make([]string, 0, len(proxyServers))
+	for _, proxyServer := range proxyServers {
+		proxyAddrs = append(proxyAddrs, proxyServer.GetPublicAddr())
+	}
+
+	if err := services.ValidateApp(app, proxyAddrs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -34,7 +33,6 @@ import (
 	netutils "github.com/gravitational/teleport/api/utils/net"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AppsConfig configures application proxy service.
@@ -158,9 +156,8 @@ type PortRange struct {
 	EndPort int
 }
 
-// CheckAndSetDefaults validates the application's configuration. It ensures the application's public address does not
-// conflict with any proxy addresses provided.
-func (a *App) CheckAndSetDefaults(proxyAddrs []utils.NetAddr) error {
+// CheckAndSetDefaults validates an application.
+func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
 	}
@@ -192,14 +189,6 @@ func (a *App) CheckAndSetDefaults(proxyAddrs []utils.NetAddr) error {
 		}
 		if net.ParseIP(a.PublicAddr) != nil {
 			return trace.BadParameter("application %q public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.Name, a.PublicAddr)
-		}
-		if slices.ContainsFunc(
-			proxyAddrs,
-			func(proxyAddr utils.NetAddr) bool {
-				return a.PublicAddr == proxyAddr.Host()
-			},
-		) {
-			return trace.BadParameter("application %q public_addr %q conflicts with a proxy public address", a.Name, a.PublicAddr)
 		}
 	}
 	// Mark the app as coming from the static configuration.

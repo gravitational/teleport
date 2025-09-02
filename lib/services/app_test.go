@@ -29,6 +29,69 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestValidateApp(t *testing.T) {
+	tests := []struct {
+		name       string
+		app        types.Application
+		proxyAddrs []string
+		wantErr    string
+	}{
+		{
+			name: "no public addr, no error",
+			app: func() types.Application {
+				app, _ := types.NewAppV3(types.Metadata{Name: "app1"}, types.AppSpecV3{URI: "http://localhost:8080"})
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+		},
+		{
+			name: "public addr does not conflict",
+			app: func() types.Application {
+				app, _ := types.NewAppV3(types.Metadata{Name: "app2"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "app.example.com"})
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+		},
+		{
+			name: "public addr matches proxy host",
+			app: func() types.Application {
+				app, _ := types.NewAppV3(types.Metadata{Name: "app3"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+			wantErr:    "conflicts with a proxy public address",
+		},
+		{
+			name: "proxy addr is empty, no error",
+			app: func() types.Application {
+				app, _ := types.NewAppV3(types.Metadata{Name: "app4"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "something.com"})
+				return app
+			}(),
+			proxyAddrs: []string{""},
+		},
+		{
+			name: "multiple proxy addrs, one matches",
+			app: func() types.Application {
+				app, _ := types.NewAppV3(types.Metadata{Name: "app5"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				return app
+			}(),
+			proxyAddrs: []string{"other.com:443", "web.example.com:443"},
+			wantErr:    "conflicts with a proxy public address",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateApp(tt.app, tt.proxyAddrs)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 // TestApplicationUnmarshal verifies an app resource can be unmarshaled.
 func TestApplicationUnmarshal(t *testing.T) {
 	expected, err := types.NewAppV3(types.Metadata{
