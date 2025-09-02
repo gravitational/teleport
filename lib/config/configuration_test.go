@@ -2487,7 +2487,7 @@ app_service:
 		{
 			inConfigString: `
 proxy_service:
-  public_addr: proxy.example.com
+  public_addr: proxy.example.com:443
 app_service:
   enabled: true
   apps:
