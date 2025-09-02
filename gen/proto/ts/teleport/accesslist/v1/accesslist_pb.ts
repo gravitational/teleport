@@ -30,6 +30,8 @@ import { MessageType } from "@protobuf-ts/runtime";
 import { Trait } from "../../trait/v1/trait_pb";
 import { Duration } from "../../../google/protobuf/duration_pb";
 import { Timestamp } from "../../../google/protobuf/timestamp_pb";
+import { TemplateShortTerm } from "../../accesslisttemplate/v1/accesslisttemplate_pb";
+import { TemplateLongTerm } from "../../accesslisttemplate/v1/accesslisttemplate_pb";
 import { ResourceHeader } from "../../header/v1/resourceheader_pb";
 /**
  * AccessList describes the basic building block of access grants, which are
@@ -57,6 +59,31 @@ export interface AccessList {
      * @generated from protobuf field: teleport.accesslist.v1.AccessListStatus status = 3;
      */
     status?: AccessListStatus;
+}
+/**
+ * AccessListTemplateConfig describes the template used.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.AccessListTemplateConfig
+ */
+export interface AccessListTemplateConfig {
+    /**
+     * @generated from protobuf oneof: template
+     */
+    template: {
+        oneofKind: "longTerm";
+        /**
+         * @generated from protobuf field: teleport.accesslisttemplate.v1.TemplateLongTerm long_term = 1;
+         */
+        longTerm: TemplateLongTerm;
+    } | {
+        oneofKind: "shortTerm";
+        /**
+         * @generated from protobuf field: teleport.accesslisttemplate.v1.TemplateShortTerm short_term = 2;
+         */
+        shortTerm: TemplateShortTerm;
+    } | {
+        oneofKind: undefined;
+    };
 }
 /**
  * AccessListSpec is the specification for an Access List.
@@ -126,6 +153,10 @@ export interface AccessListSpec {
      * @generated from protobuf field: string type = 12;
      */
     type: string;
+    /**
+     * @generated from protobuf field: teleport.accesslist.v1.AccessListTemplateConfig template_config = 13;
+     */
+    templateConfig?: AccessListTemplateConfig;
 }
 /**
  * AccessListOwner is an owner of an Access List.
@@ -693,6 +724,66 @@ class AccessList$Type extends MessageType<AccessList> {
  */
 export const AccessList = new AccessList$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AccessListTemplateConfig$Type extends MessageType<AccessListTemplateConfig> {
+    constructor() {
+        super("teleport.accesslist.v1.AccessListTemplateConfig", [
+            { no: 1, name: "long_term", kind: "message", oneof: "template", T: () => TemplateLongTerm },
+            { no: 2, name: "short_term", kind: "message", oneof: "template", T: () => TemplateShortTerm }
+        ]);
+    }
+    create(value?: PartialMessage<AccessListTemplateConfig>): AccessListTemplateConfig {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.template = { oneofKind: undefined };
+        if (value !== undefined)
+            reflectionMergePartial<AccessListTemplateConfig>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessListTemplateConfig): AccessListTemplateConfig {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.accesslisttemplate.v1.TemplateLongTerm long_term */ 1:
+                    message.template = {
+                        oneofKind: "longTerm",
+                        longTerm: TemplateLongTerm.internalBinaryRead(reader, reader.uint32(), options, (message.template as any).longTerm)
+                    };
+                    break;
+                case /* teleport.accesslisttemplate.v1.TemplateShortTerm short_term */ 2:
+                    message.template = {
+                        oneofKind: "shortTerm",
+                        shortTerm: TemplateShortTerm.internalBinaryRead(reader, reader.uint32(), options, (message.template as any).shortTerm)
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessListTemplateConfig, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.accesslisttemplate.v1.TemplateLongTerm long_term = 1; */
+        if (message.template.oneofKind === "longTerm")
+            TemplateLongTerm.internalBinaryWrite(message.template.longTerm, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.accesslisttemplate.v1.TemplateShortTerm short_term = 2; */
+        if (message.template.oneofKind === "shortTerm")
+            TemplateShortTerm.internalBinaryWrite(message.template.shortTerm, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.AccessListTemplateConfig
+ */
+export const AccessListTemplateConfig = new AccessListTemplateConfig$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class AccessListSpec$Type extends MessageType<AccessListSpec> {
     constructor() {
         super("teleport.accesslist.v1.AccessListSpec", [
@@ -704,7 +795,8 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
             { no: 6, name: "grants", kind: "message", T: () => AccessListGrants },
             { no: 8, name: "title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 11, name: "owner_grants", kind: "message", T: () => AccessListGrants },
-            { no: 12, name: "type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 12, name: "type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 13, name: "template_config", kind: "message", T: () => AccessListTemplateConfig }
         ]);
     }
     create(value?: PartialMessage<AccessListSpec>): AccessListSpec {
@@ -749,6 +841,9 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
                 case /* string type */ 12:
                     message.type = reader.string();
                     break;
+                case /* teleport.accesslist.v1.AccessListTemplateConfig template_config */ 13:
+                    message.templateConfig = AccessListTemplateConfig.internalBinaryRead(reader, reader.uint32(), options, message.templateConfig);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -788,6 +883,9 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
         /* string type = 12; */
         if (message.type !== "")
             writer.tag(12, WireType.LengthDelimited).string(message.type);
+        /* teleport.accesslist.v1.AccessListTemplateConfig template_config = 13; */
+        if (message.templateConfig)
+            AccessListTemplateConfig.internalBinaryWrite(message.templateConfig, writer.tag(13, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

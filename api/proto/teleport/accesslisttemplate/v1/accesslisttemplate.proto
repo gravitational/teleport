@@ -1,0 +1,110 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.accesslisttemplate.v1;
+
+import "gogoproto/gogo.proto";
+import "teleport/label/v1/label.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslisttemplate/v1;accesslisttemplatev1";
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// TemplateLongTerm describes fields required to create
+// an access list with long term access grant.
+message TemplateLongTerm {
+  // access_condition defines access to resources
+  // and its principals.
+  AccessConditions allow = 1;
+}
+
+// TemplateShortTerm describes fields required to create
+// an access list with short term access grant.
+message TemplateShortTerm {
+  // access_condition defines access to resources
+  // and its principals.
+  AccessConditions allow = 1;
+}
+
+// AllowResourceAccessConditions defines the access to different resources.
+message AccessConditions {
+  ApplicationAccess application = 1;
+  DatabaseAccess database = 2;
+  GitServerAccess git_server = 3;
+  KubernetesAccess kubernetes = 4;
+  ServerAccess server = 5;
+  WindowsDesktopAccess windows_desktop = 6;
+}
+
+// ApplicationAccess are access related fields for application resource.
+message ApplicationAccess {
+  // labels define access to applications.
+  repeated teleport.label.v1.Label labels = 1;
+  // AWSRoleARNs is a list of AWS role ARNs access.
+  repeated string aws_role_arns = 2;
+  // AzureIdentities is a list of Azure identities access.
+  repeated string azure_identities = 3;
+  // GCPServiceAccounts is a list of GCP service accounts access.
+  repeated string gcp_service_accounts = 4;
+  // MCPPermissions defines MCP servers related permissions.
+  types.MCPPermissions mcp = 5;
+}
+
+// DatabaseAccess are access related fields for db resource.
+message DatabaseAccess {
+  // labels define access to databases.
+  repeated teleport.label.v1.Label labels = 1;
+  // names is a list of connectable database names.
+  repeated string names = 2;
+  // users is a list of connectable databases users.
+  repeated string users = 3;
+}
+
+// GitServerAccess are access related fields for git server resource.
+message GitServerAccess {
+  // permissions defines GitHub integration related permissions.
+  repeated types.GitHubPermission permissions = 1;
+}
+
+// KubernetesAccess are access related fields for kube resource.
+message KubernetesAccess {
+  // labels define access to kubernetes.
+  repeated teleport.label.v1.Label labels = 1;
+  // groups is a list of kubernetes groups.
+  repeated string groups = 2;
+  // users is a list of impersonable kubernetes users
+  repeated string users = 3;
+  // resources is a list of Kubernetes Resources.
+  repeated types.KubernetesResource resources = 4;
+}
+
+// ServerAccess are access related fields for server resource.
+message ServerAccess {
+  // labels define access to servers.
+  repeated teleport.label.v1.Label labels = 1;
+  // logins is a list of *nix system logins.
+  repeated string logins = 2;
+}
+
+// WindowsDesktopAccess are access related fields for windows desktop resource.
+message WindowsDesktopAccess {
+  // labels define access to windows desktops.
+  repeated teleport.label.v1.Label labels = 1;
+  // logins is a list of desktop login names.
+  repeated string logins = 2;
+}

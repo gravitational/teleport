@@ -64,6 +64,7 @@ Optional:
 - `membership_requires` (Attributes) membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list. (see [below for nested schema](#nested-schema-for-specmembership_requires))
 - `owner_grants` (Attributes) owner_grants describes the access granted by owners to this Access List. (see [below for nested schema](#nested-schema-for-specowner_grants))
 - `ownership_requires` (Attributes) ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list. (see [below for nested schema](#nested-schema-for-specownership_requires))
+- `template_config` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_config))
 - `title` (String) title is a plaintext short description of the Access List.
 - `type` (String) type can be an empty string which denotes a regular Access List, "scim" which represents an Access List created from SCIM group or "static" for Access Lists managed by IaC tools.
 
@@ -161,4 +162,313 @@ Optional:
 
 - `key` (String) key is the name of the trait.
 - `values` (List of String) values is the list of trait values.
+
+
+
+### Nested Schema for `spec.template_config`
+
+Optional:
+
+- `long_term` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configlong_term))
+- `short_term` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configshort_term))
+
+### Nested Schema for `spec.template_config.long_term`
+
+Required:
+
+- `allow` (Attributes) access_condition defines access to resources and its principals. (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallow))
+
+### Nested Schema for `spec.template_config.long_term.allow`
+
+Optional:
+
+- `application` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowapplication))
+- `database` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowdatabase))
+- `git_server` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowgit_server))
+- `kubernetes` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowkubernetes))
+- `server` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowserver))
+- `windows_desktop` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowwindows_desktop))
+
+### Nested Schema for `spec.template_config.long_term.allow.application`
+
+Required:
+
+- `labels` (Attributes List) labels define access to applications. (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowapplicationlabels))
+
+Optional:
+
+- `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs access.
+- `azure_identities` (List of String) AzureIdentities is a list of Azure identities access.
+- `gcp_service_accounts` (List of String) GCPServiceAccounts is a list of GCP service accounts access.
+- `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowapplicationmcp))
+
+### Nested Schema for `spec.template_config.long_term.allow.application.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
+### Nested Schema for `spec.template_config.long_term.allow.application.mcp`
+
+Optional:
+
+- `tools` (List of String) Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.
+
+
+
+### Nested Schema for `spec.template_config.long_term.allow.database`
+
+Required:
+
+- `labels` (Attributes List) labels define access to databases. (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowdatabaselabels))
+
+Optional:
+
+- `names` (List of String) names is a list of connectable database names.
+- `users` (List of String) users is a list of connectable databases users.
+
+### Nested Schema for `spec.template_config.long_term.allow.database.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
+
+### Nested Schema for `spec.template_config.long_term.allow.git_server`
+
+Optional:
+
+- `permissions` (Attributes List) permissions defines GitHub integration related permissions. (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowgit_serverpermissions))
+
+### Nested Schema for `spec.template_config.long_term.allow.git_server.permissions`
+
+Optional:
+
+- `orgs` (List of String)
+
+
+
+### Nested Schema for `spec.template_config.long_term.allow.kubernetes`
+
+Required:
+
+- `labels` (Attributes List) labels define access to kubernetes. (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowkuberneteslabels))
+
+Optional:
+
+- `groups` (List of String) groups is a list of kubernetes groups.
+- `resources` (Attributes List) resources is a list of Kubernetes Resources. (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowkubernetesresources))
+- `users` (List of String) users is a list of impersonable kubernetes users
+
+### Nested Schema for `spec.template_config.long_term.allow.kubernetes.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
+### Nested Schema for `spec.template_config.long_term.allow.kubernetes.resources`
+
+Optional:
+
+- `api_group` (String) APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.
+- `kind` (String) Kind specifies the Kubernetes Resource type.
+- `name` (String) Name is the resource name. It supports wildcards.
+- `namespace` (String) Namespace is the resource namespace. It supports wildcards.
+- `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
+
+
+
+### Nested Schema for `spec.template_config.long_term.allow.server`
+
+Required:
+
+- `labels` (Attributes List) labels define access to servers. (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowserverlabels))
+
+Optional:
+
+- `logins` (List of String) logins is a list of *nix system logins.
+
+### Nested Schema for `spec.template_config.long_term.allow.server.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
+
+### Nested Schema for `spec.template_config.long_term.allow.windows_desktop`
+
+Required:
+
+- `labels` (Attributes List) labels define access to windows desktops. (see [below for nested schema](#nested-schema-for-spectemplate_configlong_termallowwindows_desktoplabels))
+
+Optional:
+
+- `logins` (List of String) logins is a list of desktop login names.
+
+### Nested Schema for `spec.template_config.long_term.allow.windows_desktop.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
+
+
+
+### Nested Schema for `spec.template_config.short_term`
+
+Required:
+
+- `allow` (Attributes) access_condition defines access to resources and its principals. (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallow))
+
+### Nested Schema for `spec.template_config.short_term.allow`
+
+Optional:
+
+- `application` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowapplication))
+- `database` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowdatabase))
+- `git_server` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowgit_server))
+- `kubernetes` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowkubernetes))
+- `server` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowserver))
+- `windows_desktop` (Attributes) (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowwindows_desktop))
+
+### Nested Schema for `spec.template_config.short_term.allow.application`
+
+Required:
+
+- `labels` (Attributes List) labels define access to applications. (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowapplicationlabels))
+
+Optional:
+
+- `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs access.
+- `azure_identities` (List of String) AzureIdentities is a list of Azure identities access.
+- `gcp_service_accounts` (List of String) GCPServiceAccounts is a list of GCP service accounts access.
+- `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowapplicationmcp))
+
+### Nested Schema for `spec.template_config.short_term.allow.application.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
+### Nested Schema for `spec.template_config.short_term.allow.application.mcp`
+
+Optional:
+
+- `tools` (List of String) Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.
+
+
+
+### Nested Schema for `spec.template_config.short_term.allow.database`
+
+Required:
+
+- `labels` (Attributes List) labels define access to databases. (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowdatabaselabels))
+
+Optional:
+
+- `names` (List of String) names is a list of connectable database names.
+- `users` (List of String) users is a list of connectable databases users.
+
+### Nested Schema for `spec.template_config.short_term.allow.database.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
+
+### Nested Schema for `spec.template_config.short_term.allow.git_server`
+
+Optional:
+
+- `permissions` (Attributes List) permissions defines GitHub integration related permissions. (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowgit_serverpermissions))
+
+### Nested Schema for `spec.template_config.short_term.allow.git_server.permissions`
+
+Optional:
+
+- `orgs` (List of String)
+
+
+
+### Nested Schema for `spec.template_config.short_term.allow.kubernetes`
+
+Required:
+
+- `labels` (Attributes List) labels define access to kubernetes. (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowkuberneteslabels))
+
+Optional:
+
+- `groups` (List of String) groups is a list of kubernetes groups.
+- `resources` (Attributes List) resources is a list of Kubernetes Resources. (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowkubernetesresources))
+- `users` (List of String) users is a list of impersonable kubernetes users
+
+### Nested Schema for `spec.template_config.short_term.allow.kubernetes.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
+### Nested Schema for `spec.template_config.short_term.allow.kubernetes.resources`
+
+Optional:
+
+- `api_group` (String) APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.
+- `kind` (String) Kind specifies the Kubernetes Resource type.
+- `name` (String) Name is the resource name. It supports wildcards.
+- `namespace` (String) Namespace is the resource namespace. It supports wildcards.
+- `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
+
+
+
+### Nested Schema for `spec.template_config.short_term.allow.server`
+
+Required:
+
+- `labels` (Attributes List) labels define access to servers. (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowserverlabels))
+
+Optional:
+
+- `logins` (List of String) logins is a list of *nix system logins.
+
+### Nested Schema for `spec.template_config.short_term.allow.server.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
+
+### Nested Schema for `spec.template_config.short_term.allow.windows_desktop`
+
+Required:
+
+- `labels` (Attributes List) labels define access to windows desktops. (see [below for nested schema](#nested-schema-for-spectemplate_configshort_termallowwindows_desktoplabels))
+
+Optional:
+
+- `logins` (List of String) logins is a list of desktop login names.
+
+### Nested Schema for `spec.template_config.short_term.allow.windows_desktop.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
 

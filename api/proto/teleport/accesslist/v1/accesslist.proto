@@ -18,6 +18,7 @@ package teleport.accesslist.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/accesslisttemplate/v1/accesslisttemplate.proto";
 import "teleport/header/v1/resourceheader.proto";
 import "teleport/trait/v1/trait.proto";
 
@@ -35,6 +36,14 @@ message AccessList {
 
   // status contains dynamically calculated fields.
   AccessListStatus status = 3;
+}
+
+// AccessListTemplateConfig describes the template used.
+message AccessListTemplateConfig {
+  oneof template {
+    teleport.accesslisttemplate.v1.TemplateLongTerm long_term = 1;
+    teleport.accesslisttemplate.v1.TemplateShortTerm short_term = 2;
+  }
 }
 
 // AccessListSpec is the specification for an Access List.
@@ -76,6 +85,8 @@ message AccessListSpec {
   // an Access List created from SCIM group or "static" for Access Lists managed by IaC
   // tools.
   string type = 12;
+
+  AccessListTemplateConfig template_config = 13;
 }
 
 // AccessListOwner is an owner of an Access List.
