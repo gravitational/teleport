@@ -9,11 +9,12 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"slices"
+	"net/url"
 	"strconv"
 	"time"
 
-	"github.com/gravitational/trace"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -24,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 var applicationProxyTracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/applicationproxy")
@@ -92,9 +94,13 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	}
 
 	// Initialize the fnCache
-	fnCache, _ := utils.NewFnCache(utils.FnCacheConfig{
+	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL: 1 * time.Minute,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.cache = fnCache
 
 	// lp.Start will block and continues to block until lp.Close() is called.
@@ -103,7 +109,7 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	var errCh = make(chan error, 1)
 	go func() {
 		s.log.DebugContext(ctx, "Starting proxy goroutine")
-		errCh <- s.startProxy()
+		errCh <- s.startProxy(ctx)
 	}()
 	s.log.InfoContext(ctx, "Listening for proxy connections.", "address", l.Addr().String())
 
@@ -121,7 +127,7 @@ func (s *ProxyService) Run(ctx context.Context) error {
 func (s *ProxyService) String() string {
 	return cmp.Or(
 		s.cfg.Name,
-		fmt.Sprintf("%s:%s:%s", ProxyServiceType, s.cfg.Listen, s.cfg.Applications),
+		fmt.Sprintf("%s:%s", ProxyServiceType, s.cfg.Listen),
 	)
 }
 
@@ -170,13 +176,26 @@ func (s *ProxyService) issueCert(
 	return routedIdent.TLSCert, app, nil
 }
 
-func (s *ProxyService) startProxy() error {
-	router := http.NewServeMux()
+func (s *ProxyService) startProxy(ctx context.Context) error {
 	// This router expects the requests to come in via the style "GET <fqdn>:<port>/"
 	// It doesn't really consider the CONNECT method, but it should work nonetheless.
-	router.HandleFunc("/", s.handleProxyRequest)
+	proxyHttpServer := http.Server{
+		Addr:              s.cfg.Listen,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+	}
+	proxyHttpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		err := s.handleProxyRequest(w, req)
+		if err != nil {
+			s.handleProxyError(w, err)
+			ctx.Done()
+			return
+		}
+	})
 
-	err := http.ListenAndServe(s.cfg.Listen, router)
+	err := proxyHttpServer.ListenAndServe()
 	if err != nil {
 		return err
 	}
@@ -184,17 +203,14 @@ func (s *ProxyService) startProxy() error {
 	return nil
 }
 
-func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Request) {
-	// TODO: Better exception handling here is needed. We might have to consider the service unhealthy if requests fail.
+func (s *ProxyService) handleProxyError(w http.ResponseWriter, err error) {
+	trace.WriteError(w, err)
+	s.log.Error("Encountered an error while proxying request", "error", err)
+}
 
+func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Request) error {
 	// Resolve Application Name via either URL or Host Header
-	appName := cmp.Or(req.URL.Host, req.Header.Get("Host"), req.Header.Get("host"))
-
-	// Validate against Application whitelist (if there is any)
-	if s.cfg.Applications != nil && !slices.Contains(s.cfg.Applications, appName) {
-		http.Error(w, "invalid application", http.StatusUnauthorized)
-		return
-	}
+	appName := cmp.Or(req.URL.Host, req.Header.Get("Host"))
 
 	ctx := req.Context()
 
@@ -215,34 +231,49 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	}
 
 	if err != nil {
-		http.Error(w, "An internal error occurred", http.StatusInternalServerError)
-		s.log.ErrorContext(ctx, trace.Wrap(err, "Error getting application certificate").Error())
+		return err
 	}
 
-	// TODO: We could cache this object in memory for future requests and just break it down when the certificates expire.
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				Certificates:       []tls.Certificate{*appCert},
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: s.botClient.Config().InsecureSkipVerify,
 			},
 		},
 	}
 
 	// Ping the Teleport Proxy
-	// TODO: The ping increases the latency, we could probably avoid this.
 	proxyPing, err := s.proxyPinger.Ping(ctx)
 	if err != nil {
-		s.log.ErrorContext(ctx, trace.Wrap(err, "error pinging proxy").Error())
+		return err
 	}
 
 	// Retrieve the Proxy Address to use for the Application Request
 	proxyAddr, err := proxyPing.ProxyWebAddr()
+	if err != nil {
+		return err
+	}
+
+	proxyUrl, err := url.Parse("https://" + proxyAddr)
+	if err != nil {
+		return err
+	}
+
+	// Build the Application Request
+	upstreamRequest := http.Request{
+		Proto:  "https",
+		Method: req.Method,
+		Body:   req.Body,
+
+		Host: proxyAddr,
+		URL:  proxyUrl,
+	}
 
 	// Execute the Application Request
-	result, err := httpClient.Get("https://" + proxyAddr)
+	result, err := httpClient.Do(&upstreamRequest)
 	if err != nil {
-		fmt.Printf("Error getting proxy response: %v\n", err)
+		return err
 	}
 
 	// Transfer all headers
@@ -262,6 +293,8 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// Write the Body
 	_, bodyCopyError := io.Copy(w, result.Body)
 	if bodyCopyError != nil {
-		return
+		return bodyCopyError
 	}
+
+	return nil
 }
