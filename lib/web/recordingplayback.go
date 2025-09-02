@@ -357,7 +357,7 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 
 	if needNewStream {
 		events, errors := s.clt.StreamSessionEvents(
-			metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY),
+			metadata.WithSessionRecordingFormatContext(s.ctx, teleport.PTY),
 			session.ID(s.sessionID),
 			0,
 		)
