@@ -222,6 +222,10 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			}
 		}
 
+		requestID := uuid.NewString()
+		// https://learn.microsoft.com/en-us/graph/best-practices-concept#reliability-and-support
+		req.Header.Set("client-request-id", requestID)
+
 		{
 			authz := req.Header.Get("Authorization")
 			req.Header.Set("Authorization", "redacted")
@@ -262,6 +266,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			"body", string(respBody),
 			"status", resp.StatusCode,
 			"url", req.URL,
+			"client_request_id", requestID,
 		)
 
 		graphError, err := readError(respBody, resp.StatusCode)
