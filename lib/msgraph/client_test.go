@@ -18,9 +18,11 @@ package msgraph
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -149,7 +151,7 @@ func paginatedHandler(t *testing.T, values []json.RawMessage) http.Handler {
 
 		nextLink := *r.URL
 		nextLink.Host = r.Host
-		nextLink.Scheme = "http"
+		nextLink.Scheme = "https"
 		vals := nextLink.Query()
 		// $skipToken is an opaque value in MS Graph, for testing purposes we use a simple offset.
 		vals.Set("$skipToken", strconv.Itoa(top+skip))
@@ -169,25 +171,22 @@ func TestIterateUsers_Empty(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /users", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /v1.0/users", func(w http.ResponseWriter, r *http.Request) {
 		_, err := strconv.Atoi(r.URL.Query().Get("$top"))
 		assert.NoError(t, err, "expected to get $top parameter")
 		w.Write([]byte(`{"value": []}`))
 	})
 
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewTLSServer(mux)
 	t.Cleanup(func() { srv.Close() })
 
-	uri, err := url.Parse(srv.URL)
+	client, err := NewClient(Config{
+		HTTPClient:    newHTTPClient(srv),
+		TokenProvider: &fakeTokenProvider{},
+		RetryConfig:   &retryConfig,
+	})
 	require.NoError(t, err)
-	client := &Client{
-		httpClient:    &http.Client{},
-		tokenProvider: &fakeTokenProvider{},
-		retryConfig:   retryConfig,
-		baseURL:       uri,
-		pageSize:      defaultPageSize,
-	}
-	err = client.IterateUsers(context.Background(), func(*User) bool {
+	err = client.IterateUsers(t.Context(), func(*User) bool {
 		assert.Fail(t, "should never get called")
 		return true
 	})
@@ -200,23 +199,21 @@ func TestIterateUsers(t *testing.T) {
 	var sourceUsers []json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(usersPayload), &sourceUsers))
 	mux := http.NewServeMux()
-	mux.Handle("GET /users", paginatedHandler(t, sourceUsers))
+	mux.Handle("GET /v1.0/users", paginatedHandler(t, sourceUsers))
 
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewTLSServer(mux)
 	t.Cleanup(func() { srv.Close() })
 
-	uri, err := url.Parse(srv.URL)
+	client, err := NewClient(Config{
+		HTTPClient:    newHTTPClient(srv),
+		TokenProvider: &fakeTokenProvider{},
+		RetryConfig:   &retryConfig,
+		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+	})
 	require.NoError(t, err)
-	client := &Client{
-		httpClient:    &http.Client{},
-		tokenProvider: &fakeTokenProvider{},
-		retryConfig:   retryConfig,
-		baseURL:       uri,
-		pageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
-	}
 
 	var users []*User
-	err = client.IterateUsers(context.Background(), func(u *User) bool {
+	err = client.IterateUsers(t.Context(), func(u *User) bool {
 		users = append(users, u)
 		return true
 	})
@@ -281,7 +278,7 @@ func TestRetry(t *testing.T) {
 	t.Parallel()
 
 	appID := uuid.NewString()
-	route := "POST /applications/" + appID + "/federatedIdentityCredentials"
+	route := "POST /v1.0/applications/" + appID + "/federatedIdentityCredentials"
 	name := "foo"
 	fic := &FederatedIdentityCredential{Name: &name}
 	objPayload, err := json.Marshal(fic)
@@ -301,33 +298,31 @@ func TestRetry(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.Handle(route, handler)
 
-		srv := httptest.NewServer(mux)
+		srv := httptest.NewTLSServer(mux)
 		t.Cleanup(func() { srv.Close() })
 
-		uri, err := url.Parse(srv.URL)
+		client, err := NewClient(Config{
+			HTTPClient:    newHTTPClient(srv),
+			TokenProvider: &fakeTokenProvider{},
+			RetryConfig:   &retryConfig,
+			Clock:         clock,
+		})
 		require.NoError(t, err)
-		client := &Client{
-			httpClient:    &http.Client{},
-			tokenProvider: &fakeTokenProvider{},
-			clock:         clock,
-			retryConfig:   retryConfig,
-			baseURL:       uri,
-		}
 
 		ret := make(chan error, 1)
 		go func() {
-			out, err := client.CreateFederatedIdentityCredential(context.Background(), appID, fic)
+			out, err := client.CreateFederatedIdentityCredential(t.Context(), appID, fic)
 			assert.Equal(t, fic, out)
 			ret <- err
 		}()
 
 		// Fail for the first time
-		clock.BlockUntil(1)
+		clock.BlockUntilContext(t.Context(), 1)
 		require.EqualValues(t, 1, handler.timesCalled.Load())
 
 		// Fail for the second time
 		clock.Advance(time.Duration(handler.retryAfter) * time.Second)
-		clock.BlockUntil(1)
+		clock.BlockUntilContext(t.Context(), 1)
 		require.EqualValues(t, 2, handler.timesCalled.Load())
 
 		// Succeed
@@ -352,33 +347,32 @@ func TestRetry(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.Handle(route, handler)
 
-		srv := httptest.NewServer(mux)
+		srv := httptest.NewTLSServer(mux)
 		t.Cleanup(func() { srv.Close() })
 
-		uri, err := url.Parse(srv.URL)
+		client, err := NewClient(Config{
+			HTTPClient:    newHTTPClient(srv),
+			TokenProvider: &fakeTokenProvider{},
+			RetryConfig:   &retryConfig,
+			PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+			Clock:         clock,
+		})
 		require.NoError(t, err)
-		client := &Client{
-			httpClient:    &http.Client{},
-			tokenProvider: &fakeTokenProvider{},
-			clock:         clock,
-			retryConfig:   retryConfig,
-			baseURL:       uri,
-		}
 
 		ret := make(chan error, 1)
 		go func() {
-			out, err := client.CreateFederatedIdentityCredential(context.Background(), appID, fic)
+			out, err := client.CreateFederatedIdentityCredential(t.Context(), appID, fic)
 			assert.Equal(t, fic, out)
 			ret <- err
 		}()
 
 		// Fail for the first time
-		clock.BlockUntil(1)
+		clock.BlockUntilContext(t.Context(), 1)
 		require.EqualValues(t, 1, handler.timesCalled.Load())
 
 		// Fail for the second time
 		clock.Advance(time.Second)
-		clock.BlockUntil(1)
+		clock.BlockUntilContext(t.Context(), 1)
 		require.EqualValues(t, 2, handler.timesCalled.Load())
 
 		// Succeed
@@ -402,19 +396,18 @@ func TestRetry(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.Handle(route, handler)
 
-		srv := httptest.NewServer(mux)
+		srv := httptest.NewTLSServer(mux)
 		t.Cleanup(func() { srv.Close() })
 
-		uri, err := url.Parse(srv.URL)
+		client, err := NewClient(Config{
+			HTTPClient:    newHTTPClient(srv),
+			TokenProvider: &fakeTokenProvider{},
+			RetryConfig:   &retryConfig,
+			Clock:         clock,
+		})
 		require.NoError(t, err)
-		client := &Client{
-			httpClient:    &http.Client{},
-			tokenProvider: &fakeTokenProvider{},
-			clock:         clock,
-			baseURL:       uri,
-		}
 
-		_, err = client.CreateFederatedIdentityCredential(context.Background(), appID, fic)
+		_, err = client.CreateFederatedIdentityCredential(t.Context(), appID, fic)
 		require.Error(t, err)
 	})
 }
@@ -444,23 +437,21 @@ func TestIterateGroupMembers(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(listGroupsMembersPayload), &membersJSON))
 	mux := http.NewServeMux()
 	groupID := "fd5be192-6e51-4f54-bbdf-30407435ceb7"
-	mux.Handle("GET /groups/"+groupID+"/members", paginatedHandler(t, membersJSON))
+	mux.Handle("GET /v1.0/groups/"+groupID+"/members", paginatedHandler(t, membersJSON))
 
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewTLSServer(mux)
 	t.Cleanup(func() { srv.Close() })
 
-	uri, err := url.Parse(srv.URL)
+	client, err := NewClient(Config{
+		HTTPClient:    newHTTPClient(srv),
+		TokenProvider: &fakeTokenProvider{},
+		RetryConfig:   &retryConfig,
+		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+	})
 	require.NoError(t, err)
-	client := &Client{
-		httpClient:    &http.Client{},
-		tokenProvider: &fakeTokenProvider{},
-		retryConfig:   retryConfig,
-		baseURL:       uri,
-		pageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
-	}
 
 	var members []GroupMember
-	err = client.IterateGroupMembers(context.Background(), groupID, func(u GroupMember) bool {
+	err = client.IterateGroupMembers(t.Context(), groupID, func(u GroupMember) bool {
 		members = append(members, u)
 		return true
 	})
@@ -510,25 +501,23 @@ func TestGetApplication(t *testing.T) {
 
 	mux := http.NewServeMux()
 	appID := "d2a39a2a-1636-457f-82f9-c2d76527e20e"
-	mux.Handle(fmt.Sprintf("GET /applications(appId='%s')", appID),
+	mux.Handle(fmt.Sprintf("GET /v1.0/applications(appId='%s')", appID),
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(getApplicationPayload))
 		}))
 
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewTLSServer(mux)
 	t.Cleanup(func() { srv.Close() })
 
-	uri, err := url.Parse(srv.URL)
+	client, err := NewClient(Config{
+		TokenProvider: &fakeTokenProvider{},
+		HTTPClient:    newHTTPClient(srv),
+		RetryConfig:   &retryConfig,
+		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+	})
 	require.NoError(t, err)
-	client := &Client{
-		httpClient:    &http.Client{},
-		tokenProvider: &fakeTokenProvider{},
-		retryConfig:   retryConfig,
-		baseURL:       uri,
-		pageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
-	}
 
-	app, err := client.GetApplication(context.Background(), appID)
+	app, err := client.GetApplication(t.Context(), appID)
 	require.NoError(t, err)
 	require.Equal(t, "aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4", *app.ID)
 
@@ -632,18 +621,16 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 	mux.Handle("GET "+allGroupsPath, withRequestChecker(paginatedHandler(t, groups)))
 	mux.Handle("GET "+groupsPath, withRequestChecker(paginatedHandler(t, groups)))
 	mux.Handle("GET "+directoryRolePath, withRequestChecker(paginatedHandler(t, groups)))
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewTLSServer(mux)
 	t.Cleanup(func() { srv.Close() })
 
-	uri, err := url.Parse(srv.URL)
+	client, err := NewClient(Config{
+		HTTPClient:    newHTTPClient(srv),
+		TokenProvider: &fakeTokenProvider{},
+		RetryConfig:   &retryConfig,
+		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+	})
 	require.NoError(t, err)
-	client := &Client{
-		httpClient:    &http.Client{},
-		tokenProvider: &fakeTokenProvider{},
-		retryConfig:   retryConfig,
-		baseURL:       uri.JoinPath(graphVersion),
-		pageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
-	}
 
 	assertConsistencyLevelHeader := func(t *testing.T, h string) {
 		t.Helper()
@@ -658,9 +645,9 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 		require.Equal(t, e, p, "expected request path did not match")
 	}
 
-	t.Run(types.EntraIDSecurityGroups, func(tt *testing.T) {
+	t.Run(types.EntraIDSecurityGroups, func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(context.Background(), userID, types.EntraIDSecurityGroups, func(group *Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDSecurityGroups, func(group *Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -675,9 +662,9 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 		assertCountQuery(t, foundQuery.Get("$count"))
 	})
 
-	t.Run(types.EntraIDAllGroups, func(tt *testing.T) {
+	t.Run(types.EntraIDAllGroups, func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(context.Background(), userID, types.EntraIDAllGroups, func(group *Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDAllGroups, func(group *Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -690,9 +677,9 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 		assertCountQuery(t, foundQuery.Get("$count"))
 	})
 
-	t.Run(types.EntraIDDirectoryRoles, func(tt *testing.T) {
+	t.Run(types.EntraIDDirectoryRoles, func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(context.Background(), userID, types.EntraIDDirectoryRoles, func(group *Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDDirectoryRoles, func(group *Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -705,9 +692,9 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 		assertCountQuery(t, foundQuery.Get("$count"))
 	})
 
-	t.Run("unsupported-group-type", func(tt *testing.T) {
+	t.Run("unsupported-group-type", func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(context.Background(), userID, "unsupported-group-type", func(group *Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, "unsupported-group-type", func(group *Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -734,3 +721,20 @@ var userGroups = `
 	}
 ]
 `
+
+func newHTTPClient(server *httptest.Server) *http.Client {
+	var d net.Dialer
+	httpClient := server.Client()
+	httpClient.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+		// Ignore the address and always direct all requests to the fake API server.
+		// This allows tests to connect to the fake API server despite the client trying to reach the
+		// official endpoints.
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return d.DialContext(ctx, "tcp", server.Listener.Addr().String())
+		},
+	}
+	return httpClient
+}
