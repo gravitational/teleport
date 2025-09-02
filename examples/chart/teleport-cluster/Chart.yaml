@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev.removewebpack.7"
+.version: &version "19.0.0-dev.removewebpack.8"
 
 name: teleport-cluster
 apiVersion: v2
