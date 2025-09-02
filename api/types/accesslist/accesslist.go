@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -175,6 +176,28 @@ type Spec struct {
 	OwnerGrants Grants `json:"owner_grants" yaml:"owner_grants"`
 }
 
+// Clone returns a copy of the Spec.
+func (s *Spec) Clone() Spec {
+	if s == nil {
+		return Spec{}
+	}
+	owners := make([]Owner, 0, len(s.Owners))
+	for _, owner := range s.Owners {
+		owners = append(owners, owner.Clone())
+	}
+	return Spec{
+		Type:               s.Type,
+		Title:              s.Title,
+		Description:        s.Description,
+		Owners:             owners,
+		Audit:              s.Audit.Clone(),
+		MembershipRequires: s.MembershipRequires.Clone(),
+		OwnershipRequires:  s.OwnershipRequires.Clone(),
+		Grants:             s.Grants.Clone(),
+		OwnerGrants:        s.OwnerGrants.Clone(),
+	}
+}
+
 type Type string
 
 const (
@@ -228,6 +251,19 @@ type Owner struct {
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
+// Clone returns a copy of the Owner.
+func (o *Owner) Clone() Owner {
+	if o == nil {
+		return Owner{}
+	}
+	return Owner{
+		Name:             o.Name,
+		Description:      o.Description,
+		IneligibleStatus: o.IneligibleStatus,
+		MembershipKind:   o.MembershipKind,
+	}
+}
+
 // Audit describes the audit configuration for an access list.
 type Audit struct {
 	// NextAuditDate is the date that the next audit should be performed.
@@ -241,6 +277,18 @@ type Audit struct {
 	Notifications Notifications `json:"notifications" yaml:"notifications"`
 }
 
+// Clone returns a copy of the audit configuration.
+func (a *Audit) Clone() Audit {
+	if a == nil {
+		return Audit{}
+	}
+	return Audit{
+		NextAuditDate: a.NextAuditDate,
+		Recurrence:    a.Recurrence.Clone(),
+		Notifications: a.Notifications.Clone(),
+	}
+}
+
 // Recurrence defines when access list reviews should occur.
 type Recurrence struct {
 	// Frequency is the frequency between access list reviews.
@@ -250,10 +298,31 @@ type Recurrence struct {
 	DayOfMonth ReviewDayOfMonth `json:"day_of_month" yaml:"day_of_month"`
 }
 
+// Clone returns a copy of the recurrence configuration.
+func (r *Recurrence) Clone() Recurrence {
+	if r == nil {
+		return Recurrence{}
+	}
+	return Recurrence{
+		Frequency:  r.Frequency,
+		DayOfMonth: r.DayOfMonth,
+	}
+}
+
 // Notifications contains the configuration for notifying users of a nearing next audit date.
 type Notifications struct {
 	// Start specifies when to start notifying users that the next audit date is coming up.
 	Start time.Duration `json:"start" yaml:"start"`
+}
+
+// Clone returns a copy of the Notifications configuration.
+func (n *Notifications) Clone() Notifications {
+	if n == nil {
+		return Notifications{}
+	}
+	return Notifications{
+		Start: n.Start,
+	}
 }
 
 // Requires describes a requirement section for an access list. A user must
@@ -264,6 +333,17 @@ type Requires struct {
 
 	// Traits are the traits that must be present for the user to obtain access.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
+}
+
+// Clone returns a copy of the Requires.
+func (r *Requires) Clone() Requires {
+	if r == nil {
+		return Requires{}
+	}
+	return Requires{
+		Roles:  slices.Clone(r.Roles),
+		Traits: r.Traits.Clone(),
+	}
 }
 
 // IsEmpty returns true when no roles or traits are set
@@ -278,6 +358,17 @@ type Grants struct {
 
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
+}
+
+// Clone returns a copy of the Grants.
+func (grants *Grants) Clone() Grants {
+	if grants == nil {
+		return Grants{}
+	}
+	return Grants{
+		Roles:  slices.Clone(grants.Roles),
+		Traits: grants.Traits.Clone(),
+	}
 }
 
 // Status contains dynamic fields calculated during retrieval.
@@ -296,12 +387,42 @@ type Status struct {
 	CurrentUserAssignments *CurrentUserAssignments `json:"-" yaml:"-"`
 }
 
+// Clone returns a copy of the status.
+func (s Status) Clone() Status {
+	return Status{
+		MemberCount:            clonePtr(s.MemberCount),
+		MemberListCount:        clonePtr(s.MemberListCount),
+		OwnerOf:                slices.Clone(s.OwnerOf),
+		MemberOf:               slices.Clone(s.MemberOf),
+		CurrentUserAssignments: s.CurrentUserAssignments.Clone(),
+	}
+}
+
+func clonePtr[T any](in *T) *T {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	return &out
+}
+
 // CurrentUserAssignments describes the current user's ownership and membership status in the access list.
 type CurrentUserAssignments struct {
 	// OwnershipType represents the current user's ownership type (explicit, inherited, or none) in the access list.
 	OwnershipType accesslistv1.AccessListUserAssignmentType `json:"ownership_type" yaml:"ownership_type"`
 	// MembershipType represents the current user's membership type (explicit, inherited, or none) in the access list.
 	MembershipType accesslistv1.AccessListUserAssignmentType `json:"membership_type" yaml:"membership_type"`
+}
+
+// Clone returns a copy of the CurrentUserAssignments.
+func (c *CurrentUserAssignments) Clone() *CurrentUserAssignments {
+	if c == nil {
+		return nil
+	}
+	return &CurrentUserAssignments{
+		OwnershipType:  c.OwnershipType,
+		MembershipType: c.MembershipType,
+	}
 }
 
 // IsMember returns true if the MembershipType is either explicit or inherited.
@@ -440,9 +561,14 @@ func (a *AccessList) MatchSearch(values []string) bool {
 
 // Clone returns a copy of the list.
 func (a *AccessList) Clone() *AccessList {
-	var copy *AccessList
-	utils.StrictObjectToStruct(a, &copy)
-	return copy
+	if a == nil {
+		return nil
+	}
+	return &AccessList{
+		ResourceHeader: *a.ResourceHeader.Clone(),
+		Spec:           a.Spec.Clone(),
+		Status:         a.Status.Clone(),
+	}
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
