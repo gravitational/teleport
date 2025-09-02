@@ -30,6 +30,17 @@ export type RecordingsResponse = {
 
 export type RecordingType = 'ssh' | 'desktop' | 'k8s' | 'database';
 
+export function validateRecordingType(
+  value: RecordingType | string
+): value is RecordingType {
+  return (
+    value === 'ssh' ||
+    value === 'database' ||
+    value === 'desktop' ||
+    value === 'k8s'
+  );
+}
+
 export type Recording = {
   duration: number;
   durationText: string;
@@ -40,6 +51,7 @@ export type Recording = {
   description: string;
   recordingType: RecordingType;
   playable: boolean;
+  user: string;
 };
 
 export enum SessionRecordingMessageType {
@@ -60,8 +72,9 @@ export interface SessionRecordingThumbnail {
   rows: number;
   cursorX: number;
   cursorY: number;
-  startOffsetMs: number;
-  endOffsetMs: number;
+  cursorVisible: boolean;
+  startTime: number;
+  endTime: number;
 }
 
 export interface SessionRecordingMetadata {

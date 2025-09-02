@@ -91,6 +91,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata/recordingmetadatav1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
@@ -106,6 +108,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	myrepl "github.com/gravitational/teleport/lib/client/db/mysql/repl"
 	pgrepl "github.com/gravitational/teleport/lib/client/db/postgres/repl"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -127,6 +130,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -1145,6 +1149,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cfg.DatabaseREPLRegistry = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{
 			defaults.ProtocolPostgres:    pgrepl.New,
 			defaults.ProtocolCockroachDB: pgrepl.New,
+			defaults.ProtocolMySQL:       myrepl.New,
 		})
 	}
 
@@ -2098,6 +2103,7 @@ func (process *TeleportProcess) initAuthService() error {
 	var externalAuditStorage *externalauditstorage.Configurator
 
 	sessionSummarizerProvider := summarizer.NewSessionSummarizerProvider()
+	recordingMetadataProvider := recordingmetadata.NewProvider()
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
@@ -2138,6 +2144,7 @@ func (process *TeleportProcess) initAuthService() error {
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
 			Uploader:                  uploadHandler,
 			SessionSummarizerProvider: sessionSummarizerProvider,
+			RecordingMetadataProvider: recordingMetadataProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2359,6 +2366,15 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
+
+	recordingMetadataService, err := recordingmetadatav1.NewRecordingMetadataService(recordingmetadatav1.RecordingMetadataServiceConfig{
+		Streamer:      authServer,
+		UploadHandler: authServer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	recordingMetadataProvider.SetService(recordingMetadataService)
 
 	process.setLocalAuth(authServer)
 
@@ -2644,6 +2660,19 @@ func (process *TeleportProcess) initAuthService() error {
 			logger.ErrorContext(process.GracefulExitContext(), "expiry starting", "error", err)
 		}
 		return trace.Wrap(err)
+	})
+
+	process.RegisterFunc("auth.aws-roles-anywhere.profile-sync.service", func() error {
+		return trace.Wrap(awsra.RunAWSRolesAnywhereProfileSyncerWhileLocked(process.GracefulExitContext(), awsra.AWSRolesAnywhereProfileSyncerParams{
+			Clock:             process.Clock,
+			Logger:            logger,
+			KeyStoreManager:   authServer.GetKeyStore(),
+			Cache:             authServer.Cache,
+			StatusReporter:    authServer.Services,
+			Backend:           process.backend,
+			AppServerUpserter: authServer.Services,
+			HostUUID:          process.Config.HostUUID,
+		}))
 	})
 
 	// execute this when process is asked to exit:

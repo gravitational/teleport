@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UploadDownload tests uploads and downloads
@@ -551,6 +552,10 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		UserMetadata: apievents.UserMetadata{
 			Login: "bob",
 		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerNamespace: "telport",
+			ServerLabels:    map[string]string{"env": "prod"},
+		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sessionID),
 		},
@@ -590,12 +595,34 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		}}
 	}
 
+	withServerLabelsExpr := func(key, value string) *types.WhereExpr {
+		return &types.WhereExpr{
+			And: types.WhereExpr2{
+				L: &types.WhereExpr{
+					CanView: &types.WhereNoExpr{},
+				},
+				R: &types.WhereExpr{
+					Equals: types.WhereExpr2{
+						L: &types.WhereExpr{
+							MapRef: &types.WhereExpr2{
+								L: &types.WhereExpr{Field: "server_labels"},
+								R: &types.WhereExpr{Literal: key},
+							}},
+						R: &types.WhereExpr{Literal: value},
+					},
+				},
+			},
+		}
+	}
+
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
 		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
 		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
 		Limit: 100,
 		Order: types.EventOrderAscending,
-		Cond:  withParticipant("alice"),
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr: withParticipant("alice"),
+		},
 	})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
@@ -605,7 +632,48 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
 		Limit: 100,
 		Order: types.EventOrderAscending,
-		Cond:  withParticipant("cecile"),
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr: withParticipant("cecile"),
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, history)
+
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr:    withServerLabelsExpr("env", "prod"),
+			CanView: func(f utils.Fields) bool { return true },
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr:    withServerLabelsExpr("env", "prod"),
+			CanView: func(f utils.Fields) bool { return false },
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, history)
+
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr:    withServerLabelsExpr("env", "dev"),
+			CanView: func(f utils.Fields) bool { return true },
+		},
 	})
 	require.NoError(t, err)
 	require.Empty(t, history)

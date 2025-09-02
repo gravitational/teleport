@@ -95,6 +95,9 @@ const cfg = {
   // isPolicyEnabled refers to the Teleport Policy product
   isPolicyEnabled: false,
 
+  // sessionSummarizerEnabled refers to the AI session summary feature
+  sessionSummarizerEnabled: false,
+
   configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
@@ -218,6 +221,8 @@ const cfg = {
     integrationStatusResources:
       '/web/integrations/status/:type/:name/resources/:resourceKind',
     integrationEnroll: '/web/integrations/new/:type?/:subPage?',
+    integrationEnrollChild:
+      '/web/integrations/new/:type/:name/child/:subType/:subPage?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
@@ -257,7 +262,7 @@ const cfg = {
     clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
-    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
+    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
 
@@ -373,8 +378,13 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
-    locksPath: '/v1/webapi/sites/:clusterId/locks',
-    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
+    locks: {
+      create: '/v1/webapi/sites/:clusterId/locks',
+      delete: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      read: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      update: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      listV2: '/v2/webapi/sites/:clusterId/locks',
+    },
 
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
@@ -406,6 +416,12 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/usertask?integration=:name?&state=:state?',
     userTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name',
     resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
+
+    awsRolesAnywhere: {
+      generate:
+        '/v1/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=:integrationName?&trustAnchor=:trustAnchor?&syncRole=:syncRole?&syncProfile=:syncProfile',
+      ping: '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/ping',
+    },
 
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
@@ -508,8 +524,7 @@ const cfg = {
     sessionRecording: {
       metadata:
         '/v1/webapi/sites/:clusterId/session-recording/:sessionId/metadata/ws',
-      thumbnail:
-        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/thumbnail',
+      thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
   },
 
@@ -565,10 +580,32 @@ const cfg = {
     clusterId: string,
     params: UrlSessionRecordingsParams
   ) {
-    return generatePath(cfg.api.clusterEventsRecordingsPath, {
+    const searchParams = new URLSearchParams();
+
+    if (params.start) {
+      searchParams.append('from', params.start);
+    }
+
+    if (params.end) {
+      searchParams.append('to', params.end);
+    }
+
+    if (params.limit) {
+      searchParams.append('limit', params.limit.toString());
+    }
+
+    if (params.startKey) {
+      searchParams.append('startKey', params.startKey);
+    }
+
+    const paramsString = searchParams.toString();
+    const queryString = paramsString ? `?${paramsString}` : '';
+
+    const path = generatePath(cfg.api.clusterEventsRecordingsPath, {
       clusterId,
-      ...params,
     });
+
+    return `${path}${queryString}`;
   },
 
   getAuthProviders() {
@@ -1060,16 +1097,41 @@ const cfg = {
     return cfg.routes.newLock;
   },
 
-  getLocksUrl() {
-    // Currently only support get/create locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPath, { clusterId });
-  },
-
-  getLocksUrlWithUuid(uuid: string) {
-    // Currently only support delete/lookup locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
+  getLockUrl(
+    req: (
+      | { action: 'list-v2' | 'create' }
+      | { action: 'read' | 'delete' | 'update'; uuid: string }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list-v2':
+        return generatePath(cfg.api.locks.listV2, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.locks.read, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'create':
+        return generatePath(cfg.api.locks.create, {
+          clusterId,
+        });
+      case 'update':
+        return generatePath(cfg.api.locks.update, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'delete':
+        return generatePath(cfg.api.locks.delete, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
   getDatabaseSignUrl(clusterId: string) {
@@ -1493,6 +1555,33 @@ const cfg = {
         ...params,
       })
     );
+  },
+
+  getAwsRolesAnywhereGenerateUrl(
+    integrationName: string,
+    trustAnchor: string,
+    syncRole: string,
+    syncProfile: string
+  ) {
+    const path = cfg.api.awsRolesAnywhere.generate;
+    return (
+      cfg.baseUrl +
+      generatePath(path, {
+        integrationName,
+        trustAnchor,
+        syncRole,
+        syncProfile,
+      })
+    );
+  },
+
+  getAwsRolesAnywherePingUrl(integrationName: string) {
+    const path = cfg.api.awsRolesAnywhere.ping;
+    const clusterId = cfg.proxyCluster;
+    return generatePath(path, {
+      clusterId,
+      integrationName,
+    });
   },
 
   getBotTokenUrl() {

@@ -144,6 +144,10 @@ const (
 	accessListMemberKindIndex accessListMemberIndex = "kind"
 )
 
+func accessListMemberNameIndexKey(r *accesslist.AccessListMember) string {
+	return r.Spec.AccessList + "/" + r.GetName()
+}
+
 func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessListMember, accessListMemberIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AccessLists")
@@ -155,7 +159,7 @@ func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchK
 			(*accesslist.AccessListMember).Clone,
 			map[accessListMemberIndex]func(*accesslist.AccessListMember) string{
 				accessListMemberNameIndex: func(r *accesslist.AccessListMember) string {
-					return r.Spec.AccessList + "/" + r.GetName()
+					return accessListMemberNameIndexKey(r)
 				},
 				accessListMemberKindIndex: func(r *accesslist.AccessListMember) string {
 					return r.Spec.AccessList + "/" + r.Spec.MembershipKind + "/" + r.GetName()
@@ -249,7 +253,7 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 }
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
-func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAllAccessListMembers")
 	defer span.End()
 
@@ -260,10 +264,10 @@ func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, page
 		defaultPageSize: 200,
 		upstreamList:    c.Config.AccessLists.ListAllAccessListMembers,
 		nextToken: func(t *accesslist.AccessListMember) string {
-			return t.GetMetadata().Name
+			return accessListMemberNameIndexKey(t)
 		},
 	}
-	out, next, err := lister.list(ctx, pageSize, nextToken)
+	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
 }
 

@@ -488,7 +488,9 @@ type SessionRecordingThumbnail struct {
 	// StartOffset is the start time of the thumbnail, relative to the start of the session.
 	StartOffset *durationpb.Duration `protobuf:"bytes,6,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"`
 	// EndOffset is the end time of the thumbnail, relative to the start of the session.
-	EndOffset     *durationpb.Duration `protobuf:"bytes,7,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
+	EndOffset *durationpb.Duration `protobuf:"bytes,7,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
+	// CursorVisible indicates whether the cursor is visible.
+	CursorVisible bool `protobuf:"varint,8,opt,name=cursor_visible,json=cursorVisible,proto3" json:"cursor_visible,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -572,6 +574,13 @@ func (x *SessionRecordingThumbnail) GetEndOffset() *durationpb.Duration {
 	return nil
 }
 
+func (x *SessionRecordingThumbnail) GetCursorVisible() bool {
+	if x != nil {
+		return x.CursorVisible
+	}
+	return false
+}
+
 var File_teleport_recordingmetadata_v1_recordingmetadata_proto protoreflect.FileDescriptor
 
 const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
@@ -607,7 +616,7 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\x04user\x18\b \x01(\tR\x04user\x12#\n" +
 	"\rresource_name\x18\t \x01(\tR\fresourceName\x12G\n" +
 	"\x04type\x18\n" +
-	" \x01(\x0e23.teleport.recordingmetadata.v1.SessionRecordingTypeR\x04type\"\x83\x02\n" +
+	" \x01(\x0e23.teleport.recordingmetadata.v1.SessionRecordingTypeR\x04type\"\xaa\x02\n" +
 	"\x19SessionRecordingThumbnail\x12\x10\n" +
 	"\x03svg\x18\x01 \x01(\fR\x03svg\x12\x12\n" +
 	"\x04cols\x18\x02 \x01(\x05R\x04cols\x12\x12\n" +
@@ -616,7 +625,8 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\bcursor_y\x18\x05 \x01(\x05R\acursorY\x12<\n" +
 	"\fstart_offset\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
 	"\n" +
-	"end_offset\x18\a \x01(\v2\x19.google.protobuf.DurationR\tendOffset*^\n" +
+	"end_offset\x18\a \x01(\v2\x19.google.protobuf.DurationR\tendOffset\x12%\n" +
+	"\x0ecursor_visible\x18\b \x01(\bR\rcursorVisible*^\n" +
 	"\x14SessionRecordingType\x12&\n" +
 	"\"SESSION_RECORDING_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aSESSION_RECORDING_TYPE_SSH\x10\x01BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"

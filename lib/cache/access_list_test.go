@@ -342,3 +342,32 @@ func TestCountAccessListMembersScoping(t *testing.T) {
 		}
 	}
 }
+
+func TestGetAllAccessListMembers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClock()
+
+	_, members, err := p.accessLists.UpsertAccessListWithMembers(context.Background(), newAccessList(t, "access-list", clock),
+		makeMembers(t, "access-list", 10),
+	)
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		result, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListAllAccessListMembers, 1))
+		require.NoError(t, err)
+		require.Len(t, result, len(members))
+	}, time.Second*10, time.Millisecond*30)
+}
+
+func makeMembers(t *testing.T, alName string, count int) []*accesslist.AccessListMember {
+	members := make([]*accesslist.AccessListMember, 0, count)
+	for i := 0; i < count; i++ {
+		members = append(members, newAccessListMember(t, alName, fmt.Sprintf("member-%d", i)))
+	}
+	return members
+}

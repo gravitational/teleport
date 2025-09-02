@@ -2920,7 +2920,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4610,7 +4610,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5434,10 +5434,37 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		return nil, trace.Wrap(err)
 	}
 
+	// Fetch all Access Lists from the Cache, for use in generating Request promotions and validating long-term grouping
+	allAccessLists, err := a.Cache.GetAccessLists(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var longTermResourceGrouping *types.LongTermResourceGrouping
+
+	if req.GetRequestKind().IsLongTerm() {
+		longTermResourceGrouping, err = a.generateLongTermResourceGrouping(ctx, req, allAccessLists)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if longTermResourceGrouping == nil {
+			return nil, trace.Errorf("Failed to find optimal resource grouping for long-term access")
+		}
+		if !longTermResourceGrouping.CanProceed && !req.GetDryRun() {
+			return nil, trace.BadParameter("%s", longTermResourceGrouping.ValidationMessage)
+		}
+	}
+
 	if req.GetDryRun() {
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
-		_, promotions := a.generateAccessRequestPromotions(ctx, req)
+		_, promotions := a.generateAccessRequestPromotions(ctx, req, allAccessLists)
+		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
+
+		if req.GetRequestKind().IsLongTerm() {
+			req.SetLongTermResourceGrouping(longTermResourceGrouping)
+		}
+
 		// Return before creating the request if this is a dry run.
 		return req, nil
 	}
@@ -5453,6 +5480,12 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// We want the long-term grouping info present in the returned request,
+	// but don't want it persisted via setting before saving the request.
+	if req.GetRequestKind().IsLongTerm() {
+		req.SetLongTermResourceGrouping(longTermResourceGrouping)
 	}
 
 	var annotations *apievents.Struct
@@ -5548,7 +5581,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// calculate the promotions
-	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)
+	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req, allAccessLists)
 	if promotions != nil {
 		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
 		// be able to distinguish between an allowed empty set and generation failure.
@@ -5641,11 +5674,31 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 	return nil
 }
 
+// cacheWithFetchedAccessLists is a wrapper around authclient.Cache to provide pre-fetched Access Lists
+// for use in both generating long-term resource groupings, and generating access request promotions.
+// This avoids the need to fetch Access Lists from the backend multiple times per-CreateAccessRequest call.
+type cacheWithFetchedAccessLists struct {
+	authclient.Cache
+	fetchedACLs []*accesslist.AccessList
+}
+
+func (c *cacheWithFetchedAccessLists) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
+	return c.fetchedACLs, nil
+}
+func (c *cacheWithFetchedAccessLists) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
+	return c.fetchedACLs, "", nil
+}
+
+// generateLongTermResourceGrouping will validate and group resources based on coverage by access lists.
+func (a *Server) generateLongTermResourceGrouping(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (*types.LongTermResourceGrouping, error) {
+	return modules.GetModules().GenerateLongTermResourceGrouping(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, req)
+}
+
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
 // the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
-func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
+func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
 	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Cache, reqCopy)
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
 	if err != nil {
 		// Do not fail the request if the promotions failed to generate.
 		// The request promotion will be blocked, but the request can still be approved.
@@ -6519,6 +6572,9 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		}
 
 		for _, al := range response {
+			if !al.IsReviewable() {
+				continue
+			}
 			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
 			// Only keep access lists that fall within our thresholds in memory
 			if daysDiff <= 15 {
