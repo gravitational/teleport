@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { Popover } from 'design';
 import * as icons from 'design/Icon';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useAppUpdaterContext } from 'teleterm/ui/AppUpdater';
 import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 import { useNewTabOpener } from 'teleterm/ui/TabHost';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
@@ -30,6 +31,7 @@ import { Menu, MenuItem, MenuListItem } from '../components/Menu';
 
 function useMenuItems(): MenuItem[] {
   const ctx = useAppContext();
+  const appUpdaterContext = useAppUpdaterContext();
   const { workspacesService, mainProcessClient, notificationsService } = ctx;
   useWorkspaceServiceState();
   const documentsService =
@@ -43,6 +45,10 @@ function useMenuItems(): MenuItem[] {
 
   const { platform } = mainProcessClient.getRuntimeSettings();
   const isDarwin = platform === 'darwin';
+
+  const supportsAppUpdates = useMemo(() => {
+    return mainProcessClient.supportsAppUpdates();
+  }, [mainProcessClient]);
 
   const menuItems: (MenuItem & { isVisible: boolean })[] = [
     {
@@ -78,6 +84,14 @@ function useMenuItems(): MenuItem[] {
       Icon: icons.Unlink,
       onNavigate: () => {
         ctx.commandLauncher.executeCommand('tsh-uninstall', undefined);
+      },
+    },
+    {
+      title: 'Check for updates…',
+      isVisible: supportsAppUpdates,
+      Icon: icons.Application,
+      onNavigate: () => {
+        appUpdaterContext.openDialog();
       },
     },
   ];

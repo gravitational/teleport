@@ -25,21 +25,25 @@ import {
   Flex,
   H2,
   Indicator,
+  StepSlider,
   Text,
 } from 'design';
 import * as Alerts from 'design/Alert';
 import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
+import { ArrowBack } from 'design/Icon';
+import type { StepComponentProps } from 'design/StepSlider';
 import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { PrimaryAuthType } from 'shared/services';
 
 import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { DetailsView } from 'teleterm/ui/AppUpdater';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
 import { outermostPadding } from '../spacing';
 import LoginForm from './FormLogin';
-import useClusterLogin, { Props, State } from './useClusterLogin';
+import { Props, State, useClusterLogin } from './useClusterLogin';
 
 export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
   const { reason, ...otherProps } = props;
@@ -47,11 +51,28 @@ export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
   return <ClusterLoginPresentation {...state} reason={reason} />;
 }
 
+export const ClusterLoginPresentation = (
+  props: ClusterLoginPresentationProps
+) => {
+  return (
+    <StepSlider
+      flows={loginViews}
+      currFlow="default"
+      css={`
+        // Prevents displaying a scrollbar by the slider.
+        // Instead, the entire dialog should be scrollable.
+        flex-shrink: 0;
+      `}
+      {...props}
+    />
+  );
+};
+
 export type ClusterLoginPresentationProps = State & {
   reason: ClusterConnectReason;
 };
 
-export function ClusterLoginPresentation({
+function ClusterLoginForm({
   title,
   initAttempt,
   init,
@@ -63,15 +84,24 @@ export function ClusterLoginPresentation({
   onCloseDialog,
   onAbort,
   loggedInUserName,
-  shouldPromptSsoStatus,
+  ssoPrompt,
   passwordlessLoginState,
   reason,
   shouldSkipVersionCheck,
   disableVersionCheck,
   platform,
-}: ClusterLoginPresentationProps) {
+  next,
+  refCallback,
+  clusterGetter,
+  changeAppUpdatesManagingCluster,
+  appUpdateEvent,
+  cancelAppUpdateDownload,
+  quitAndInstallAppUpdate,
+  downloadAppUpdate,
+  checkForAppUpdates,
+}: ClusterLoginPresentationProps & StepComponentProps) {
   return (
-    <>
+    <Flex ref={refCallback} flexDirection="column">
       <DialogHeader px={outermostPadding}>
         <H2>
           Log in to <b>{title}</b>
@@ -120,17 +150,71 @@ export function ClusterLoginPresentation({
             onAbort={onAbort}
             loginAttempt={loginAttempt}
             clearLoginAttempt={clearLoginAttempt}
-            shouldPromptSsoStatus={shouldPromptSsoStatus}
+            ssoPrompt={ssoPrompt}
             passwordlessLoginState={passwordlessLoginState}
             shouldSkipVersionCheck={shouldSkipVersionCheck}
             disableVersionCheck={disableVersionCheck}
             platform={platform}
+            clusterGetter={clusterGetter}
+            checkForAppUpdates={checkForAppUpdates}
+            changeAppUpdatesManagingCluster={changeAppUpdatesManagingCluster}
+            appUpdateEvent={appUpdateEvent}
+            cancelAppUpdateDownload={cancelAppUpdateDownload}
+            downloadAppUpdate={downloadAppUpdate}
+            quitAndInstallAppUpdate={quitAndInstallAppUpdate}
+            switchToAppUpdateDetails={next}
           />
         )}
       </DialogContent>
-    </>
+    </Flex>
   );
 }
+
+const AppUpdateDetails = ({
+  refCallback,
+  platform,
+  downloadAppUpdate,
+  checkForAppUpdates,
+  cancelAppUpdateDownload,
+  quitAndInstallAppUpdate,
+  changeAppUpdatesManagingCluster,
+  appUpdateEvent,
+  clusterGetter,
+  onCloseDialog,
+  prev,
+}: ClusterLoginPresentationProps & StepComponentProps) => {
+  return (
+    <Flex ref={refCallback} flexDirection="column">
+      <DialogHeader px={outermostPadding}>
+        <Flex alignItems="center" gap={1}>
+          <ButtonIcon title="Go Back" onClick={prev}>
+            <ArrowBack />
+          </ButtonIcon>
+          <H2>App Updates</H2>
+        </Flex>
+        <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
+          <Icons.Cross size="medium" />
+        </ButtonIcon>
+      </DialogHeader>
+      <Flex px={4}>
+        <DetailsView
+          onInstall={() => quitAndInstallAppUpdate()}
+          platform={platform}
+          changeManagingCluster={clusterUri =>
+            changeAppUpdatesManagingCluster(clusterUri)
+          }
+          updateEvent={appUpdateEvent}
+          onDownload={() => downloadAppUpdate()}
+          onCancelDownload={() => cancelAppUpdateDownload()}
+          clusterGetter={clusterGetter}
+          onCheckForUpdates={() => checkForAppUpdates()}
+        />
+      </Flex>
+    </Flex>
+  );
+};
+
+const loginViews = { default: [ClusterLoginForm, AppUpdateDetails] };
 
 function getPrimaryAuthType(auth: AuthSettings): PrimaryAuthType {
   if (auth.localConnectorName === 'passwordless') {

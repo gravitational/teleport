@@ -16,7 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './DetailsView';
-export * from './WidgetView';
-export * from './AppUpdaterContext';
-export { type ClusterGetter } from './common';
+/**
+ * Thrown when the app cannot be updated to unsupported version.
+ *
+ * Kept in a separate file to allow importing in the renderer process.
+ */
+export class UnsupportedVersionError extends Error {
+  constructor(wantedVersion: string, minVersion: string) {
+    super(
+      `Teleport Connect cannot update to version ${wantedVersion}. Managed updates are supported in version ${minVersion} and later.`
+    );
+    this.name = 'UnsupportedVersionError';
+  }
+}
