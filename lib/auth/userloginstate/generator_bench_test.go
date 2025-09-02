@@ -66,7 +66,7 @@ func BenchmarkGenerate(b *testing.B) {
 			b.ResetTimer()
 
 			for b.Loop() {
-				_, err := svc.Generate(b.Context(), user, backendSvc)
+				_, err := svc.generate(b.Context(), user, backendSvc, false /* pure */)
 				if err != nil {
 					b.Fatalf("Generate: %v", err)
 				}

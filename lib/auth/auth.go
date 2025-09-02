@@ -2544,7 +2544,7 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
-// GetUserOrLoginState will return the given user or the login state associated with the user.
+// GetUserOrLoginState will return the given user login state or if not found, the user itself.
 func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
 	return services.GetUserOrLoginState(ctx, a, username)
 }
