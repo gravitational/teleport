@@ -16,7 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './DetailsView';
-export * from './WidgetView';
-export * from './AppUpdaterContext';
-export { type ClusterGetter } from './common';
+export type SerializedError = {
+  name: string;
+  message: string;
+  stack?: string;
+  cause?: unknown;
+};
+
+/** Serializes an Error into a plain object for transport through Electron IPC. */
+export function serializeError(error: Error): SerializedError {
+  return {
+    name: error.name,
+    message: error.message,
+    cause: error.cause,
+    stack: error.stack,
+  };
+}
+
+/** Deserializes a plain object back into an Error instance. */
+export function deserializeError(serialized: SerializedError): Error {
+  const error = new Error(serialized.message);
+  error.name = serialized.name;
+  error.cause = serialized.cause;
+  error.stack = serialized.stack;
+  return error;
+}
