@@ -88,7 +88,7 @@ user to access a server with the `env:local-dev` label and deny access to the
    $ docker run -v <Var name="dev-config-path"/>:/etc/teleport/teleport.yaml (=teleport.latest_ent_debug_docker_image=)
    ```
 
-1. Wait for a minute or so. Verify that you have logged in via [tsh login](../../connect-your-client/tsh.mdx#introduction) and check that the server has joined your cluster by
+1. Wait for a minute or so. Verify that you have logged in via `tsh login` and check that the server has joined your cluster by
    listing enrolled servers by label. You should see the server you just enrolled:
 
    ```code
