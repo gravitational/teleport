@@ -150,12 +150,6 @@ versions listed in [`build.assets/versions.mk`](/build.assets/versions.mk):
 For an example of Dev Environment setup on a Mac, see [these
 instructions](/BUILD_macos.md).
 
-##### Linux 64-bit ARM Dependencies
-
-1. On Linux aarch64 (64-bit ARM), you may need to manually install
-   [`binaryen`](https://github.com/WebAssembly/binaryen). Check with `which
-   wasm-opt`. If not found, install with `apt-get install binaryen`.
-
 #### Perform a build
 
 >**Important**

@@ -181,7 +181,6 @@ RUN apt-get -y update && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
     tee /etc/apt/sources.list.d/hashicorp.list > /dev/null && \
     apt-get update && apt-get install terraform -y --no-install-recommends && \
-    apt-get install -y binaryen && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
