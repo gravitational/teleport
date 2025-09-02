@@ -87,6 +87,7 @@ export function WidgetView({
       <Alert
         kind="danger"
         mb={0}
+        {...rest}
         details={
           <Stack gap={2}>
             {issueRequiringAttention}
