@@ -21,6 +21,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -174,6 +176,15 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		Scopes: scopes,
 	})
 	if err != nil {
+		authFailedError := &azidentity.AuthenticationFailedError{}
+		if ok := errors.As(err, &authFailedError); ok && authFailedError.RawResponse != nil {
+			resp := authFailedError.RawResponse
+			authError, conversionErr := readAuthError(resp.Body, resp.StatusCode)
+			resp.Body.Close()
+			if conversionErr == nil {
+				err = authError
+			}
+		}
 		return nil, trace.Wrap(err, "failed to get azure authentication token")
 	}
 	req.Header.Add("Authorization", "Bearer "+token.Token)

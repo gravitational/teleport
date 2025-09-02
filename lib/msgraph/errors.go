@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -82,3 +83,62 @@ func readError(r io.Reader, statusCode int) (*GraphError, error) {
 	graphError.StatusCode = statusCode
 	return graphError, nil
 }
+
+// AuthError is the error returned by [AzureTokenProvider.GetToken] indicating that an
+// authentication request has failed.
+// https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes
+type AuthError struct {
+	// ErrorCode is the code string for the error, e.g. "invalid_client".
+	ErrorCode string `json:"error"`
+	// ErrorDescription is a specific error message that can help a developer identify the root cause
+	// of an authentication error.
+	ErrorDescription string `json:"error_description"`
+	// DiagCodes is a list of codes used by the security token service which map to specific reasons
+	// as to why a request have failed.
+	// https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes#aadsts-error-codes
+	DiagCodes  []int `json:"error_codes"`
+	StatusCode int
+}
+
+func (a *AuthError) Error() string {
+	var b strings.Builder
+	b.WriteString(a.ErrorDescription)
+	b.WriteString(" (")
+	b.WriteString(a.ErrorCode)
+	if len(a.DiagCodes) > 0 {
+		if len(a.DiagCodes) == 1 {
+			b.WriteString(", diag code ")
+		} else {
+			b.WriteString(", diag codes ")
+		}
+		for i, errorCode := range a.DiagCodes {
+			if i != 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(strconv.Itoa(errorCode))
+		}
+	}
+	b.WriteString(")")
+	return b.String()
+}
+
+func readAuthError(r io.Reader, statusCode int) (*AuthError, error) {
+	var authError AuthError
+	authError.StatusCode = statusCode
+	err := json.NewDecoder(r).Decode(&authError)
+	return &authError, trace.Wrap(err)
+}
+
+const (
+	// DiagCodeTenantNotFound is returned by the identity platform when the specific tenant doesn't
+	// exist. It might also mean that the tenant belongs to another cloud (see
+	// https://learn.microsoft.com/en-us/graph/deployments) or there are no active subscriptions for
+	// the tenant.
+	// https://login.microsoftonline.com/error?code=90002
+	DiagCodeTenantNotFound = 90002
+	// DiagCodeInvalidTenantIdentifier is returned by the identity platform when the identifier is
+	// neither a valid DNS name nor a valid external domain. This happes when the tenant is not a UUID
+	// and instead a regular string that doesn't match said requirements.
+	// https://login.microsoftonline.com/error?code=900023
+	DiagCodeInvalidTenantIdentifier = 900023
+)
