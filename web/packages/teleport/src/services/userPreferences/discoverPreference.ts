@@ -39,6 +39,7 @@ export enum DiscoverGuideId {
   // Applications:
   ApplicationWebHttpProxy = 'application-web-http-proxy',
   ApplicationAwsCliConsole = 'application-aws-cli-console',
+  ApplicationAwsRolesAnywhere = 'application-aws-iam-roles-anywhere',
   ApplicationSamlGeneric = 'application-saml-generic',
   ApplicationSamlGrafana = 'application-saml-grafana',
   ApplicationSamlWorkforceIdentityFederation = 'application-saml-workforce-identity-federation',
