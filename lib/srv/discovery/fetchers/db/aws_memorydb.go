@@ -20,6 +20,7 @@ package db
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
@@ -62,7 +63,7 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 		return nil, trace.Wrap(err)
 	}
 	clt := cfg.awsClients.GetMemoryDBClient(awsCfg)
-	clusters, err := getMemoryDBClusters(ctx, clt)
+	clusters, err := getMemoryDBClusters(ctx, clt, cfg.Logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,7 +92,7 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 
 	// Fetch more information to provide extra labels. Do not fail because some
 	// of these labels are missing.
-	allSubnetGroups, err := getMemoryDBSubnetGroups(ctx, clt)
+	allSubnetGroups, err := getMemoryDBSubnetGroups(ctx, clt, cfg.Logger)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			cfg.Logger.DebugContext(ctx, "No permissions to describe subnet groups", "error", err)
@@ -129,7 +130,7 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 }
 
 // getMemoryDBClusters fetches all MemoryDB clusters.
-func getMemoryDBClusters(ctx context.Context, client MemoryDBClient) ([]memorydbtypes.Cluster, error) {
+func getMemoryDBClusters(ctx context.Context, client MemoryDBClient, log *slog.Logger) ([]memorydbtypes.Cluster, error) {
 	var out []memorydbtypes.Cluster
 	pager := memorydb.NewDescribeClustersPaginator(client,
 		&memorydb.DescribeClustersInput{},
@@ -137,8 +138,7 @@ func getMemoryDBClusters(ctx context.Context, client MemoryDBClient) ([]memorydb
 			opts.StopOnDuplicateToken = true
 		},
 	)
-	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
@@ -148,14 +148,13 @@ func getMemoryDBClusters(ctx context.Context, client MemoryDBClient) ([]memorydb
 }
 
 // getMemoryDBSubnetGroups fetches all MemoryDB subnet groups.
-func getMemoryDBSubnetGroups(ctx context.Context, client MemoryDBClient) ([]memorydbtypes.SubnetGroup, error) {
+func getMemoryDBSubnetGroups(ctx context.Context, client MemoryDBClient, log *slog.Logger) ([]memorydbtypes.SubnetGroup, error) {
 	var out []memorydbtypes.SubnetGroup
 	pager := memorydb.NewDescribeSubnetGroupsPaginator(client,
 		&memorydb.DescribeSubnetGroupsInput{},
 		func(opts *memorydb.DescribeSubnetGroupsPaginatorOptions) { opts.StopOnDuplicateToken = true },
 	)
-	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
