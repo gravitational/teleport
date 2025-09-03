@@ -90,7 +90,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		// Prevent routing conflicts and session hijacking by ensuring the application's public address
 		// does not match any of the proxy's public addresses. If both addresses are identical,
 		// requests intended for the proxy could be misrouted to the application, compromising security.
-		if addr.Host() == proxyAddr.Host() {
+		if p.publicAddr == proxyAddr.Host() {
 			return trace.BadParameter(
 				"Application public address conflicts with the Teleport Proxy public address. " +
 					"Contact your Teleport cluster administrator to configure the application to use a unique public address " +
