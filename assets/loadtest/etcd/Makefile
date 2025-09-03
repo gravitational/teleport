@@ -2,7 +2,7 @@
 # deploys etcd into the cluster
 .PHONY: deploy
 deploy:
-	helm --version 12.0.18 install etcd -n etcd --create-namespace oci://registry-1.docker.io/bitnamicharts/etcd \
+	helm --version 12.0.18 upgrade --install etcd -n etcd --create-namespace oci://registry-1.docker.io/bitnamicharts/etcd \
 		--set replicaCount=3 \
 		--set metrics.enabled=true \
 		--set metrics.podMonitor.enabled=true \
