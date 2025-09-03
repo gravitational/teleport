@@ -197,14 +197,16 @@ func (m *Metadata) Clone() *Metadata {
 	if m == nil {
 		return nil
 	}
-
-	return &Metadata{
+	out := &Metadata{
 		Name:        m.Name,
 		Description: m.Description,
-		Labels:      maps.Clone(m.Labels),
 		Expires:     m.Expires,
 		Revision:    m.Revision,
 	}
+	if m.Labels != nil {
+		out.Labels = maps.Clone(m.Labels)
+	}
+	return out
 }
 
 // GetRevision returns the revision
