@@ -502,7 +502,7 @@ print-ironrdp-package-json:
 	@printf '%s\n' '{' \
 	' "name": "ironrdp",' \
 	' "version": "0.1.0",' \
-	' "module": "ironrdp",' \
+	' "module": "ironrdp.js",' \
 	' "types": "ironrdp.d.ts",' \
 	' "files": ["ironrdp_bg.wasm","ironrdp.js","ironrdp.d.ts"],' \
 	' "sideEffects": ["./snippets/*"]' \
