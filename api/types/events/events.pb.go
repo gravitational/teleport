@@ -591,7 +591,7 @@ type UserMetadata struct {
 	// UserTraits hold claim data used to populate a role at runtime
 	// for this session.
 	UserTraits github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,15,opt,name=UserTraits,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"user_traits,omitempty"`
-	// UserClusterName represents the Teleport Cluster name the user is belongs to.
+	// UserClusterName represents the Teleport Cluster name the user belongs to.
 	// For leaf clusters, this field represents the root cluster name.
 	// For root clusters, this field holds the cluster name.
 	UserClusterName      string   `protobuf:"bytes,16,opt,name=UserClusterName,proto3" json:"user_cluster_name,omitempty"`

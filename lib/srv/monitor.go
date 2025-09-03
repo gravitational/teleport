@@ -194,7 +194,7 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 		Clock:                 c.cfg.Clock,
 		ServerID:              c.cfg.ServerID,
 		TeleportUser:          identity.Username,
-		UserOriginClusterName: identity.TeleportCluster,
+		UserOriginClusterName: authzCtx.UnmappedIdentity.GetIdentity().TeleportCluster,
 		Emitter:               c.cfg.Emitter,
 		EmitterContext:        c.cfg.EmitterContext,
 		Logger:                c.cfg.Logger,
@@ -234,7 +234,7 @@ type MonitorConfig struct {
 	Login string
 	// TeleportUser is a teleport user name
 	TeleportUser string
-	// UserOriginClusterName is the Teleport Cluster name the user is belongs to.
+	// UserOriginClusterName is the Teleport Cluster name the user belongs to.
 	UserOriginClusterName string
 	// ServerID is a session server ID
 	ServerID string
