@@ -575,6 +575,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
 		BotInstance:             p.AuthServer.Services.BotInstance,
 		Plugin:                  p.AuthServer.Services.Plugins,
+		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 	})
 	if err != nil {
 		return trace.Wrap(err)

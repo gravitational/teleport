@@ -1267,6 +1267,25 @@ message JWTKeyPair {
   PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
 }
 
+// EncryptionKeyPair is a PKIX ASN.1 DER encoded keypair used for encrypting and decrypting data.
+message EncryptionKeyPair {
+  // PublicKey is a PKIX ASN.1 DER encoded public key.
+  bytes public_key = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
+  // PrivateKey is a PKCS#8 ASN.1 DER encoded private key.
+  bytes private_key = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
+  // PrivateKeyType is the type of the PrivateKey.
+  PrivateKeyType private_key_type = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
+  // Hash function used during OAEP encryption/decryption. It maps directly to the possible
+  // values of [crypto.Hash] in the go crypto package.
+  uint32 hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
+}
+
+// A public key to be used as a recipient during age encryption of session recordings.
+message AgeEncryptionKey {
+  // A PKIX ASN.1 DER encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
+  bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
+}
+
 // CertAuthorityV2 is version 2 resource spec for Cert Authority
 message CertAuthorityV2 {
   option (gogoproto.goproto_stringer) = false;
@@ -2427,6 +2446,41 @@ message SessionRecordingConfigV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the SessionRecordingConfig status containing active encryption keys
+  SessionRecordingConfigStatus Status = 6 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "status,omitempty"
+  ];
+}
+
+// KeyLabel combines a label that can be used to identify one or more keys with a keystore type that
+// determines where the keys can be found.
+message KeyLabel {
+  // Type represents which keystore should be searched when looking up keys by label.
+  string type = 1 [(gogoproto.jsontag) = "type"];
+  // Label is a value that can be used with the related keystore in order to find relevant keys.
+  string label = 2 [(gogoproto.jsontag) = "label"];
+}
+
+// ManualKeyManagementConfig defines whether or not recording encryption keys should be managed externally
+// and how to query those keys.
+message ManualKeyManagementConfig {
+  // Enabled controls whether or recording encryption keys should be managed externally.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ActiveKeys describe which keys should be queried for active recording encryption and replay.
+  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_keys,omitempty"];
+  // RotatedKeys describe which keys should be queried for historical replay.
+  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_keys,omitempty"];
+}
+
+// SessionRecordingEncryptionConfig configures if and how session recordings
+// should be encrypted.
+message SessionRecordingEncryptionConfig {
+  // Enabled controls whether or not session recordings should be encrypted.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ManualKeyManagement defines whether or not recording encryption keys should be managed externally
+  // and how to query those keys.
+  ManualKeyManagementConfig manual_key_management = 2 [(gogoproto.jsontag) = "manual_key_management,omitempty"];
 }
 
 // SessionRecordingConfigSpecV2 is the actual data we care about
@@ -2442,6 +2496,20 @@ message SessionRecordingConfigSpecV2 {
     (gogoproto.jsontag) = "proxy_checks_host_keys",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // Encryption configures if and how session recordings should be encrypted.
+  SessionRecordingEncryptionConfig encryption = 3 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "encryption,omitempty"
+  ];
+}
+
+// SessionRecordingConfigStatus contains the currently active age encryption keys used
+// for encrypted session recording.
+message SessionRecordingConfigStatus {
+  // EncryptionKeys contain the currently active age encryption keys used for
+  // encrypted session recording.
+  repeated AgeEncryptionKey encryption_keys = 1 [(gogoproto.jsontag) = "encryption_keys"];
 }
 
 // AuthPreferenceV2 implements the AuthPreference interface.

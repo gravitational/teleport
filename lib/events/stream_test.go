@@ -19,14 +19,18 @@
 package events_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -218,7 +222,7 @@ func TestReadCorruptedRecording(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	reader := events.NewProtoReader(f)
+	reader := events.NewProtoReader(f, nil)
 	defer reader.Close()
 
 	events, err := reader.ReadAll(ctx)
@@ -471,6 +475,149 @@ func TestSummarization_Unknown(t *testing.T) {
 	}
 }
 
+func TestPartHeader(t *testing.T) {
+	cases := []struct {
+		name               string
+		partHeader         events.PartHeader
+		expectedErr        error
+		expectedPartHeader *events.PartHeader // if different than starting part
+	}{
+		{
+			name: "v1 part header",
+			partHeader: events.PartHeader{
+				ProtoVersion: events.ProtoStreamV1,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				Flags:        events.ProtoStreamFlagEncrypted,
+			},
+			expectedErr: nil,
+			expectedPartHeader: &events.PartHeader{
+				ProtoVersion: events.ProtoStreamV1,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				// no flags
+			},
+		},
+		{
+			name: "v2 part header encrypted",
+			partHeader: events.PartHeader{
+				ProtoVersion: events.ProtoStreamV2,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				Flags:        events.ProtoStreamFlagEncrypted,
+			},
+			expectedErr:        nil,
+			expectedPartHeader: nil,
+		},
+		{
+			name: "v2 part header unencrypted",
+			partHeader: events.PartHeader{
+				ProtoVersion: events.ProtoStreamV2,
+				PartSize:     1234,
+				PaddingSize:  4321,
+			},
+			expectedErr:        nil,
+			expectedPartHeader: nil,
+		},
+		{
+			name: "invalid version",
+			partHeader: events.PartHeader{
+				ProtoVersion: 3,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				Flags:        events.ProtoStreamFlagEncrypted,
+			},
+			expectedErr:        trace.BadParameter("unsupported protocol version %v", 3),
+			expectedPartHeader: nil,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			buf := bytes.NewBuffer(c.partHeader.Bytes())
+			switch c.partHeader.ProtoVersion {
+			case events.ProtoStreamV1:
+				require.Equal(t, events.ProtoStreamV1PartHeaderSize, buf.Len())
+			case events.ProtoStreamV2:
+				require.Equal(t, events.ProtoStreamV2PartHeaderSize, buf.Len())
+			}
+
+			header, err := events.ParsePartHeader(buf)
+			if c.expectedErr != nil {
+				require.ErrorIs(t, err, c.expectedErr)
+				return
+			}
+			expected := c.partHeader
+			if c.expectedPartHeader != nil {
+				expected = *c.expectedPartHeader
+			}
+			require.Equal(t, expected, header)
+		})
+	}
+}
+
+func TestEncryptedRecordingIO(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	uploader := eventstest.NewMemoryUploader()
+	encryptedIO := &fakeEncryptedIO{}
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:  uploader,
+		Encrypter: encryptedIO,
+	})
+	require.NoError(t, err)
+
+	const eventCount = 10
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: eventCount})
+	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+
+	preparer, err := events.NewPreparer(events.PreparerConfig{
+		SessionID:   sid,
+		Namespace:   apidefaults.Namespace,
+		ClusterName: "cluster",
+	})
+	require.NoError(t, err)
+
+	for _, evt := range evts {
+		preparedEvent, err := preparer.PrepareSessionEvent(evt)
+		require.NoError(t, err)
+
+		err = stream.RecordEvent(ctx, preparedEvent)
+		require.NoError(t, err)
+	}
+
+	err = stream.Complete(ctx)
+	require.NoError(t, err)
+
+	doneC := make(chan struct{})
+	go func() {
+		defer close(doneC)
+		stream.Complete(ctx)
+		stream.Close(ctx)
+	}()
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("Timeout waiting for emitter to complete")
+	case <-doneC:
+	}
+
+	out := fakeWriterAt{
+		buf: &bytes.Buffer{},
+	}
+	err = uploader.Download(ctx, sid, out)
+	require.NoError(t, err)
+
+	reader := events.NewProtoReader(out.buf, encryptedIO)
+
+	decryptedEvents, err := reader.ReadAll(ctx)
+	require.NoError(t, err)
+	require.Len(t, decryptedEvents, eventCount+2)
+}
+
 func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
 	return &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
@@ -508,4 +655,48 @@ func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := m.Called(ctx, sessionID)
 	return args.Error(0)
+}
+
+// encryptedIO is really just a reversible transform, so we fake encryption by encoding/decoding as hex
+type fakeEncryptedIO struct {
+	err error
+}
+
+type fakeEncrypter struct {
+	inner  io.WriteCloser
+	writer io.Writer
+}
+
+func (f *fakeEncrypter) Write(out []byte) (int, error) {
+	return f.writer.Write(out)
+}
+
+func (f *fakeEncrypter) Close() error {
+	return f.inner.Close()
+}
+
+func (f *fakeEncryptedIO) WithEncryption(ctx context.Context, writer io.WriteCloser) (io.WriteCloser, error) {
+	hexWriter := hex.NewEncoder(writer)
+	encrypter := &fakeEncrypter{
+		inner:  writer,
+		writer: hexWriter,
+	}
+
+	return encrypter, f.err
+}
+
+func (f *fakeEncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) (io.Reader, error) {
+	return hex.NewDecoder(reader), f.err
+}
+
+type fakeWriterAt struct {
+	buf *bytes.Buffer
+}
+
+func (f fakeWriterAt) Write(p []byte) (int, error) {
+	return f.buf.Write(p)
+}
+
+func (f fakeWriterAt) WriteAt(p []byte, offset int64) (int, error) {
+	return f.Write(p)
 }
