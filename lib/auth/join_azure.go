@@ -44,7 +44,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	joinserver "github.com/gravitational/teleport/lib/join/server"
+	"github.com/gravitational/teleport/lib/join"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -487,7 +487,7 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &joinserver.GenerateCertsForJoinRequest{
+	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &join.GenerateCertsForJoinRequest{
 		HostID:               req.RegisterUsingTokenRequest.HostID,
 		NodeName:             req.RegisterUsingTokenRequest.NodeName,
 		Role:                 req.RegisterUsingTokenRequest.Role,

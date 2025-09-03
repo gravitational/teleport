@@ -27,16 +27,16 @@ import (
 	"github.com/gravitational/teleport"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/diagnostic"
 	"github.com/gravitational/teleport/lib/join/messages"
-	"github.com/gravitational/teleport/lib/join/server"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "joinv1")
 
 // RegisterJoinServiceServer registers the Join gRPC service.
-func RegisterJoinServiceServer(s grpc.ServiceRegistrar, server *server.Server) {
+func RegisterJoinServiceServer(s grpc.ServiceRegistrar, server *join.Server) {
 	joinv1.RegisterJoinServiceServer(s, &joinServer{
 		server: server,
 	})
@@ -46,11 +46,11 @@ func RegisterJoinServiceServer(s grpc.ServiceRegistrar, server *server.Server) {
 // auth-assigned host UUIDs. This implementation is replacing
 // lib/join/legacyservice. It is a thin gRPC layer that converts gRPC messages
 // to [messages.Request] and [messages.Response] and passes the stream down to
-// the protocol-agnostic [server.Server].
+// the protocol-agnostic [join.Server].
 type joinServer struct {
 	joinv1.UnsafeJoinServiceServer
 
-	server *server.Server
+	server *join.Server
 }
 
 // Join is a bidirectional streaming RPC that implements all join methods.

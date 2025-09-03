@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	joinserver "github.com/gravitational/teleport/lib/join/server"
+	"github.com/gravitational/teleport/lib/join"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -65,7 +65,7 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 		return nil, trace.AccessDenied("%q can not join the cluster with role %q, %s", req.NodeName, req.Role, msg)
 	}
 
-	if err := joinserver.ProvisionTokenAllowsRole(provisionToken, req.Role); err != nil {
+	if err := join.ProvisionTokenAllowsRole(provisionToken, req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return provisionToken, nil
@@ -172,7 +172,7 @@ func (a *Server) handleJoinFailure(
 // If the token includes a specific join method, the rules for that join method
 // will be checked.
 //
-// This method is being phased out in favor of [joinserver.Server.Join].
+// This method is being phased out in favor of [join.Server.Join].
 func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (certs *proto.Certs, err error) {
 	attrs := &workloadidentityv1pb.JoinAttrs{}
 	var rawClaims any
@@ -304,7 +304,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
-	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &joinserver.GenerateCertsForJoinRequest{
+	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &join.GenerateCertsForJoinRequest{
 		HostID:               req.HostID,
 		NodeName:             req.NodeName,
 		Role:                 req.Role,
@@ -327,7 +327,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 func (a *Server) GenerateCertsForJoin(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
-	req *joinserver.GenerateCertsForJoinRequest,
+	req *join.GenerateCertsForJoinRequest,
 ) (*proto.Certs, error) {
 	if req.Role == types.RoleBot {
 		certs, _, err := a.generateCertsBot(ctx, provisionToken, req)
@@ -340,7 +340,7 @@ func (a *Server) GenerateCertsForJoin(
 func (a *Server) generateCertsBot(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
-	req *joinserver.GenerateCertsForJoinRequest,
+	req *join.GenerateCertsForJoinRequest,
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
@@ -471,7 +471,7 @@ func (a *Server) generateCertsBot(
 func (a *Server) generateCerts(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
-	req *joinserver.GenerateCertsForJoinRequest,
+	req *join.GenerateCertsForJoinRequest,
 ) (*proto.Certs, error) {
 	if req.Expires != nil {
 		return nil, trace.BadParameter("'expires' cannot be set on join for non-bot certificates")

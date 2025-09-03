@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	joinserver "github.com/gravitational/teleport/lib/join/server"
+	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/jwt"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -985,7 +985,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		boundPublicKey = newPubKey
 	}
 
-	certs, botInstanceID, err := a.generateCertsBot(ctx, provisionToken, &joinserver.GenerateCertsForJoinRequest{
+	certs, botInstanceID, err := a.generateCertsBot(ctx, provisionToken, &join.GenerateCertsForJoinRequest{
 		HostID:                req.JoinRequest.HostID,
 		NodeName:              req.JoinRequest.NodeName,
 		Role:                  req.JoinRequest.Role,
