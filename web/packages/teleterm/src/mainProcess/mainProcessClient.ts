@@ -254,13 +254,10 @@ export default function createMainProcessClient(): MainProcessClient {
         listener({ visible });
       };
 
-      ipcRenderer.addListener(WindowsManagerIpc.WindowVisibility, ipcListener);
+      ipcRenderer.addListener(RendererIpc.WindowVisibility, ipcListener);
       return {
         cleanup: () =>
-          ipcRenderer.removeListener(
-            WindowsManagerIpc.WindowVisibility,
-            ipcListener
-          ),
+          ipcRenderer.removeListener(RendererIpc.WindowVisibility, ipcListener),
       };
     },
   };

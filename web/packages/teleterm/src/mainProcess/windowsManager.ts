@@ -246,7 +246,7 @@ export class WindowsManager {
 
     this.window.show();
     if (this.hiddenByApp) {
-      this.window.webContents.send(WindowsManagerIpc.WindowVisibility, {
+      this.window.webContents.send(RendererIpc.WindowVisibility, {
         visible: true,
       });
       void app.dock?.show();
@@ -261,7 +261,7 @@ export class WindowsManager {
     }
 
     this.window.hide();
-    this.window.webContents.send(WindowsManagerIpc.WindowVisibility, {
+    this.window.webContents.send(RendererIpc.WindowVisibility, {
       visible: false,
     });
     // One side effect to be aware of:
