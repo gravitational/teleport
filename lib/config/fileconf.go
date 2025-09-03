@@ -2571,6 +2571,8 @@ type WindowsDesktopService struct {
 	DiscoveryConfigs []LDAPDiscoveryConfig `yaml:"discovery_configs,omitempty"`
 	// DiscoveryInterval controls how frequently the discovery process runs.
 	DiscoveryInterval time.Duration `yaml:"discovery_interval"`
+	// PublishCRLInterval determines how frequently CRLs should be published.
+	PublishCRLInterval time.Duration `yaml:"publish_crl_interval"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).

@@ -40,7 +40,7 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
   }
 
   if (awsConsole) {
-    return 'aws';
+    return 'awsidentityandaccessmanagementiam';
   }
   if (subKind === AppSubKind.AwsIcAccount) {
     return 'awsaccount';

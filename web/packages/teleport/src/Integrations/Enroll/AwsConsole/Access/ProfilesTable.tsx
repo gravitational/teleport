@@ -65,10 +65,10 @@ export function ProfilesTable({
         {
           key: 'roles',
           headerText: 'IAM Roles',
-          render: row => <Cell>{row.roles.join(', ')}</Cell>,
+          render: row => <Cell>{row?.roles?.join(', ')}</Cell>,
         },
       ]}
-      emptyText="No Profiles Found"
+      emptyText={fetchStatus === 'loading' ? 'Refreshing' : 'No Profiles Found'}
       pagination={{ pageSize: 20, CustomTable }}
       fetching={{
         fetchStatus,
@@ -146,6 +146,7 @@ const CustomerStyledTable = styled(StyledTable)(
     top: 0;
     position: sticky;
     z-index: 1;
+    background-color: ${props.theme.colors.levels.elevated};
     opacity: 1;
   }
 

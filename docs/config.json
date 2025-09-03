@@ -749,6 +749,16 @@
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
     },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/",
+      "destination": "/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/mwi-ci-cd/",
+      "destination": "/machine-workload-identity/mwi-ci-cd/",
+      "permanent": true
+    },
     {
       "source": "/admin-guides/deploy-a-cluster/access-graph/",
       "destination": "/identity-security/access-graph/",
@@ -871,7 +881,7 @@
     },
     {
       "source": "/admin-guides/access-controls/sso/azuread/",
-      "destination": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     },
     {
@@ -1662,6 +1672,11 @@
     {
       "source": "/zero-trust-access/management/guides/aws-iam-identity-center/using-aws-cli/",
       "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     }
   ]
