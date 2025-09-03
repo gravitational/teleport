@@ -368,12 +368,6 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 	}
 	defer session.release()
 
-	// Ensure the application is valid before forwarding the request. This is a defensive check to prevent routing
-	// to misconfigured applications that may have been deployed before validation was added.
-	if err := services.ValidateApp(app, c.cfg.AccessPoint); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Create session context.
 	sessionCtx := &common.SessionContext{
 		Identity: identity,
