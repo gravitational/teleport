@@ -245,6 +245,47 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	return resources, next, trace.Wrap(err)
 }
 
+// ListResourcesReturnNextResourceWithFilter returns a paginated list of resources filtered by a matcher.
+// The next resource is returned, which allows consumers to construct the next pagination key as appropriate.
+func (s *Service[T]) ListResourcesReturnNextResourceWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, *T, error) {
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > int(s.pageLimit) {
+		pageSize = int(s.pageLimit)
+	}
+
+	var out []T
+	for item, err := range s.backend.Items(ctx, backend.ItemsParams{
+		StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(pageToken)),
+		EndKey:   backend.RangeEnd(s.backendPrefix.ExactKey()),
+	}) {
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		resource, err := s.unmarshalFunc(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			// unmarshal errors are logged and skipped
+			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+			continue
+		}
+
+		if !matcher(resource) {
+			continue
+		}
+
+		if len(out) == pageSize {
+			return out, &resource, nil
+		}
+
+		out = append(out, resource)
+	}
+
+	return out, nil, nil
+
+}
+
 func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context, pageSize int, pageToken string) ([]T, *T, string, error) {
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > int(s.pageLimit) {

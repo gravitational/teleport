@@ -180,14 +180,20 @@ func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accessli
 		return nil, "", trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
 	}
 
-	if req.GetFilter().Search == "" && len(req.GetFilter().Owners) == 0 && len(req.GetFilter().Roles) == 0 {
-		r, nextToken, err := a.service.ListResources(ctx, int(req.GetPageSize()), req.GetPageToken())
-		return r, nextToken, trace.Wrap(err)
+	start, err := services.ParseAccessListNextKey(req.GetPageToken(), "name")
+	if err != nil {
+		return nil, "", trace.BadParameter("invalid nextToken supplied")
 	}
 
-	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
+	page, nextItem, err := a.service.ListResourcesReturnNextResourceWithFilter(ctx, int(req.GetPageSize()), start, func(item *accesslist.AccessList) bool {
 		return services.MatchAccessList(item, req.GetFilter())
 	})
+
+	nextKey := ""
+	if nextItem != nil {
+		nextKey = services.CreateAccessListNextKey(*nextItem)
+	}
+	return page, nextKey, err
 }
 
 // GetAccessList returns the specified access list resource.

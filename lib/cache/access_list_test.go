@@ -283,7 +283,8 @@ func TestListAccessListsV2(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
+	baseTime := time.Date(1984, 4, 4, 0, 0, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(baseTime)
 
 	names := []string{"apple-list", "banana-access", "cherry-management", "apple-admin", "zebra-test"}
 
@@ -332,14 +333,14 @@ func TestListAccessListsV2(t *testing.T) {
 			name:            "paginated results",
 			expectedNames:   []string{"apple-admin", "apple-list"},
 			pageSize:        2,
-			expectedNextKey: "banana-access",
+			expectedNextKey: "banana-access/1984-07-13",
 		},
 		{
 			name:            "paginated results reverse",
 			expectedNames:   []string{"zebra-test", "cherry-management", "banana-access"},
 			sortBy:          &types.SortBy{Field: "name", IsDesc: true},
 			pageSize:        3,
-			expectedNextKey: "apple-list",
+			expectedNextKey: "apple-list/1984-04-04",
 		},
 		{
 			name:          "with search",
@@ -348,7 +349,7 @@ func TestListAccessListsV2(t *testing.T) {
 		},
 		{
 			name:          "with startKey",
-			startKey:      "banana-access",
+			startKey:      "banana-access/1984-04-04",
 			expectedNames: []string{"banana-access", "cherry-management", "zebra-test"},
 		},
 	}
