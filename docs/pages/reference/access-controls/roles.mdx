@@ -413,12 +413,12 @@ participants list.
 
 Here are practical examples of how to use `where` expressions to implement common access control patterns:
 
-1. Restrict to Session Participants
+#### Restrict to Session Participants
 
 Allow users to view only recordings of sessions they participated in:
 
 ```yaml
-version: v5
+version: v8
 kind: role
 metadata:
   name: only-own-sessions
@@ -430,12 +430,12 @@ spec:
       where: contains(session.participants, user.metadata.name)
 ```
 
-2. Restrict by User Role
+#### Restrict by User Role
 
 Allow access only to users that share a role with the session creator:
 
 ```yaml
-version: v5
+version: v8
 kind: role
 metadata:
   name: sessions-viewer
@@ -447,12 +447,12 @@ spec:
       where: contains_any(user.spec.roles, session.user_roles)
 ```
 
-3. Restrict by Team Trait
+#### Restrict by Team Trait
 
 Allow members of the same team to view each other's sessions:
 
 ```yaml
-version: v5
+version: v8
 kind: role
 metadata:
   name: team-sessions-viewer
@@ -464,24 +464,24 @@ spec:
       where: contains_any(session.user_traits["team"], user.spec.traits["team"])
 ```
 
-4. Restrict by Session Creator
+#### Restrict by Session participants
 
-Allow viewing only sessions created by the user:
+Allow viewing only sessions where the user participated:
 
 ```yaml
 version: v5
 kind: role
 metadata:
-  name: own-created-sessions
+  name: own-sessions
 spec:
   allow:
     rules:
     - resources: [session]
       verbs: [list, read]
-      where: session.user == user.metadata.name
+      where: contains(session.participants, user.metadata.name)
 ```
 
-5. Restrict by Resource Type
+#### Restrict by Resource Type
 
 Allow viewing only SSH session recordings:
 
@@ -498,7 +498,7 @@ spec:
       where: session.proto == "ssh"
 ```
 
-6. Combine Multiple Conditions
+#### Combine Multiple Conditions
 
 This rule allows users to view SSH session recordings only if they were a participant OR the node is owned by his team.
 
@@ -518,7 +518,7 @@ spec:
         session.proto == "ssh"
 ```
 
-By leveraging these where expressions, you can implement sophisticated access control policies that precisely
+By leveraging these where expressions, you can implement access control policies that
 match your organization's security requirements while still allowing appropriate visibility for auditing and
 monitoring purposes.
 
@@ -540,7 +540,7 @@ access the session recording.
 | `user.spec.roles` | The roles assigned to the user. | `array<string> `|
 
 
-### Session fields
+#### Session fields
 
 <Admonition
   type="warning"
