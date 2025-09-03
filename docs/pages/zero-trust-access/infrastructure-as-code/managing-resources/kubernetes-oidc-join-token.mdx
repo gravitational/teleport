@@ -32,8 +32,8 @@ token to join the Teleport cluster.
 
 To follow this guide, you must have:
 - a working Teleport cluster v18.1.X
-- a kubernetes cluster you want to enroll
-- the kube cluster has an OIDC provider
+- A Kubernetes cluster you want to enroll
+- An OIDC provider in your Kubernetes cluster
 
 <Tabs>
 <TabItem label="tctl">
@@ -72,7 +72,7 @@ In this step we will connect to the cluster and recover the OIDC provider URL.
 If you already have the cluster's OIDC provider URL (e.g. as an output from the
 cluster provisioning) you can skip to step 2.
 
-Validate you have access
+Validate that you have access:
 ```code
 $ kubectl cluster-info
 
@@ -293,7 +293,7 @@ the values we wrote previously.
 
 (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
-Finally deploy the Teleport Kube agent using the values we previously set in the provision token:
+Finally deploy the Teleport Kubernetes Agent using the values we previously set in the provision token:
 - The namespace in which you will deploy the agent: <Var name="teleport"/>
 - The name of the Teleport agent release: <Var name="teleport-agent"/>
 
@@ -304,7 +304,7 @@ $ helm upgrade --install <Var name="teleport-agent"/> teleport/teleport-kube-age
   --values values.yaml
 ```
 
-Validate the agent successfully joined the cluster by checking its pod readiness
+Validate that the agent successfully joined the cluster by checking its pod readiness
 (this can take a couple of minutes):
 
 ```code
@@ -315,7 +315,7 @@ NAME                                     READY   STATUS    RESTARTS   AGE
 <Var name="teleport-agent"/>-updater-6b8b74996-jz4qg   1/1     Running   0          15s
 ```
 
-### Next steps
+## Next steps
 
 Look at [the `teleport-kube-agent` Helm chart reference](../../../reference/helm-reference/teleport-kube-agent.mdx)
 for the list of supported values.
