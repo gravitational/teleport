@@ -106,7 +106,7 @@ A working PowerShell script is provided below.
 
 ```powershell
 Connect-AzureAD
-# This is a service principal object representing Microsoft Graph in Azure AD with a specific app ID.
+# This is a service principal object representing Microsoft Graph in Entra ID with a specific app ID.
 $GraphServicePrincipal = Get-AzureADServicePrincipal -Filter "AppId eq '00000003-0000-0000-c000-000000000000'"
 # These are Microsoft Graph API permissions required by the managed identity.
 $permissions = @(
@@ -210,6 +210,6 @@ plugin service that imports users and groups from Entra ID to Teleport.
 ## Next steps
 
 - Learn how to [configure access](configure-access.mdx) for Entra ID users.
-- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/azuread.mdx). 
+- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/entra-id.mdx). 
 - Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
 - See [FAQs](faq.mdx) related to the Teleport Entra ID integration. 
