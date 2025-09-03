@@ -282,6 +282,44 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 	return &review, nil
 }
 
+// ParseAccessListNextKey creates a pagination key for access list queries based on the provided
+// next token string and index name.
+//
+// The nextTokenString is expected to be a slash-separated string with the following format:
+//   - Field 0: accessList.GetName()
+//   - Field 1: accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly)
+//
+// Supported index names:
+//   - "name": Returns the access list name (field 0)
+//   - "auditNextDate": Returns the audit date followed by the name (field 1 + "/" + field 0)
+//
+// Returns an error if the nextTokenString has fewer than 2 fields or if an unsupported
+// index name is provided. An empty nextTokenString will return an empty string and no error.
+func ParseAccessListNextKey(nextTokenString string, indexName string) (string, error) {
+	if nextTokenString == "" {
+		return "", nil
+	}
+	fields := strings.Split(nextTokenString, "/")
+	if len(fields) < 2 {
+		return "", trace.BadParameter("invalid nextToken supplied")
+	}
+
+	switch indexName {
+	case "name":
+		return fields[0], nil
+	case "auditNextDate":
+		return fields[1] + "/" + fields[0], nil
+	default:
+		return "", trace.BadParameter("unsupported sort %s but expected name or auditNextDate", indexName)
+	}
+}
+
+// CreateAccessListNextKey creates a pagination token by combining the access list name
+// and next audit date in the format "name/YYYY-MM-DD".
+func CreateAccessListNextKey(al *accesslist.AccessList) string {
+	return al.GetName() + "/" + al.Spec.Audit.NextAuditDate.Format(time.DateOnly)
+}
+
 // MatchAccessList returns true if the access list matches the given filter criteria.
 // The function applies filters in sequence: owners, then roles, then search.
 // All provided filters must match for the access list to be included.
@@ -293,6 +331,9 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 //
 // All matching is case-insensitive and supports partial matches.
 func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFilter) bool {
+	if req == nil {
+		return true
+	}
 	search := req.GetSearch()
 	owners := req.GetOwners()
 	roles := req.GetRoles()

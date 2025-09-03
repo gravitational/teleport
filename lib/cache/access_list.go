@@ -118,7 +118,6 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 	defer span.End()
 
 	index := accessListNameIndex
-	keyFn := accessListNameIndexFn
 
 	var isDesc bool
 	sortBy := req.GetSortBy()
@@ -128,10 +127,8 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 		switch sortBy.Field {
 		case "name", "":
 			index = accessListNameIndex
-			keyFn = accessListNameIndexFn
 		case "auditNextDate":
 			index = accessListAuditNextDateIndex
-			keyFn = accessListAuditNextDateIndexFn
 		default:
 			return nil, "", trace.BadParameter("unsupported sort %q but expected name or auditNextDate", sortBy.Field)
 		}
@@ -149,10 +146,14 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 			return services.MatchAccessList(al, req.GetFilter())
 		},
 		nextToken: func(al *accesslist.AccessList) string {
-			return keyFn(al)
+			return services.CreateAccessListNextKey(al)
 		},
 	}
-	out, next, err := lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
+	nextKey, err := services.ParseAccessListNextKey(req.PageToken, string(index))
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	out, next, err := lister.list(ctx, int(req.GetPageSize()), nextKey)
 	return out, next, trace.Wrap(err)
 }
 
