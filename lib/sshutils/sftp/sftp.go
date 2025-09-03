@@ -77,35 +77,51 @@ const (
 	MethodReadlink = "Readlink"
 )
 
+// FileTransferRequest holds the settings for an SFTP file transfer.
 type FileTransferRequest struct {
-	Sources        Sources
-	Destination    Target
-	DialHost       func(ctx context.Context, login, addr string) (*ssh.Client, error)
-	Recursive      bool
-	PreserveAttrs  bool
-	Quiet          bool
-	ProgressStream func(fileInfo os.FileInfo) io.ReadWriter
+	// Sources is the source paths, local or remtoe.
+	Sources Sources
+	// Destination is the destination path, local or remote.
+	Destination Target
+	// DialHost opens an SSH client to the given address.
+	DialHost func(ctx context.Context, login, addr string) (*ssh.Client, error)
+	// Recursive indicates recursive file transfer.
+	Recursive bool
+	// PreserveAttrs preserves access and modification times
+	// from the original file.
+	PreserveAttrs bool
+	// Quiet indicates whether progress should be displayed.
+	Quiet bool
+	// ProgressWriter is used to write the progress output.
 	ProgressWriter io.Writer
-	Log            *slog.Logger
-	Size           int64
-	HTTPReader     io.ReadCloser
-	HTTPWriter     http.ResponseWriter
+	// ProgressStream is a callback to return a read/writer for printing the progress
+	// (used only on the client)
+	ProgressStream func(fileInfo os.FileInfo) io.ReadWriter
+	// Log optionally specifies the logger
+	Log *slog.Logger
+	// HTTPReader is a reader for downloads from an HTTP server.
+	HTTPReader io.ReadCloser
+	// HTTPWriter is a writer for uploads to an HTTP server.
+	HTTPWriter http.ResponseWriter
+	// Size is the size of the file for HTTP transfers.
+	Size int64
 
 	srcFS FileSystem
 	dstFS FileSystem
 }
 
+// CheckAndSetDefault checks for misconfiguration and sets default values.
 func (req *FileTransferRequest) CheckAndSetDefaults() error {
 	if len(req.Sources.Paths) == 0 {
 		return trace.BadParameter("missing sources")
 	}
-	if req.Sources.Host != nil && req.Sources.Login == "" {
+	if req.Sources.Addr != nil && req.Sources.Login == "" {
 		return trace.BadParameter("missing login for source host")
 	}
-	if req.Destination.Host != nil && req.Destination.Login == "" {
+	if req.Destination.Addr != nil && req.Destination.Login == "" {
 		return trace.BadParameter("missing login for destination host")
 	}
-	if (req.Sources.Host != nil || req.Destination.Host != nil) && req.DialHost == nil {
+	if (req.Sources.Addr != nil || req.Destination.Addr != nil) && req.DialHost == nil {
 		return trace.BadParameter("request has a remote target but DialHost is not set")
 	}
 
@@ -197,7 +213,7 @@ type HTTPTransferRequest struct {
 	// HTTPResponse is where the destination file will be written to for
 	// file download transfers
 	HTTPResponse http.ResponseWriter
-
+	// DialHost opens an SSH client to the given address.
 	DialHost func(ctx context.Context, login, addr string) (*ssh.Client, error)
 }
 
@@ -219,7 +235,7 @@ func CreateHTTPUploadRequest(req HTTPTransferRequest) (FileTransferRequest, erro
 	return FileTransferRequest{
 		Sources: Sources{
 			Login: req.Src.Login,
-			Host:  req.Src.Host,
+			Addr:  req.Src.Addr,
 			Paths: []string{req.Src.Path},
 		},
 		Destination: req.Dst,
@@ -242,7 +258,7 @@ func CreateHTTPDownloadRequest(req HTTPTransferRequest) (FileTransferRequest, er
 	return FileTransferRequest{
 		Sources: Sources{
 			Login: req.Src.Login,
-			Host:  req.Src.Host,
+			Addr:  req.Src.Addr,
 			Paths: []string{req.Src.Path},
 		},
 		Destination: req.Dst,
@@ -267,9 +283,8 @@ func TransferFiles(ctx context.Context, req FileTransferRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	// Set up file systems
+	// Set up file systems.
 	switch {
-	case req.srcFS != nil:
 	case req.HTTPReader != nil:
 		if len(req.Sources.Paths) > 1 {
 			return trace.BadParameter("only one source allowed for http filesystems")
@@ -279,8 +294,8 @@ func TransferFiles(ctx context.Context, req FileTransferRequest) error {
 			fileName: req.Sources.Paths[0],
 			fileSize: req.Size,
 		}
-	case req.Sources.Host != nil:
-		sshClient, err := req.DialHost(ctx, req.Sources.Login, req.Sources.Host.String())
+	case req.Sources.Addr != nil:
+		sshClient, err := req.DialHost(ctx, req.Sources.Login, req.Sources.Addr.String())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -301,15 +316,14 @@ func TransferFiles(ctx context.Context, req FileTransferRequest) error {
 	defer req.srcFS.Close()
 
 	switch {
-	case req.dstFS != nil:
 	case req.HTTPWriter != nil:
 		req.dstFS = &httpFS{
 			writer:   req.HTTPWriter,
 			fileName: req.Destination.Path,
 			fileSize: req.Size,
 		}
-	case req.Destination.Host != nil:
-		sshClient, err := req.DialHost(ctx, req.Destination.Login, req.Destination.Host.String())
+	case req.Destination.Addr != nil:
+		sshClient, err := req.DialHost(ctx, req.Destination.Login, req.Destination.Addr.String())
 		if err != nil {
 			if req.srcFS.Type() == "remote" && strings.Contains(err.Error(), "too many concurrent ssh connections") {
 				return trace.LimitExceeded("max_connections in role prevents copying between two hosts")

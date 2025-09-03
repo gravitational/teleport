@@ -7777,8 +7777,8 @@ func TestParseCopySpec(t *testing.T) {
 			tc.assertErr(t, err)
 			assert.Equal(t, tc.expectedSrcHost, config.SrcHost)
 			assert.Equal(t, tc.expectedSrcLogin, config.SrcLogin)
-			assert.Equal(t, tc.expectedDestHost, config.DestHost)
-			assert.Equal(t, tc.expectedDestLogin, config.DestLogin)
+			assert.Equal(t, tc.expectedDestHost, config.DstHost)
+			assert.Equal(t, tc.expectedDestLogin, config.DstLogin)
 		})
 	}
 }

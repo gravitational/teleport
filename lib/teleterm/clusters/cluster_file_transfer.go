@@ -67,13 +67,13 @@ func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, r
 	if serverUUID == "" {
 		return trace.BadParameter("server URI does not include server UUID")
 	}
-	host := &utils.NetAddr{Addr: serverUUID + ":0"}
+	serverAddr := &utils.NetAddr{Addr: serverUUID + ":0"}
 	switch request.GetDirection() {
 	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD:
-		sftpReq.Sources.Host = host
+		sftpReq.Sources.Addr = serverAddr
 		sftpReq.Sources.Login = request.GetLogin()
 	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UPLOAD:
-		sftpReq.Destination.Host = host
+		sftpReq.Destination.Addr = serverAddr
 		sftpReq.Destination.Login = request.GetLogin()
 	default:
 		return trace.BadParameter("Unexpected file transfer direction: %q", request.GetDirection())
