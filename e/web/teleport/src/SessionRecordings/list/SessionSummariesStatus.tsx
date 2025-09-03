@@ -65,7 +65,10 @@ export function SessionSummariesStatus() {
   }
 
   return (
-    <CtaLink to="/" target="_blank">
+    <CtaLink
+      to="https://goteleport.com/docs/identity-security/session-summaries/"
+      target="_blank"
+    >
       <ChatCircleSparkle size="small" />
 
       <Text>Set up AI Session Summaries</Text>
