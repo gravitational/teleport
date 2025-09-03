@@ -51,7 +51,7 @@
     "jest": "^30.1.1",
     "jest-canvas-mock": "^2.5.2",
     "jsdom-testing-mocks": "^1.15.2",
-    "msw": "2.11.0",
+    "msw": "2.10.1",
     "msw-storybook-addon": "^2.0.5",
     "node-gyp": "^11.4.2",
     "playwright": "^1.55.0",
