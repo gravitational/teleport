@@ -42,13 +42,9 @@ type StoryProps = {
 const meta: Meta<StoryProps> = {
   title: 'Shared',
   component: FieldSelect,
-  argTypes: {
-    readOnly: {
-      control: { type: 'boolean' },
-    },
-    isDisabled: {
-      control: { type: 'boolean' },
-    },
+  args: {
+    readOnly: false,
+    isDisabled: false,
   },
 };
 export default meta;

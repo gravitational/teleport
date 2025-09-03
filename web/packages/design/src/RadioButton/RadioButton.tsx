@@ -62,16 +62,12 @@ export const RadioButton = forwardRef<HTMLInputElement, RadioButtonProps>(
             trick, because we want to be able to use this component both with
             and without surrounding labels. Instead, we use absolute positioning
             and an actually rendered input with a custom appearance. */}
-          {props.readOnly ? (
-            <RadioButtonInternal
-              ref={ref}
-              rbSize={size}
-              {...inputProps}
-              disabled
-            />
-          ) : (
-            <RadioButtonInternal ref={ref} rbSize={size} {...inputProps} />
-          )}
+          <RadioButtonInternal
+            ref={ref}
+            rbSize={size}
+            {...inputProps}
+            disabled={inputProps.disabled || inputProps.readOnly}
+          />
           <Indicator rbSize={size} />
         </InnerWrapper>
       </OuterWrapper>
