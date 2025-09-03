@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package server
+package join
 
 import (
 	"cmp"
@@ -46,7 +46,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "join.server")
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "join")
 
 // AuthService is the subset of the Auth service interface required by the
 // JoinServer to implement joining.
@@ -56,19 +56,19 @@ type AuthService interface {
 	EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error
 }
 
-// Config holds configuration parameters for [Server].
-type Config struct {
+// ServerConfig holds configuration parameters for [Server].
+type ServerConfig struct {
 	AuthService AuthService
 	Authorizer  authz.Authorizer
 }
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
-	cfg *Config
+	cfg *ServerConfig
 }
 
 // NewServer returns a new [Server] instance.
-func NewServer(cfg *Config) *Server {
+func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
 		cfg: cfg,
 	}

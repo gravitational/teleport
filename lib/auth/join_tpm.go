@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
-	joinserver "github.com/gravitational/teleport/lib/join/server"
+	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tpm"
 )
@@ -112,7 +112,7 @@ func (a *Server) RegisterUsingTPMMethod(
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.GenerateCertsForJoin(ctx, provisionToken, &joinserver.GenerateCertsForJoinRequest{
+	certs, err := a.GenerateCertsForJoin(ctx, provisionToken, &join.GenerateCertsForJoinRequest{
 		HostID:               initReq.JoinRequest.HostID,
 		NodeName:             initReq.JoinRequest.NodeName,
 		Role:                 initReq.JoinRequest.Role,
