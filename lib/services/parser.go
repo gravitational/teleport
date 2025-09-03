@@ -38,6 +38,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
+	usersutils "github.com/gravitational/teleport/lib/utils/users"
 )
 
 // RuleContext specifies context passed to the
@@ -543,7 +544,11 @@ func toCtxTracker(t types.SessionTracker) ctxTracker {
 		participants := s.GetParticipants()
 		names := make([]string, len(participants))
 		for i, participant := range participants {
-			names[i] = participant.User
+			userStateRoleOverride := participant.User
+			if participant.TeleportCluster != "" && participant.TeleportCluster != s.GetClusterName() {
+				userStateRoleOverride = usersutils.UsernameForRemoteCluster(participant.User, participant.TeleportCluster)
+			}
+			names[i] = userStateRoleOverride
 		}
 
 		return names

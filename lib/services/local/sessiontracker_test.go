@@ -51,9 +51,10 @@ func TestSessionTrackerStorage(t *testing.T) {
 		Login:       "root",
 		Participants: []types.Participant{
 			{
-				ID:   uuid.New().String(),
-				User: "eve",
-				Mode: string(types.SessionPeerMode),
+				ID:              uuid.New().String(),
+				User:            "eve",
+				TeleportCluster: "cluster",
+				Mode:            string(types.SessionPeerMode),
 			},
 		},
 		Expires: time.Now().UTC().Add(24 * time.Hour),
@@ -70,9 +71,10 @@ func TestSessionTrackerStorage(t *testing.T) {
 		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
 			AddParticipant: &proto.SessionTrackerAddParticipant{
 				Participant: &types.Participant{
-					ID:   bobID,
-					User: "bob",
-					Mode: string(types.SessionObserverMode),
+					ID:              bobID,
+					User:            "bob",
+					TeleportCluster: "cluster",
+					Mode:            string(types.SessionObserverMode),
 				},
 			},
 		},
@@ -142,9 +144,10 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 		Login:       "foo",
 		Participants: []types.Participant{
 			{
-				ID:   uuid.New().String(),
-				User: "eve",
-				Mode: string(types.SessionPeerMode),
+				ID:              uuid.New().String(),
+				User:            "eve",
+				TeleportCluster: "cluster",
+				Mode:            string(types.SessionPeerMode),
 			},
 		},
 		Expires: clock.Now().UTC().Add(time.Second),
@@ -162,9 +165,10 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 		Login:       "foo",
 		Participants: []types.Participant{
 			{
-				ID:   uuid.New().String(),
-				User: "eve",
-				Mode: string(types.SessionPeerMode),
+				ID:              uuid.New().String(),
+				User:            "eve",
+				TeleportCluster: "cluster",
+				Mode:            string(types.SessionPeerMode),
 			},
 		},
 		Expires: clock.Now().UTC().Add(24 * time.Hour),
@@ -213,9 +217,10 @@ func TestSessionTrackerTermination(t *testing.T) {
 		Login:       "foo",
 		Participants: []types.Participant{
 			{
-				ID:   uuid.New().String(),
-				User: "eve",
-				Mode: string(types.SessionPeerMode),
+				ID:              uuid.New().String(),
+				User:            "eve",
+				TeleportCluster: "cluster",
+				Mode:            string(types.SessionPeerMode),
 			},
 		},
 		Expires: clock.Now().UTC().Add(time.Hour),

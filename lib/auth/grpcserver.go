@@ -2475,8 +2475,9 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 	if _, err := actx.authServer.ValidateMFAAuthResponse(ctx, challengeResp, user, chalExt); err != nil {
 		return trace.Wrap(err)
 	}
-
-	err = actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user)
+	username := actx.Identity.GetIdentity().Username
+	cluster := actx.Identity.GetIdentity().TeleportCluster
+	err = actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, username, cluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -30,6 +30,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usersutils "github.com/gravitational/teleport/lib/utils/users"
 )
 
 // desktopSessionAuditor is used to build session-related events
@@ -151,7 +152,9 @@ func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDes
 		Recorded:              recorded,
 
 		// There can only be 1 participant, desktop sessions are not join-able.
-		Participants: []string{userMetadata.User},
+		Participants: []string{
+			usersutils.UsernameForCluster(userMetadata.User, d.clusterName, userMetadata.UserClusterName),
+		},
 	}
 }
 

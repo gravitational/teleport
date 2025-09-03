@@ -6636,6 +6636,9 @@ message Participant {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "last_active,omitempty"
   ];
+
+  // TeleportCluster is the name of the Teleport cluster this participant belongs to.
+  string TeleportCluster = 5 [(gogoproto.jsontag) = "teleport_cluster,omitempty"];
 }
 
 // UIConfigV1 represents the configuration for the web UI served by the proxy service

@@ -1291,6 +1291,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		BotInstanceID:     id.BotInstanceID,
 		UserRoles:         slices.Clone(id.Groups),
 		UserTraits:        id.Traits.Clone(),
+		UserClusterName:   id.TeleportCluster,
 	}
 }
 

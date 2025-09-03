@@ -38,21 +38,22 @@ func TestSessionTrackerV1_UpdatePresence(t *testing.T) {
 				LastActive: now,
 			},
 			{
-				ID:         "2",
-				User:       "fish",
-				Mode:       string(SessionModeratorMode),
-				LastActive: now,
+				ID:              "2",
+				User:            "fish",
+				Mode:            string(SessionModeratorMode),
+				TeleportCluster: "teleportCluster",
+				LastActive:      now,
 			},
 		},
 	})
 	require.NoError(t, err)
 
 	// Presence cannot be updated for a non-existent user
-	err = s.UpdatePresence("alpaca", now.Add(time.Hour))
+	err = s.UpdatePresence("alpaca", "teleportCluster", now.Add(time.Hour))
 	require.ErrorIs(t, err, trace.NotFound("participant alpaca not found"))
 
 	// Update presence for just the user fish
-	require.NoError(t, s.UpdatePresence("fish", now.Add(time.Hour)))
+	require.NoError(t, s.UpdatePresence("fish", "teleportCluster", now.Add(time.Hour)))
 
 	// Verify that llama has not been active but that fish was
 	for _, participant := range s.GetParticipants() {

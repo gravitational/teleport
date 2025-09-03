@@ -31,6 +31,7 @@ import (
 	"github.com/moby/term"
 
 	"github.com/gravitational/teleport/api/types"
+	usersutils "github.com/gravitational/teleport/lib/utils/users"
 )
 
 // ID is a unique session ID.
@@ -144,7 +145,11 @@ type FileTransferDecisionParams struct {
 func (s *Session) Participants() []string {
 	participants := make([]string, 0, len(s.Parties))
 	for _, p := range s.Parties {
-		participants = append(participants, p.User)
+		name := p.User
+		if p.TeleportCluster != "" {
+			name = usersutils.UsernameForCluster(p.User, s.ClusterName, p.TeleportCluster)
+		}
+		participants = append(participants, name)
 	}
 	return participants
 }
@@ -172,6 +177,8 @@ type Party struct {
 	User string `json:"user"`
 	// ServerID is an address of the server
 	ServerID string `json:"server_id"`
+	// TeleportCluster is the name of the cluster this user belongs to.
+	TeleportCluster string `json:"teleport_cluster"`
 	// LastActive is a last time this party was active
 	LastActive time.Time `json:"last_active"`
 }
@@ -179,8 +186,8 @@ type Party struct {
 // String returns debug friendly representation
 func (p *Party) String() string {
 	return fmt.Sprintf(
-		"party(id=%v, remote=%v, user=%v, server=%v, last_active=%v)",
-		p.ID, p.RemoteAddr, p.User, p.ServerID, p.LastActive,
+		"party(id=%v, remote=%v, user=%v, server=%v, last_active=%v, cluster=%v)",
+		p.ID, p.RemoteAddr, p.User, p.ServerID, p.LastActive, p.TeleportCluster,
 	)
 }
 

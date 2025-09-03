@@ -2000,7 +2000,8 @@ func globMatch(pattern, str string) (bool, error) {
 // userMatchesConnector is a helper function to check if a user matches any of a connector's user matchers.
 func userMatchesConnector(username string, connector interface {
 	GetUserMatchers() []string
-}) (isMatch bool, isFallback bool, err error) {
+},
+) (isMatch bool, isFallback bool, err error) {
 	matchers := connector.GetUserMatchers()
 	for _, pattern := range matchers {
 		matched, err := globMatch(pattern, username)
@@ -4243,10 +4244,11 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 
 	for _, participant := range participants {
 		parties = append(parties, session.Party{
-			ID:         session.ID(participant.ID),
-			User:       participant.User,
-			ServerID:   tracker.GetAddress(),
-			LastActive: participant.LastActive,
+			ID:              session.ID(participant.ID),
+			User:            participant.User,
+			TeleportCluster: participant.TeleportCluster,
+			ServerID:        tracker.GetAddress(),
+			LastActive:      participant.LastActive,
 			// note: we don't populate the RemoteAddr field since it isn't used and we don't have an equivalent value
 		})
 	}
