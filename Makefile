@@ -495,7 +495,8 @@ build-ironrdp-wasm: ensure-wasm-deps
 	cargo build --package ironrdp --lib --target $(CARGO_TARGET_wasm) --release
 	wasm-opt target/$(CARGO_TARGET_wasm)/release/ironrdp.wasm -o target/$(CARGO_TARGET_wasm)/release/ironrdp.wasm -O
 	wasm-bindgen target/$(CARGO_TARGET_wasm)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
-	@$(MAKE) print-ironrdp-package-json > $(ironrdp)/pkg/package.json
+	echo "*" > $(ironrdp)/pkg/.gitignore
+	@$(MAKE) -s print-ironrdp-package-json > $(ironrdp)/pkg/package.json
 
 .PHONY: print-ironrdp-package-json
 print-ironrdp-package-json:
