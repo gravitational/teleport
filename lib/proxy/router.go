@@ -254,11 +254,10 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 
 	var (
-		isAgentlessNode bool
-		serverID        string
-		serverAddr      string
-		proxyIDs        []string
-		sshSigner       ssh.Signer
+		serverID   string
+		serverAddr string
+		proxyIDs   []string
+		sshSigner  ssh.Signer
 	)
 
 	if target != nil {
@@ -286,7 +285,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		// so a SSH user agent will not be created when connecting to the remote node.
 		if target.IsOpenSSHNode() {
 			agentGetter = nil
-			isAgentlessNode = true
 
 			if target.GetSubKind() == types.SubKindOpenSSHNode {
 				// If the node is of SubKindOpenSSHNode, create the signer.
@@ -309,7 +307,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
-		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
 		Principals:            apiutils.Deduplicate(principals),
