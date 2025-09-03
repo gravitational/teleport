@@ -82,7 +82,10 @@ export function SessionSummariesCta() {
   }
 
   return (
-    <CtaLink to="/" target="_blank">
+    <CtaLink
+      to="https://goteleport.com/docs/identity-security/session-summaries/"
+      target="_blank"
+    >
       <ChatCircleSparkle size="small" />
 
       <Text>Summarize session recordings with AI</Text>

@@ -20,6 +20,7 @@ package db
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -72,7 +73,7 @@ func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherCon
 		return nil, trace.Wrap(err)
 	}
 	clt := cfg.awsClients.GetElastiCacheClient(awsCfg)
-	clusters, err := getElastiCacheClusters(ctx, clt)
+	clusters, err := getElastiCacheClusters(ctx, clt, cfg.Logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,7 +104,7 @@ func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherCon
 
 	// Fetch more information to provide extra labels. Do not fail because some
 	// of these labels are missing.
-	allNodes, err := getElastiCacheNodes(ctx, clt)
+	allNodes, err := getElastiCacheNodes(ctx, clt, cfg.Logger)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			cfg.Logger.DebugContext(ctx, "No permissions to describe nodes", "error", err)
@@ -111,7 +112,7 @@ func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherCon
 			cfg.Logger.InfoContext(ctx, "Failed to describe nodes", "error", err)
 		}
 	}
-	allSubnetGroups, err := getElastiCacheSubnetGroups(ctx, clt)
+	allSubnetGroups, err := getElastiCacheSubnetGroups(ctx, clt, cfg.Logger)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			cfg.Logger.DebugContext(ctx, "No permissions to describe subnet groups", "error", err)
@@ -151,7 +152,7 @@ func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherCon
 }
 
 // getElastiCacheClusters fetches all ElastiCache replication groups.
-func getElastiCacheClusters(ctx context.Context, client ElastiCacheClient) ([]ectypes.ReplicationGroup, error) {
+func getElastiCacheClusters(ctx context.Context, client ElastiCacheClient, log *slog.Logger) ([]ectypes.ReplicationGroup, error) {
 	var out []ectypes.ReplicationGroup
 	pager := elasticache.NewDescribeReplicationGroupsPaginator(client,
 		&elasticache.DescribeReplicationGroupsInput{},
@@ -159,8 +160,7 @@ func getElastiCacheClusters(ctx context.Context, client ElastiCacheClient) ([]ec
 			opts.StopOnDuplicateToken = true
 		},
 	)
-	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
@@ -171,7 +171,7 @@ func getElastiCacheClusters(ctx context.Context, client ElastiCacheClient) ([]ec
 
 // getElastiCacheNodes fetches all ElastiCache nodes that associated with a
 // replication group.
-func getElastiCacheNodes(ctx context.Context, client ElastiCacheClient) ([]ectypes.CacheCluster, error) {
+func getElastiCacheNodes(ctx context.Context, client ElastiCacheClient, log *slog.Logger) ([]ectypes.CacheCluster, error) {
 	var out []ectypes.CacheCluster
 	pager := elasticache.NewDescribeCacheClustersPaginator(client,
 		&elasticache.DescribeCacheClustersInput{},
@@ -179,8 +179,7 @@ func getElastiCacheNodes(ctx context.Context, client ElastiCacheClient) ([]ectyp
 			opts.StopOnDuplicateToken = true
 		},
 	)
-	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
@@ -199,7 +198,7 @@ func getElastiCacheNodes(ctx context.Context, client ElastiCacheClient) ([]ectyp
 }
 
 // getElastiCacheSubnetGroups fetches all ElastiCache subnet groups.
-func getElastiCacheSubnetGroups(ctx context.Context, client ElastiCacheClient) ([]ectypes.CacheSubnetGroup, error) {
+func getElastiCacheSubnetGroups(ctx context.Context, client ElastiCacheClient, log *slog.Logger) ([]ectypes.CacheSubnetGroup, error) {
 	var out []ectypes.CacheSubnetGroup
 	pager := elasticache.NewDescribeCacheSubnetGroupsPaginator(client,
 		&elasticache.DescribeCacheSubnetGroupsInput{},
@@ -207,8 +206,7 @@ func getElastiCacheSubnetGroups(ctx context.Context, client ElastiCacheClient) (
 			opts.StopOnDuplicateToken = true
 		},
 	)
-	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
