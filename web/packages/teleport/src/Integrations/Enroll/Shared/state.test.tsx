@@ -21,10 +21,8 @@ import { createMemoryHistory } from 'history';
 import type { PropsWithChildren } from 'react';
 import { Router } from 'react-router';
 
-import { type IntegrationTag } from './common';
 import {
   searchParamsToState,
-  statesAreEqual,
   stateToSearchParams,
   useIntegrationPickerState,
   type IntegrationPickerState,
@@ -213,77 +211,6 @@ describe('stateToSearchParams', () => {
     expect(urlParams.getAll('tags')).toEqual(['bot']);
     expect(urlParams.get('sort')).toBe('name');
     expect(urlParams.get('direction')).toBe('ASC');
-  });
-});
-
-describe('statesAreEqual', () => {
-  const baseState: IntegrationPickerState = {
-    filters: {
-      tags: ['idp'],
-    },
-    search: 'test',
-    sortKey: 'name',
-    sortDirection: 'ASC',
-  };
-
-  it('returns true for identical states', () => {
-    const state1 = { ...baseState };
-    const state2 = { ...baseState };
-
-    expect(statesAreEqual(state1, state2)).toBe(true);
-  });
-
-  it('returns false when filters differ', () => {
-    const state1 = { ...baseState };
-    const state2 = {
-      ...baseState,
-      filters: {
-        ...baseState.filters,
-        tags: ['bot', 'cicd'] satisfies IntegrationTag[],
-      },
-    };
-
-    expect(statesAreEqual(state1, state2)).toBe(false);
-  });
-
-  it('returns false when sort parameters differ', () => {
-    const state1 = { ...baseState };
-    const state2 = {
-      ...baseState,
-      sortDirection: 'DESC' as const,
-    };
-
-    expect(statesAreEqual(state1, state2)).toBe(false);
-  });
-
-  it('returns true when filter arrays have same values in same order', () => {
-    const state1 = { ...baseState };
-    const state2 = { ...baseState };
-
-    expect(statesAreEqual(state1, state2)).toBe(true);
-  });
-
-  it('returns false when search differs', () => {
-    const state1 = { ...baseState };
-    const state2 = {
-      ...baseState,
-      search: 'different search',
-    };
-
-    expect(statesAreEqual(state1, state2)).toBe(false);
-  });
-
-  it('returns true when search is the same', () => {
-    const state1 = {
-      ...baseState,
-      search: 'same query',
-    };
-    const state2 = {
-      ...baseState,
-      search: 'same query',
-    };
-
-    expect(statesAreEqual(state1, state2)).toBe(true);
   });
 });
 

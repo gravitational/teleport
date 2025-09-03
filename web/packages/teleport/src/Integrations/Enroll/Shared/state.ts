@@ -103,41 +103,6 @@ export function stateToSearchParams(state: IntegrationPickerState) {
   return urlParams.toString();
 }
 
-function sortArray(array: string[]) {
-  return array.toSorted((a, b) => a.localeCompare(b));
-}
-
-function arraysAreEqual(a: string[], b: string[]) {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  return JSON.stringify(sortArray(a)) === JSON.stringify(sortArray(b));
-}
-
-function filtersAreEqual(
-  a: IntegrationPickerFilters,
-  b: IntegrationPickerFilters
-) {
-  if (a.tags.length !== b.tags.length) {
-    return false;
-  }
-
-  return arraysAreEqual(a.tags, b.tags);
-}
-
-export function statesAreEqual(
-  a: IntegrationPickerState,
-  b: IntegrationPickerState
-) {
-  return (
-    a.sortKey === b.sortKey &&
-    a.sortDirection === b.sortDirection &&
-    filtersAreEqual(a.filters, b.filters) &&
-    a.search === b.search
-  );
-}
-
 // useIntegrationPickerState is a custom hook that manages the state of the the Integration Picker,
 // syncing it with the URL search parameters.
 // It allows for state updates and ensures that the URL reflects the current state.
