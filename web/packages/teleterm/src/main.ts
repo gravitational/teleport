@@ -161,12 +161,16 @@ async function initializeApp(): Promise<void> {
     }
   });
 
+  // On Windows/Linux: Re-launching the app while it's already running
+  // triggers 'second-instance' (because of app.requestSingleInstanceLock()).
+  //
+  // On macOS: Re-launching the app (from places like Finder, Spotlight, or Dock)
+  // does not trigger 'second-instance'. Instead, the system emits 'activate'.
+  // However, launching the app outside the desktop manager (e.g., from the command
+  // line) does trigger 'second-instance'.
   app.on('second-instance', () => {
     windowsManager.focusWindow();
   });
-  // On macOS, re-launching an app triggers the 'activate'
-  // event, not 'second-instance'.
-  // If the window is hidden, activating the app should show it up.
   app.on('activate', () => {
     windowsManager.focusWindow();
   });
