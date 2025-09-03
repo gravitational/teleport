@@ -17,7 +17,6 @@
  */
 
 import { useCallback, type MouseEvent } from 'react';
-import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { ChatCircleSparkle, Cross } from 'design/Icon';
@@ -26,7 +25,7 @@ import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { KeysEnum } from 'teleport/services/storageService';
 
-export const CtaLink = styled(Link)`
+export const CtaLink = styled.a`
   border: 1px solid ${p => p.theme.colors.spotBackground[1]};
   border-radius: ${p => p.theme.radii[3]}px;
   padding: ${p =>
@@ -83,7 +82,7 @@ export function SessionSummariesCta() {
 
   return (
     <CtaLink
-      to="https://goteleport.com/docs/identity-security/session-summaries/"
+      href="https://goteleport.com/docs/identity-security/session-summaries/"
       target="_blank"
     >
       <ChatCircleSparkle size="small" />
