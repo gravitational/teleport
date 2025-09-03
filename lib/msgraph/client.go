@@ -188,24 +188,6 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: scopes,
-	})
-	if err != nil {
-		authFailedError := &azidentity.AuthenticationFailedError{}
-		if ok := errors.As(err, &authFailedError); ok && authFailedError.RawResponse != nil &&
-			authFailedError.RawResponse.Body != nil {
-			resp := authFailedError.RawResponse
-			authError, conversionErr := readAuthError(resp.Body, resp.StatusCode)
-			resp.Body.Close()
-			if conversionErr == nil {
-				err = authError
-			}
-		}
-		return nil, trace.Wrap(err, "failed to get azure authentication token")
-	}
-	req.Header.Set("Authorization", "Bearer "+token.Token)
-
 	const maxRetries = 5
 	var retryAfter time.Duration
 
@@ -224,6 +206,23 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 				return nil, trace.NewAggregate(ctx.Err(), trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path))
 			}
 		}
+		token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
+			Scopes: scopes,
+		})
+		if err != nil {
+			authFailedError := &azidentity.AuthenticationFailedError{}
+			if ok := errors.As(err, &authFailedError); ok && authFailedError.RawResponse != nil &&
+				authFailedError.RawResponse.Body != nil {
+				resp := authFailedError.RawResponse
+				authError, conversionErr := readAuthError(resp.Body, resp.StatusCode)
+				resp.Body.Close()
+				if conversionErr == nil {
+					err = authError
+				}
+			}
+			return nil, trace.Wrap(err, "failed to get azure authentication token")
+		}
+		req.Header.Set("Authorization", "Bearer "+token.Token)
 
 		requestID := uuid.NewString()
 		// https://learn.microsoft.com/en-us/graph/best-practices-concept#reliability-and-support
