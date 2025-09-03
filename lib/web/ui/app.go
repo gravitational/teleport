@@ -54,6 +54,8 @@ type App struct {
 	ClusterID string `json:"clusterId"`
 	// Labels is a map of static labels associated with an application.
 	Labels []ui.Label `json:"labels"`
+	// CloudInstance identifies the cloud instance the app represents.
+	CloudInstance string `json:"cloudInstance"`
 	// AWSConsole if true, indicates that the app represents AWS management console.
 	AWSConsole bool `json:"awsConsole"`
 	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
@@ -187,6 +189,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		Integration:           app.GetIntegration(),
 		PermissionSets:        permissionSets,
 		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
+		CloudInstance:         app.GetCloudInstance(),
 	}
 
 	if app.IsAWSConsole() {

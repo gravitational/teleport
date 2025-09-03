@@ -35,10 +35,25 @@ export interface App {
   fqdn: string;
   useAnyProxyPublicAddr?: boolean;
   awsRoles: AwsRole[];
+  /**
+   * true if this app is AWS management console.
+   */
   awsConsole: boolean;
   requiresRequest?: boolean;
+  /**
+   * true if this app represents a TCP endpoint.
+   */
   isTcp?: boolean;
+  /**
+   * true if this app represents a cloud endpoint.
+   */
   isCloud?: boolean;
+  /**
+   * Identifies the cloud instance the app represents.
+   * Defined as consts in backend:
+   * https://github.com/gravitational/teleport/blob/b20886d92379e31c0938e30193b455b7d83452fe/api/types/constants.go#L933
+   */
+  cloudInstance?: 'Azure' | 'AWS' | 'GCP';
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
@@ -67,7 +82,11 @@ export interface App {
    */
   samlAppLaunchUrls?: SamlAppLaunchUrl[];
   /**
-   * mcp contains MCP server specific configurations.
+   * mcp contains "stdio" transport based MCP
+   * server specific configurations.
+   *
+   * This field will be undefined for other types
+   * of transports.
    */
   mcp?: AppMCP;
 }

@@ -66,6 +66,7 @@ export default function makeApp(json: any): App {
     subKind,
     samlAppLaunchUrls,
     mcp,
+    cloudInstance,
   } = json;
 
   const launchUrl = getLaunchUrl({
@@ -123,6 +124,7 @@ export default function makeApp(json: any): App {
     awsConsole,
     isTcp,
     isCloud,
+    cloudInstance,
     addrWithProtocol,
     useAnyProxyPublicAddr,
     friendlyName,
@@ -136,4 +138,26 @@ export default function makeApp(json: any): App {
     samlAppLaunchUrls,
     mcp,
   };
+}
+
+/**
+ * returns true if this app represents a MCP server
+ * regardless of transport used (stdio, ssehttp, ssehttps)
+ */
+export function isMcp(app: App) {
+  return !!app.uri && app.uri.startsWith('mcp+');
+}
+
+/**
+ * returns true if this app represents GCP instance.
+ */
+export function isGcp(app: App) {
+  return app.cloudInstance === 'GCP';
+}
+
+/**
+ * returns true if this app represents Azure Cloud instance.
+ */
+export function isAzureCloud(app: App) {
+  return app.cloudInstance === 'Azure';
 }

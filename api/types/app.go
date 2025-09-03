@@ -73,6 +73,8 @@ type Application interface {
 	IsTCP() bool
 	// IsMCP returns true if this app represents a MCP server.
 	IsMCP() bool
+	// GetCloudInstance returns the kind of cloud instance the app represents.
+	GetCloudInstance() string
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
@@ -284,6 +286,11 @@ func (a *AppV3) IsAzureCloud() bool {
 // IsGCP returns true if this app is GCP instance.
 func (a *AppV3) IsGCP() bool {
 	return a.Spec.Cloud == CloudGCP
+}
+
+// GetCloudInstance returns the kind of cloud instance the app represents.
+func (a *AppV3) GetCloudInstance() string {
+	return a.Spec.Cloud
 }
 
 // IsTCP returns true if this app represents a TCP endpoint.
