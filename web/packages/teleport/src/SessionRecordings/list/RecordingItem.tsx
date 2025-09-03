@@ -62,6 +62,8 @@ export interface RecordingItemProps {
   viewMode: ViewMode;
 }
 
+const recordingTypesWithThumbnails: RecordingType[] = ['ssh', 'k8s'];
+
 export function RecordingItem({
   actionSlot,
   density,
@@ -77,7 +79,7 @@ export function RecordingItem({
   );
 
   const duration = useMemo(
-    () => formatDuration(recording.duration),
+    () => formatSessionRecordingDuration(recording.duration),
     [recording.duration]
   );
 
@@ -94,7 +96,9 @@ export function RecordingItem({
     [actionSlot, recording.sid]
   );
 
-  const hasThumbnail = recording.recordingType === 'ssh';
+  const hasThumbnail = recordingTypesWithThumbnails.includes(
+    recording.recordingType
+  );
 
   return (
     <RecordingItemContainer
@@ -148,7 +152,7 @@ export function RecordingItem({
           </Flex>
           <Flex alignItems="center" gap={2}>
             <ItemSpan>
-              <User size="small" color="interactive.solid.primary.default" />
+              <User size="small" color="sessionRecording.user" />
 
               <Text>{recording.user}</Text>
             </ItemSpan>
@@ -156,7 +160,7 @@ export function RecordingItem({
             <ArrowRight size="small" color="text.slightlyMuted" />
 
             <ItemSpan>
-              <Server size="small" color="interactive.solid.accent.default" />
+              <Server size="small" color="sessionRecording.resource" />
 
               <Text>{recording.hostname}</Text>
             </ItemSpan>
@@ -356,7 +360,7 @@ function getRecordingTypeInfo(type: RecordingType): {
   }
 }
 
-function formatDuration(ms: number): string {
+export function formatSessionRecordingDuration(ms: number): string {
   const roundedMs = Math.round(ms / 1000) * 1000;
 
   const units = [

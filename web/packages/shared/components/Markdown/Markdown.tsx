@@ -105,14 +105,25 @@ function parseLine(line: string): ReactNode[] {
 
 const headerRegex = /^(?<hashes>#{1,6})\s*(?<content>.*)$/;
 
+const MAX_ITERATIONS = 10000;
+
 function processMarkdown(text: string) {
   const lines = text.split('\n');
 
   const items: ReactNode[] = [];
 
+  let iterations = 0;
   let i = 0;
 
   while (i < lines.length) {
+    if (++iterations > MAX_ITERATIONS) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `processMarkdown: Exceeded max iterations (${MAX_ITERATIONS})`
+      );
+      return items;
+    }
+
     const line = lines[i].trim();
 
     if (line.trim() === '') {
@@ -136,13 +147,18 @@ function processMarkdown(text: string) {
       }
     }
 
-    if (line.startsWith('- ')) {
+    if (line.trimStart().startsWith('- ')) {
       const listItems: ReactNode[] = [];
+      const startI = i;
 
-      while (i < lines.length && lines[i].startsWith('- ')) {
+      while (i < lines.length && lines[i].trimStart().startsWith('- ')) {
         listItems.push(<li key={i}>{parseLine(lines[i].substring(2))}</li>);
 
         i += 1;
+
+        if (i - startI > MAX_ITERATIONS) {
+          break;
+        }
       }
 
       items.push(<ul key={i}>{listItems}</ul>);
@@ -151,6 +167,7 @@ function processMarkdown(text: string) {
     }
 
     const paragraphLines: string[] = [];
+    const startI = i;
 
     while (i < lines.length && lines[i].trim() !== '') {
       const currentLine = lines[i];
@@ -164,10 +181,18 @@ function processMarkdown(text: string) {
 
       paragraphLines.push(currentLine.trim());
       i += 1;
+
+      if (i - startI > MAX_ITERATIONS) {
+        break;
+      }
     }
 
     if (paragraphLines.length > 0) {
       items.push(<p key={`p-${i}`}>{parseLine(paragraphLines.join(' '))}</p>);
+    }
+
+    if (i === startI) {
+      i += 1;
     }
   }
 

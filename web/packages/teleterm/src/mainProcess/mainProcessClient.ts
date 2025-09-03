@@ -19,6 +19,7 @@
 import { ipcRenderer } from 'electron';
 
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -198,6 +199,55 @@ export default function createMainProcessClient(): MainProcessClient {
         MainProcessIpc.SelectDirectoryForDesktopSession,
         args
       );
+    },
+    supportsAppUpdates() {
+      return ipcRenderer.sendSync(MainProcessIpc.SupportsAppUpdates);
+    },
+    checkForAppUpdates() {
+      return ipcRenderer.invoke(MainProcessIpc.CheckForAppUpdates);
+    },
+    downloadAppUpdate() {
+      return ipcRenderer.invoke(MainProcessIpc.DownloadAppUpdate);
+    },
+    cancelAppUpdateDownload() {
+      return ipcRenderer.invoke(MainProcessIpc.CancelAppUpdateDownload);
+    },
+    quitAndInstallAppUpdate() {
+      return ipcRenderer.invoke(MainProcessIpc.QuiteAndInstallAppUpdate);
+    },
+    changeAppUpdatesManagingCluster(clusterUri) {
+      return ipcRenderer.invoke(
+        MainProcessIpc.ChangeAppUpdatesManagingCluster,
+        {
+          clusterUri,
+        }
+      );
+    },
+    maybeRemoveAppUpdatesManagingCluster(clusterUri) {
+      return ipcRenderer.invoke(
+        MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
+        {
+          clusterUri,
+        }
+      );
+    },
+    subscribeToAppUpdateEvents: listener => {
+      const ipcListener = (_, updateEvent: AppUpdateEvent) => {
+        listener(updateEvent);
+      };
+
+      ipcRenderer.addListener(RendererIpc.AppUpdateEvent, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.AppUpdateEvent, ipcListener),
+      };
+    },
+    subscribeToOpenAppUpdateDialog: listener => {
+      ipcRenderer.addListener(RendererIpc.OpenAppUpdateDialog, listener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.OpenAppUpdateDialog, listener),
+      };
     },
   };
 }

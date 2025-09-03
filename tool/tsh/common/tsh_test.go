@@ -240,6 +240,10 @@ func handleReexec() {
 
 type cliModules struct{}
 
+func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return &types.LongTermResourceGrouping{}, nil
+}
+
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
@@ -4353,7 +4357,9 @@ func TestSerializeDatabases(t *testing.T) {
       "oracle": {
         "audit_user": ""
       },
-      "gcp": {},
+      "gcp": {
+        "alloydb": {}
+      },
       "azure": {
 	    "redis": {}
 	  },

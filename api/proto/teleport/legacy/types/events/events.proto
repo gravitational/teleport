@@ -143,6 +143,17 @@ message UserMetadata {
 
   // UserOrigin specifies the origin of this user account.
   UserOrigin UserOrigin = 13 [(gogoproto.jsontag) = "user_origin,omitempty"];
+
+  // UserRoles specifies the roles user for the user to perform the action.
+  repeated string UserRoles = 14 [(gogoproto.jsontag) = "user_roles,omitempty"];
+
+  // UserTraits hold claim data used to populate a role at runtime
+  // for this session.
+  wrappers.LabelValues UserTraits = 15 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "user_traits,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // Server is a server metadata
@@ -3676,6 +3687,13 @@ message DatabaseSessionEnd {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "session_stop,omitempty"
   ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // MFADeviceMetadata is a common MFA device metadata.
@@ -3950,6 +3968,12 @@ message WindowsDesktopSessionEnd {
   bool Recorded = 12 [(gogoproto.jsontag) = "recorded"];
   // Participants is a list of participants in the session.
   repeated string Participants = 13 [(gogoproto.jsontag) = "participants"];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 14 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // CertificateCreate is emitted when a certificate is issued.

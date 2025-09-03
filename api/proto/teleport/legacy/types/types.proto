@@ -586,12 +586,26 @@ message DocumentDB {
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
+// GCPCloudSQL contains parameters specific to GCP databases.
+// The name "GCPCloudSQL" is a legacy from a time when only GCP Cloud SQL was supported.
 message GCPCloudSQL {
   // ProjectID is the GCP project ID the Cloud SQL instance resides in.
   string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
   // InstanceID is the Cloud SQL instance ID.
   string InstanceID = 2 [(gogoproto.jsontag) = "instance_id,omitempty"];
+  // AlloyDB contains AlloyDB specific configuration elements.
+  AlloyDB AlloyDB = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "alloydb,omitempty"
+  ];
+}
+
+// AlloyDB contains AlloyDB specific configuration elements.
+message AlloyDB {
+  // EndpointType is the database endpoint type to use. Should be one of: "private", "public", "psc".
+  string EndpointType = 1 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+  // EndpointOverride is an override of endpoint address to use.
+  string EndpointOverride = 2 [(gogoproto.jsontag) = "endpoint_override,omitempty"];
 }
 
 // Azure contains Azure specific database metadata.
@@ -1251,6 +1265,25 @@ message JWTKeyPair {
   bytes PrivateKey = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
   // PrivateKeyType is the type of the PrivateKey.
   PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
+}
+
+// EncryptionKeyPair is a PKIX ASN.1 DER encoded keypair used for encrypting and decrypting data.
+message EncryptionKeyPair {
+  // PublicKey is a PKIX ASN.1 DER encoded public key.
+  bytes public_key = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
+  // PrivateKey is a PKCS#8 ASN.1 DER encoded private key.
+  bytes private_key = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
+  // PrivateKeyType is the type of the PrivateKey.
+  PrivateKeyType private_key_type = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
+  // Hash function used during OAEP encryption/decryption. It maps directly to the possible
+  // values of [crypto.Hash] in the go crypto package.
+  uint32 hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
+}
+
+// A public key to be used as a recipient during age encryption of session recordings.
+message AgeEncryptionKey {
+  // A PKIX ASN.1 DER encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
+  bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
 }
 
 // CertAuthorityV2 is version 2 resource spec for Cert Authority
@@ -2413,6 +2446,41 @@ message SessionRecordingConfigV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the SessionRecordingConfig status containing active encryption keys
+  SessionRecordingConfigStatus Status = 6 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "status,omitempty"
+  ];
+}
+
+// KeyLabel combines a label that can be used to identify one or more keys with a keystore type that
+// determines where the keys can be found.
+message KeyLabel {
+  // Type represents which keystore should be searched when looking up keys by label.
+  string type = 1 [(gogoproto.jsontag) = "type"];
+  // Label is a value that can be used with the related keystore in order to find relevant keys.
+  string label = 2 [(gogoproto.jsontag) = "label"];
+}
+
+// ManualKeyManagementConfig defines whether or not recording encryption keys should be managed externally
+// and how to query those keys.
+message ManualKeyManagementConfig {
+  // Enabled controls whether or recording encryption keys should be managed externally.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ActiveKeys describe which keys should be queried for active recording encryption and replay.
+  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_keys,omitempty"];
+  // RotatedKeys describe which keys should be queried for historical replay.
+  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_keys,omitempty"];
+}
+
+// SessionRecordingEncryptionConfig configures if and how session recordings
+// should be encrypted.
+message SessionRecordingEncryptionConfig {
+  // Enabled controls whether or not session recordings should be encrypted.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ManualKeyManagement defines whether or not recording encryption keys should be managed externally
+  // and how to query those keys.
+  ManualKeyManagementConfig manual_key_management = 2 [(gogoproto.jsontag) = "manual_key_management,omitempty"];
 }
 
 // SessionRecordingConfigSpecV2 is the actual data we care about
@@ -2428,6 +2496,20 @@ message SessionRecordingConfigSpecV2 {
     (gogoproto.jsontag) = "proxy_checks_host_keys",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // Encryption configures if and how session recordings should be encrypted.
+  SessionRecordingEncryptionConfig encryption = 3 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "encryption,omitempty"
+  ];
+}
+
+// SessionRecordingConfigStatus contains the currently active age encryption keys used
+// for encrypted session recording.
+message SessionRecordingConfigStatus {
+  // EncryptionKeys contain the currently active age encryption keys used for
+  // encrypted session recording.
+  repeated AgeEncryptionKey encryption_keys = 1 [(gogoproto.jsontag) = "encryption_keys"];
 }
 
 // AuthPreferenceV2 implements the AuthPreference interface.
@@ -3109,6 +3191,23 @@ message AccessRequestSpecV3 {
 
   // DryRunEnrichment contains the extra info added in response to a dry run request.
   AccessRequestDryRunEnrichment DryRunEnrichment = 23 [(gogoproto.jsontag) = "dry_run_enrichment,omitempty"];
+
+  // RequestKind indicates the kind (short/long-term) of request.
+  AccessRequestKind RequestKind = 24 [(gogoproto.jsontag) = "request_kind,omitempty"];
+
+  // LongTermResourceGrouping contains information about how resources can be grouped
+  // based on Access List promotions for long-term Access Requests.
+  LongTermResourceGrouping LongTermGrouping = 25 [(gogoproto.jsontag) = "long_term_grouping,omitempty"];
+}
+
+// AccessRequestKind represents the kind of Access Request being made (short/long-term).
+enum AccessRequestKind {
+  // UNDEFINED is the default value, and represents an undefined request kind.
+  UNDEFINED = 0;
+  // SHORT_TERM represents a short-term request, either role-based or resource-based.
+  SHORT_TERM = 1;
+  // LONG_TERM represents a long-term resource-based request.
+  LONG_TERM = 2;
 }
 
 enum AccessRequestScope {
@@ -4079,6 +4178,31 @@ message AccessRequestAllowedPromotion {
 message AccessRequestAllowedPromotions {
   // suggestions is a list of allowed access lists promotions.
   repeated AccessRequestAllowedPromotion promotions = 1;
+}
+
+// ResourceIDList represents a list of ResourceID objects.
+message ResourceIDList {
+  repeated ResourceID resource_ids = 1 [(gogoproto.nullable) = false];
+}
+
+// LongTermResourceGrouping contains information about how resources can be grouped
+// based on Access List promotions for long-term Access Requests.
+message LongTermResourceGrouping {
+  // AccessListToResources maps applicable Access List names to the resources they can grant,
+  // including the optimal grouping.
+  map<string, ResourceIDList> AccessListToResources = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "grouped_by_access_list"
+  ];
+  // RecommendedAccessList is the name of the Access List that would provide
+  // access to the most resources. If multiple Access Lists provide the same
+  // number of resources, the first one found will be used.
+  string RecommendedAccessList = 2 [(gogoproto.jsontag) = "recommended_access_list"];
+  // ValidationMessage is a user-friendly message explaining any grouping error, if CanProceed is false.
+  string ValidationMessage = 3 [(gogoproto.jsontag) = "validation_message,omitempty"];
+  // CanProceed represents the validity of the long-term grouping. If all requested
+  // resources cannot be grouped together, this will be false.
+  bool CanProceed = 4 [(gogoproto.jsontag) = "can_proceed"];
 }
 
 // ClaimMapping maps a claim to teleport roles.
@@ -5227,6 +5351,33 @@ message OIDCConnectorSpecV3 {
   // requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
   // for authorization request parameters.
   string RequestObjectMode = 22 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
+  // EntraIDGroupsProvider configures out-of-band user groups provider.
+  // It works by following through the groups claim source, which is sent for the "groups"
+  // claim when the user's group membership exceeds 200 max item limit.
+  EntraIDGroupsProvider entra_id_groups_provider = 23;
+}
+
+// EntraIDGroupsProvider configures out-of-band user groups provider.
+// It works by following through the groups claim source, which is sent for
+// "groups" claim when the user's group membership exceeds 200 max item limit.
+message EntraIDGroupsProvider {
+  // Disabled specifies that the groups provider should be disabled
+  // even when Entra ID responds with a groups claim source.
+  // User may choose to disable it if they are using
+  // integrations such as SCIM or similar groups importer as
+  // connector based role mapping may be not needed in such a scenario.
+  bool disabled = 1;
+  // GroupType is a user group type filter. Defaults to "security-groups".
+  // Value can be "security-groups", "directory-roles", "all-groups".
+  string group_type = 2;
+  // GraphEndpoint is a Microsoft Graph API endpoint.
+  // The groups claim source endpoint provided by Entra ID points to the
+  // now-retired Azure AD Graph endpoint ("https://graph.windows.net").
+  // To convert it to the newer Microsoft Graph API endpoint,
+  // Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com").
+  // Update GraphEndpoint to point to a different Microsoft Graph national
+  // cloud deployment endpoint.
+  string graph_endpoint = 3;
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards

@@ -18,6 +18,7 @@
 
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { useAppContext } from '../appContextProvider';
@@ -28,8 +29,15 @@ export function useClusterLogout({
   clusterUri: RootClusterUri;
 }) {
   const ctx = useAppContext();
+  const logger = useLogger('useClusterLogout');
   const [{ status, statusText }, removeCluster] = useAsync(async () => {
     await ctx.clustersService.logout(clusterUri);
+    // This function checks for updates, do not wait for it.
+    ctx.mainProcessClient
+      .maybeRemoveAppUpdatesManagingCluster(clusterUri)
+      .catch(err => {
+        logger.error('Failed to remove managing cluster', err);
+      });
 
     if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
       const [firstConnectedWorkspace] =
