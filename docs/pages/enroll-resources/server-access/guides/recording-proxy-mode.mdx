@@ -21,6 +21,13 @@ replacing your OpenSSH servers with Teleport Agents.
 
 </Admonition>
 
+## How it works
+
+In Recording Proxy Mode, the Proxy Service terminates (decrypts) SSH connections
+using the certificate supplied by the client via SSH agent forwarding and then
+establishes its own SSH connection to the final destination server. It then
+records SSH sessions as it routes the SSH traffic between connections.
+
 We consider Recording Proxy Mode to be less secure than recording at the Node
 level for two reasons:
 

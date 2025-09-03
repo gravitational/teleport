@@ -3681,6 +3681,11 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 
+	out, next, err := clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
 	// Create both databases.
 	err = clt.CreateDatabase(ctx, db1)
 	require.NoError(t, err)
@@ -3690,6 +3695,13 @@ func TestDatabasesCRUD(t *testing.T) {
 	// Fetch all databases.
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
 	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
@@ -3727,6 +3739,12 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
+	out, next, err = clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 
 	// Try to delete a database that doesn't exist.
 	err = clt.DeleteDatabase(ctx, "doesnotexist")
@@ -3737,6 +3755,10 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
+	require.Empty(t, out)
+	out, next, err = clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
 	require.Empty(t, out)
 }
 

@@ -108,6 +108,7 @@ const (
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
 var computerAttributes = []string{
 	attrName,
+	attrDescription,
 	attrCommonName,
 	attrDistinguishedName,
 	attrDNSHostName,
@@ -1061,6 +1062,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	err = rdpc.Run(ctx, certDER, keyDER)
 
 	// ctx may have been canceled, so emit with a separate context
+	audit.teardown(context.Background())
 	endEvent := audit.makeSessionEnd(recordSession)
 	s.record(context.Background(), recorder, endEvent)
 	s.emit(context.Background(), endEvent)
@@ -1218,9 +1220,11 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				s.emit(ctx, errorEvent)
 			}
 		case tdp.SharedDirectoryReadResponse:
-			s.emit(ctx, audit.makeSharedDirectoryReadResponse(msg))
+			// shared directory audit events can be noisy, so we use a compactor
+			// to retain and delay them in an attempt to coalesce contiguous events
+			audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(msg))
 		case tdp.SharedDirectoryWriteResponse:
-			s.emit(ctx, audit.makeSharedDirectoryWriteResponse(msg))
+			audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(msg))
 		}
 	}
 }

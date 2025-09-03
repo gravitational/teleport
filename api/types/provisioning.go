@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -122,6 +123,7 @@ var (
 	KubernetesJoinTypeUnspecified KubernetesJoinType = ""
 	KubernetesJoinTypeInCluster   KubernetesJoinType = "in_cluster"
 	KubernetesJoinTypeStaticJWKS  KubernetesJoinType = "static_jwks"
+	KubernetesJoinTypeOIDC        KubernetesJoinType = "oidc"
 )
 
 // ProvisionToken is a provisioning token
@@ -781,10 +783,34 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 		if a.StaticJWKS.JWKS == "" {
 			return trace.BadParameter("static_jwks.jwks: must be set when type is %q", KubernetesJoinTypeStaticJWKS)
 		}
+	case KubernetesJoinTypeOIDC:
+		if a.OIDC == nil {
+			return trace.BadParameter("oidc: must be set when types is %q", KubernetesJoinTypeOIDC)
+		}
+		if a.OIDC.Issuer == "" {
+			return trace.BadParameter("oidc.issuer: must be set when type is %q", KubernetesJoinTypeOIDC)
+		}
+
+		parsed, err := url.Parse(a.OIDC.Issuer)
+		if err != nil {
+			return trace.BadParameter("oidc.issuer: must be a valid URL")
+		}
+
+		if parsed.Scheme == "http" {
+			if !a.OIDC.InsecureAllowHTTPIssuer {
+				return trace.BadParameter("oidc.issuer: must be https:// unless insecure_allow_http_issuer is set")
+			}
+		} else if parsed.Scheme != "https" {
+			return trace.BadParameter("oidc.issuer: invalid URL scheme, must be https://")
+		}
 	default:
 		return trace.BadParameter(
 			"type: must be one of (%s), got %q",
-			utils.JoinStrings(JoinMethods, ", "),
+			utils.JoinStrings([]string{
+				string(KubernetesJoinTypeInCluster),
+				string(KubernetesJoinTypeStaticJWKS),
+				string(KubernetesJoinTypeOIDC),
+			}, ", "),
 			a.Type,
 		)
 	}
@@ -1026,6 +1052,9 @@ func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
 }
 
 func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
+	// Note: don't attempt to initialize onboarding - at least for now - as it
+	// has required keys. This behavior may be relaxed when we add
+	// server-generated joining secrets.
 	if a.Onboarding == nil {
 		return trace.BadParameter("spec.bound_keypair.onboarding is required")
 	}
@@ -1034,6 +1063,17 @@ func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
 		return trace.BadParameter("at least one of [initial_join_secret, " +
 			"initial_public_key] is required in spec.bound_keypair.onboarding")
 	}
+
+	if a.Recovery == nil {
+		a.Recovery = &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
+	}
+
+	if a.Recovery.Limit == 0 {
+		a.Recovery.Limit = 1
+	}
+
+	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
+	// ("") is mapped to RecoveryModeStandard.
 
 	return nil
 }

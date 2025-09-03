@@ -682,6 +682,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if as.k8sJWKSValidator == nil {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
+	if as.k8sOIDCValidator == nil {
+		as.k8sOIDCValidator = kubetoken.ValidateTokenWithOIDC
+	}
 
 	if as.gcpIDTokenValidator == nil {
 		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
@@ -1127,6 +1130,9 @@ type Server struct {
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
 	k8sJWKSValidator k8sJWKSValidator
+	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
+	// auth server using a known OIDC endpoint. It can be overridden in tests.
+	k8sOIDCValidator k8sOIDCValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
@@ -7727,7 +7733,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add JWT keys if necessary.
 	switch caID.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -7778,6 +7784,8 @@ func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SPIFFECAJWT
 	case types.OktaCA:
 		return cryptosuites.OktaCAJWT
+	case types.BoundKeypairCA:
+		return cryptosuites.BoundKeypairCAJWT
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

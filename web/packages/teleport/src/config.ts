@@ -357,8 +357,13 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
-    locksPath: '/v1/webapi/sites/:clusterId/locks',
-    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
+    locks: {
+      create: '/v1/webapi/sites/:clusterId/locks',
+      delete: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      read: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      update: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      listV2: '/v2/webapi/sites/:clusterId/locks',
+    },
 
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
@@ -1015,16 +1020,41 @@ const cfg = {
     return cfg.routes.newLock;
   },
 
-  getLocksUrl() {
-    // Currently only support get/create locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPath, { clusterId });
-  },
-
-  getLocksUrlWithUuid(uuid: string) {
-    // Currently only support delete/lookup locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
+  getLockUrl(
+    req: (
+      | { action: 'list-v2' | 'create' }
+      | { action: 'read' | 'delete' | 'update'; uuid: string }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list-v2':
+        return generatePath(cfg.api.locks.listV2, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.locks.read, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'create':
+        return generatePath(cfg.api.locks.create, {
+          clusterId,
+        });
+      case 'update':
+        return generatePath(cfg.api.locks.update, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'delete':
+        return generatePath(cfg.api.locks.delete, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
   getDatabaseSignUrl(clusterId: string) {

@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/cli"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -50,7 +50,7 @@ func onDBCommand(globalCfg *cli.GlobalArgs, dbCmd *cli.DBCommand) error {
 		return trace.Wrap(err)
 	}
 
-	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
+	identityPath := filepath.Join(destination.Path, identity.IdentityFilePath)
 	identity, err := tshwrap.LoadIdentity(identityPath)
 	if err != nil {
 		return trace.Wrap(err)

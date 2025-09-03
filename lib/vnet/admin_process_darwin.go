@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -89,18 +90,21 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "Network stack terminated.")
 		if err := networkStack.run(ctx); err != nil {
 			return trace.Wrap(err, "running network stack")
 		}
 		return errors.New("network stack terminated")
 	})
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "OS configuration loop exited.")
 		if err := osConfigurator.runOSConfigurationLoop(ctx); err != nil {
 			return trace.Wrap(err, "running OS configuration loop")
 		}
 		return errors.New("OS configuration loop terminated")
 	})
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "Ping loop exited.")
 		tick := time.Tick(time.Second)
 		for {
 			select {
@@ -113,7 +117,27 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 			}
 		}
 	})
-	return trace.Wrap(g.Wait(), "running VNet admin process")
+
+	done := make(chan error)
+	go func() {
+		done <- g.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		return trace.Wrap(err, "running VNet admin process")
+	case <-ctx.Done():
+	}
+
+	select {
+	case err := <-done:
+		// network stack exited cleanly within timeout
+		return trace.Wrap(err, "running VNet admin process")
+	case <-time.After(10 * time.Second):
+		log.ErrorContext(ctx, "VNet admin process did not exit within 10 seconds, forcing shutdown.")
+		os.Exit(1)
+		return nil
+	}
 }
 
 func createTUNDevice(ctx context.Context) (tun.Device, string, error) {

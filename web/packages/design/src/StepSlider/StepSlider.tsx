@@ -61,6 +61,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
     defaultStepIndex = 0,
     tDuration = 500,
     wrapping = false,
+    className,
     // extraProps are the props required by our step components defined in our flows.
     ...extraProps
   } = props;
@@ -274,7 +275,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
   const transitionRef = keyToNodeRef.current.get(key);
 
   return (
-    <Box ref={rootRef} style={rootStyle}>
+    <Box ref={rootRef} style={rootStyle} className={className}>
       {preMount && <HiddenBox>{$preContent}</HiddenBox>}
       <Wrap className={animationDirectionPrefix} tDuration={tDuration}>
         <TransitionGroup component={null}>
@@ -420,6 +421,8 @@ type Props<Flows> =
          * one and backwards from the first one to the last one.
          */
         wrapping?: boolean;
+        /** Allows styling of the container element. */
+        className?: string;
       } & ExtraProps // Extra props that are passed to each step component. Each step of each flow needs to accept the same set of extra props.
     : any;
 

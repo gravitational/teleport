@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -81,6 +82,18 @@ func testBoundKeypair(t *testing.T) (crypto.Signer, string) {
 	return key.Signer, string(key.MarshalSSHPublicKey())
 }
 
+// parseJoinState parses a join state token without verification, for testing
+// purposes only.
+func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
+	token, err := jwt.ParseSigned(string(state))
+	require.NoError(t, err)
+
+	var doc boundkeypair.JoinState
+	require.NoError(t, token.UnsafeClaimsWithoutVerification(&doc))
+
+	return &doc
+}
+
 func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 	ctx := context.Background()
 
@@ -122,6 +135,18 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
+	jwtCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.BoundKeypairCA,
+		DomainName: srv.ClusterName(),
+	}, /* loadKeys */ true)
+	require.NoError(t, err)
+
+	jwtSigner, err := authServer.GetKeyStore().GetJWTSigner(ctx, jwtCA)
+	require.NoError(t, err)
+
+	// An invalid signer for signing "fake" JWTs.
+	invalidJWTSigner, _ := testBoundKeypair(t)
+
 	makeToken := func(mutators ...func(v2 *types.ProvisionTokenV2)) types.ProvisionTokenV2 {
 		token := types.ProvisionTokenV2{
 			Spec: types.ProvisionTokenSpecV2{
@@ -148,6 +173,38 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		return token
 	}
 
+	withRecovery := func(mode string, count, limit uint32, botInstanceID string) func(*types.ProvisionTokenV2) {
+		return func(v2 *types.ProvisionTokenV2) {
+			v2.Spec.BoundKeypair.Recovery.Mode = mode
+			v2.Spec.BoundKeypair.Recovery.Limit = limit
+			v2.Status.BoundKeypair.RecoveryCount = count
+			v2.Status.BoundKeypair.BoundBotInstanceID = botInstanceID
+		}
+	}
+
+	makeJoinState := func(signer crypto.Signer, mutators ...func(s *boundkeypair.JoinStateParams)) string {
+		params := &boundkeypair.JoinStateParams{
+			Clock:       srv.Clock(),
+			ClusterName: srv.ClusterName(),
+		}
+
+		for _, mutator := range mutators {
+			mutator(params)
+		}
+
+		state, err := boundkeypair.IssueJoinState(signer, params)
+		require.NoError(t, err)
+
+		return state
+	}
+
+	withToken := func(mutators ...func(v2 *types.ProvisionTokenV2)) func(*boundkeypair.JoinStateParams) {
+		return func(jsp *boundkeypair.JoinStateParams) {
+			token := makeToken(mutators...)
+			jsp.Token = &token
+		}
+	}
+
 	makeInitReq := func(mutators ...func(r *proto.RegisterUsingBoundKeypairInitialRequest)) *proto.RegisterUsingBoundKeypairInitialRequest {
 		req := &proto.RegisterUsingBoundKeypairInitialRequest{
 			JoinRequest: &types.RegisterUsingTokenRequest{
@@ -161,6 +218,13 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			mutator(req)
 		}
 		return req
+	}
+
+	withJoinState := func(signer crypto.Signer, mutators ...func(s *boundkeypair.JoinStateParams)) func(*proto.RegisterUsingBoundKeypairInitialRequest) {
+		return func(req *proto.RegisterUsingBoundKeypairInitialRequest) {
+			state := makeJoinState(signer, mutators...)
+			req.PreviousJoinState = []byte(state)
+		}
 	}
 
 	makeSolver := func(publicKey string) client.RegisterUsingBoundKeypairChallengeResponseFunc {
@@ -194,7 +258,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		solver  client.RegisterUsingBoundKeypairChallengeResponseFunc
 
 		assertError   require.ErrorAssertionFunc
-		assertSuccess func(t *testing.T, v2 *types.ProvisionTokenV2)
+		assertSuccess func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse)
 	}{
 		{
 			// no bound key, no bound bot instance, aka initial join without
@@ -206,7 +270,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			solver:  makeSolver(correctPublicKey),
 
 			assertError: require.NoError,
-			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2) {
+			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
 				// join count should be incremented
 				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundBotInstanceID)
@@ -241,7 +305,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			solver: makeSolver(correctPublicKey),
 
 			assertError: require.NoError,
-			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2) {
+			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
 				// join count should not be incremented
 				require.Equal(t, uint32(0), v2.Status.BoundKeypair.RecoveryCount)
 			},
@@ -278,7 +342,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			solver:  makeSolver(correctPublicKey),
 
 			assertError: require.NoError,
-			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2) {
+			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
 				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 
 				// Should generate a new bot instance
@@ -340,6 +404,116 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				require.ErrorContains(tt, err, "key rotation not yet supported")
 			},
 		},
+		{
+			name:        "standard-initial-recovery-success",
+			token:       makeToken(withRecovery("standard", 0, 1, "")),
+			initReq:     makeInitReq(),
+			solver:      makeSolver(correctPublicKey),
+			assertError: require.NoError,
+			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
+
+				require.NotNil(t, res)
+				require.NotEmpty(t, res.JoinState)
+			},
+		},
+		{
+			name:        "standard-success-second-recovery",
+			token:       makeToken(withRecovery("standard", 1, 2, "id")),
+			initReq:     makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id")))),
+			solver:      makeSolver(correctPublicKey),
+			assertError: require.NoError,
+			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, uint32(2), v2.Status.BoundKeypair.RecoveryCount)
+				require.NotNil(t, res)
+				state := parseJoinState(t, res.JoinState)
+				require.Equal(t, v2.Status.BoundKeypair.RecoveryCount, state.RecoverySequence)
+			},
+		},
+		{
+			name:    "standard-failure-missing-join-state",
+			token:   makeToken(withRecovery("standard", 1, 2, "id")),
+			initReq: makeInitReq(),
+			solver:  makeSolver(correctPublicKey),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "previous join state is required")
+			},
+		},
+		{
+			name:    "standard-failure-limit-exhausted",
+			token:   makeToken(withRecovery("standard", 2, 2, "id")),
+			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 2, 2, "id")))),
+			solver:  makeSolver(correctPublicKey),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "no recovery attempts remaining")
+			},
+		},
+		{
+			// Attempts to join with an outdated join state document should fail.
+			name:    "standard-failure-recovery-count-mismatch",
+			token:   makeToken(withRecovery("standard", 2, 3, "id")),
+			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 3, "id")))),
+			solver:  makeSolver(correctPublicKey),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "join state verification failed")
+			},
+		},
+		{
+			name:  "standard-failure-invalid-jwt",
+			token: makeToken(withRecovery("standard", 1, 2, "id")),
+			initReq: makeInitReq(func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
+				r.PreviousJoinState = []byte("asdf")
+			}),
+			solver: makeSolver(correctPublicKey),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "join state verification failed")
+			},
+		},
+		{
+			name:    "standard-failure-invalid-jwt-signature",
+			token:   makeToken(withRecovery("standard", 1, 2, "id")),
+			initReq: makeInitReq(withJoinState(invalidJWTSigner, withToken(withRecovery("standard", 1, 2, "id")))),
+			solver:  makeSolver(correctPublicKey),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "join state verification failed")
+			},
+		},
+		{
+			name:    "standard-failure-invalid-instance-id",
+			token:   makeToken(withRecovery("standard", 1, 2, "foo")),
+			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id")))),
+			solver:  makeSolver(correctPublicKey),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "join state verification failed")
+			},
+		},
+		{
+			name:  "standard-failure-invalid-cluster",
+			token: makeToken(withRecovery("standard", 1, 2, "foo")),
+			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id")), func(s *boundkeypair.JoinStateParams) {
+				s.ClusterName = "wrong-cluster"
+			})),
+			solver: makeSolver(correctPublicKey),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "join state verification failed")
+			},
+		},
+		{
+			name:        "relaxed-success-count-over-limit",
+			token:       makeToken(withRecovery("relaxed", 1, 0, "id")),
+			initReq:     makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("relaxed", 1, 0, "id")))),
+			solver:      makeSolver(correctPublicKey),
+			assertError: require.NoError,
+			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, uint32(2), v2.Status.BoundKeypair.RecoveryCount)
+
+				require.NotNil(t, res)
+				require.NotEmpty(t, res.JoinState)
+
+				state := parseJoinState(t, res.JoinState)
+				require.Equal(t, v2.Status.BoundKeypair.RecoveryCount, state.RecoverySequence)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -351,7 +525,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			require.NoError(t, authServer.CreateToken(ctx, token))
 			tt.initReq.JoinRequest.Token = tt.name
 
-			_, _, err = authServer.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver)
+			response, err := authServer.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver)
 			tt.assertError(t, err)
 
 			if tt.assertSuccess != nil {
@@ -361,7 +535,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				ptv2, ok := pt.(*types.ProvisionTokenV2)
 				require.True(t, ok)
 
-				tt.assertSuccess(t, ptv2)
+				tt.assertSuccess(t, ptv2, response)
 			}
 		})
 	}
