@@ -40,7 +40,7 @@ import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { editBot, fetchRoles } from 'teleport/services/bot/bot';
-import { EditBotRequest, FlatBot } from 'teleport/services/bot/types';
+import { FlatBot } from 'teleport/services/bot/types';
 import {
   TraitsEditor,
   TraitsOption,
