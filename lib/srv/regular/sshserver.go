@@ -1090,16 +1090,6 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 	return types.LabelsToV2(s.dynamicLabels.Get())
 }
 
-// getAllLabels return a combination of static and dynamic labels.
-func (s *Server) getAllLabels() map[string]string {
-	lmap := make(map[string]string)
-	maps.Copy(lmap, s.getStaticLabels())
-	for key, cmd := range s.getDynamicLabels() {
-		lmap[key] = cmd.Result
-	}
-	return lmap
-}
-
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
 	return s.getBasicInfo()
