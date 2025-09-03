@@ -1041,35 +1041,34 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 
 	accountID := t.Name()
 
-	icAcct, err := svc.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: t.Name(),
-				Labels: map[string]string{
-					types.OriginLabel: common.OriginAWSIdentityCenter,
+	icAcct, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: t.Name(),
+			Labels: map[string]string{
+				types.OriginLabel: common.OriginAWSIdentityCenter,
+			},
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:          accountID,
+			Arn:         "arn:aws:sso:::account/" + accountID,
+			Name:        "Test AWS Account",
+			Description: "Used for testing",
+			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
+				{
+					Name: "Alpha",
+					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
+				},
+				{
+					Name: "Beta",
+					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
 				},
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:          accountID,
-				Arn:         "arn:aws:sso:::account/" + accountID,
-				Name:        "Test AWS Account",
-				Description: "Used for testing",
-				PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-					{
-						Name: "Alpha",
-						Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
-					},
-					{
-						Name: "Beta",
-						Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
-					},
-				},
-			},
-		}})
+		},
+	})
 	require.NoError(t, err, "creating Identity Center Account")
-	return icAcct.Account
+	return icAcct
 }
 
 func TestOktaAppServers(t *testing.T) {
