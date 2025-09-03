@@ -20,6 +20,7 @@ package db
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
@@ -55,7 +56,7 @@ func (f *rdsDocumentDBFetcher) GetDatabases(ctx context.Context, cfg *awsFetcher
 		return nil, trace.Wrap(err)
 	}
 	clt := cfg.awsClients.GetRDSClient(awsCfg)
-	clusters, err := f.getAllDBClusters(ctx, clt)
+	clusters, err := f.getAllDBClusters(ctx, clt, cfg.Logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,7 +88,7 @@ func (f *rdsDocumentDBFetcher) GetDatabases(ctx context.Context, cfg *awsFetcher
 	return databases, nil
 }
 
-func (f *rdsDocumentDBFetcher) getAllDBClusters(ctx context.Context, clt RDSClient) ([]rdstypes.DBCluster, error) {
+func (f *rdsDocumentDBFetcher) getAllDBClusters(ctx context.Context, clt RDSClient, log *slog.Logger) ([]rdstypes.DBCluster, error) {
 	pager := rds.NewDescribeDBClustersPaginator(clt,
 		&rds.DescribeDBClustersInput{
 			Filters: rdsEngineFilter([]string{"docdb"}),
@@ -98,8 +99,7 @@ func (f *rdsDocumentDBFetcher) getAllDBClusters(ctx context.Context, clt RDSClie
 	)
 
 	var clusters []rdstypes.DBCluster
-	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
