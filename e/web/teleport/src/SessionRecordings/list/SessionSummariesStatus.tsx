@@ -66,7 +66,7 @@ export function SessionSummariesStatus() {
 
   return (
     <CtaLink
-      to="https://goteleport.com/docs/identity-security/session-summaries/"
+      href="https://goteleport.com/docs/identity-security/session-summaries/"
       target="_blank"
     >
       <ChatCircleSparkle size="small" />
