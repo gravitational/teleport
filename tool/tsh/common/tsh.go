@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -2216,7 +2215,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 				return trace.Wrap(err)
 			}
 
-			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) &&
@@ -2246,7 +2245,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 				}
 
 				// Print status to show information of the logged in user.
-				return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+				return trace.Wrap(printLoginInformation(cf, profile, profiles))
 			}
 
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -2278,7 +2277,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 			}
 
 			// Print status to show information of the logged in user.
-			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
@@ -2294,7 +2293,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 				return trace.Wrap(err)
 			}
 			// Print status to show information of the logged in user.
-			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 
 		// otherwise just pass through to standard login
 		default:
@@ -2444,7 +2443,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	}
 
 	// Print status to show information of the logged in user.
-	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
+	if err := printLoginInformation(cf, profile, profiles); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5280,7 +5279,7 @@ func rolesToString(debug bool, roles []string) string {
 }
 
 // printLoginInformation displays the provided profile information to the user.
-func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus, accessListsToReview []*accesslist.AccessList) error {
+func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus) error {
 	env := getTshEnv()
 	active, others := makeAllProfileInfo(profile, profiles, env)
 
@@ -5318,21 +5317,6 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 		}
 	}
 
-	if len(accessListsToReview) > 0 {
-		fmt.Printf("Access lists that need to be reviewed:\n")
-		for _, accessList := range accessListsToReview {
-			var msg string
-			nextAuditDate := accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly)
-			if time.Now().After(accessList.Spec.Audit.NextAuditDate) {
-				msg = fmt.Sprintf("review is overdue (%v)", nextAuditDate)
-			} else {
-				msg = fmt.Sprintf("review is required by %v", nextAuditDate)
-			}
-			fmt.Printf("\t%s (%v)\n", accessList.Spec.Title, msg)
-		}
-		fmt.Println()
-	}
-
 	return nil
 }
 
@@ -5363,13 +5347,7 @@ func onStatus(cf *CLIConf) error {
 	// hardware key touch or require a PIN.
 	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
 
-	var accessListsToReview []*accesslist.AccessList
-	if hardwareKeyInteractionRequired {
-		logger.DebugContext(cf.Context, "Skipping fetching access lists to review due to Hardware Key PIN/Touch requirement")
-	} else {
-		accessListsToReview = cf.getAccessListsToReview(tc)
-	}
-	if err := printLoginInformation(cf, profile, profiles, accessListsToReview); err != nil {
+	if err := printLoginInformation(cf, profile, profiles); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6057,28 +6035,6 @@ func onHeadlessApprove(cf *CLIConf) error {
 		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
-}
-
-// getAccessListsToReview will return access lists that the logged in user needs to review. On error,
-// this will return an empty list.
-func (cf *CLIConf) getAccessListsToReview(tc *client.TeleportClient) []*accesslist.AccessList {
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
-	if err != nil {
-		logger.DebugContext(cf.Context, "Error connecting to the cluster", "error", err)
-		return nil
-	}
-	defer func() {
-		clusterClient.Close()
-	}()
-
-	// Get the access lists to review. If the call returns NotImplemented, ignore it, as we may be communicating with an OSS
-	// server, which does not support access lists.
-	accessListsToReview, err := clusterClient.AuthClient.AccessListClient().GetAccessListsToReview(cf.Context)
-	if err != nil && !trace.IsNotImplemented(err) {
-		logger.DebugContext(cf.Context, "Error getting access lists to review", "error", err)
-	}
-
-	return accessListsToReview
 }
 
 var mlockModes = []string{mlockModeNo, mlockModeAuto, mlockModeBestEffort, mlockModeStrict}
