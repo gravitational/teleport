@@ -1248,19 +1248,23 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	stage1Hostname := "test-stage-1"
 	node := makeTestSSHNode(t, rootAuthAddr, withHostname(stage1Hostname), withSSHLabel("env", "stage"))
-	sshHostID := node.Config.HostUUID
+	sshHostID, err := node.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	stage2Hostname := "test-stage-2"
 	node2 := makeTestSSHNode(t, rootAuthAddr, withHostname(stage2Hostname), withSSHLabel("env", "stage"))
-	sshHostID2 := node2.Config.HostUUID
+	sshHostID2, err := node2.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	prodHostname := "test-prod-1"
 	nodeProd := makeTestSSHNode(t, rootAuthAddr, withHostname(prodHostname), withSSHLabel("env", "prod"))
-	sshHostID3 := nodeProd.Config.HostUUID
+	sshHostID3, err := nodeProd.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	leafHostname := "leaf-node"
 	leafNode := makeTestSSHNode(t, leafAuthAddr, withHostname(leafHostname), withSSHLabel("animal", "llama"))
-	sshLeafHostID := leafNode.Config.HostUUID
+	sshLeafHostID, err := leafNode.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	hasNodes := func(asrv *auth.Server, hostIDs ...string) func() bool {
 		return func() bool {
@@ -2033,15 +2037,18 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	sshHostname := "test-ssh-server"
 	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	sshHostID := node.Config.HostUUID
+	sshHostID, err := node.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	sshHostname2 := "test-ssh-server-2"
 	node2 := makeTestSSHNode(t, authAddr, withHostname(sshHostname2), withSSHLabel("access", "true"))
-	sshHostID2 := node2.Config.HostUUID
+	sshHostID2, err := node2.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	sshHostnameNoAccess := "test-ssh-server-no-access"
 	nodeNoAccess := makeTestSSHNode(t, authAddr, withHostname(sshHostnameNoAccess), withSSHLabel("access", "false"))
-	sshHostIDNoAccess := nodeNoAccess.Config.HostUUID
+	sshHostIDNoAccess, err := nodeNoAccess.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	hasNodes := func(hostIDs ...string) func() bool {
 		return func() bool {
@@ -5569,7 +5576,8 @@ func TestShowSessions(t *testing.T) {
 		"db_protocol": "postgres",
 		"db_uri": "",
 		"session_start": "0001-01-01T00:00:00Z",
-		"session_stop": "0001-01-01T00:00:00Z"
+		"session_stop": "0001-01-01T00:00:00Z",
+		"participants": ["someParticipant"]
     } ]`
 	sessions := []events.AuditEvent{
 		&events.SessionEnd{
@@ -5606,8 +5614,9 @@ func TestShowSessions(t *testing.T) {
 			DatabaseMetadata: events.DatabaseMetadata{
 				DatabaseProtocol: "postgres",
 			},
-			StartTime: time.Time{},
-			EndTime:   time.Time{},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
 		},
 	}
 	var buf bytes.Buffer

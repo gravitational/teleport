@@ -65,7 +65,6 @@
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "teleport": {
-      "git": "api/14.0.0-gd1e081e",
       "major_version": "19",
       "version": "19.0.0-dev",
       "url": "teleport.example.com",
@@ -750,6 +749,16 @@
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
     },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/",
+      "destination": "/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/mwi-ci-cd/",
+      "destination": "/machine-workload-identity/mwi-ci-cd/",
+      "permanent": true
+    },
     {
       "source": "/admin-guides/deploy-a-cluster/access-graph/",
       "destination": "/identity-security/access-graph/",
@@ -827,7 +836,12 @@
     },
     {
       "source": "/admin-guides/teleport-policy/policy-how-to-use/",
-      "destination": "/identity-security/policy-how-to-use/",
+      "destination": "/identity-security/how-to-use/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/policy-how-to-use/",
+      "destination": "/identity-security/how-to-use/",
       "permanent": true
     },
     {
@@ -867,7 +881,7 @@
     },
     {
       "source": "/admin-guides/access-controls/sso/azuread/",
-      "destination": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     },
     {
@@ -1658,6 +1672,11 @@
     {
       "source": "/zero-trust-access/management/guides/aws-iam-identity-center/using-aws-cli/",
       "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     }
   ]
