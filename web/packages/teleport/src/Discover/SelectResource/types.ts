@@ -98,7 +98,7 @@ export interface ResourceSpec {
    */
   unguidedLink?: string;
   /**
-   * guidedLink is the link out to a guided flow outside of Discover flow.
+   * guidedLink is an internal link to a guided flow outside of Discover flow.
    */
   guidedLink?: string;
   /**

@@ -17,7 +17,7 @@
  */
 
 import { useState, type ComponentPropsWithoutRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, Link as ExternalLink, Flex, Text } from 'design';
@@ -73,7 +73,7 @@ export function Tile({
   };
 
   let resourceCardProps: ComponentPropsWithoutRef<
-    'button' | typeof ExternalLink | typeof Link
+    'button' | typeof ExternalLink | typeof InternalLink
   >;
 
   if (resourceSpec.kind === ResourceKind.Application && resourceSpec.isDialog) {
@@ -92,7 +92,7 @@ export function Tile({
     };
   } else if (resourceSpec.guidedLink) {
     resourceCardProps = {
-      as: Link,
+      as: InternalLink,
       to: {
         pathname: resourceSpec.hasAccess ? resourceSpec.guidedLink : null,
       },
