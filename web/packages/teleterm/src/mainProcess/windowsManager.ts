@@ -63,7 +63,11 @@ export class WindowsManager {
     reject: (error: Error) => void;
   };
   private readonly windowUrl: string;
-  private isHidden: boolean;
+  /**
+   * Tracks if the window was hidden via `hideWindow()` rather than by the OS
+   * (e.g. Command+H).
+   */
+  private hiddenByApp: boolean;
 
   constructor(
     private fileStorage: FileStorage,
@@ -235,27 +239,28 @@ export class WindowsManager {
       this.window.restore();
     }
 
-    if (!this.isHidden) {
+    if (this.window.isVisible()) {
       this.window.focus();
       return;
     }
 
     this.window.show();
-    this.isHidden = false;
-    this.window.webContents.send(WindowsManagerIpc.WindowVisibility, {
-      visible: true,
-    });
-    void app.dock?.show();
+    if (this.hiddenByApp) {
+      this.window.webContents.send(WindowsManagerIpc.WindowVisibility, {
+        visible: true,
+      });
+      void app.dock?.show();
+      this.hiddenByApp = false;
+    }
   }
 
   /** Hides the window. */
   hideWindow(): void {
-    if (this.isHidden) {
+    if (!this.window.isVisible()) {
       return;
     }
 
     this.window.hide();
-    this.isHidden = true;
     this.window.webContents.send(WindowsManagerIpc.WindowVisibility, {
       visible: false,
     });
@@ -266,6 +271,7 @@ export class WindowsManager {
     // to the space where you requested showing the window.
     // This behavior can feel a bit awkward.
     app.dock?.hide();
+    this.hiddenByApp = true;
   }
 
   /**
