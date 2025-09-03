@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,25 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Route } from 'teleport/components/Router';
+import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
-import { AwsRolesAnywhereSetup } from 'teleport/Integrations/Enroll/AwsConsole/AwsRolesAnywhereSetup';
-import { IntegrationKind } from 'teleport/services/integrations';
+import { AwsRaDashboard } from 'teleport/Integrations/status/AwsRa/AwsRaDashboard';
 
-import { AwsOidc } from './AwsOidc';
-
-export function getRoutesToEnrollIntegrations() {
-  return [
-    <Route
-      key={IntegrationKind.AwsRa}
-      path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa)}
-      component={AwsRolesAnywhereSetup}
-    />,
-    <Route
-      key={IntegrationKind.AwsOidc}
-      exact
-      path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
-      component={AwsOidc}
-    />,
-  ];
+export function AwsRaRoutes() {
+  return (
+    <Switch>
+      <Route
+        key="aws-ra-dashboard"
+        exact
+        path={cfg.routes.integrationStatus}
+        component={AwsRaDashboard}
+      />
+    </Switch>
+  );
 }
