@@ -66,8 +66,9 @@ type Applications interface {
 
 // ValidateApp validates the Application resource.
 func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
-	// Check that the app server's public address does not match any web proxy public address. If an app's public
-	// address is the same as a proxy's public address, routing conflicts will occur.
+	// Prevent routing conflicts and session hijacking by ensuring the application's public address
+	// does not match any of the proxy's public addresses. If both addresses are identical,
+	// requests intended for the proxy could be misrouted to the application, compromising security.
 	if app.GetPublicAddr() != "" {
 		proxyServers, err := proxyGetter.GetProxies()
 		if err != nil {
@@ -90,7 +91,13 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 			}
 
 			if app.GetPublicAddr() == proxyHost.Host() {
-				return trace.BadParameter("Application %q has a public address %q that conflicts with a proxy public address. Update the application configuration to use a unique address", app.GetName(), app.GetPublicAddr())
+				return trace.BadParameter(
+					"Application %q public address %q conflicts with the Teleport Proxy public address. "+
+						"Contact your Teleport cluster administrator to configure the application to use a unique public address "+
+						"or refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.",
+					app.GetName(),
+					app.GetPublicAddr(),
+				)
 			}
 		}
 	}
