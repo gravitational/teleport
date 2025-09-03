@@ -38,15 +38,20 @@ func setupMockAWSICEnvironment(t *testing.T, icMock icsdk.Client, scimMock scims
 
 func mustSetupAWSIdentityCenterIntegration(t *testing.T, authClient authclient.ClientI) {
 	t.Helper()
-	_, err := authClient.CreateIntegration(t.Context(), awsOIDCIntegration())
-	require.NoError(t, err)
-
-	_, err = authClient.PluginsClient().CreatePlugin(t.Context(), awsICPluginRequest())
-	require.NoError(t, err)
+	mustSetupOIDCIntegration(t, authClient)
+	mustCreateAWSICPlugin(t, authClient)
 }
 
 func mustSetupOIDCIntegration(t *testing.T, authClient authclient.ClientI) {
+	t.Helper()
 	_, err := authClient.CreateIntegration(t.Context(), awsOIDCIntegration())
+	require.NoError(t, err)
+}
+
+func mustCreateAWSICPlugin(t *testing.T, authClient authclient.ClientI, options ...pluginOption) {
+	t.Helper()
+	request := awsICPluginRequest(options...)
+	_, err := authClient.PluginsClient().CreatePlugin(t.Context(), request)
 	require.NoError(t, err)
 }
 
@@ -75,8 +80,11 @@ func createAWSIdentityCenterPlugin(ctx context.Context, authClient authclient.Cl
 }
 
 type pluginOptions struct {
-	rolesSyncMode   string
-	groupSyncFilter []*types.AWSICResourceFilter
+	rolesSyncMode    string
+	groupSyncFilter  []*types.AWSICResourceFilter
+	samlProviderName string
+	defaultOwners    []string
+	awsCredentials   *types.AWSICCredentials
 }
 
 // pluginOption defines a customization function for creating plugin requests
@@ -113,11 +121,44 @@ func withGroupSyncFilterExclude(re string) pluginOption {
 	}
 }
 
+// withSystemAWSCredentials
+func withSystemAWSCredentials(opts *pluginOptions) {
+	opts.awsCredentials = &types.AWSICCredentials{
+		Source: &types.AWSICCredentials_System{
+			System: &types.AWSICCredentialSourceSystem{
+				AssumeRoleArn: "arn:aws:iam::111111111111:role/teleport-ic-admin-role",
+			},
+		},
+	}
+}
+
+// withIntegrationName sets a custom OIDC integration name
+func withSAMLProviderName(n string) pluginOption {
+	return func(opts *pluginOptions) {
+		opts.samlProviderName = n
+	}
+}
+
+func withDefaultAccessListOwners(owners ...string) pluginOption {
+	return func(opts *pluginOptions) {
+		opts.defaultOwners = owners
+	}
+}
+
 // awsICPluginRequest creates a potentially-customized plugin creation request
 // for an AWSIC plugin
 func awsICPluginRequest(options ...pluginOption) *pluginspb.CreatePluginRequest {
 	opts := pluginOptions{
-		rolesSyncMode: types.AWSICRolesSyncModeAll,
+		rolesSyncMode:    types.AWSICRolesSyncModeAll,
+		samlProviderName: "saml-provider",
+		defaultOwners:    []string{"alice"},
+		awsCredentials: &types.AWSICCredentials{
+			Source: &types.AWSICCredentials_Oidc{
+				Oidc: &types.AWSICCredentialSourceOIDC{
+					IntegrationName: "aws-oidc-integration",
+				},
+			},
+		},
 	}
 	for _, optFn := range options {
 		optFn(&opts)
@@ -134,16 +175,16 @@ func awsICPluginRequest(options ...pluginOption) *pluginspb.CreatePluginRequest 
 			Spec: types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_AwsIc{
 					AwsIc: &types.PluginAWSICSettings{
-						IntegrationName:         "aws-oidc-integration",
 						Region:                  "eu-central-1",
 						Arn:                     "arn:aws:sso:::instance/ssoins-1111111111111111",
-						AccessListDefaultOwners: []string{"alice"},
+						AccessListDefaultOwners: opts.defaultOwners,
 						ProvisioningSpec: &types.AWSICProvisioningSpec{
 							BaseUrl: "https://scim.us-east-1.amazonaws.com/11111111111-2222-3333-4444-555555555555/scim/v2",
 						},
-						SamlIdpServiceProviderName: "saml-provider",
+						SamlIdpServiceProviderName: opts.samlProviderName,
 						RolesSyncMode:              opts.rolesSyncMode,
 						GroupSyncFilters:           opts.groupSyncFilter,
+						Credentials:                opts.awsCredentials,
 					},
 				},
 			},

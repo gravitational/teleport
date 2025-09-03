@@ -88,6 +88,10 @@ type scimHTTPServer struct {
 	store  *ClientMock
 }
 
+func NewSCIMHTTPServer(t *testing.T) *scimHTTPServer {
+	return newSCIMHTTPServer(t)
+}
+
 func newSCIMHTTPServer(t *testing.T) *scimHTTPServer {
 	mock := &scimHTTPServer{
 		store: NewSCIMClientMock(),
@@ -114,6 +118,10 @@ func newSCIMHTTPServer(t *testing.T) *scimHTTPServer {
 	t.Cleanup(mock.server.Close)
 
 	return mock
+}
+
+func (s *scimHTTPServer) NewClient() Client {
+	return newTestClient(s.server.URL)
 }
 
 // URL returns the server's base URL

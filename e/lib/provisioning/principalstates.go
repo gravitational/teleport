@@ -27,7 +27,7 @@ func getDownstreamID(s *provisioningv1.PrincipalState) services.DownstreamID {
 func getIDForPrincipal(principalName string, principalType provisioningv1.PrincipalType) (services.ProvisioningStateID, error) {
 	switch principalType {
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
-		return getIDForUserName(principalName), nil
+		return GetIDForUserName(principalName), nil
 
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
 		return getIDForAccessListName(principalName), nil
@@ -38,10 +38,11 @@ func getIDForPrincipal(principalName string, principalType provisioningv1.Princi
 }
 
 func getIDForUser(u types.User) services.ProvisioningStateID {
-	return getIDForUserName(u.GetName())
+	return GetIDForUserName(u.GetName())
 }
 
-func getIDForUserName(name string) services.ProvisioningStateID {
+// GetIDForUserName creates a services.ProvisioningStateID for a given user.
+func GetIDForUserName(name string) services.ProvisioningStateID {
 	return services.ProvisioningStateID("u-" + name)
 }
 

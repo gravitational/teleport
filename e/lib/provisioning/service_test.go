@@ -744,6 +744,7 @@ func newPack(t *testing.T, options ...sutOption) *testPack {
 		OnPrincipalProvisioning:   defaultOpts.onProvisioning,
 		OnPrincipalProvisioned:    defaultOpts.onProvisioned,
 		OnPrincipalDeprovisioning: defaultOpts.onDeprovisioning,
+		UserProvisioningMode:      UserProvisioningModeInternal,
 	})
 	require.NoError(t, err)
 
@@ -932,7 +933,7 @@ func (s *testPack) getAccessListProvisioningState(t *testing.T, aclID string) *p
 }
 
 func (s *testPack) getUserProvisioningState(t *testing.T, username string) *provisioningv1.PrincipalState {
-	pps, err := s.depsMock.GetProvisioningState(context.Background(), s.downstreamID, getIDForUserName(username))
+	pps, err := s.depsMock.GetProvisioningState(context.Background(), s.downstreamID, GetIDForUserName(username))
 	require.NoError(t, err, "Principal Provisioning State for user %q must exist", username)
 	return pps
 }

@@ -6,10 +6,14 @@ import (
 	"testing"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
@@ -72,6 +76,15 @@ func assertSCIMUsers(ctx context.Context, t assert.TestingT, client scimsdk.Clie
 		scimUserNames = append(scimUserNames, scimUser.UserName)
 	}
 	return assert.ElementsMatch(t, expectedUsers, scimUserNames)
+}
+
+// requireSCIMUsers asserts that the SCIM service user list includes the supplied
+// users by name, and ONLY those users. Aborts the test immediately on failure.
+func requireSCIMUsers(ctx context.Context, t require.TestingT, client scimsdk.Client, expectedUsers ...string) {
+	if assertSCIMUsers(ctx, t, client, expectedUsers...) {
+		return
+	}
+	t.FailNow()
 }
 
 // assertSCIMUsersExist asserts that the SCIM service user list includes the supplied
@@ -169,7 +182,7 @@ type principalAssignmentAssertion func(assert.TestingT, *identitycenterv1.Princi
 // a Principal Assignment's ProvisioningState status field
 func hasProvisioningState(s identitycenterv1.ProvisioningState) principalAssignmentAssertion {
 	return func(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
-		return assert.Equal(t, s, pa.GetStatus().GetProvisioningState())
+		return assert.Equal(t, s.String(), pa.GetStatus().GetProvisioningState().String())
 	}
 }
 
@@ -178,6 +191,20 @@ func hasProvisioningState(s identitycenterv1.ProvisioningState) principalAssignm
 func hasExternalID(expectedID string) principalAssignmentAssertion {
 	return func(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
 		return assert.Equal(t, expectedID, pa.GetSpec().GetExternalId())
+	}
+}
+
+// hasAccountAssignment returns a [principalAssignmentAssertion] asserting
+// that the Principal Assignment Record has a specific set of account assignments
+// recorded against it
+func hasAccountAssignment(ps, accountID string) principalAssignmentAssertion {
+	return func(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
+		idx := slices.IndexFunc(
+			pa.GetStatus().GetAssignments(),
+			func(asmt *identitycenterv1.AccountAssignmentRef) bool {
+				return asmt.AccountId == accountID && asmt.PermissionSetArn == ps
+			})
+		return assert.NotEqual(t, idx, -1, "No such account assignment found")
 	}
 }
 
@@ -199,6 +226,64 @@ func assertPrincipalAssignment(ctx context.Context, t assert.TestingT, getter se
 	}
 
 	return true
+}
+
+func assertNoPrincipalAssignment(ctx context.Context, t assert.TestingT, getter services.IdentityCenterPrincipalAssignments, id services.PrincipalAssignmentID) bool {
+	_, err := getter.GetPrincipalAssignment(ctx, id)
+	return assert.True(t, trace.IsNotFound(err), "Expected Principal Assignment state to be deleted")
+}
+
+// requirePrincipalAssignment asserts that an Identity Center Principal Assignment
+// record exists for the supplied principal ID, and runs the supplied assertions
+// on it.
+func requirePrincipalAssignment(ctx context.Context, t *testing.T, getter services.IdentityCenterPrincipalAssignments, id services.PrincipalAssignmentID, assertions ...principalAssignmentAssertion) {
+	t.Helper()
+	if assertPrincipalAssignment(ctx, t, getter, id, assertions...) {
+		return
+	}
+	t.FailNow()
+}
+
+type scimProvisioningStateAssertion func(assert.TestingT, *provisioningv1.PrincipalState) bool
+
+func hasSCIMProvisioningState(s provisioningv1.ProvisioningState) scimProvisioningStateAssertion {
+	return func(t assert.TestingT, ps *provisioningv1.PrincipalState) bool {
+		return assert.Equal(t, s.String(), ps.GetStatus().GetProvisioningState().String())
+	}
+}
+
+func hasSCIMExternalID(expected string) scimProvisioningStateAssertion {
+	return func(t assert.TestingT, ps *provisioningv1.PrincipalState) bool {
+		return assert.Equal(t, expected, ps.GetStatus().GetExternalId())
+	}
+}
+
+func assertSCIMProvisioningState(ctx context.Context, t assert.TestingT, getter services.ProvisioningStates, id services.ProvisioningStateID, assertions ...scimProvisioningStateAssertion) bool {
+	state, err := getter.GetProvisioningState(ctx, identitycenter.IdentityCenterDownstreamID, id)
+	if !assert.NoError(t, err) {
+		return false
+	}
+
+	for _, assertion := range assertions {
+		if !assertion(t, state) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func requireSCIMProvisioningState(ctx context.Context, t *testing.T, getter services.ProvisioningStates, id services.ProvisioningStateID, assertions ...scimProvisioningStateAssertion) {
+	t.Helper()
+	if assertSCIMProvisioningState(ctx, t, getter, id, assertions...) {
+		return
+	}
+	t.FailNow()
+}
+
+func assertNoSCIMProvisioningState(ctx context.Context, t assert.TestingT, getter services.ProvisioningStates, id services.ProvisioningStateID) bool {
+	_, err := getter.GetProvisioningState(ctx, identitycenter.IdentityCenterDownstreamID, id)
+	return assert.True(t, trace.IsNotFound(err), "Expected SCIM Principal provisioning state to be deleted")
 }
 
 type roleAssertion func(assert.TestingT, types.Role) bool

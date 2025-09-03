@@ -15,6 +15,7 @@ import (
 	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
+	"github.com/gravitational/teleport/e/lib/provisioning"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -97,14 +98,17 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			return trace.Wrap(err)
 		}
 
+		userProvisioningMode := selectUserProvisioningMode(settings)
+
 		svc, err := identitycenter.NewService(identitycenter.ServiceConfig{
 			Provisioning: identitycenter.ProvisioningConfig{
-				SCIMClient:          scimClient,
-				StateSvc:            authServer.Services,
-				StateSvcCache:       authServer.Cache,
-				UsersSvcCache:       authServer.Cache,
-				AccessListsSvcCache: authServer.Cache,
-				LocksSvc:            authServer.Services,
+				SCIMClient:           scimClient,
+				StateSvc:             authServer.Services,
+				StateSvcCache:        authServer.Cache,
+				UsersSvcCache:        authServer.Cache,
+				AccessListsSvcCache:  authServer.Cache,
+				LocksSvc:             authServer.Services,
+				UserProvisioningMode: userProvisioningMode,
 			},
 			ICClient:                   identityCenterClient,
 			UsersSvc:                   authServer.Services,
@@ -159,6 +163,20 @@ func selectRoleSyncMode(m string) (identitycenter.RolesSyncMode, error) {
 		return identitycenter.RolesSyncModeNone, nil
 	}
 	return 0, trace.BadParameter("invalid role sync mode %q", m)
+}
+
+// selectUserProvisioningMode determined which UserProvisioningMode to use based
+// on.
+func selectUserProvisioningMode(settings *types.PluginAWSICSettings) provisioning.UserProvisioningMode {
+	// The plugin not having a SamlIdpServiceProviderName means that Teleport is
+	// not providing SAML login for Identity Center. This in turn implies that
+	// some other IdP is doing it. This is a good indicator that the IC integration
+	// is running in "hybrid mode" and we should defer to the external IdP for
+	// user provisioning.
+	if settings.SamlIdpServiceProviderName == "" {
+		return provisioning.UserProvisioningModeExternal
+	}
+	return provisioning.UserProvisioningModeInternal
 }
 
 // makeAWSConfig generates an AWS client configuration for the integration to

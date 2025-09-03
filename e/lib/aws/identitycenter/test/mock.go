@@ -4,6 +4,8 @@ import (
 	"context"
 	"slices"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	identitystoretypes "github.com/aws/aws-sdk-go-v2/service/identitystore/types"
 	scimschema "github.com/elimity-com/scim/schema"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -37,6 +39,12 @@ func NewUnifiedMockClient(state icsdk.MockedAWSStateType) *UnifiedClientMock {
 	if state.GroupMemberships == nil {
 		state.GroupMemberships = make(map[string][]*icsdk.GroupMember)
 	}
+	if state.UserAssignments == nil {
+		state.UserAssignments = make(map[string][]*icsdk.Assignment)
+	}
+	if state.GroupAssignments == nil {
+		state.GroupAssignments = make(map[string][]*icsdk.Assignment)
+	}
 
 	c := &UnifiedClientMock{
 		ClientMock: icsdk.ClientMock{
@@ -58,21 +66,27 @@ func (s *UnifiedClientMock) ViaAPI() *icsdk.ClientMock {
 	return &s.ClientMock
 }
 
+func (s *UnifiedClientMock) AddUserToState(uID, username string) *icsdk.MockUser {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	return s.ClientMock.MockedAWSStateType.AddUserToState(uID, username)
+}
+
 func byGroupID(id string) func(*icsdk.Group) bool {
 	return func(g *icsdk.Group) bool {
 		return g.ID == id
 	}
 }
 
-func byUserID(id string) func(*icsdk.User) bool {
-	return func(u *icsdk.User) bool {
-		return u.ID == id
+func byUserID(id string) func(*icsdk.MockUser) bool {
+	return func(u *icsdk.MockUser) bool {
+		return aws.ToString(u.UserId) == id
 	}
 }
 
-func byUserName(username string) func(*icsdk.User) bool {
-	return func(u *icsdk.User) bool {
-		return u.UserName == username
+func byUserName(username string) func(*icsdk.MockUser) bool {
+	return func(u *icsdk.MockUser) bool {
+		return aws.ToString(u.User.UserName) == username
 	}
 }
 
@@ -82,7 +96,7 @@ func memberIsUser(userID string) func(*icsdk.GroupMember) bool {
 	}
 }
 
-func (s *scimClientMock) getUserByID(id string) *icsdk.User {
+func (s *scimClientMock) getUserByID(id string) *icsdk.MockUser {
 	i := slices.IndexFunc(s.Users, byUserID(id))
 	if i == -1 {
 		return nil
@@ -122,13 +136,6 @@ func (s *scimClientMock) GetUser(_ context.Context, id string) (*scimsdk.User, e
 	return s.toSCIMUser(icUser), nil
 }
 
-func (s *scimClientMock) toSCIMUser(icUser *icsdk.User) *scimsdk.User {
-	return &scimsdk.User{
-		ID:       icUser.ID,
-		UserName: icUser.UserName,
-	}
-}
-
 func (s *scimClientMock) GetGroup(_ context.Context, id string) (*scimsdk.Group, error) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
@@ -151,7 +158,7 @@ func (s *scimClientMock) toSCIMGroup(icGroup *icsdk.Group) *scimsdk.Group {
 
 		scimMembers = append(scimMembers, &scimsdk.GroupMember{
 			ExternalID: m.MemberID,
-			Display:    memberUser.UserName,
+			Display:    aws.ToString(memberUser.UserName),
 			Type:       scimsdk.ResourceTypeUser,
 		})
 	}
@@ -163,6 +170,34 @@ func (s *scimClientMock) toSCIMGroup(icGroup *icsdk.Group) *scimsdk.Group {
 	}
 
 	return scimGroup
+}
+
+func (s *scimClientMock) toSCIMUser(mockUser *icsdk.MockUser) *scimsdk.User {
+	return &scimsdk.User{
+		ID:       aws.ToString(mockUser.UserId),
+		UserName: aws.ToString(mockUser.UserName),
+	}
+}
+
+func (s *scimClientMock) toMockUser(u *scimsdk.User) *icsdk.MockUser {
+	mockUser := &icsdk.MockUser{
+		Active: u.Active,
+		User: identitystoretypes.User{
+			IdentityStoreId: aws.String(string(s.Info.IdentityStoreID)),
+			UserId:          aws.String(u.ID),
+			UserName:        aws.String(u.UserName),
+			DisplayName:     aws.String(u.DisplayName),
+		},
+	}
+
+	if u.Name != nil {
+		mockUser.User.Name = &identitystoretypes.Name{
+			FamilyName: aws.String(u.Name.FamilyName),
+			GivenName:  aws.String(u.Name.GivenName),
+		}
+	}
+
+	return mockUser
 }
 
 // CreateUser creates a new user.
@@ -177,11 +212,8 @@ func (s *scimClientMock) CreateUser(_ context.Context, user *scimsdk.User) (*sci
 		return nil, trace.BadParameter("user with ID %q already exists", user.ID)
 	}
 
-	icUser := &icsdk.User{
-		ID:       user.ID,
-		UserName: user.UserName,
-	}
-	s.Users = append(s.Users, icUser)
+	mockUser := s.toMockUser(user)
+	s.Users = append(s.Users, mockUser)
 	return user, nil
 }
 
@@ -211,7 +243,10 @@ func (s *scimClientMock) UpdateUser(_ context.Context, user *scimsdk.User) (*sci
 	if icUser == nil {
 		return nil, trace.NotFound("No such user")
 	}
-	icUser.UserName = user.UserName
+
+	update := s.toMockUser(user)
+	(*icUser) = *update
+
 	return s.toSCIMUser(icUser), nil
 }
 
@@ -331,7 +366,7 @@ func (s *scimClientMock) ReplaceGroupMembers(_ context.Context, id string, membe
 	for _, scimMember := range members {
 		icMember := s.getUserByID(scimMember.ExternalID)
 		if icMember != nil {
-			icMembers = append(icMembers, &icsdk.GroupMember{MemberID: icMember.ID})
+			icMembers = append(icMembers, &icsdk.GroupMember{MemberID: aws.ToString(icMember.UserId)})
 		}
 	}
 	s.GroupMemberships[id] = icMembers

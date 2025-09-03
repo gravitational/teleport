@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,7 +15,7 @@ import (
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
-	"github.com/gravitational/teleport/lib/utils/slices"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
@@ -147,7 +146,7 @@ func copyToHeap[T any](v T) *T {
 func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 	ctx := t.Context()
 
-	expectedUsers := []icsdk.User{
+	expectedUsers := []*icsdk.User{
 		{ID: "uid_alice", UserName: "alice"},
 		{ID: "uid_bob", UserName: "bob"},
 		{ID: "uid_charlotte", UserName: "charlotte"},
@@ -161,34 +160,13 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 	}
 
 	// GIVEN a mock AWS config with several groups..
-	awsState := icsdk.MockedAWSStateType{
-		Info: icsdk.InstanceInfo{
-			OwnerAccountID:  "2222222222",
-			Name:            "Mock Identity Center Instance",
-			IdentityStoreID: "store1",
-			Status:          ssoadmintypes.InstanceStatusActive,
-		},
-		Accounts: []*icsdk.Account{
-			{Name: "Account1", ID: "1111111111", ARN: "arn:aws:iam::1111111111:account/Account1"},
-		},
-		Users:  slices.Map(expectedUsers, copyToHeap),
-		Groups: slices.Map(expectedGroups, copyToHeap),
-		GroupMemberships: map[string][]*icsdk.GroupMember{
-			"group1": {
-				{MemberID: "uid_alice"},
-				{MemberID: "uid_charlotte"},
-			},
-			"group2": {
-				{MemberID: "uid_alice"},
-				{MemberID: "uid_bob"},
-				{MemberID: "uid_charlotte"},
-				{MemberID: "uid_dave"},
-			},
-			"group3": {
-				{MemberID: "uid_dave"},
-			},
-		},
-	}
+	awsState := icsdk.NewMockedAWSState(
+		icsdk.WithUsers(expectedUsers...),
+		icsdk.WithGroups(sliceutils.Map(expectedGroups, copyToHeap)...),
+		icsdk.WithGroupMembers("group1", "uid_alice", "uid_charlotte"),
+		icsdk.WithGroupMembers("group2", "uid_alice", "uid_bob", "uid_charlotte", "uid_dave"),
+		icsdk.WithGroupMembers("group3", "uid_dave"),
+	)
 
 	// GIVEN a Teleport cluster...
 	client := ictest.NewUnifiedMockClient(awsState)

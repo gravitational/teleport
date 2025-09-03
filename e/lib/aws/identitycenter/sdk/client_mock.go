@@ -5,6 +5,8 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	identitystoretypes "github.com/aws/aws-sdk-go-v2/service/identitystore/types"
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
 
@@ -14,7 +16,7 @@ import (
 // NewClientMock creates and returns a new instance of ClientMock.
 func NewClientMock(customMockData *MockedAWSStateType) *ClientMock {
 	client := &ClientMock{
-		MockedAWSStateType: NewMockedAWSState(),
+		MockedAWSStateType: NewMockedAWSState(WithDefaultUsersAndGroups),
 	}
 	if customMockData != nil {
 		client.MockedAWSStateType = *customMockData
@@ -39,13 +41,185 @@ type ClientMock struct {
 	}
 }
 
+// MockStateOption describes an option application function for constructing
+// custom mocked AWS Identity Center states
+type MockStateOption func(*MockedAWSStateType)
+
+// WithAccounts sets the AWS account information for the mocked AWS Identity
+// Center state
+func WithAccounts(accts ...*Account) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.Accounts = accts
+	}
+}
+
+// UserOption is the signature for an option application function for use when
+// constructing mock Identity Center users in a mock Identity Center state
+type UserOption func(*MockUser)
+
+// WithDisplayName sets the mock user's display name field
+func WithDisplayName(n string) UserOption {
+	return func(u *MockUser) {
+		u.DisplayName = aws.String(n)
+	}
+}
+
+// WithUser adds a new, optionally customized user to the mocked Identity Center
+// state
+func WithUser(id, username string, userOptions ...UserOption) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.AddUserToState(id, username, userOptions...)
+	}
+}
+
+// WithUsers overwrites the entire mocked Identity Center user list with the
+// supplied users
+func WithUsers(users ...*User) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.Users = sliceutils.Map(users, s.toMockUser)
+	}
+}
+
+// WithDefaultUsersAndGroups populates the mock Identity Center state with a
+// default set of users and groups
+func WithDefaultUsersAndGroups(s *MockedAWSStateType) {
+	s.Users = []*MockUser{
+		{
+			Active: true,
+			User: identitystoretypes.User{
+				IdentityStoreId: aws.String(string(s.Info.IdentityStoreID)),
+				UserId:          aws.String("user1"),
+				UserName:        aws.String("user_one"),
+			},
+		},
+		{
+			Active: true,
+			User: identitystoretypes.User{
+				IdentityStoreId: aws.String(string(s.Info.IdentityStoreID)),
+				UserId:          aws.String("user2"),
+				UserName:        aws.String("user_two"),
+			},
+		},
+	}
+
+	s.UserAssignments = map[string][]*Assignment{
+		"user1": {
+			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
+			{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
+		},
+		"user2": {
+			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
+		},
+	}
+
+	s.Groups = []*Group{
+		{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
+		{DisplayName: "Group2", ID: "group2", IdentityStoreID: "store1"},
+	}
+
+	s.GroupAssignments = map[string][]*Assignment{
+		"group1": {
+			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
+		},
+		"group2": {
+			{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
+		},
+	}
+
+	s.GroupMemberships = map[string][]*GroupMember{
+		"group1": {
+			{MemberID: "user1"},
+			{MemberID: "user2"},
+		},
+		"group2": {
+			{MemberID: "user2"},
+		},
+	}
+}
+
+func toGroupMember(uID string) *GroupMember {
+	return &GroupMember{MemberID: uID}
+}
+
+// WithGroup adds a new group to the mocked Identity Center state, with an
+// optional member list.
+func WithGroup(gID, displayName string, members ...string) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.Groups = append(s.Groups, &Group{
+			IdentityStoreID: string(s.Info.IdentityStoreID),
+			ID:              gID,
+			DisplayName:     displayName,
+		})
+		s.GroupMemberships[gID] = sliceutils.Map(members, toGroupMember)
+	}
+}
+
+// WithGroups overwrites the entire group list in the mock Identity Center state
+// with the supplied groups
+func WithGroups(groups ...*Group) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.Groups = groups
+	}
+}
+
+// WithGroupMembers sets the members of a given group
+func WithGroupMembers(gID string, members ...string) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.GroupMemberships[gID] = sliceutils.Map(members, toGroupMember)
+	}
+}
+
+// WithGroupMemberships overwrites the mock Identity Center's entire group
+// membership database with the supplied membership info.
+func WithGroupMemberships(members map[string][]*GroupMember) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.GroupMemberships = members
+	}
+}
+
+// WithPermissionSets overwrites the mock Identity Center state's list of
+// Permission Sets with the supplied values.
+func WithPermissionSets(pss ...*PermissionSet) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.PermissionSets = pss
+	}
+}
+
+// WithGroupAssignments overwrites the mock Identity Center's entire group
+// permission assignment database with the supplied assignment map.
+func WithGroupAssignments(assignments map[string][]*Assignment) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.GroupAssignments = assignments
+	}
+}
+
+func toSDKUser(u *MockUser) *User {
+	return &User{
+		ID:       aws.ToString(u.UserId),
+		UserName: aws.ToString(u.UserName),
+	}
+}
+
+func (s *MockedAWSStateType) toMockUser(u *User) *MockUser {
+	return &MockUser{
+		Active: true,
+		User: identitystoretypes.User{
+			IdentityStoreId: aws.String(string(s.Info.IdentityStoreID)),
+			UserId:          aws.String(u.ID),
+			UserName:        aws.String(u.UserName),
+		},
+	}
+}
+
 // NewMockedAWSState returns a default mock state.
-func NewMockedAWSState() MockedAWSStateType {
-	return MockedAWSStateType{
+func NewMockedAWSState(options ...MockStateOption) MockedAWSStateType {
+	const defaultIdentityStoreID = "store1"
+
+	state := MockedAWSStateType{
 		Info: InstanceInfo{
 			OwnerAccountID:  "2222222222",
 			Name:            "Mock Identity Center Instance",
-			IdentityStoreID: "store1",
+			IdentityStoreID: defaultIdentityStoreID,
 			Status:          ssoadmintypes.InstanceStatusActive,
 		},
 		Accounts: []*Account{
@@ -56,102 +230,20 @@ func NewMockedAWSState() MockedAWSStateType {
 			{Name: "Admin", ARN: "arn:aws:sso:::permissionSet/Admin", Description: "Admin permissions"},
 			{Name: "ReadOnly", ARN: "arn:aws:sso:::permissionSet/ReadOnly", Description: "Read-only permissions"},
 		},
-		Users: []*User{
-			{ID: "user1", UserName: "user_one"},
-			{ID: "user2", UserName: "user_two"},
-		},
-		Groups: []*Group{
-			{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
-			{DisplayName: "Group2", ID: "group2", IdentityStoreID: "store1"},
-		},
-		GroupMemberships: map[string][]*GroupMember{
-			"group1": {
-				{MemberID: "user1"},
-				{MemberID: "user2"},
-			},
-			"group2": {
-				{MemberID: "user2"},
-			},
-		},
-		UserAssignments: map[string][]*Assignment{
-			"user1": {
-				{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
-				{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
-			},
-			"user2": {
-				{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
-			},
-		},
-		GroupAssignments: map[string][]*Assignment{
-			"group1": {
-				{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
-			},
-			"group2": {
-				{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
-			},
-		},
+		GroupMemberships: make(map[string][]*GroupMember),
+		UserAssignments:  make(map[string][]*Assignment),
+		GroupAssignments: make(map[string][]*Assignment),
 		AccountPermAssignments: map[string][]string{
 			"1111111111": {"arn:aws:sso:::permissionSet/Admin", "arn:aws:sso:::permissionSet/ReadOnly"},
 			"2222222222": {"arn:aws:sso:::permissionSet/ReadOnly"},
 		},
 	}
-}
 
-// DefaultMockedData defines a default MockedAWSStateType values used for
-// testing mocked AWS state.
-var DefaultMockedData = MockedAWSStateType{
-	Info: InstanceInfo{
-		OwnerAccountID:  "2222222222",
-		Name:            "Mock Identity Center Instance",
-		IdentityStoreID: "store1",
-		Status:          ssoadmintypes.InstanceStatusActive,
-	},
-	Accounts: []*Account{
-		{Name: "Account1", ID: "1111111111", ARN: "arn:aws:iam::1111111111:account/Account1"},
-		{Name: "Account2", ID: "2222222222", ARN: "arn:aws:iam::2222222222:account/Account2"},
-	},
-	PermissionSets: []*PermissionSet{
-		{Name: "Admin", ARN: "arn:aws:sso:::permissionSet/Admin", Description: "Admin permissions"},
-		{Name: "ReadOnly", ARN: "arn:aws:sso:::permissionSet/ReadOnly", Description: "Read-only permissions"},
-	},
-	Users: []*User{
-		{ID: "user1", UserName: "user_one"},
-		{ID: "user2", UserName: "user_two"},
-	},
-	Groups: []*Group{
-		{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
-		{DisplayName: "Group2", ID: "group2", IdentityStoreID: "store1"},
-	},
-	GroupMemberships: map[string][]*GroupMember{
-		"group1": {
-			{MemberID: "user1"},
-			{MemberID: "user2"},
-		},
-		"group2": {
-			{MemberID: "user2"},
-		},
-	},
-	UserAssignments: map[string][]*Assignment{
-		"user1": {
-			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
-			{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
-		},
-		"user2": {
-			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
-		},
-	},
-	GroupAssignments: map[string][]*Assignment{
-		"group1": {
-			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
-		},
-		"group2": {
-			{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
-		},
-	},
-	AccountPermAssignments: map[string][]string{
-		"1111111111": {"arn:aws:sso:::permissionSet/Admin", "arn:aws:sso:::permissionSet/ReadOnly"},
-		"2222222222": {"arn:aws:sso:::permissionSet/ReadOnly"},
-	},
+	for _, applyOption := range options {
+		applyOption(&state)
+	}
+
+	return state
 }
 
 // clonePtrSlice clones a slice of pointers to T, making 1-level-deep copies of
@@ -167,6 +259,11 @@ func clonePtrSlice[T any](s []*T) []*T {
 	return sliceutils.Map(s, cloneItem)
 }
 
+type MockUser struct {
+	identitystoretypes.User
+	Active bool
+}
+
 // MockedAWSStateType is a struct that holds the mocked AWS state.
 type MockedAWSStateType struct {
 	// Info holds information about the Identoty Center instance
@@ -176,7 +273,7 @@ type MockedAWSStateType struct {
 	// PermissionSets is a list of mocked permission sets.
 	PermissionSets []*PermissionSet
 	// Users is a list of mocked users.
-	Users []*User
+	Users []*MockUser
 	// Groups is a list of mocked groups.
 	Groups []*Group
 	// GroupMemberships is a map of group ID to a list of group members.
@@ -187,6 +284,23 @@ type MockedAWSStateType struct {
 	GroupAssignments map[string][]*Assignment
 	// AccountPermAssignments is a map of account ID to a list of permission set ARNs.
 	AccountPermAssignments map[string][]string
+}
+
+// AddUserToState adds a new [MockUser] to tge mocked Identity Center state
+func (s *MockedAWSStateType) AddUserToState(userID, username string, options ...UserOption) *MockUser {
+	user := &MockUser{
+		Active: true,
+		User: identitystoretypes.User{
+			IdentityStoreId: aws.String(string(s.Info.IdentityStoreID)),
+			UserId:          aws.String(userID),
+			UserName:        aws.String(username),
+		},
+	}
+	for _, applyOption := range options {
+		applyOption(user)
+	}
+	s.Users = append(s.Users, user)
+	return user
 }
 
 // DescribeInstance returns a mocked InstanceInfo
@@ -244,7 +358,7 @@ func (c *ClientMock) ListGroupMemberships(_ context.Context, groupID string) ([]
 func (c *ClientMock) ListUsers(context.Context) ([]*User, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
-	return clonePtrSlice(c.Users), nil
+	return sliceutils.Map(c.Users, toSDKUser), nil
 }
 
 // ListUserAssignments returns a list of permission assignments for a given user ID.

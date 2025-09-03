@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport"
 	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	"github.com/gravitational/teleport/e/lib/provisioning"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
 )
@@ -88,6 +89,7 @@ func newTestService(t *testing.T, fixture *ictest.Fixture, options ...testServic
 			AccessListsSvcCache:  fixture.Auth.Services,
 			LocksSvc:             fixture.Auth.Services,
 			StateRefreshInterval: 500 * time.Millisecond,
+			UserProvisioningMode: provisioning.UserProvisioningModeInternal,
 		},
 		ICClient:                   fixture.ICClient,
 		UsersSvc:                   fixture.Auth.Services,

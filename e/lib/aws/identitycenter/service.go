@@ -132,6 +132,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		OnPrincipalDeprovisioning: svc.onPrincipalDeprovisioning,
 		Logger:                    config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICPrincipalProvisioner),
 		StateRefreshInterval:      config.Provisioning.StateRefreshInterval,
+		UserProvisioningMode:      config.Provisioning.UserProvisioningMode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating provisioner")

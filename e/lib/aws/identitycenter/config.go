@@ -38,6 +38,10 @@ type ProvisioningConfig struct {
 	// StateRefreshInterval specifies the interval between full user and Access List
 	// state refreshes.
 	StateRefreshInterval time.Duration
+	// UserProvisioningMode indicates how the SCIM provisioner should handle
+	// provisioning users into the downstream system. See [provisioning.ServiceConfig.UserProvisioningMode]
+	// for more info.
+	UserProvisioningMode provisioning.UserProvisioningMode
 }
 
 func (cfg *ProvisioningConfig) CheckAndSetDefaults() error {

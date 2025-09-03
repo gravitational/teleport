@@ -47,6 +47,7 @@ type provisioner struct {
 	onPrincipalProvisioning   EventHandler
 	onPrincipalProvisioned    EventHandler
 	onPrincipalDeprovisioning EventHandler
+	userProvisioningMode      UserProvisioningMode
 }
 
 type provisionerConfig struct {
@@ -78,6 +79,10 @@ type provisionerConfig struct {
 
 	// See [ServiceConfig.OnPrincipalDeprovisioning].
 	onPrincipalDeprovisioning EventHandler
+
+	// userProvisioningMode controls how users will be provisioned into the
+	// downstream. See [ServiceConfig.UserProvisioningMode].
+	userProvisioningMode UserProvisioningMode
 }
 
 func (cfg *provisionerConfig) CheckAndSetDefaults() error {
@@ -114,6 +119,12 @@ func (cfg *provisionerConfig) CheckAndSetDefaults() error {
 	if cfg.onPrincipalDeprovisioning == nil {
 		cfg.onPrincipalDeprovisioning = nullEventHandler
 	}
+
+	switch cfg.userProvisioningMode {
+	case UserProvisioningModeInternal, UserProvisioningModeExternal:
+	default:
+		return trace.BadParameter("invalid user provisioning mode: %d", int(cfg.userProvisioningMode))
+	}
 	return nil
 }
 
@@ -135,6 +146,7 @@ func newProvisioner(cfg provisionerConfig) (*provisioner, error) {
 		onPrincipalProvisioning:   cfg.onPrincipalProvisioning,
 		onPrincipalProvisioned:    cfg.onPrincipalProvisioned,
 		onPrincipalDeprovisioning: cfg.onPrincipalDeprovisioning,
+		userProvisioningMode:      cfg.userProvisioningMode,
 	}
 
 	// TODO(tcsc): query the /Resources SCIM end point and unpack into here
@@ -192,10 +204,22 @@ func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.Princ
 		return trace.Wrap(provisioningErr, "provisioning principal")
 
 	case provisioningv1.ProvisioningState_PROVISIONING_STATE_DELETED:
-		err := p.deprovisionPrincipal(ctx, state, log)
-		if err != nil {
-			return trace.Wrap(err)
+
+		// Only delete a downstream user if we are responsible for provisioning
+		// users in the first place; we don't want to delete a user from underneath
+		// an external IdP.
+		deProvisionPrincipal := true
+		if p.userProvisioningMode == UserProvisioningModeExternal {
+			deProvisionPrincipal = state.GetSpec().PrincipalType != provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER
 		}
+
+		if deProvisionPrincipal {
+			err := p.deprovisionPrincipal(ctx, state, log)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		if err := p.stateSvc.DeleteProvisioningState(ctx, getDownstreamID(state), getID(state)); err != nil {
 			return trace.Wrap(err, "deleting provisioning state")
 		}

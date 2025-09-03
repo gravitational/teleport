@@ -87,6 +87,7 @@ func (p *provisioner) adoptOrCreateDownstreamUser(
 		// name) and we will adopt them as the downstream avatar of our Teleport
 		// user
 		externalID := ExternalID(downstreamUser.ID)
+		log.DebugContext(ctx, "Adopting downstream user", externalIDAttr(externalID))
 		updatedState, err := recordExternalID(ctx, p.stateSvc, state, externalID, nil)
 		if err != nil {
 			return nil, trace.Wrap(err, "recording external ID for user")
@@ -100,6 +101,8 @@ func (p *provisioner) adoptOrCreateDownstreamUser(
 		return provisionedState, nil
 
 	case trace.IsNotFound(err):
+		log.DebugContext(ctx, "No such user", "username", user.GetName())
+
 		// Not having a corresponding downstream user is perfectly legitimate -
 		// we just need to create them.
 		updatedState, err := p.createDownstreamUser(ctx, state, user)
@@ -120,6 +123,10 @@ func (p *provisioner) createDownstreamUser(
 	state *provisioningv1.PrincipalState,
 	user types.User,
 ) (*provisioningv1.PrincipalState, error) {
+	if p.userProvisioningMode != UserProvisioningModeInternal {
+		return state, nil
+	}
+
 	activeState, locks, err := p.validateUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -178,6 +185,10 @@ func (p *provisioner) updateDownstreamUser(
 	state *provisioningv1.PrincipalState,
 	user types.User,
 ) (*provisioningv1.PrincipalState, error) {
+	if p.userProvisioningMode != UserProvisioningModeInternal {
+		return state, nil
+	}
+
 	if state.GetStatus().GetExternalId() == "" {
 		return nil, trace.BadParameter("principal state must have an ExternalId")
 	}

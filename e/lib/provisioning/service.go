@@ -12,14 +12,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
-	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
-	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -38,202 +35,6 @@ const (
 // stateMap defines a mapping of provisioning state IDs to the states they
 // represent. Used for brevity.
 type stateMap map[services.ProvisioningStateID]*provisioningv1.PrincipalState
-
-// UsersService defines the subset of services.UsersService that the
-// provisioning system actually uses.
-type UsersService interface {
-	ListUsers(ctx context.Context, req *usersv1.ListUsersRequest) (*usersv1.ListUsersResponse, error)
-	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
-}
-
-// AccessListsService defines the subset of services.AccessListsService that the
-// provisioning system actually uses.
-type AccessListsService interface {
-	ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error)
-	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
-	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
-	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-}
-
-// AccessListPredicate is a filter function for identifying Access Lists to
-// provision downstream
-type AccessListPredicate func(context.Context, *accesslist.AccessList) (bool, error)
-
-// EventHandler defines a function signature for handling provisioning events.
-// Any errors that occur while handling the event are generally expected to be
-// handled by the callback and not propagated back to the Provisioning Service.
-// Specific events may make use of the returned [error], but this is not the
-// normal expectation.
-type EventHandler func(context.Context, *provisioningv1.PrincipalState) error
-
-// nullEventHandler is the default, do-nothing event handler
-func nullEventHandler(context.Context, *provisioningv1.PrincipalState) error {
-	return nil
-}
-
-type ServiceConfig struct {
-	// SCIMClient is the SCIM client implementation the provisioning system will
-	// use to interact with the downstream server.
-	SCIMClient scimsdk.Client
-
-	// UsersCache is the users service used by the provisioning service. The
-	// provisioning service only reads from this service, so a cached service
-	// is appropriate.
-	UsersCache UsersService
-
-	// AccessListsCache is the AccessLists service read by the provisioning
-	// service. The provisioning service only reads from this service, so a
-	// cached service is appropriate.
-	AccessListsCache AccessListsService
-
-	// Locks provides read-only access to the system locks service. Used to
-	// verify users are in good standing before provisioning them downstream.
-	Locks services.LockGetter
-
-	// DownstreamID selects which Provisioning Principal State records to read.
-	DownstreamID services.DownstreamID
-
-	// StateSvc is a reference to the Provisioning Principal State CRUD service
-	// used by the provisioning service. The provisioning service needs read/write
-	// access, so this should be a primary CRUD service
-	StateSvc services.DownstreamProvisioningStates
-
-	// StateSvcCache is a reference to a Provisioning Principal State CRUD service
-	// that can be used as like a cache, when quick reads are important
-	StateSvcCache services.DownstreamProvisioningStateGetter
-
-	// UserPredicate is a function used to select which users are provisioned
-	// downstream. Returns `true` if the user should be provisioned downstream.
-	// Defaults to including ALL non-system Users.
-	UserPredicate identitycentercommon.UserFilterFunc
-
-	// AccessListPredicate is a function used to select which access lists are
-	// provisioned downstream. Returns `true` if the given access list should be
-	// provisioned downstream.
-	AccessListPredicate AccessListPredicate
-
-	// EventsClient is used to hook into the eventing system to create resource
-	// watchers.
-	EventsClient types.Events
-
-	// Logger is the slog logger instance to receive log output from the
-	// provisioning service
-	Logger *slog.Logger
-
-	// Clock is the service time source. Defaults to the system clock if not
-	// specified.
-	Clock clockwork.Clock
-
-	// ProvisioningConcurrency sets the upper bound on how many principals can
-	// be provisioned at once. Defaults to `defaultProvisioningConcurrency` if
-	// not set
-	ProvisioningConcurrency int
-
-	// StateRefreshInterval sets the interval between full state refreshes, which
-	// scans the User and AccessList services for changes that require
-	// provisioning. Defaults to [DefaultStateRefreshInterval] if not set.
-	StateRefreshInterval time.Duration
-
-	// EventBufferSize is the number of provisioning events to buffer between
-	// the resource monitors and the provisioner. Defaults to
-	// `defaultEventBufferSize` if unset.
-	EventBufferSize int
-
-	// OnPrincipalProvisioning is an optional callback invoked just before a
-	// principal is provisioned into the downstream system. Implementations may
-	// return [ErrDoNotProvision] to indicate that the downstream principal
-	// should not be provisioned downstream. All other errors are ignored.
-	// Defaults to a no-op implementation.
-	OnPrincipalProvisioning EventHandler
-
-	// OnPrincipalProvisioned is an optional callback to be invoked whenever a
-	// principal is successfully provisioned. Defaults to an no-op
-	// implementation. Errors returned by the event handler are ignored.
-	OnPrincipalProvisioned EventHandler
-
-	// OnPrincipalDeprovisioning is an optional callback invoked just before a
-	// principal is de-provisioned in the downstream system. Implementations may
-	// return [ErrDoNotProvision] to indicate that the downstream principal
-	// should not be de-provisioned. All other errors are ignored.
-	// Defaults to a no-op implementation.
-	OnPrincipalDeprovisioning EventHandler
-}
-
-func (cfg *ServiceConfig) CheckAndSetDefaults() error {
-	if cfg.SCIMClient == nil {
-		return trace.BadParameter("must supply a configured SCIM client")
-	}
-
-	if cfg.DownstreamID == services.DownstreamID("") {
-		return trace.BadParameter("must supply downstream state service")
-	}
-
-	if cfg.StateSvc == nil {
-		return trace.BadParameter("must supply provisioning state service")
-	}
-
-	if cfg.StateSvcCache == nil {
-		return trace.BadParameter("must supply provisioning state cache service")
-	}
-
-	if cfg.UsersCache == nil {
-		return trace.BadParameter("must supply user listing service")
-	}
-
-	if cfg.AccessListsCache == nil {
-		return trace.BadParameter("must supply access lists service")
-	}
-
-	if cfg.Locks == nil {
-		return trace.BadParameter("must supply locks service")
-	}
-
-	if cfg.EventsClient == nil {
-		return trace.BadParameter("must supply events")
-	}
-
-	if cfg.UserPredicate == nil {
-		return trace.BadParameter("must supply user predicate")
-	}
-
-	if cfg.AccessListPredicate == nil {
-		return trace.BadParameter("must supply access list predicate")
-	}
-
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
-
-	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, provisioningComponent)
-	}
-
-	if cfg.EventBufferSize == 0 {
-		cfg.EventBufferSize = defaultEventBufferSize
-	}
-
-	if cfg.StateRefreshInterval == 0 {
-		cfg.StateRefreshInterval = DefaultStateRefreshInterval
-	}
-
-	if cfg.ProvisioningConcurrency == 0 {
-		cfg.ProvisioningConcurrency = defaultProvisioningConcurrency
-	}
-
-	if cfg.OnPrincipalProvisioning == nil {
-		cfg.OnPrincipalProvisioning = nullEventHandler
-	}
-
-	if cfg.OnPrincipalProvisioned == nil {
-		cfg.OnPrincipalProvisioned = nullEventHandler
-	}
-
-	if cfg.OnPrincipalDeprovisioning == nil {
-		cfg.OnPrincipalDeprovisioning = nullEventHandler
-	}
-
-	return nil
-}
 
 type Service struct {
 	downstreamID        services.DownstreamID
@@ -283,6 +84,7 @@ func NewService(cfg ServiceConfig) (svc *Service, err error) {
 		onPrincipalProvisioning:   cfg.OnPrincipalProvisioning,
 		onPrincipalProvisioned:    cfg.OnPrincipalProvisioned,
 		onPrincipalDeprovisioning: cfg.OnPrincipalDeprovisioning,
+		userProvisioningMode:      cfg.UserProvisioningMode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating downstream provisioner")
@@ -370,7 +172,7 @@ func (svc *Service) Run(ctx context.Context) (err error) {
 
 // SetUserStateLabel sets a label on the user's Provisioning State record.
 func (svc *Service) SetUserStateLabel(ctx context.Context, username string, key, value string) error {
-	return trace.Wrap(svc.SetProvisioningStateLabel(ctx, getIDForUserName(username), key, value))
+	return trace.Wrap(svc.SetProvisioningStateLabel(ctx, GetIDForUserName(username), key, value))
 }
 
 // SetAccessListStateLabel sets a label on the Access List's Provisioning State
@@ -689,7 +491,7 @@ func (svc *Service) GetExternalID(ctx context.Context, principalID services.Prov
 // GetUserExternalID tries to look up a Teleport user's external ID in the
 // downstream system
 func (svc *Service) GetUserExternalID(ctx context.Context, username string) (ExternalID, error) {
-	return svc.GetExternalID(ctx, getIDForUserName(username))
+	return svc.GetExternalID(ctx, GetIDForUserName(username))
 }
 
 // GetUserExternalID tries to look up a Teleport Access Lists's external group ID
@@ -854,7 +656,7 @@ func (svc *Service) handleResourcePut(ctx context.Context, principalName string,
 			return nil, trace.Wrap(err)
 		}
 		principalMatchesPredicate = svc.userPredicate(u)
-		provisioningStateID = getIDForUserName(principalName)
+		provisioningStateID = GetIDForUserName(principalName)
 
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
 		acl, err := svc.accessListsSvcCache.GetAccessList(ctx, principalName)

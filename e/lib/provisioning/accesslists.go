@@ -135,7 +135,7 @@ func (p *provisioner) filterValidMembers(
 	groupMembers := make([]*scimsdk.GroupMember, 0, len(aclMembers))
 	for _, aclMember := range aclMembers {
 		memberUserName := aclMember.Spec.Name
-		memberStateId := getIDForUserName(memberUserName)
+		memberStateId := GetIDForUserName(memberUserName)
 
 		log := log.With(
 			"member_username", memberUserName,

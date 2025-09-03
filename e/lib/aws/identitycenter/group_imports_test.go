@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -353,13 +352,14 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			mockState := icsdk.NewMockedAWSState()
-			mockState.Accounts = tc.icData.Accounts
-			mockState.PermissionSets = sdkPermSets(t)
-			mockState.Users = sdkUsers(t)
-			mockState.Groups = sdkGroups(t, tc.icData.Groups)
-			mockState.GroupMemberships = sdkGroupMembers(t, tc.icData.Groups)
-			mockState.GroupAssignments = sdkGroupAssignments(t, tc.icData.Groups)
+			mockState := icsdk.NewMockedAWSState(
+				icsdk.WithAccounts(tc.icData.Accounts...),
+				icsdk.WithPermissionSets(sdkPermSets(t)...),
+				icsdk.WithUsers(sdkUsers(t)...),
+				icsdk.WithGroups(sdkGroups(t, tc.icData.Groups)...),
+				icsdk.WithGroupMemberships(sdkGroupMembers(t, tc.icData.Groups)),
+				icsdk.WithGroupAssignments(sdkGroupAssignments(t, tc.icData.Groups)),
+			)
 
 			statusSink := &integration.FakeStatusSink{}
 
@@ -536,32 +536,15 @@ func TestGroupDeletesAreSuppressed(t *testing.T) {
 
 	// GIVEN an Identity Center service managing several Access Lists that were
 	// imported from the downstream Identity Center instance
-	const idStoreID = "test-identity-store"
-	awsICState := icsdk.MockedAWSStateType{
-		Info: icsdk.InstanceInfo{
-			OwnerAccountID:  "2222222222",
-			Name:            "Mock Identity Center Instance",
-			IdentityStoreID: idStoreID,
-			Status:          ssoadmintypes.InstanceStatusActive,
-		},
-		Groups: []*icsdk.Group{
-			{DisplayName: "Alpha", ID: "alpha", IdentityStoreID: idStoreID},
-			{DisplayName: "Bravo", ID: "bravo", IdentityStoreID: idStoreID},
-			{DisplayName: "Charlie", ID: "charlie", IdentityStoreID: idStoreID},
-			{DisplayName: "Delta", ID: "delta", IdentityStoreID: idStoreID},
-		},
-		Users: []*icsdk.User{
-			{UserName: "alice@example.com", ID: "alice"},
-			{UserName: "bob@example.com", ID: "bob"},
-			{UserName: "carol@example.com", ID: "carol"},
-		},
-		GroupMemberships: map[string][]*icsdk.GroupMember{
-			"alpha":   {{MemberID: "alice"}, {MemberID: "bob"}, {MemberID: "carol"}},
-			"bravo":   {{MemberID: "alice"}, {MemberID: "bob"}, {MemberID: "carol"}},
-			"charlie": {{MemberID: "alice"}, {MemberID: "bob"}, {MemberID: "carol"}},
-			"delta":   {{MemberID: "alice"}, {MemberID: "bob"}, {MemberID: "carol"}},
-		},
-	}
+	awsICState := icsdk.NewMockedAWSState(
+		icsdk.WithUser("alice", "alice@example.com"),
+		icsdk.WithUser("bob", "bob@example.com"),
+		icsdk.WithUser("carol", "carol@example.com"),
+		icsdk.WithGroup("alpha", "Alpha", "alice", "bob", "carol"),
+		icsdk.WithGroup("bravo", "Bravo", "alice", "bob", "carol"),
+		icsdk.WithGroup("charlie", "Charlie", "alice", "bob", "carol"),
+		icsdk.WithGroup("delta", "Delta", "alice", "bob", "carol"),
+	)
 	fixture := icfixture.NewFixture(t,
 		icfixture.WithAWSState(&awsICState),
 		icfixture.WithStartedCache,

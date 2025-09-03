@@ -124,7 +124,7 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 		optFn(&args)
 	}
 	if args.awsState == nil {
-		defaultState := icsdk.NewMockedAWSState()
+		defaultState := icsdk.NewMockedAWSState(icsdk.WithDefaultUsersAndGroups)
 		args.awsState = &defaultState
 	}
 

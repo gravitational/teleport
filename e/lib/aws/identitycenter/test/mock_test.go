@@ -19,15 +19,13 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("ListUsers", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.MockedAWSStateType{
-			Users: []*sdk.User{
-				{ID: "alice", UserName: "alice@example.com"},
-				{ID: "bob", UserName: "bob@example.com"},
-				{ID: "carol", UserName: "carol@example.com"},
-				{ID: "dave", UserName: "dave@example.com"},
-				{ID: "erica", UserName: "erica@example.com"},
-			},
-		})
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState(
+			sdk.WithUser("alice", "alice@example.com"),
+			sdk.WithUser("bob", "bob@example.com"),
+			sdk.WithUser("carol", "carol@example.com"),
+			sdk.WithUser("dave", "dave@example.com"),
+			sdk.WithUser("erica", "erica@example.com"),
+		))
 
 		t.Run("default", func(t *testing.T) {
 			resp, err := client.ViaSCIM().ListUsers(t.Context())
@@ -84,7 +82,7 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("CreateUser", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.MockedAWSStateType{})
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState())
 		scimClient := client.ViaSCIM()
 
 		var createdUsers []*scimsdk.User
@@ -103,7 +101,7 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("GetUser", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.NewMockedAWSState())
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState(sdk.WithDefaultUsersAndGroups))
 
 		u, err := client.ViaSCIM().GetUser(t.Context(), "user1")
 		require.NoError(t, err)
@@ -115,7 +113,7 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("GetUserByName", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.NewMockedAWSState())
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState(sdk.WithDefaultUsersAndGroups))
 
 		u, err := client.ViaSCIM().GetUserByUserName(t.Context(), "user_one")
 		require.NoError(t, err)
@@ -127,7 +125,7 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("UpdateUser", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.NewMockedAWSState())
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState(sdk.WithDefaultUsersAndGroups))
 
 		u, err := client.ViaSCIM().GetUser(t.Context(), "user1")
 		require.NoError(t, err)
@@ -142,27 +140,13 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("DeleteUser", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.MockedAWSStateType{
-			Users: []*sdk.User{
-				{ID: "alice", UserName: "alice@example.com"},
-				{ID: "bob", UserName: "bob@example.com"},
-				{ID: "carol", UserName: "carol@example.com"},
-			},
-			Groups: []*sdk.Group{
-				{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
-				{DisplayName: "Group2", ID: "group2", IdentityStoreID: "store1"},
-			},
-			GroupMemberships: map[string][]*sdk.GroupMember{
-				"group1": {
-					{MemberID: "alice"},
-					{MemberID: "bob"},
-				},
-				"group2": {
-					{MemberID: "carol"},
-					{MemberID: "bob"},
-				},
-			},
-		})
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState(
+			sdk.WithUser("alice", "alice@example.com"),
+			sdk.WithUser("bob", "bob@example.com"),
+			sdk.WithUser("carol", "carol@example.com"),
+			sdk.WithGroup("group1", "Group1", "alice", "bob"),
+			sdk.WithGroup("group2", "Group2", "carol", "bob"),
+		))
 
 		err := client.ViaSCIM().DeleteUser(t.Context(), "bob")
 		require.NoError(t, err)
@@ -180,27 +164,13 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("GetGroup", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.MockedAWSStateType{
-			Users: []*sdk.User{
-				{ID: "alice", UserName: "alice@example.com"},
-				{ID: "bob", UserName: "bob@example.com"},
-				{ID: "carol", UserName: "carol@example.com"},
-			},
-			Groups: []*sdk.Group{
-				{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
-				{DisplayName: "Group2", ID: "group2", IdentityStoreID: "store1"},
-			},
-			GroupMemberships: map[string][]*sdk.GroupMember{
-				"group1": {
-					{MemberID: "alice"},
-					{MemberID: "bob"},
-				},
-				"group2": {
-					{MemberID: "carol"},
-					{MemberID: "bob"},
-				},
-			},
-		})
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState(
+			sdk.WithUser("alice", "alice@example.com"),
+			sdk.WithUser("bob", "bob@example.com"),
+			sdk.WithUser("carol", "carol@example.com"),
+			sdk.WithGroup("group1", "Group1", "alice", "bob"),
+			sdk.WithGroup("group2", "Group2", "carol", "bob"),
+		))
 
 		g, err := client.ViaSCIM().GetGroup(t.Context(), "group1")
 		require.NoError(t, err)
@@ -236,23 +206,13 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("ReplaceGroupMember", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.MockedAWSStateType{
-			Users: []*sdk.User{
-				{ID: "alice", UserName: "alice@example.com"},
-				{ID: "bob", UserName: "bob@example.com"},
-				{ID: "carol", UserName: "carol@example.com"},
-				{ID: "dave", UserName: "dave@example.com"},
-			},
-			Groups: []*sdk.Group{
-				{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
-			},
-			GroupMemberships: map[string][]*sdk.GroupMember{
-				"group1": {
-					{MemberID: "alice"},
-					{MemberID: "bob"},
-				},
-			},
-		})
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState(
+			sdk.WithUser("alice", "alice@example.com"),
+			sdk.WithUser("bob", "bob@example.com"),
+			sdk.WithUser("carol", "carol@example.com"),
+			sdk.WithUser("dave", "dave@example.com"),
+			sdk.WithGroup("group1", "Group1", "alice", "bob"),
+		))
 
 		err := client.ViaSCIM().ReplaceGroupMembers(t.Context(), "group1", []*scimsdk.GroupMember{
 			{ExternalID: "carol"},
@@ -267,28 +227,13 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("DeleteGroup", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.MockedAWSStateType{
-			Users: []*sdk.User{
-				{ID: "alice", UserName: "alice@example.com"},
-				{ID: "bob", UserName: "bob@example.com"},
-				{ID: "carol", UserName: "carol@example.com"},
-			},
-			Groups: []*sdk.Group{
-				{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
-				{DisplayName: "Group2", ID: "group2", IdentityStoreID: "store1"},
-			},
-			GroupMemberships: map[string][]*sdk.GroupMember{
-				"group1": {
-					{MemberID: "alice"},
-					{MemberID: "bob"},
-				},
-				"group2": {
-					{MemberID: "carol"},
-					{MemberID: "bob"},
-				},
-			},
-		})
-
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState(
+			sdk.WithUser("alice", "alice@example.com"),
+			sdk.WithUser("bob", "bob@example.com"),
+			sdk.WithUser("carol", "carol@example.com"),
+			sdk.WithGroup("group1", "Group1", "alice", "bob"),
+			sdk.WithGroup("group2", "Group2", "carol", "bob"),
+		))
 		err := client.ViaSCIM().DeleteGroup(t.Context(), "group1")
 		require.NoError(t, err)
 
@@ -297,29 +242,15 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("List Groups", func(t *testing.T) {
-		client := NewUnifiedMockClient(sdk.MockedAWSStateType{
-			Users: []*sdk.User{
-				{ID: "alice", UserName: "alice@example.com"},
-				{ID: "bob", UserName: "bob@example.com"},
-				{ID: "carol", UserName: "carol@example.com"},
-			},
-			Groups: []*sdk.Group{
-				{DisplayName: "Group 1", ID: "group1", IdentityStoreID: "store1"},
-				{DisplayName: "Group 2", ID: "group2", IdentityStoreID: "store1"},
-				{DisplayName: "Group 3", ID: "group3", IdentityStoreID: "store1"},
-				{DisplayName: "Group 4", ID: "group4", IdentityStoreID: "store1"},
-			},
-			GroupMemberships: map[string][]*sdk.GroupMember{
-				"group1": {
-					{MemberID: "alice"},
-					{MemberID: "bob"},
-				},
-				"group2": {
-					{MemberID: "carol"},
-					{MemberID: "bob"},
-				},
-			},
-		})
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState(
+			sdk.WithUser("alice", "alice@example.com"),
+			sdk.WithUser("bob", "bob@example.com"),
+			sdk.WithUser("carol", "carol@example.com"),
+			sdk.WithGroup("group1", "Group1", "alice", "bob"),
+			sdk.WithGroup("group2", "Group2", "carol", "bob"),
+			sdk.WithGroup("group3", "Group3"),
+			sdk.WithGroup("group4", "Group4"),
+		))
 
 		t.Run("default", func(t *testing.T) {
 			resp, err := client.ViaSCIM().ListGroups(t.Context())
