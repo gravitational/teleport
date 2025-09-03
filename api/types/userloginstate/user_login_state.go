@@ -17,13 +17,14 @@ limitations under the License.
 package userloginstate
 
 import (
+	"slices"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 	"github.com/gravitational/teleport/api/types/trait"
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // UserLoginState is the ephemeral user login state. This will hold data to differentiate
@@ -61,6 +62,21 @@ type Spec struct {
 	GitHubIdentity *ExternalIdentity `json:"github_identity,omitempty" yaml:"github_identity"`
 }
 
+// Clone returns a copy of the spec.
+func (s *Spec) Clone() Spec {
+	if s == nil {
+		return Spec{}
+	}
+	return Spec{
+		OriginalRoles:  slices.Clone(s.OriginalRoles),
+		OriginalTraits: s.OriginalTraits.Clone(),
+		Roles:          slices.Clone(s.Roles),
+		Traits:         s.Traits.Clone(),
+		UserType:       s.UserType,
+		GitHubIdentity: s.GitHubIdentity.Clone(),
+	}
+}
+
 // ExternalIdentity defines an external identity attached to this user state.
 type ExternalIdentity struct {
 	// UserId is the unique identifier of the external identity such as GitHub
@@ -68,6 +84,17 @@ type ExternalIdentity struct {
 	UserID string
 	// Username is the username of the external identity.
 	Username string
+}
+
+// Clone returns a copy of the external identity.
+func (e *ExternalIdentity) Clone() *ExternalIdentity {
+	if e == nil {
+		return nil
+	}
+	return &ExternalIdentity{
+		UserID:   e.UserID,
+		Username: e.Username,
+	}
 }
 
 // New creates a new user login state.
@@ -102,9 +129,13 @@ func (u *UserLoginState) CheckAndSetDefaults() error {
 
 // Clone returns a copy of the member.
 func (u *UserLoginState) Clone() *UserLoginState {
-	var copy *UserLoginState
-	utils.StrictObjectToStruct(u, &copy)
-	return copy
+	if u == nil {
+		return nil
+	}
+	return &UserLoginState{
+		ResourceHeader: *u.ResourceHeader.Clone(),
+		Spec:           u.Spec.Clone(),
+	}
 }
 
 // GetOriginalRoles returns the original roles that the user login state was derived from.
