@@ -186,8 +186,15 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       const startI = i;
 
       while (i < lines.length && lines[i].trimStart().startsWith('- ')) {
+        const firstDashIndex = lines[i].indexOf('- ');
+
         listItems.push(
-          <li key={i}>{parseLine(activeParsers, lines[i].substring(2))}</li>
+          <li key={i}>
+            {parseLine(
+              activeParsers,
+              lines[i].substring(firstDashIndex + 2).trim()
+            )}
+          </li>
         );
 
         i += 1;
