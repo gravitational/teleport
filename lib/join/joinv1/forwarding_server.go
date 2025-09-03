@@ -58,7 +58,7 @@ func (s *forwardingServer) Join(serverStream grpc.BidiStreamingServer[joinv1.Joi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	proxySuppliedParams := &joinv1.ClientInit_ProxySuppliedParameters{
+	proxySuppliedParams := &joinv1.ClientInit_ProxySuppliedParams{
 		RemoteAddr:    peerInfo.remoteAddr,
 		ClientVersion: peerInfo.clientVersion,
 	}
@@ -119,7 +119,7 @@ func (s *forwardingServer) Join(serverStream grpc.BidiStreamingServer[joinv1.Joi
 func (s *forwardingServer) forwardRequests(
 	serverStream grpc.BidiStreamingServer[joinv1.JoinRequest, joinv1.JoinResponse],
 	clientStream grpc.BidiStreamingClient[joinv1.JoinRequest, joinv1.JoinResponse],
-	proxySuppliedParams *joinv1.ClientInit_ProxySuppliedParameters,
+	proxySuppliedParams *joinv1.ClientInit_ProxySuppliedParams,
 ) error {
 	for {
 		req, err := serverStream.Recv()

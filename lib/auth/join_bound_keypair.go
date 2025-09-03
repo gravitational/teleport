@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/jwt"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -985,26 +984,16 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		boundPublicKey = newPubKey
 	}
 
-	certs, botInstanceID, err := a.generateCertsBot(ctx, provisionToken, &join.GenerateCertsForJoinRequest{
-		HostID:                req.JoinRequest.HostID,
-		NodeName:              req.JoinRequest.NodeName,
-		Role:                  req.JoinRequest.Role,
-		PublicTLSKey:          req.JoinRequest.PublicTLSKey,
-		PublicSSHKey:          req.JoinRequest.PublicSSHKey,
-		AdditionalPrincipals:  req.JoinRequest.AdditionalPrincipals,
-		DNSNames:              req.JoinRequest.DNSNames,
-		BotInstanceID:         req.JoinRequest.BotInstanceID,
-		PreviousBotInstanceID: req.JoinRequest.PreviousBotInstanceID,
-		BotGeneration:         req.JoinRequest.BotGeneration,
-		Expires:               req.JoinRequest.Expires,
-		RemoteAddr:            req.JoinRequest.RemoteAddr,
-		RawJoinClaims: &boundkeypair.Claims{
+	params := makeBotCertsParams(
+		req.JoinRequest,
+		&boundkeypair.Claims{
 			PublicKey:     boundPublicKey,
 			RecoveryCount: recoveryCount,
 			RecoveryMode:  recoveryMode,
 		},
-		Attrs: nil, // TODO: workload id claims
-	})
+		nil, // TODO: workload id claims
+	)
+	certs, botInstanceID, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
