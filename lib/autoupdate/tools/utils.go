@@ -194,6 +194,11 @@ type packageURL struct {
 
 // teleportPackageURLs returns URLs for the Teleport archives to download.
 func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version string) ([]packageURL, error) {
+	semVersion, err := semver.NewVersion(version)
+	if err != nil {
+		return nil, trace.BadParameter("version %q is not following semver", version)
+	}
+
 	m := modules.GetModules()
 	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
 	if m.BuildType() == modules.BuildOSS && envBaseURL == "" {
@@ -209,11 +214,21 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version s
 		flags |= autoupdate.FlagEnterprise
 	}
 
-	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, autoupdate.DefaultPackage, version, flags)
+	// TODO(vapopov): DELETE in v22.0.0 — the separate `teleport-tools` package
+	// will be included in all supported versions.
+	pkg := autoupdate.DefaultPackage
+	if semVersion.Major == 17 && semVersion.Compare(*semver.New("17.7.2")) >= 0 ||
+		semVersion.Major == 18 && semVersion.Compare(*semver.New("18.1.5")) >= 0 ||
+		semVersion.Major > 18 {
+		pkg = autoupdate.DefaultToolsPackage
+	}
+
+	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, pkg, version, flags)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if runtime.GOOS == constants.DarwinOS {
+	// TODO(vapopov): DELETE in v20.0.0 - the separate `tsh` package will no longer be supported.
+	if runtime.GOOS == constants.DarwinOS && semVersion.Major < 17 {
 		tshURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "tsh", version, flags)
 		if err != nil {
 			return nil, trace.Wrap(err)
