@@ -1,17 +1,10 @@
 ---
-title: Teleport Authentication with Azure Active Directory (AD)
-description: How to configure Teleport access with Azure Active Directory.
+title: Teleport Authentication with Microsoft Entra ID (formerly Azure AD)
+description: How to configure Teleport access with Microsoft Entra ID
 labels:
  - how-to
  - zero-trust
 ---
-
-{/* 
-Don't lint the presence of "Azure AD" until we change the guide to apply to
-Entra ID: https://github.com/gravitational/teleport/issues/47776
-*/}
-
-{/* vale 3rd-party-products.former-names = NO */}
 
 This guide will cover how to configure Microsoft Entra ID to issue credentials
 to specific groups of users with a SAML Authentication Connector. When used in
@@ -50,7 +43,7 @@ Before you get started, you’ll need:
 
 ### Create an enterprise application
 
-1. Select **Azure AD -> Enterprise Applications**
+1. Select **Entra ID -> Enterprise Applications**
 
    ![Select Enterprise Applications From Manage](../../../img/azuread/azuread-1-home.png)
 
@@ -114,7 +107,7 @@ Before you get started, you’ll need:
 
    ![Put in Security group claim](../../../img/azuread/azuread-8b-groupclaim.png)
 
-1. (optional) Add a claim that transforms the format of the Azure AD username to lower case, in order to use it inside
+1. (optional) Add a claim that transforms the format of the Entra ID username to lower case, in order to use it inside
    Teleport roles as the `{{external.username}}` property.
 
    Set the Source to "Transformation". In the new panel:
@@ -133,7 +126,7 @@ Before you get started, you’ll need:
 ## Step 2/3. Create a new Teleport role
 
 Create a Teleport role resource that will use external username data from the
-Azure AD connector to determine which Linux logins to allow on a host.
+Entra ID connector to determine which Linux logins to allow on a host.
 
 Create a file called `dev.yaml` with the following content:
 
@@ -154,7 +147,7 @@ spec:
 
 Users with the `dev` role are only allowed to log in to nodes with the `access:
 relaxed` Teleport label. They can log in as either `ubuntu` or a username that
-is passed in from the Azure AD connector using the `windowsaccountname`
+is passed in from the Entra ID connector using the `windowsaccountname`
 attribute.
 
 The login
@@ -229,7 +222,7 @@ $ cat azure-connector.yaml | tctl sso test
 ```
 
 Your browser should open and log you in to the Teleport cluster using your
-Azure AD credentials. If there are any problems, the CLI output will help you
+Entra ID credentials. If there are any problems, the CLI output will help you
 debug the connector configuration.
 
 
@@ -242,19 +235,19 @@ $ tctl create -f azure-connector.yaml
 
 ## Token encryption (Optional)
 
-Azure AD's SAML token encryption encrypts the SAML assertions sent to Teleport
+Entra ID's SAML token encryption encrypts the SAML assertions sent to Teleport
 during SSO redirect.
 
-Token encryption is an Azure Active Directory premium feature and requires a
-separate license. Since traffic between Azure AD and the Teleport Proxy Service
+Token encryption is an Microsoft Entra ID premium feature and requires a
+separate license. Since traffic between Entra ID and the Teleport Proxy Service
 already uses HTTPS, token encryption is optional. To determine whether you
-should enable token encryption, read the Azure AD
+should enable token encryption, read the Entra ID
 [documentation](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption).
 
 ### Set up Teleport token encryption
 
 Start with generating a public/private key and a certificate. You will set up
-the public certificate with Azure AD and the private key with Teleport.
+the public certificate with Entra ID and the private key with Teleport.
 
 ```code
 $ openssl req -nodes -new -x509 -keyout server.key -out server.cer
