@@ -1663,6 +1663,11 @@
       "source": "/zero-trust-access/management/guides/aws-iam-identity-center/using-aws-cli/",
       "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
       "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entraid/",
+      "permanent": true
     }
   ]
 }
