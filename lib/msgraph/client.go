@@ -168,13 +168,6 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		req.Header.Add("Content-Type", "application/json")
 	}
 
-	token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: scopes,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to get azure authentication token")
-	}
-	req.Header.Add("Authorization", "Bearer "+token.Token)
 	for i := range header {
 		req.Header.Add(i, header[i])
 	}
@@ -197,6 +190,14 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 				return nil, trace.NewAggregate(ctx.Err(), trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path))
 			}
 		}
+
+		token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
+			Scopes: scopes,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to get azure authentication token")
+		}
+		req.Header.Set("Authorization", "Bearer "+token.Token)
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
