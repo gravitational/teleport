@@ -50,9 +50,9 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/messages"
-	"github.com/gravitational/teleport/lib/join/server"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -254,7 +254,7 @@ func (s *fakeAuthService) runGRPCServer(t *testing.T, l net.Listener) {
 			authInterceptor,
 		),
 	)
-	joinv1.RegisterJoinServiceServer(authGRPCServer, server.NewServer(&server.Config{
+	joinv1.RegisterJoinServiceServer(authGRPCServer, join.NewServer(&join.ServerConfig{
 		AuthService: s,
 		Authorizer:  &fakeAuthorizer{},
 	}))
@@ -318,7 +318,7 @@ func (s *fakeAuthService) ValidateToken(ctx context.Context, tokenName string) (
 	return token, nil
 }
 
-func (s *fakeAuthService) GenerateCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *server.GenerateCertsForJoinRequest) (*proto.Certs, error) {
+func (s *fakeAuthService) GenerateCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *join.GenerateCertsForJoinRequest) (*proto.Certs, error) {
 	identity := tlsca.Identity{
 		Username:        utils.HostFQDN(req.HostID, "testcluster"),
 		Groups:          []string{req.Role.String()},

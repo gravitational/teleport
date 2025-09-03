@@ -32,7 +32,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
-	joinserver "github.com/gravitational/teleport/lib/join/server"
+	"github.com/gravitational/teleport/lib/join"
 )
 
 // RegisterUsingOracleMethod registers the caller using the Oracle join method and
@@ -83,7 +83,7 @@ func (a *Server) registerUsingOracleMethod(
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &joinserver.GenerateCertsForJoinRequest{
+	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &join.GenerateCertsForJoinRequest{
 		HostID:               tokenReq.HostID,
 		NodeName:             tokenReq.NodeName,
 		Role:                 tokenReq.Role,

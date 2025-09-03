@@ -37,7 +37,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
-	joinserver "github.com/gravitational/teleport/lib/join/server"
+	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -407,7 +407,7 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 		return nil, trace.Wrap(err, "checking iam request")
 	}
 
-	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &joinserver.GenerateCertsForJoinRequest{
+	certs, err = a.GenerateCertsForJoin(ctx, provisionToken, &join.GenerateCertsForJoinRequest{
 		HostID:               req.RegisterUsingTokenRequest.HostID,
 		NodeName:             req.RegisterUsingTokenRequest.NodeName,
 		Role:                 req.RegisterUsingTokenRequest.Role,
