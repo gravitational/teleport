@@ -61,7 +61,10 @@ func TestTeleportPackageURLs(t *testing.T) {
 			name:    "v17-latest",
 			version: "17.7.2",
 			expected: func() []expected {
-				return []expected{{archivePrefix: "/teleport-tools-", optional: false}}
+				if runtime.GOOS == constants.DarwinOS {
+					return []expected{{archivePrefix: "/teleport-tools-", optional: false}}
+				}
+				return []expected{{archivePrefix: "/teleport-", optional: false}}
 			},
 		},
 		{
@@ -75,14 +78,20 @@ func TestTeleportPackageURLs(t *testing.T) {
 			name:    "v18-latest",
 			version: "18.1.5",
 			expected: func() []expected {
-				return []expected{{archivePrefix: "/teleport-tools-", optional: false}}
+				if runtime.GOOS == constants.DarwinOS {
+					return []expected{{archivePrefix: "/teleport-tools-", optional: false}}
+				}
+				return []expected{{archivePrefix: "/teleport-", optional: false}}
 			},
 		},
 		{
 			name:    "v19",
 			version: "19.0.0",
 			expected: func() []expected {
-				return []expected{{archivePrefix: "/teleport-tools-", optional: false}}
+				if runtime.GOOS == constants.DarwinOS {
+					return []expected{{archivePrefix: "/teleport-tools-", optional: false}}
+				}
+				return []expected{{archivePrefix: "/teleport-", optional: false}}
 			},
 		},
 		{

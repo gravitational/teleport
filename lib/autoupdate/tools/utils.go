@@ -214,12 +214,13 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version s
 		flags |= autoupdate.FlagEnterprise
 	}
 
-	// TODO(vapopov): DELETE in v22.0.0 — the separate `teleport-tools` package
+	// TODO(vapopov): DELETE in v22.0.0 version check - the separate `teleport-tools` package
 	// will be included in all supported versions.
 	pkg := autoupdate.DefaultPackage
-	if semVersion.Major == 17 && semVersion.Compare(*semver.New("17.7.2")) >= 0 ||
-		semVersion.Major == 18 && semVersion.Compare(*semver.New("18.1.5")) >= 0 ||
-		semVersion.Major > 18 {
+	if runtime.GOOS == constants.DarwinOS &&
+		(semVersion.Major == 17 && semVersion.Compare(*semver.New("17.7.2")) >= 0 ||
+			semVersion.Major == 18 && semVersion.Compare(*semver.New("18.1.5")) >= 0 ||
+			semVersion.Major > 18) {
 		pkg = autoupdate.DefaultToolsPackage
 	}
 
