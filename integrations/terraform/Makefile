@@ -13,6 +13,18 @@ CGOFLAG ?= CGO_ENABLED=0
 
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
 
+ifeq ($(OS),windows)
+  EXEEXT := .exe
+else
+  EXEEXT :=
+endif
+
+# The name of the built binary inside $(BUILDDIR)
+BINARY_NAME := terraform-provider-teleport$(EXEEXT)
+
+# Full release filename for Windows
+WINDOWS_RELEASE := terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)$(EXEEXT)
+
 .PHONY: tfclean
 tfclean:
 	rm -rf $(TFDIR)/terraform.tfstate
@@ -25,12 +37,15 @@ clean: tfclean
 	rm -rf $(PROVIDER_PATH)*
 	rm -rf $(BUILDDIR)/*
 	rm -rf $(RELEASE).tar.gz
+	rm -rf $(RELEASE)$(EXEEXT)
 	go clean
 
 .PHONY: build
 build: clean
 # Turning off GOWORK to prevent missing package errors.
-	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "kustomize_disable_go_plugin_support" -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
+	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) \
+		go build -tags "kustomize_disable_go_plugin_support,terraform" \
+		-o $(BUILDDIR)/$(BINARY_NAME) $(BUILDFLAGS)
 
 build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm64 amd64)
 	lipo -create -output $(BUILDDIR)/terraform-provider-teleport $^
@@ -148,13 +163,21 @@ darwin-signed-build: build
 endif
 	$(NOTARIZE_BINARIES)
 
+.PHONY: windows-release
+windows-release: build
+	cp $(BUILDDIR)/$(BINARY_NAME) $(WINDOWS_RELEASE)
+
 .PHONY: release
-ifeq ($(OS),darwin)
+ifeq ($(OS),windows)
+release: windows-release
+else ifeq ($(OS),darwin)
 release: darwin-signed-build
 else
 release: build
 endif
-	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
+	@if [ "$(OS)" != "windows" ]; then \
+		tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .; \
+	fi
 
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
 CURRENT_ULIMIT := $(shell ulimit -n)
