@@ -192,7 +192,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.65.0
 	github.com/quic-go/quic-go v0.54.0
-	github.com/redis/go-redis/v9 v9.10.0 // replaced
+	github.com/redis/go-redis/v9 v9.12.1 // replaced
 	github.com/russellhaering/gosaml2 v0.10.0
 	github.com/russellhaering/goxmldsig v1.5.0
 	github.com/schollz/progressbar/v3 v3.18.0
@@ -230,7 +230,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.38.0
 	go.opentelemetry.io/proto/otlp v1.7.1
 	golang.org/x/crypto v0.41.0
-	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
+	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
 	golang.org/x/mod v0.27.0
 	golang.org/x/net v0.43.0
 	golang.org/x/oauth2 v0.30.0
@@ -241,7 +241,7 @@ require (
 	golang.org/x/time v0.12.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.3
-	google.golang.org/api v0.247.0
+	google.golang.org/api v0.248.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5
 	google.golang.org/grpc v1.75.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
@@ -368,7 +368,6 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/globocom/go-buffer v1.2.2 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
-	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-chi/chi/v5 v5.2.2 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
@@ -379,7 +378,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
-	github.com/go-openapi/errors v0.22.1 // indirect
+	github.com/go-openapi/errors v0.22.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/loads v0.22.0 // indirect
@@ -531,7 +530,7 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
-	github.com/sigstore/rekor v1.4.0 // indirect
+	github.com/sigstore/rekor v1.4.1 // indirect
 	github.com/sigstore/rekor-tiles v0.1.7-0.20250624231741-98cd4a77300f // indirect
 	github.com/sigstore/timestamp-authority v1.2.8 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect

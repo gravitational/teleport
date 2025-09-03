@@ -186,7 +186,6 @@ require (
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/globocom/go-buffer v1.2.2 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
-	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-chi/chi/v5 v5.2.2 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
@@ -202,7 +201,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-mysql-org/go-mysql v1.9.1 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
-	github.com/go-openapi/errors v0.22.1 // indirect
+	github.com/go-openapi/errors v0.22.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/loads v0.22.0 // indirect
@@ -389,7 +388,7 @@ require (
 	github.com/prometheus/common v0.65.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
-	github.com/redis/go-redis/v9 v9.10.0 // indirect
+	github.com/redis/go-redis/v9 v9.12.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/cors v1.11.1 // indirect
@@ -410,7 +409,7 @@ require (
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
 	github.com/sigstore/protobuf-specs v0.5.0 // indirect
-	github.com/sigstore/rekor v1.4.0 // indirect
+	github.com/sigstore/rekor v1.4.1 // indirect
 	github.com/sigstore/rekor-tiles v0.1.7-0.20250624231741-98cd4a77300f // indirect
 	github.com/sigstore/sigstore v1.9.5 // indirect
 	github.com/sigstore/sigstore-go v1.1.1 // indirect
@@ -484,7 +483,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
-	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
+	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
@@ -494,7 +493,7 @@ require (
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
-	google.golang.org/api v0.247.0 // indirect
+	google.golang.org/api v0.248.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250825161204-c5933d9347a5 // indirect
