@@ -195,23 +195,6 @@ the regular expression `/^dev-[a-z0-9-]+$/`, run the following command:
 $ tsh request create --resource '/teleport.example.com/kube:cw:namespaces/mycluster/^dev-[a-z0-9-]+$'
 ```
 
-Using cluster-scoped resource requests requires the role under `search_as_roles` to have the correct
-permissions for the cluster-scoped resource.  This is an example of the required permissions to
-request access only to the namespace `prod` (does not include any resources within it):
-
-```yaml
-kind: role
-version: v8
-spec:
-  allow:
-    kubernetes_resources:
-    - kind: namespaces
-      api_group: ''
-      name: prod
-      verbs:
-      - '*'
-```
-
 ### Wildcard requests
 
 You can request access to a namespace and all resources within it, as well as to all cluster-wide resources. To do so, you can use wildcards in the resource ID.
