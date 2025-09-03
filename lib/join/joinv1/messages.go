@@ -35,22 +35,28 @@ func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
 
 func clientInitToMessage(req *joinv1.ClientInit) *messages.ClientInit {
 	msg := &messages.ClientInit{
-		JoinMethod:           req.JoinMethod,
-		TokenName:            req.TokenName,
-		NodeName:             req.NodeName,
-		Role:                 req.Role,
-		AdditionalPrincipals: req.AdditionalPrincipals,
-		DNSNames:             req.DnsNames,
-		PublicTLSKey:         req.PublicTlsKey,
-		PublicSSHKey:         req.PublicSshKey,
-		ForwardedByProxy:     req.ForwardedByProxy,
+		JoinMethod:       req.JoinMethod,
+		TokenName:        req.TokenName,
+		SystemRole:       req.SystemRole,
+		PublicTLSKey:     req.PublicTlsKey,
+		PublicSSHKey:     req.PublicSshKey,
+		ForwardedByProxy: req.ForwardedByProxy,
+		HostParams:       &messages.HostParams{},
 	}
-	if req.Expires != nil {
-		expires := req.Expires.AsTime()
-		msg.Expires = &expires
+	if hostParams := req.HostParams; hostParams != nil {
+		msg.HostParams = &messages.HostParams{
+			HostName:             hostParams.HostName,
+			AdditionalPrincipals: hostParams.AdditionalPrincipals,
+			DNSNames:             hostParams.DnsNames,
+		}
+	}
+	if botParams := req.BotParams; botParams != nil {
+		msg.BotParams = &messages.BotParams{
+			Expires: botParams.Expires.AsTime(),
+		}
 	}
 	if proxySuppliedParams := req.GetProxySuppliedParameters(); proxySuppliedParams != nil {
-		msg.ProxySuppliedParameters = &messages.ProxySuppliedParameters{
+		msg.ProxySuppliedParams = &messages.ProxySuppliedParams{
 			RemoteAddr:    proxySuppliedParams.RemoteAddr,
 			ClientVersion: proxySuppliedParams.ClientVersion,
 		}
@@ -73,21 +79,27 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 
 func clientInitFromMessage(msg *messages.ClientInit) *joinv1.ClientInit {
 	req := &joinv1.ClientInit{
-		JoinMethod:           msg.JoinMethod,
-		TokenName:            msg.TokenName,
-		NodeName:             msg.NodeName,
-		Role:                 msg.Role,
-		AdditionalPrincipals: msg.AdditionalPrincipals,
-		DnsNames:             msg.DNSNames,
-		PublicTlsKey:         msg.PublicTLSKey,
-		PublicSshKey:         msg.PublicSSHKey,
-		ForwardedByProxy:     msg.ForwardedByProxy,
+		JoinMethod:       msg.JoinMethod,
+		TokenName:        msg.TokenName,
+		SystemRole:       msg.SystemRole,
+		PublicTlsKey:     msg.PublicTLSKey,
+		PublicSshKey:     msg.PublicSSHKey,
+		ForwardedByProxy: msg.ForwardedByProxy,
 	}
-	if msg.Expires != nil {
-		req.Expires = timestamppb.New(*msg.Expires)
+	if hostParams := msg.HostParams; hostParams != nil {
+		req.HostParams = &joinv1.ClientInit_HostParams{
+			HostName:             hostParams.HostName,
+			AdditionalPrincipals: hostParams.AdditionalPrincipals,
+			DnsNames:             hostParams.DNSNames,
+		}
 	}
-	if proxySuppliedParams := msg.ProxySuppliedParameters; proxySuppliedParams != nil {
-		req.ProxySuppliedParameters = &joinv1.ClientInit_ProxySuppliedParameters{
+	if botParams := msg.BotParams; botParams != nil {
+		req.BotParams = &joinv1.ClientInit_BotParams{
+			Expires: timestamppb.New(botParams.Expires),
+		}
+	}
+	if proxySuppliedParams := msg.ProxySuppliedParams; proxySuppliedParams != nil {
+		req.ProxySuppliedParameters = &joinv1.ClientInit_ProxySuppliedParams{
 			RemoteAddr:    proxySuppliedParams.RemoteAddr,
 			ClientVersion: proxySuppliedParams.ClientVersion,
 		}

@@ -50,59 +50,105 @@ type ClientInit struct {
 	// This is a secret if using the token join method, otherwise it is a
 	// non-secret name of a provision token resource.
 	TokenName string
-	// NodeName is the user-friendly node name.
-	NodeName string
-	// Role is the system role requested, e.g. Proxy, Node, Instance.
-	Role string
-	// AdditionalPrincipals is a list of additional principals requested.
-	AdditionalPrincipals []string
-	// DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
-	DNSNames []string
+	// SystemRole is the system role requested, e.g. Proxy, Node, Instance, Bot.
+	SystemRole string
 	// PublicTlsKey is the public key requested for the subject of the x509 certificate.
 	// It must be encoded in PKIX, ASN.1 DER form.
 	PublicTLSKey []byte
 	// PublicSshKey is the public key requested for the subject of the SSH certificate.
 	// It must be encoded in SSH wire format.
 	PublicSSHKey []byte
-	// Expires is a desired time of the expiry of certificates returned by
-	// registration. It is only used for bot joining and is ignored otherwise.
-	Expires *time.Time
 	// ForwardedByProxy will be set to true when the message is forwarded by the
 	// Proxy service. When this is set the Auth service must ignore any
 	// any credentials authenticating the request, except for the purpose of
 	// accepting ProxySuppliedParameters.
 	ForwardedByProxy bool
-	// ProxySuppliedParameters holds parameters added by the Proxy when
+	// HostParams holds parameters that are specific to host joining and
+	// irrelevant to bot joining.
+	HostParams *HostParams
+	// BotParams holds parameters that are specific to bot joining and
+	// irrelevant to host joining.
+	BotParams *BotParams
+	// ProxySuppliedParams holds parameters added by the Proxy when
 	// nodes join via the proxy address. They must only be trusted if the
 	// incoming join request is authenticated as the Proxy.
-	ProxySuppliedParameters *ProxySuppliedParameters
+	ProxySuppliedParams *ProxySuppliedParams
 }
 
 func (i *ClientInit) Check() error {
 	switch {
 	case i.TokenName == "":
 		return trace.BadParameter("TokenName is required")
-	case i.NodeName == "":
-		return trace.BadParameter("NodeName is required")
-	case i.Role == "":
-		return trace.BadParameter("Role is required")
+	case i.SystemRole == "":
+		return trace.BadParameter("SystemRole is required")
 	case len(i.PublicTLSKey) == 0:
 		return trace.BadParameter("PublicTLSKey is required")
 	case len(i.PublicSSHKey) == 0:
 		return trace.BadParameter("PublicSSHKey is required")
+	case i.HostParams == nil && i.BotParams == nil:
+		return trace.BadParameter("HostParams or BotParams must be set")
+	case i.HostParams != nil && i.BotParams != nil:
+		return trace.BadParameter("HostParams and BotParams cannot both be set")
+	}
+	if err := i.HostParams.check(); err != nil {
+		return trace.Wrap(err, "checking HostParams")
+	}
+	if err := i.BotParams.check(); err != nil {
+		return trace.Wrap(err, "checking BotParams")
 	}
 	return nil
 }
 
-// ProxySuppliedParameters contains parameters added by the proxy when the
+// ProxySuppliedParams contains parameters added by the proxy when the
 // proxy terminates the initial TLS connection. These should only be trusted
 // when the request authenticates as a valid proxy.
-type ProxySuppliedParameters struct {
+type ProxySuppliedParams struct {
 	// RemoteAddr is the remote address of the host requesting a certificate.
 	// It replaces 0.0.0.0 in the list of additional principals.
 	RemoteAddr string
 	// ClientVersion is the Teleport version of the client attempting to join.
 	ClientVersion string
+}
+
+// HostParams holds parameters that are specific to host joining and
+// irrelevant to bot joining.
+type HostParams struct {
+	// HostName is the user-friendly node name for the host. This comes from
+	// teleport.nodename in the service configuration and defaults to the
+	// hostname. It is encoded as a valid principal in issued certificates.
+	HostName string
+	// AdditionalPrincipals is a list of additional principals requested.
+	AdditionalPrincipals []string
+	// DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
+	DNSNames []string
+}
+
+func (p *HostParams) check() error {
+	switch {
+	case p == nil:
+		return nil
+	case p.HostName == "":
+		return trace.BadParameter("HostName is required")
+	}
+	return nil
+}
+
+// BotParams holds parameters that are specific to bot joining and
+// irrelevant to host joining.
+type BotParams struct {
+	// Expires is a desired time of the expiry of certificates returned by
+	// registration.
+	Expires time.Time
+}
+
+func (p *BotParams) check() error {
+	switch {
+	case p == nil:
+		return nil
+	case p.Expires.IsZero():
+		return trace.BadParameter("Expires is required")
+	}
+	return nil
 }
 
 // Response is implemented by all join response messages.
@@ -149,6 +195,9 @@ type ClientStream interface {
 
 // ServerStream represents the server side of a join request stream.
 // It can send [Response]s and receive [Request]s.
+//
+// To cancel a blocked Send or Recv you must return from the handler. This
+// models the underlying gRPC stream.
 type ServerStream interface {
 	Context() context.Context
 	Diagnostic() *diagnostic.Diagnostic

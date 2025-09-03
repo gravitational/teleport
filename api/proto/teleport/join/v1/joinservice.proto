@@ -23,16 +23,6 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // ClientInit is the first message sent from the client during the join process, it
 // holds parameters common to all join methods.
 message ClientInit {
-  // ProxySuppliedParameters holds parameters set by the Proxy when nodes join
-  // via the proxy address. They must only be trusted if the incoming join
-  // request is authenticated as the Proxy.
-  message ProxySuppliedParameters {
-    // RemoteAddr is the remote address of the host requesting a host certificate.
-    // It replaces 0.0.0.0 in the list of additional principals.
-    string remote_addr = 1;
-    // ClientVersion is the Teleport version of the client attempting to join.
-    string client_version = 2;
-  }
   // JoinMethod is the name of the join method that the client is configured to use.
   // This parameter is optional, the client can leave it empty to allow the
   // server to determine the join method based on the provision token named by
@@ -42,32 +32,53 @@ message ClientInit {
   // This is a secret if using the token join method, otherwise it is a
   // non-secret name of a provision token resource.
   string token_name = 2;
-  // NodeName is the user-friendly node name.
-  string node_name = 3;
-  // Role is the system role requested, e.g. Proxy, Node, Instance.
-  string role = 4;
-  // AdditionalPrincipals is a list of additional principals requested.
-  repeated string additional_principals = 5;
-  // DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
-  repeated string dns_names = 6;
+  // SystemRole is the system role requested, e.g. Proxy, Node, Instance, Bot.
+  string system_role = 3;
   // PublicTlsKey is the public key requested for the subject of the x509 certificate.
   // It must be encoded in PKIX, ASN.1 DER form.
-  bytes public_tls_key = 7;
+  bytes public_tls_key = 4;
   // PublicSshKey is the public key requested for the subject of the SSH certificate.
   // It must be encoded in SSH wire format.
-  bytes public_ssh_key = 8;
-  // Expires is a desired time of the expiry of certificates returned by
-  // registration. It is only used for bot joining and is ignored otherwise.
-  google.protobuf.Timestamp expires = 9;
+  bytes public_ssh_key = 5;
   // ForwardedByProxy will be set to true when the message is forwarded by the
   // Proxy service. When this is set the Auth service must ignore any
   // any credentials authenticating the request, except for the purpose of
-  // accepting ProxySuppliedParameters.
-  bool forwarded_by_proxy = 10;
-  // ProxySuppliedParameters holds parameters added by the Proxy when
-  // nodes join via the proxy address. They must only be trusted if the
-  // incoming join request is authenticated as the Proxy.
-  optional ProxySuppliedParameters proxy_supplied_parameters = 11;
+  // accepting ProxySuppliedParams.
+  bool forwarded_by_proxy = 6;
+
+  // HostParams holds parameters that are specific to host joining and
+  // irrelevant to bot joining.
+  message HostParams {
+    // HostName is the user-friendly node name for the host. This comes from
+    // teleport.nodename in the service configuration and defaults to the
+    // hostname. It is encoded as a valid principal in issued certificates.
+    string host_name = 1;
+    // AdditionalPrincipals is a list of additional principals requested.
+    repeated string additional_principals = 2;
+    // DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
+    repeated string dns_names = 3;
+  }
+  HostParams host_params = 7;
+
+  // BotParams holds parameters that are specific to bot joining and irrelevant
+  // to host joining.
+  message BotParams {
+    // Expires is a desired time of the expiry of the returned certificates.
+    google.protobuf.Timestamp expires = 9;
+  }
+  BotParams bot_params = 8;
+
+  // ProxySuppliedParams holds parameters set by the Proxy when nodes join
+  // via the proxy address. They must only be trusted if the incoming join
+  // request is authenticated as the Proxy.
+  message ProxySuppliedParams {
+    // RemoteAddr is the remote address of the host requesting a host certificate.
+    // It replaces 0.0.0.0 in the list of additional principals.
+    string remote_addr = 1;
+    // ClientVersion is the Teleport version of the client attempting to join.
+    string client_version = 2;
+  }
+  optional ProxySuppliedParams proxy_supplied_parameters = 9;
 }
 
 // JoinRequest is the message type sent from the joining client to the server.

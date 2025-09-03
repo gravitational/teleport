@@ -318,23 +318,23 @@ func (s *fakeAuthService) ValidateToken(ctx context.Context, tokenName string) (
 	return token, nil
 }
 
-func (s *fakeAuthService) GenerateCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *join.GenerateCertsForJoinRequest) (*proto.Certs, error) {
+func (s *fakeAuthService) GenerateHostCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, params *join.HostCertsParams) (*proto.Certs, error) {
 	identity := tlsca.Identity{
-		Username:        utils.HostFQDN(req.HostID, "testcluster"),
-		Groups:          []string{req.Role.String()},
+		Username:        utils.HostFQDN(params.HostID, "testcluster"),
+		Groups:          []string{params.SystemRole.String()},
 		TeleportCluster: "testcluster",
 	}
-	if req.Role == types.RoleInstance {
+	if params.SystemRole == types.RoleInstance {
 		identity.SystemRoles = apiutils.Deduplicate(slices.Concat(
 			provisionToken.GetRoles().StringSlice(),
-			req.AuthenticatedSystemRoles.StringSlice(),
+			params.AuthenticatedSystemRoles.StringSlice(),
 		))
 	}
 	subject, err := identity.Subject()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsPub, err := keys.ParsePublicKey(req.PublicTLSKey)
+	tlsPub, err := keys.ParsePublicKey(params.PublicTLSKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -342,7 +342,7 @@ func (s *fakeAuthService) GenerateCertsForJoin(ctx context.Context, provisionTok
 		PublicKey: tlsPub,
 		Subject:   subject,
 		NotAfter:  time.Now().Add(time.Minute),
-		DNSNames:  req.AdditionalPrincipals,
+		DNSNames:  params.AdditionalPrincipals,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -355,13 +355,13 @@ func (s *fakeAuthService) GenerateCertsForJoin(ctx context.Context, provisionTok
 	sshKeyGen := keygen.New(ctx)
 	sshCert, err := sshKeyGen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshCASigner,
-		PublicHostKey: req.PublicSSHKey,
-		HostID:        req.HostID,
-		NodeName:      req.NodeName,
+		PublicHostKey: params.PublicSSHKey,
+		HostID:        params.HostID,
+		NodeName:      params.HostName,
 		Identity: sshca.Identity{
 			ClusterName: "testcluster",
-			SystemRole:  req.Role,
-			Principals:  req.AdditionalPrincipals,
+			SystemRole:  params.SystemRole,
+			Principals:  params.AdditionalPrincipals,
 		},
 	})
 	if err != nil {
@@ -378,6 +378,10 @@ func (s *fakeAuthService) GenerateCertsForJoin(ctx context.Context, provisionTok
 			ssh.MarshalAuthorizedKey(sshCASigner.PublicKey()),
 		},
 	}, nil
+}
+
+func (s *fakeAuthService) GenerateBotCertsForJoin(_ context.Context, _ types.ProvisionToken, _ *join.BotCertsParams) (*proto.Certs, string, error) {
+	return nil, "", trace.NotImplemented("fakeAuthService.GenerateBotCertsForJoin is not implemented")
 }
 
 func (s *fakeAuthService) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
@@ -422,10 +426,12 @@ func (p *fakeProxy) join(t *testing.T) {
 	hostKeys := genHostKeys(t)
 	require.NoError(t, stream.Send(&messages.ClientInit{
 		TokenName:    "token1",
-		NodeName:     "proxy",
-		Role:         types.RoleProxy.String(),
+		SystemRole:   types.RoleProxy.String(),
 		PublicTLSKey: hostKeys.tlsPubKey,
 		PublicSSHKey: hostKeys.sshPubKey,
+		HostParams: &messages.HostParams{
+			HostName: "proxy",
+		},
 	}))
 	resp, err := stream.Recv()
 	require.NoError(t, err)
@@ -502,10 +508,12 @@ func (n *fakeNode) join(
 
 	err = stream.Send(&messages.ClientInit{
 		TokenName:    token,
-		NodeName:     "node",
-		Role:         types.RoleInstance.String(),
 		PublicTLSKey: n.hostKeys.tlsPubKey,
 		PublicSSHKey: n.hostKeys.sshPubKey,
+		SystemRole:   types.RoleInstance.String(),
+		HostParams: &messages.HostParams{
+			HostName: "node",
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
