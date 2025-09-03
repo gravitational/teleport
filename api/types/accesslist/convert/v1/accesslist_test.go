@@ -33,6 +33,8 @@ import (
 )
 
 func TestWithOwnersIneligibleStatusField(t *testing.T) {
+	t.Parallel()
+
 	proto := []*accesslistv1.AccessListOwner{
 		{
 			Name:             "expired",
@@ -120,9 +122,16 @@ func TestRoundtrip(t *testing.T) {
 			},
 		},
 		{
+			name: "implicit-dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = ""
+			},
+		},
+		{
 			name: "static-type",
 			modificationFn: func(accessList *accesslist.AccessList) {
 				accessList.Spec.Type = accesslist.Static
+				accessList.Spec.Audit = accesslist.Audit{}
 			},
 		},
 	} {
@@ -142,17 +151,10 @@ func TestRoundtrip(t *testing.T) {
 	}
 }
 
-func Test_FromProto_withBadType(t *testing.T) {
-	accessList := newAccessList(t, "access-list")
-	accessList.Spec.Type = "test_bad_type"
-
-	_, err := FromProto(ToProto(accessList))
-	require.Error(t, err)
-	require.ErrorContains(t, err, `unknown access_list type "test_bad_type"`)
-}
-
 // Make sure that we don't panic if any of the message fields are missing.
 func TestFromProtoNils(t *testing.T) {
+	t.Parallel()
+
 	t.Run("spec", func(t *testing.T) {
 		accessList := ToProto(newAccessList(t, "access-list"))
 		accessList.Spec = nil
@@ -166,7 +168,7 @@ func TestFromProtoNils(t *testing.T) {
 		accessList.Spec.Owners = nil
 
 		_, err := FromProto(accessList)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("audit", func(t *testing.T) {
@@ -320,130 +322,148 @@ func TestNextAuditDateZeroTime(t *testing.T) {
 }
 
 func TestConvAccessList(t *testing.T) {
+	t.Parallel()
+
+	newAccessList := func(modifyFn func(*accesslistv1.AccessList)) *accesslistv1.AccessList {
+		al := &accesslistv1.AccessList{
+			Header: &v1.ResourceHeader{
+				Version: "v1",
+				Kind:    types.KindAccessList,
+				Metadata: &v1.Metadata{
+					Name: "access-list",
+				},
+			},
+			Spec: &accesslistv1.AccessListSpec{
+				Title:              "test access list",
+				Description:        "test description",
+				OwnershipRequires:  &accesslistv1.AccessListRequires{},
+				MembershipRequires: &accesslistv1.AccessListRequires{},
+				Owners: []*accesslistv1.AccessListOwner{
+					{
+						Name: "test-user1",
+					},
+				},
+				Audit: &accesslistv1.AccessListAudit{
+					Recurrence: &accesslistv1.Recurrence{
+						Frequency:  1,
+						DayOfMonth: 1,
+					},
+					NextAuditDate: &timestamppb.Timestamp{
+						Seconds: 6,
+						Nanos:   1,
+					},
+					Notifications: &accesslistv1.Notifications{
+						Start: &durationpb.Duration{
+							Seconds: 1209600,
+						},
+					},
+				},
+				Grants: &accesslistv1.AccessListGrants{
+					Roles: []string{"role1"},
+				},
+			},
+			Status: &accesslistv1.AccessListStatus{},
+		}
+		if modifyFn != nil {
+			modifyFn(al)
+		}
+		return al
+	}
+
 	tests := []struct {
 		name  string
 		input *accesslistv1.AccessList
 	}{
 		{
-			name: "basic conversion",
-			input: &accesslistv1.AccessList{
-				Header: &v1.ResourceHeader{
-					Version: "v1",
-					Kind:    types.KindAccessList,
-					Metadata: &v1.Metadata{
-						Name: "access-list",
-					},
-				},
-				Spec: &accesslistv1.AccessListSpec{
-					Title:              "test access list",
-					Description:        "test description",
-					OwnershipRequires:  &accesslistv1.AccessListRequires{},
-					MembershipRequires: &accesslistv1.AccessListRequires{},
-					Owners: []*accesslistv1.AccessListOwner{
-						{
-							Name: "test-user1",
-						},
-					},
-					Audit: &accesslistv1.AccessListAudit{
-						Recurrence: &accesslistv1.Recurrence{
-							Frequency:  1,
-							DayOfMonth: 1,
-						},
-						NextAuditDate: &timestamppb.Timestamp{
-							Seconds: 6,
-							Nanos:   1,
-						},
-						Notifications: &accesslistv1.Notifications{
-							Start: &durationpb.Duration{
-								Seconds: 1209600,
-							},
-						},
-					},
-					Grants: &accesslistv1.AccessListGrants{
-						Roles: []string{"role1"},
-					},
-				},
-				Status: &accesslistv1.AccessListStatus{},
-			},
+			name:  "basic conversion",
+			input: newAccessList(nil),
 		},
 		{
 			name: "nil grants",
-			input: &accesslistv1.AccessList{
-				Header: &v1.ResourceHeader{
-					Version: "v1",
-					Kind:    types.KindAccessList,
-					Metadata: &v1.Metadata{
-						Name: "access-list",
-					},
-				},
-				Spec: &accesslistv1.AccessListSpec{
-					Title:              "test access list",
-					Description:        "test description",
-					OwnershipRequires:  &accesslistv1.AccessListRequires{},
-					MembershipRequires: &accesslistv1.AccessListRequires{},
-					Owners: []*accesslistv1.AccessListOwner{
-						{
-							Name: "test-user1",
-						},
-					},
-					Audit: &accesslistv1.AccessListAudit{
-						Recurrence: &accesslistv1.Recurrence{
-							Frequency:  1,
-							DayOfMonth: 1,
-						},
-						NextAuditDate: &timestamppb.Timestamp{
-							Seconds: 6,
-							Nanos:   1,
-						},
-						Notifications: &accesslistv1.Notifications{
-							Start: &durationpb.Duration{
-								Seconds: 1209600,
-							},
-						},
-					},
-					Grants: nil,
-				},
-				Status: &accesslistv1.AccessListStatus{},
-			},
+			input: newAccessList(func(al *accesslistv1.AccessList) {
+				al.Spec.Grants = nil
+			}),
 		},
 		{
 			name: "SCIM, Static access list allows for empty owners",
-			input: &accesslistv1.AccessList{
-				Header: &v1.ResourceHeader{
-					Version: "v1",
-					Kind:    types.KindAccessList,
-					Metadata: &v1.Metadata{
-						Name: "access-list",
+			input: newAccessList(func(al *accesslistv1.AccessList) {
+				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Owners = []*accesslistv1.AccessListOwner{}
+			}),
+		},
+		{
+			name: "audit with only Recurrence.DayOfMonth set",
+			input: newAccessList(func(al *accesslistv1.AccessList) {
+				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Audit = &accesslistv1.AccessListAudit{
+					Recurrence: &accesslistv1.Recurrence{
+						DayOfMonth: accesslistv1.ReviewDayOfMonth_REVIEW_DAY_OF_MONTH_LAST,
 					},
-				},
-				Spec: &accesslistv1.AccessListSpec{
-					Type:               string(accesslist.SCIM),
-					Title:              "test access list",
-					Description:        "test description",
-					Owners:             []*accesslistv1.AccessListOwner{},
-					OwnershipRequires:  &accesslistv1.AccessListRequires{},
-					MembershipRequires: &accesslistv1.AccessListRequires{},
-					Audit: &accesslistv1.AccessListAudit{
-						Recurrence: &accesslistv1.Recurrence{
-							Frequency:  1,
-							DayOfMonth: 1,
-						},
-						NextAuditDate: &timestamppb.Timestamp{
-							Seconds: 6,
-							Nanos:   1,
-						},
-						Notifications: &accesslistv1.Notifications{
-							Start: &durationpb.Duration{
-								Seconds: 1209600,
-							},
+					Notifications: &accesslistv1.Notifications{
+						Start: &durationpb.Duration{
+							Seconds: 12345,
 						},
 					},
-					Grants: &accesslistv1.AccessListGrants{
-						Roles: []string{"role1"},
+				}
+			}),
+		},
+		{
+			name: "audit with only Recurrence.Frequency and Notifications.Start set",
+			input: newAccessList(func(al *accesslistv1.AccessList) {
+				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Audit = &accesslistv1.AccessListAudit{
+					Recurrence: &accesslistv1.Recurrence{
+						Frequency: accesslistv1.ReviewFrequency_REVIEW_FREQUENCY_ONE_YEAR,
 					},
-				},
-				Status: &accesslistv1.AccessListStatus{},
-			},
+					Notifications: &accesslistv1.Notifications{
+						Start: &durationpb.Duration{},
+					},
+				}
+			}),
+		},
+		{
+			name: "scim-type",
+			input: newAccessList(func(al *accesslistv1.AccessList) {
+				al.Spec.Type = string(accesslist.SCIM)
+			}),
+		},
+		{
+			name: "static-type",
+			input: newAccessList(func(al *accesslistv1.AccessList) {
+				al.Spec.Type = string(accesslist.SCIM)
+			}),
+		},
+		{
+			name: "scim-type and zero audit",
+			input: newAccessList(func(al *accesslistv1.AccessList) {
+				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Audit = &accesslistv1.AccessListAudit{
+					NextAuditDate: &timestamppb.Timestamp{},
+					Recurrence: &accesslistv1.Recurrence{
+						Frequency:  0,
+						DayOfMonth: 0,
+					},
+					Notifications: &accesslistv1.Notifications{
+						Start: &durationpb.Duration{},
+					},
+				}
+			}),
+		},
+		{
+			name: "static-type and partial audit",
+			input: newAccessList(func(al *accesslistv1.AccessList) {
+				al.Spec.Type = string(accesslist.Static)
+				al.Spec.Audit = &accesslistv1.AccessListAudit{
+					NextAuditDate: &timestamppb.Timestamp{},
+					Recurrence: &accesslistv1.Recurrence{
+						Frequency:  0,
+						DayOfMonth: 4,
+					},
+					Notifications: &accesslistv1.Notifications{
+						Start: &durationpb.Duration{},
+					},
+				}
+			}),
 		},
 	}
 

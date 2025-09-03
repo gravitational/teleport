@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -189,8 +190,15 @@ var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
-func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
+	defer func() {
+		if err != nil {
+			cancelFunc()
+		}
+	}()
+
+	err = metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -225,6 +233,59 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		cfg.ClusterConfiguration = clusterConfig
+	}
+	if cfg.KeyStore == nil {
+		keystoreOpts := &keystore.Options{
+			HostUUID:             cfg.HostUUID,
+			ClusterName:          cfg.ClusterName,
+			AuthPreferenceGetter: cfg.ClusterConfiguration,
+			FIPS:                 cfg.FIPS,
+		}
+		if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+				return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			}
+		} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+				return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			}
+		} else if cfg.KeyStoreConfig.AWSKMS != nil {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+				return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			}
+		}
+		cfg.KeyStore, err = keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.RecordingEncryption == nil {
+		localRecordingEncryption, err := local.NewRecordingEncryptionService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		recordingEncryptionManager, err := recordingencryption.NewManager(closeCtx, recordingencryption.ManagerConfig{
+			Backend:                       localRecordingEncryption,
+			Cache:                         localRecordingEncryption,
+			ClusterConfig:                 cfg.ClusterConfiguration,
+			KeyStore:                      cfg.KeyStore,
+			Logger:                        cfg.Logger,
+			InitialSessionRecordingConfig: cfg.SessionRecordingConfig,
+			LockConfig: backend.RunWhileLockedConfig{
+				LockConfiguration: backend.LockConfiguration{
+					Backend:            cfg.Backend,
+					TTL:                time.Second * 30,
+					LockNameComponents: []string{"recording_encryption"},
+				},
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "initializing session recording encryption")
+		}
+
+		cfg.RecordingEncryption = recordingEncryptionManager
+		cfg.ClusterConfiguration = recordingEncryptionManager
 	}
 	if cfg.AutoUpdateService == nil {
 		cfg.AutoUpdateService, err = local.NewAutoUpdateService(cfg.Backend)
@@ -479,30 +540,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
 
-	keystoreOpts := &keystore.Options{
-		HostUUID:             cfg.HostUUID,
-		ClusterName:          cfg.ClusterName,
-		AuthPreferenceGetter: cfg.ClusterConfiguration,
-		FIPS:                 cfg.FIPS,
-	}
-	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	} else if cfg.KeyStoreConfig.AWSKMS != nil {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	}
-	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if cfg.KubeWaitingContainers == nil {
 		cfg.KubeWaitingContainers, err = local.NewKubeWaitingContainerService(cfg.Backend)
 		if err != nil {
@@ -524,7 +561,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
-	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -580,10 +616,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
+		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
+		RecordingEncryptionManager:      cfg.RecordingEncryption,
 	}
 
-	as := Server{
+	as = &Server{
 		bk:                        cfg.Backend,
 		clock:                     cfg.Clock,
 		limiter:                   limiter,
@@ -597,7 +635,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Unstable:                  local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:                  services,
 		Cache:                     services,
-		keyStore:                  keyStore,
+		keyStore:                  cfg.KeyStore,
 		traceClient:               cfg.TraceClient,
 		fips:                      cfg.FIPS,
 		loadAllCAs:                cfg.LoadAllCAs,
@@ -606,7 +644,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		logger:                    cfg.Logger,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	}
-	as.inventory = inventory.NewController(&as, services,
+	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
 		inventory.WithClock(cfg.Clock),
 		inventory.WithOnConnect(func(s string) {
@@ -626,7 +664,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	)
 
 	for _, o := range opts {
-		if err := o(&as); err != nil {
+		if err := o(as); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -733,9 +771,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
-		AccessLists: &as,
-		Access:      &as,
-		UsageEvents: &as,
+		AccessLists: as,
+		Access:      as,
+		UsageEvents: as,
 		Clock:       cfg.Clock,
 		Emitter:     as.emitter,
 	})
@@ -757,7 +795,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
 	}
 
-	return &as, nil
+	return as, nil
 }
 
 // Services is a collection of services that are used by the auth server.
@@ -824,7 +862,9 @@ type Services struct {
 	services.HealthCheckConfig
 	services.BackendInfoService
 	services.VnetConfigService
+	events.MultipartHandler
 	services.Summarizer
+	RecordingEncryptionManager
 }
 
 // GetWebSession returns existing web session described by req.
@@ -2918,7 +2958,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3508,10 +3548,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
-	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	// Generate AWS client side credentials if the user is trying to access an AWS App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
 	switch {
-	case errors.Is(err, errNotIntegrationApp):
+	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
@@ -4608,7 +4648,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5432,10 +5472,37 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		return nil, trace.Wrap(err)
 	}
 
+	// Fetch all Access Lists from the Cache, for use in generating Request promotions and validating long-term grouping
+	allAccessLists, err := a.Cache.GetAccessLists(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var longTermResourceGrouping *types.LongTermResourceGrouping
+
+	if req.GetRequestKind().IsLongTerm() {
+		longTermResourceGrouping, err = a.generateLongTermResourceGrouping(ctx, req, allAccessLists)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if longTermResourceGrouping == nil {
+			return nil, trace.Errorf("Failed to find optimal resource grouping for long-term access")
+		}
+		if !longTermResourceGrouping.CanProceed && !req.GetDryRun() {
+			return nil, trace.BadParameter("%s", longTermResourceGrouping.ValidationMessage)
+		}
+	}
+
 	if req.GetDryRun() {
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
-		_, promotions := a.generateAccessRequestPromotions(ctx, req)
+		_, promotions := a.generateAccessRequestPromotions(ctx, req, allAccessLists)
+		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
+
+		if req.GetRequestKind().IsLongTerm() {
+			req.SetLongTermResourceGrouping(longTermResourceGrouping)
+		}
+
 		// Return before creating the request if this is a dry run.
 		return req, nil
 	}
@@ -5451,6 +5518,12 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// We want the long-term grouping info present in the returned request,
+	// but don't want it persisted via setting before saving the request.
+	if req.GetRequestKind().IsLongTerm() {
+		req.SetLongTermResourceGrouping(longTermResourceGrouping)
 	}
 
 	var annotations *apievents.Struct
@@ -5546,7 +5619,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// calculate the promotions
-	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)
+	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req, allAccessLists)
 	if promotions != nil {
 		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
 		// be able to distinguish between an allowed empty set and generation failure.
@@ -5639,11 +5712,31 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 	return nil
 }
 
+// cacheWithFetchedAccessLists is a wrapper around authclient.Cache to provide pre-fetched Access Lists
+// for use in both generating long-term resource groupings, and generating access request promotions.
+// This avoids the need to fetch Access Lists from the backend multiple times per-CreateAccessRequest call.
+type cacheWithFetchedAccessLists struct {
+	authclient.Cache
+	fetchedACLs []*accesslist.AccessList
+}
+
+func (c *cacheWithFetchedAccessLists) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
+	return c.fetchedACLs, nil
+}
+func (c *cacheWithFetchedAccessLists) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
+	return c.fetchedACLs, "", nil
+}
+
+// generateLongTermResourceGrouping will validate and group resources based on coverage by access lists.
+func (a *Server) generateLongTermResourceGrouping(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (*types.LongTermResourceGrouping, error) {
+	return modules.GetModules().GenerateLongTermResourceGrouping(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, req)
+}
+
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
 // the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
-func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
+func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
 	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Cache, reqCopy)
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
 	if err != nil {
 		// Do not fail the request if the promotions failed to generate.
 		// The request promotion will be blocked, but the request can still be approved.
@@ -6517,6 +6610,9 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		}
 
 		for _, al := range response {
+			if !al.IsReviewable() {
+				continue
+			}
 			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
 			// Only keep access lists that fall within our thresholds in memory
 			if daysDiff <= 15 {

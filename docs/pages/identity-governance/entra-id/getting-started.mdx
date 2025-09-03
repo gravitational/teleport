@@ -1,5 +1,5 @@
 ---
-title: Getting started with Entra ID integration
+title: Getting Started with the Entra ID Integration
 description: Describes how to set up the Teleport Entra ID integration in Teleport.
 labels:
  - how-to
@@ -80,7 +80,7 @@ Connect-MgGraph -Scopes 'Directory.ReadWrite.All', 'AppRoleAssignment.ReadWrite.
 $managedIdentity = Get-MgServicePrincipal -ServicePrincipalId '<Var name="Principal ID" />'
 
 # Set the Microsoft Graph enterprise application object.
-# This is a service principal object representing Microsoft Graph in Azure AD with a specific app ID.
+# This is a service principal object representing Microsoft Graph in Entra ID with a specific app ID.
 $graphSPN = Get-MgServicePrincipal -Filter "AppId eq '00000003-0000-0000-c000-000000000000'"
 
 # Define the permission scopes that we want to assign to the managed identity.
@@ -178,7 +178,8 @@ importing resources from Entra ID to Teleport.
 
 ## Next steps
 
-- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/azuread.mdx). 
+- [Configure Access](configure-access.mdx) for Entra ID users.
 - Learn more about [Access List](../access-lists/access-lists.mdx) management.
+- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/entra-id.mdx). 
 - Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
 - See [FAQs](faq.mdx) related to the Teleport Entra ID integration. 

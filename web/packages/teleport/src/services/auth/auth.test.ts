@@ -20,8 +20,6 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import auth from 'teleport/services/auth';
 
-/* eslint-disable jest/no-conditional-expect */
-
 describe('services/auth', () => {
   afterEach(() => {
     jest.clearAllMocks();

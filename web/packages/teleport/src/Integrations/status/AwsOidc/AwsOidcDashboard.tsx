@@ -25,7 +25,7 @@ import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle'
 import {
   AwsResource,
   StatCard,
-} from 'teleport/Integrations/status/AwsOidc/StatCard';
+} from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 
@@ -73,19 +73,16 @@ export function AwsOidcDashboard() {
         <Flex gap={3}>
           <StatCard
             name={integration.name}
-            item="instances"
             resource={AwsResource.ec2}
             summary={awsec2}
           />
           <StatCard
             name={integration.name}
-            item="databases"
             resource={AwsResource.rds}
             summary={awsrds}
           />
           <StatCard
             name={integration.name}
-            item="clusters"
             resource={AwsResource.eks}
             summary={awseks}
           />

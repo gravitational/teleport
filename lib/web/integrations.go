@@ -110,9 +110,10 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 		}, &types.AWSRAIntegrationSpecV1{
 			TrustAnchorARN: req.Integration.AWSRA.TrustAnchorARN,
 			ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
-				Enabled:    req.Integration.AWSRA.ProfileSyncConfig.Enabled,
-				ProfileARN: req.Integration.AWSRA.ProfileSyncConfig.ProfileARN,
-				RoleARN:    req.Integration.AWSRA.ProfileSyncConfig.RoleARN,
+				Enabled:            req.Integration.AWSRA.ProfileSyncConfig.Enabled,
+				ProfileARN:         req.Integration.AWSRA.ProfileSyncConfig.ProfileARN,
+				RoleARN:            req.Integration.AWSRA.ProfileSyncConfig.RoleARN,
+				ProfileNameFilters: req.Integration.AWSRA.ProfileSyncConfig.ProfileNameFilters,
 			},
 		})
 		if err != nil {
@@ -148,7 +149,7 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	var req *ui.UpdateIntegrationRequest
@@ -212,9 +213,10 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		spec := integration.GetAWSRolesAnywhereIntegrationSpec()
 		spec.TrustAnchorARN = req.AWSRA.TrustAnchorARN
 		spec.ProfileSyncConfig = &types.AWSRolesAnywhereProfileSyncConfig{
-			Enabled:    req.AWSRA.ProfileSyncConfig.Enabled,
-			ProfileARN: req.AWSRA.ProfileSyncConfig.ProfileARN,
-			RoleARN:    req.AWSRA.ProfileSyncConfig.RoleARN,
+			Enabled:            req.AWSRA.ProfileSyncConfig.Enabled,
+			ProfileARN:         req.AWSRA.ProfileSyncConfig.ProfileARN,
+			RoleARN:            req.AWSRA.ProfileSyncConfig.RoleARN,
+			ProfileNameFilters: req.AWSRA.ProfileSyncConfig.ProfileNameFilters,
 
 			ProfileAcceptsRoleSessionName: spec.ProfileSyncConfig.ProfileAcceptsRoleSessionName,
 		}
@@ -237,7 +239,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name_or_subkind")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
@@ -260,7 +262,7 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
@@ -285,7 +287,7 @@ func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p http
 func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
@@ -400,25 +402,57 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		nextPage = nextToken
 	}
 
+	switch req.integration.GetSubKind() {
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		ret.RolesAnywhereProfileSync = &ui.RolesAnywhereProfileSync{}
+
+		awsRolesAnywhereSpec := req.integration.GetAWSRolesAnywhereIntegrationSpec()
+		if awsRolesAnywhereSpec != nil {
+			ret.RolesAnywhereProfileSync.Enabled = awsRolesAnywhereSpec.ProfileSyncConfig.Enabled
+		}
+
+		integrationStatus := req.integration.GetStatus()
+		if integrationStatus.AWSRolesAnywhere != nil {
+			ret.RolesAnywhereProfileSync.Status = integrationStatus.AWSRolesAnywhere.LastProfileSync.Status
+			ret.RolesAnywhereProfileSync.ErrorMessage = integrationStatus.AWSRolesAnywhere.LastProfileSync.ErrorMessage
+			ret.RolesAnywhereProfileSync.SyncedProfiles = int(integrationStatus.AWSRolesAnywhere.LastProfileSync.SyncedProfiles)
+			ret.RolesAnywhereProfileSync.SyncStartTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.StartTime
+			ret.RolesAnywhereProfileSync.SyncEndTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.EndTime
+		}
+
+	case types.IntegrationSubKindAWSOIDC:
+		// For now, Deploying Database Services is only possible using the AWS OIDC Integration.
+		// When/if more integrations (eg, AWS IAM Roles Anywhere) support it, this must be updated.
+		ecsCount, err := countAWSOIDCDeployedDatabaseServices(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ret.AWSRDS.ECSDatabaseServiceCount = ecsCount
+	}
+
+	return ret, nil
+}
+
+func countAWSOIDCDeployedDatabaseServices(ctx context.Context, req collectIntegrationStatsRequest) (int, error) {
 	regions, err := fetchRelevantAWSRegions(ctx, req.databaseGetter, req.discoveryConfigLister)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
 	services, err := listDeployedDatabaseServices(ctx, req.logger, req.integration.GetName(), regions, req.awsOIDCClient)
-	switch {
-	case trace.IsAccessDenied(err):
+	if err != nil {
 		// The number of ECS Database Services is shown when listing the integration status.
 		// However, listing ECS Services is only possible after the user goes through the RDS enrollment flows, which adds the required policy to the IAM Role.
 		// If this calls returns an access denied, we assume the user doesn't have the required IAM Policies in their IAM Role and show 0 instead.
+		if trace.IsAccessDenied(err) {
+			return 0, nil
+		}
 
-	case err != nil:
-		return nil, trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
-	ret.AWSRDS.ECSDatabaseServiceCount = len(services)
-
-	return ret, nil
+	return len(services), nil
 }
 
 func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, lastSyncTime time.Time, new *discoveryconfigv1.ResourcesDiscoveredSummary) {
@@ -468,7 +502,7 @@ func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType strin
 func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	values := r.URL.Query()
@@ -651,7 +685,7 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 func (h *Handler) integrationsExportCA(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)

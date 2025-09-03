@@ -19,10 +19,12 @@
 package events
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"io/fs"
+	"iter"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -203,6 +205,9 @@ type AuditLog struct {
 	// localLog is a local events log used
 	// to emit audit events if no external log has been specified
 	localLog *FileLog
+
+	// decrypter wraps session replay with decryption
+	decrypter DecryptionWrapper
 }
 
 // AuditLogConfig specifies configuration for AuditLog server
@@ -247,6 +252,9 @@ type AuditLogConfig struct {
 
 	// Context is audit log context
 	Context context.Context
+
+	// Decrypter wraps session replay with decryption
+	Decrypter DecryptionWrapper
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -258,7 +266,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ServerID")
 	}
 	if a.UploadHandler == nil {
-		return trace.BadParameter("missing parameter UploadHandler")
+		return trace.BadParameter("missing parameter DownloadHandler")
 	}
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
@@ -304,6 +312,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,
 		cancel:          cancel,
+		decrypter:       cfg.Decrypter,
 	}
 	// create a directory for audit logs, audit log does not create
 	// session logs before migrations are run in case if the directory
@@ -572,7 +581,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			return
 		}
 
-		protoReader := NewProtoReader(rawSession)
+		protoReader := NewProtoReader(rawSession, l.decrypter)
 		defer protoReader.Close()
 
 		firstEvent := true
@@ -609,6 +618,39 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	}()
 
 	return c, e
+}
+
+// UploadEncryptedRecording uploads encrypted recordings using the AuditLog's configured UploadHandler.
+func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	sessID, err := session.ParseID(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	upload, err := l.UploadHandler.CreateUpload(ctx, *sessID)
+	if err != nil {
+		return trace.Wrap(err, "creating upload")
+	}
+
+	var streamParts []StreamPart
+	var partNumber int64
+	for part, err := range parts {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := l.UploadHandler.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
+			return trace.Wrap(err, "reserving upload part")
+		}
+
+		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
+		if err != nil {
+			return trace.Wrap(err, "uploading part")
+		}
+		streamParts = append(streamParts, *streamPart)
+		partNumber++
+	}
+
+	return trace.Wrap(l.UploadHandler.CompleteUpload(ctx, *upload, streamParts), "completing upload")
 }
 
 // getLocalLog returns the local (file based) AuditLogger.

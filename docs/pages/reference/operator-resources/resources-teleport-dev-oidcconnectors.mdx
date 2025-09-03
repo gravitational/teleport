@@ -36,6 +36,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |client_redirect_settings|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
 |client_secret|string|ClientSecret is used to authenticate the client. This field supports secret lookup. See the operator documentation for more details.|
 |display|string|Display is the friendly name for this provider.|
+|entra_id_groups_provider|[object](#specentra_id_groups_provider)|EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for the "groups" claim when the user's group membership exceeds 200 max item limit.|
 |google_admin_email|string|GoogleAdminEmail is the email of a google admin to impersonate.|
 |google_service_account|string|GoogleServiceAccount is a string containing google service account credentials.|
 |google_service_account_uri|string|GoogleServiceAccountURI is a path to a google service account uri.|
@@ -46,6 +47,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |prompt|string|Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|
 |provider|string|Provider is the external identity provider.|
 |redirect_url|[]string|RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.|
+|request_object_mode|string|RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters.|
 |scope|[]string|Scope specifies additional scopes set by provider.|
 |user_matchers|[]string|UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|
 |username_claim|string|UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.|
@@ -65,6 +67,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
 |insecure_allowed_cidr_ranges|[]string|a list of CIDRs allowed for HTTP or HTTPS client redirect URLs|
 
+### spec.entra_id_groups_provider
+
+|Field|Type|Description|
+|---|---|---|
+|disabled|boolean|Disabled specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.|
+|graph_endpoint|string|GraphEndpoint is a Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint ("https://graph.windows.net"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.|
+|group_type|string|GroupType is a user group type filter. Defaults to "security-groups". Value can be "security-groups", "directory-roles", "all-groups".|
+
 ### spec.mfa
 
 |Field|Type|Description|
@@ -75,4 +85,5 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |enabled|boolean|Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.|
 |max_age|string|MaxAge is the amount of time in nanoseconds that an IdP session is valid for. Defaults to 0 to always force re-authentication for MFA checks. This should only be set to a non-zero value if the IdP is setup to perform MFA checks on top of active user sessions.|
 |prompt|string|Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|
+|request_object_mode|string|RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters. If omitted, MFA flows will default to the `RequestObjectMode` behavior specified in the base OIDC connector. Set this property to 'none' to explicitly disable request objects for the MFA client.|
 

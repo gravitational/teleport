@@ -57,6 +57,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -86,6 +88,15 @@ type VersionStorage interface {
 	DeleteTeleportVersion(ctx context.Context) error
 }
 
+// RecordingEncryptionManager wraps a RecordingEncryption backend service with higher level
+// operations.
+type RecordingEncryptionManager interface {
+	services.RecordingEncryption
+	recordingencryption.KeyUnwrapper
+	recordingencryptionv1.KeyRotater
+	SetCache(cache recordingencryption.Cache)
+}
+
 // InitConfig is auth server init config
 type InitConfig struct {
 	// Backend is auth backend to use
@@ -100,6 +111,10 @@ type InitConfig struct {
 	// KeyStoreConfig is the config for the KeyStore which handles private CA
 	// keys that may be held in an HSM.
 	KeyStoreConfig servicecfg.KeystoreConfig
+
+	// KeyStore handles private CA keys and encryption keys that may be held
+	// in an HSM.
+	KeyStore *keystore.Manager
 
 	// HostUUID is a UUID of this host
 	HostUUID string
@@ -368,11 +383,17 @@ type InitConfig struct {
 	// BackendInfo is a service of backend information.
 	BackendInfo services.BackendInfoService
 
+	// RecordingEncryption manages state for encrypted session recording.
+	RecordingEncryption RecordingEncryptionManager
+
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
 
 	// VnetConfigService manages the VNet config resource.
 	VnetConfigService services.VnetConfigService
+
+	// MultipartHandler handles multipart uploads.
+	MultipartHandler events.MultipartHandler
 
 	// Summarizer manages summary inference configuration resources.
 	Summarizer services.Summarizer
@@ -519,7 +540,14 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
+		if err := initializeAuthPreference(ctx, asrv, cfg.AuthPreference); err != nil {
+			span.End()
+			return trace.Wrap(err)
+		}
+		span.End()
+
+		ctx, span = cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
 		defer span.End()
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
@@ -534,12 +562,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeVnetConfig")
 		defer span.End()
 		return trace.Wrap(initializeVnetConfig(ctx, asrv))
-	})
-
-	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
-		defer span.End()
-		return trace.Wrap(initializeAuthPreference(ctx, asrv, cfg.AuthPreference))
 	})
 
 	g.Go(func() error {

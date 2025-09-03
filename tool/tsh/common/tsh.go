@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -509,7 +508,10 @@ type CLIConf struct {
 	TraceExporter string
 
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
-	TracingProvider oteltrace.TracerProvider
+	TracingProvider *tracing.Provider
+	// waitingForTracingClient will be set to true if the tracing provider is
+	// waiting for a *tracing.Client to be reported to it after logging in.
+	waitingForTracingClient bool
 
 	// disableAccessRequest disables automatic resource access requests. Deprecated in favor of RequestType.
 	disableAccessRequest bool
@@ -1961,18 +1963,35 @@ func initializeTracing(cf *CLIConf) func() {
 		cf.TracingProvider = provider
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
 		return flush(provider)
-	// The login command cannot forward spans to Auth since there is no way to get
-	// an authenticated client to forward with until after the authentication ceremony
-	// is complete. However, if the user explicitly provided an exporter then the login
-	// spans can be sent directly to it.
-	case cf.command == "login":
-		return func() {}
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
 	// for a Cloud tenant.
 	case !cf.SampleTraces:
 		return func() {}
 	case cf.SampleTraces:
+	}
+
+	// A login may be required to get a working Teleport client. Set up the
+	// tracing provider to wait for a client so that the initial login can be
+	// traced. Spans will be buffered in memory until the client is provided.
+	provider, err := tracing.NewTraceProvider(cf.Context,
+		tracing.Config{
+			Service:              teleport.ComponentTSH,
+			SamplingRate:         samplingRate,
+			WaitForDelayedClient: true,
+		})
+	if err != nil {
+		logger.DebugContext(cf.Context, "failed to set up span forwarding", "error", err)
+		return func() {}
+	}
+	cf.TracingProvider = provider
+	cf.tracer = provider.Tracer(teleport.ComponentTSH)
+
+	if cf.command == "login" {
+		// Don't call RetryWithRelogin below if the user is trying to log in.
+		// Rely on [onLogin] to set the delayed client on the tracing provider.
+		cf.waitingForTracingClient = true
+		return flush(provider)
 	}
 
 	// Parse the config to determine if forwarding is needed for Cloud and
@@ -1983,32 +2002,20 @@ func initializeTracing(cf *CLIConf) func() {
 		return func() {}
 	}
 
-	var provider *tracing.Provider
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clt, err := tc.NewTracingClient(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		p, err := tracing.NewTraceProvider(cf.Context,
-			tracing.Config{
-				Service:      teleport.ComponentTSH,
-				Client:       clt,
-				SamplingRate: samplingRate,
-			})
-		if err != nil {
+		if err := provider.SetClient(cf.Context, clt); err != nil {
 			return trace.NewAggregate(err, clt.Close())
 		}
-
-		provider = p
 		return nil
 	}); err != nil {
 		logger.DebugContext(cf.Context, "failed to set up span forwarding", "error", err)
 		return func() {}
 	}
 
-	cf.TracingProvider = provider
-	cf.tracer = provider.Tracer(teleport.ComponentTSH)
 	return flush(provider)
 }
 
@@ -2113,7 +2120,7 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 }
 
 // onLogin logs in with remote proxy and gets signed certificates
-func onLogin(cf *CLIConf, reExecArgs ...string) error {
+func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	autoRequest := true
 	// special case: --request-roles=no disables auto-request behavior.
 	if cf.DesiredRoles == "no" {
@@ -2154,6 +2161,27 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		return trace.Wrap(err)
 	}
 
+	// If the user requested tracing and the login succeeds (even if the user
+	// was already logged in) report the tracing client to the trace provider
+	// to that spans can be exported.
+	if cf.waitingForTracingClient {
+		defer func() {
+			if err != nil {
+				logger.DebugContext(cf.Context, "Login failed, unable to export traced spans")
+				return
+			}
+			tracingClient, err := tc.NewTracingClient(cf.Context)
+			if err != nil {
+				logger.DebugContext(cf.Context, "Failed to create tracing client after login", "error", err)
+				return
+			}
+			if err := cf.TracingProvider.SetClient(cf.Context, tracingClient); err != nil {
+				logger.DebugContext(cf.Context, "Failed to set tracing client on trace provider after login", "error", err)
+				tracingClient.Close()
+			}
+		}()
+	}
+
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
@@ -2187,7 +2215,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 				return trace.Wrap(err)
 			}
 
-			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) &&
@@ -2217,7 +2245,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 				}
 
 				// Print status to show information of the logged in user.
-				return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+				return trace.Wrap(printLoginInformation(cf, profile, profiles))
 			}
 
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -2249,7 +2277,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			}
 
 			// Print status to show information of the logged in user.
-			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
@@ -2265,7 +2293,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 				return trace.Wrap(err)
 			}
 			// Print status to show information of the logged in user.
-			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 
 		// otherwise just pass through to standard login
 		default:
@@ -2305,7 +2333,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		}
 		return trace.Wrap(err)
 	}
-
 	tc.AllowStdinHijack = false
 
 	// the login operation may update the username and should be considered the more
@@ -2416,7 +2443,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	}
 
 	// Print status to show information of the logged in user.
-	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
+	if err := printLoginInformation(cf, profile, profiles); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5253,7 +5280,7 @@ func rolesToString(debug bool, roles []string) string {
 }
 
 // printLoginInformation displays the provided profile information to the user.
-func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus, accessListsToReview []*accesslist.AccessList) error {
+func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus) error {
 	env := getTshEnv()
 	active, others := makeAllProfileInfo(profile, profiles, env)
 
@@ -5291,21 +5318,6 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 		}
 	}
 
-	if len(accessListsToReview) > 0 {
-		fmt.Printf("Access lists that need to be reviewed:\n")
-		for _, accessList := range accessListsToReview {
-			var msg string
-			nextAuditDate := accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly)
-			if time.Now().After(accessList.Spec.Audit.NextAuditDate) {
-				msg = fmt.Sprintf("review is overdue (%v)", nextAuditDate)
-			} else {
-				msg = fmt.Sprintf("review is required by %v", nextAuditDate)
-			}
-			fmt.Printf("\t%s (%v)\n", accessList.Spec.Title, msg)
-		}
-		fmt.Println()
-	}
-
 	return nil
 }
 
@@ -5336,13 +5348,7 @@ func onStatus(cf *CLIConf) error {
 	// hardware key touch or require a PIN.
 	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
 
-	var accessListsToReview []*accesslist.AccessList
-	if hardwareKeyInteractionRequired {
-		logger.DebugContext(cf.Context, "Skipping fetching access lists to review due to Hardware Key PIN/Touch requirement")
-	} else {
-		accessListsToReview = cf.getAccessListsToReview(tc)
-	}
-	if err := printLoginInformation(cf, profile, profiles, accessListsToReview); err != nil {
+	if err := printLoginInformation(cf, profile, profiles); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6032,28 +6038,6 @@ func onHeadlessApprove(cf *CLIConf) error {
 		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
-}
-
-// getAccessListsToReview will return access lists that the logged in user needs to review. On error,
-// this will return an empty list.
-func (cf *CLIConf) getAccessListsToReview(tc *client.TeleportClient) []*accesslist.AccessList {
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
-	if err != nil {
-		logger.DebugContext(cf.Context, "Error connecting to the cluster", "error", err)
-		return nil
-	}
-	defer func() {
-		clusterClient.Close()
-	}()
-
-	// Get the access lists to review. If the call returns NotImplemented, ignore it, as we may be communicating with an OSS
-	// server, which does not support access lists.
-	accessListsToReview, err := clusterClient.AuthClient.AccessListClient().GetAccessListsToReview(cf.Context)
-	if err != nil && !trace.IsNotImplemented(err) {
-		logger.DebugContext(cf.Context, "Error getting access lists to review", "error", err)
-	}
-
-	return accessListsToReview
 }
 
 var mlockModes = []string{mlockModeNo, mlockModeAuto, mlockModeBestEffort, mlockModeStrict}

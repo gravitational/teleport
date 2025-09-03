@@ -83,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auditd"
@@ -90,7 +91,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata/recordingmetadatav1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
@@ -106,6 +111,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	myrepl "github.com/gravitational/teleport/lib/client/db/mysql/repl"
 	pgrepl "github.com/gravitational/teleport/lib/client/db/postgres/repl"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -127,6 +133,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -1145,6 +1152,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cfg.DatabaseREPLRegistry = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{
 			defaults.ProtocolPostgres:    pgrepl.New,
 			defaults.ProtocolCockroachDB: pgrepl.New,
+			defaults.ProtocolMySQL:       myrepl.New,
 		})
 	}
 
@@ -2084,6 +2092,7 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 func (process *TeleportProcess) initAuthService() error {
 	var err error
 	cfg := process.Config
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
 
 	// Initialize the storage back-ends for keys, events and records
 	b, err := process.initAuthStorage()
@@ -2092,12 +2101,91 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.backend = b
 
+	clusterName := cfg.Auth.ClusterName.GetClusterName()
+	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if ident != nil {
+		clusterName = ident.ClusterName
+	}
+
+	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: clusterName,
+	})
+
+	clusterConfig := cfg.ClusterConfiguration
+	if clusterConfig == nil {
+		clusterConfig, err = local.NewClusterConfigurationService(b)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// create keystore
+	keystoreOpts := &keystore.Options{
+		HostUUID:             cfg.HostUUID,
+		ClusterName:          cn,
+		AuthPreferenceGetter: clusterConfig,
+		FIPS:                 cfg.FIPS,
+	}
+
+	switch {
+	case cfg.Auth.KeyStore.PKCS11 != servicecfg.PKCS11Config{}:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return trace.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		}
+	case cfg.Auth.KeyStore.GCPKMS != servicecfg.GCPKMSConfig{}:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return trace.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		}
+	case cfg.Auth.KeyStore.AWSKMS != nil:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return trace.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		}
+	}
+
+	keyStore, err := keystore.NewManager(process.GracefulExitContext(), &cfg.Auth.KeyStore, keystoreOpts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	localRecordingEncryption, err := local.NewRecordingEncryptionService(b)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	recordingEncryptionManager, err := recordingencryption.NewManager(process.GracefulExitContext(), recordingencryption.ManagerConfig{
+		Backend:       localRecordingEncryption,
+		Cache:         localRecordingEncryption,
+		KeyStore:      keyStore,
+		Logger:        logger,
+		ClusterConfig: clusterConfig,
+		LockConfig: backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:            process.backend,
+				TTL:                time.Second * 30,
+				LockNameComponents: []string{"recording_encryption"},
+			},
+		},
+		InitialSessionRecordingConfig: cfg.Auth.SessionRecordingConfig,
+	})
+	if err != nil {
+		return trace.Wrap(err, "initializing session recording encryption")
+	}
+
+	clusterConfig = recordingEncryptionManager
 	var emitter apievents.Emitter
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
 	var externalAuditStorage *externalauditstorage.Configurator
+	encryptedIO, err := recordingencryption.NewEncryptedIO(clusterConfig, recordingEncryptionManager)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	sessionSummarizerProvider := summarizer.NewSessionSummarizerProvider()
+	recordingMetadataProvider := recordingmetadata.NewProvider()
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
@@ -2138,6 +2226,8 @@ func (process *TeleportProcess) initAuthService() error {
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
 			Uploader:                  uploadHandler,
 			SessionSummarizerProvider: sessionSummarizerProvider,
+			RecordingMetadataProvider: recordingMetadataProvider,
+			Encrypter:                 encryptedIO,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2158,6 +2248,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ServerID:      cfg.HostUUID,
 			UploadHandler: uploadHandler,
 			ExternalLog:   externalLog,
+			Decrypter:     encryptedIO,
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
@@ -2177,15 +2268,6 @@ func (process *TeleportProcess) initAuthService() error {
 		} else {
 			emitter = localLog
 		}
-	}
-
-	clusterName := cfg.Auth.ClusterName.GetClusterName()
-	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if ident != nil {
-		clusterName = ident.ClusterName
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
@@ -2213,14 +2295,6 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
-	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: clusterName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
 	// Environment variable for disabling the check major version upgrade check and overrides
 	// latest known version in backend.
 	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
@@ -2233,7 +2307,7 @@ func (process *TeleportProcess) initAuthService() error {
 			VersionStorage:            process.storage,
 			SkipVersionCheck:          cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                 cfg.Keygen,
-			ClusterConfiguration:      cfg.ClusterConfiguration,
+			ClusterConfiguration:      clusterConfig,
 			AutoUpdateService:         cfg.AutoUpdateService,
 			ClusterAuditConfig:        cfg.Auth.AuditConfig,
 			ClusterNetworkingConfig:   cfg.Auth.NetworkingConfig,
@@ -2259,6 +2333,7 @@ func (process *TeleportProcess) initAuthService() error {
 			OIDCConnectors:            cfg.OIDCConnectors,
 			AuditLog:                  process.auditLog,
 			CipherSuites:              cfg.CipherSuites,
+			KeyStore:                  keyStore,
 			KeyStoreConfig:            cfg.Auth.KeyStore,
 			Emitter:                   checkingEmitter,
 			Streamer:                  events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
@@ -2268,9 +2343,11 @@ func (process *TeleportProcess) initAuthService() error {
 			AccessMonitoringEnabled:   cfg.Auth.IsAccessMonitoringEnabled(),
 			Clock:                     cfg.Clock,
 			HTTPClientForAWSSTS:       cfg.Auth.HTTPClientForAWSSTS,
+			MultipartHandler:          uploadHandler,
 			Tracer:                    process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                    logger,
 			SessionSummarizerProvider: sessionSummarizerProvider,
+			RecordingEncryption:       recordingEncryptionManager,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
@@ -2286,6 +2363,7 @@ func (process *TeleportProcess) initAuthService() error {
 				return trace.Wrap(err)
 			}
 			as.Cache = cache
+			recordingEncryptionManager.SetCache(cache)
 
 			return nil
 		})
@@ -2358,6 +2436,15 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
+
+	recordingMetadataService, err := recordingmetadatav1.NewRecordingMetadataService(recordingmetadatav1.RecordingMetadataServiceConfig{
+		Streamer:      authServer,
+		UploadHandler: authServer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	recordingMetadataProvider.SetService(recordingMetadataService)
 
 	process.setLocalAuth(authServer)
 
@@ -2645,6 +2732,23 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	})
 
+	process.RegisterFunc("auth.aws-roles-anywhere.profile-sync.service", func() error {
+		return trace.Wrap(awsra.RunAWSRolesAnywhereProfileSyncerWhileLocked(process.GracefulExitContext(), awsra.AWSRolesAnywhereProfileSyncerParams{
+			Clock:             process.Clock,
+			Logger:            logger,
+			KeyStoreManager:   authServer.GetKeyStore(),
+			Cache:             authServer.Cache,
+			StatusReporter:    authServer.Services,
+			Backend:           process.backend,
+			AppServerUpserter: authServer.Services,
+			HostUUID:          process.Config.HostUUID,
+		}))
+	})
+
+	process.RegisterFunc("auth.recording_encryption_resolver", func() error {
+		return trace.Wrap(recordingEncryptionManager.Watch(process.GracefulExitContext(), authServer.Services))
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2753,6 +2857,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.HealthCheckConfig = services.HealthCheckConfig
 	cfg.BotInstance = services.BotInstance
 	cfg.Plugin = services.Plugins
+	cfg.RecordingEncryption = services.RecordingEncryptionManager
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3165,7 +3270,7 @@ func (process *TeleportProcess) initSSH() error {
 			Component:      teleport.ComponentNode,
 			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id, "sessionctrl")),
 			TracerProvider: process.TracingProvider,
-			ServerID:       cfg.HostUUID,
+			ServerID:       conn.HostUUID(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3181,7 +3286,7 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.AdvertiseIP,
 			process.proxyPublicAddr(),
 			conn.Client,
-			regular.SetUUID(cfg.HostUUID),
+			regular.SetUUID(conn.HostUUID()),
 			regular.SetLimiter(limiter),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),
@@ -3235,7 +3340,7 @@ func (process *TeleportProcess) initSSH() error {
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
 			resumableServer = resumption.NewSSHServerWrapper(resumption.SSHServerWrapperConfig{
 				SSHServer: s.HandleConnection,
-				HostID:    cfg.HostUUID,
+				HostID:    conn.HostUUID(),
 				DataDir:   cfg.DataDir,
 			})
 
@@ -3498,11 +3603,12 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:         uploaderClient,
-		ScanDir:          uploadsDir,
-		CorruptedDir:     corruptedDir,
-		EventsC:          process.Config.Testing.UploadEventsC,
-		InitialScanDelay: 15 * time.Second,
+		Streamer:                   uploaderClient,
+		ScanDir:                    uploadsDir,
+		CorruptedDir:               corruptedDir,
+		EventsC:                    process.Config.Testing.UploadEventsC,
+		InitialScanDelay:           15 * time.Second,
+		EncryptedRecordingUploader: uploaderClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3861,23 +3967,39 @@ func (process *TeleportProcess) initTracingService() error {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentTracing, process.id))
 	logger.InfoContext(process.ExitContext(), "Initializing tracing provider and exporter.")
 
-	attrs := []attribute.KeyValue{
+	staticAttrs := []attribute.KeyValue{
 		attribute.String(tracing.ProcessIDKey, process.id),
 		attribute.String(tracing.HostnameKey, process.Config.Hostname),
-		attribute.String(tracing.HostIDKey, process.Config.HostUUID),
 	}
 
-	traceConf, err := process.Config.Tracing.Config(attrs...)
+	traceConf, err := process.Config.Tracing.Config(staticAttrs...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	traceConf.Logger = process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentTracing, process.id))
+	// Host UUID is not ready at this point, it will be reported to the tracing
+	// provider in the goroutine below.
+	traceConf.WaitForDelayedResourceAttrs = true
 
 	provider, err := tracing.NewTraceProvider(process.ExitContext(), *traceConf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	process.TracingProvider = provider
+
+	go func() {
+		var delayedResourceAttrs []attribute.KeyValue
+		hostUUID, err := process.waitForHostID(process.GracefulExitContext())
+		if err != nil {
+			logger.WarnContext(process.ExitContext(), "Failed to get host UUID, traces may be exported without host UUID attribute", "error", err)
+		} else {
+			delayedResourceAttrs = append(delayedResourceAttrs,
+				attribute.String(tracing.HostIDKey, hostUUID))
+		}
+		if err := process.TracingProvider.SetDelayedResourceAttrs(process.GracefulExitContext(), delayedResourceAttrs); err != nil {
+			logger.WarnContext(process.ExitContext(), "Failed to report delayed resource attributes to tracing provider", "error", err)
+		}
+	}()
 
 	process.OnExit("tracing.shutdown", func(payload interface{}) {
 		if payload == nil {
@@ -4827,7 +4949,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:      clusterName,
 			LocalAccessPoint: accessPoint,
-			SiteGetter:       tsrv,
+			ClusterGetter:    tsrv,
 			TracerProvider:   process.TracingProvider,
 			Logger:           process.logger.With(teleport.ComponentKey, "router"),
 		})
@@ -5808,10 +5930,10 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 			return nil, trace.ConvertSystemError(err)
 		}
 		hostChecker, err := newHostPolicyChecker(hostPolicyCheckerConfig{
-			publicAddrs: process.Config.Proxy.PublicAddrs,
-			clt:         conn.Client,
-			tun:         tsrv,
-			clusterName: conn.ClusterName(),
+			publicAddrs:   process.Config.Proxy.PublicAddrs,
+			clt:           conn.Client,
+			clusterGetter: tsrv,
+			clusterName:   conn.ClusterName(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

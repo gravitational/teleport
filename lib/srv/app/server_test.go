@@ -171,6 +171,7 @@ func SetUpSuite(t *testing.T) *Suite {
 
 func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s := &Suite{}
+	s.closeContext, s.closeFunc = context.WithCancel(t.Context())
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
@@ -237,8 +238,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Create user for regular tests.
 	s.user, err = authtest.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
-
-	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
@@ -923,6 +922,7 @@ func TestAuthorize(t *testing.T) {
 		roleAppLabels        types.Labels
 		appLabels            map[string]string
 		requireTrustedDevice bool // assigns user to a role that requires trusted devices
+		requireMFADevice     bool // assigns user to a role that requires an enrolled MFA device
 		wantStatus           int
 		assertBody           func(t *testing.T, gotBody string) bool // optional, matched against s.message if nil
 	}{
@@ -966,7 +966,16 @@ func TestAuthorize(t *testing.T) {
 			requireTrustedDevice: true,
 			wantStatus:           http.StatusForbidden,
 			assertBody: func(t *testing.T, gotBody string) bool {
-				const want = "app requires a trusted device"
+				const want = "trusted device is required to access this resource"
+				return assert.Contains(t, gotBody, want, "response body mismatch")
+			},
+		},
+		{
+			name:             "enrolled MFA device required",
+			requireMFADevice: true,
+			wantStatus:       http.StatusForbidden,
+			assertBody: func(t *testing.T, gotBody string) bool {
+				const want = "Multi-factor authentication (MFA) is required to access this resource"
 				return assert.Contains(t, gotBody, want, "response body mismatch")
 			},
 		},
@@ -981,11 +990,24 @@ func TestAuthorize(t *testing.T) {
 				RoleAppLabels: test.roleAppLabels,
 			})
 
-			if test.requireTrustedDevice {
+			// Helper to create and assign a role to the user, then refresh certificate.
+			assignRoleAndRefreshCert := func(roleName string, roleSpec types.RoleSpecV6) {
 				authServer := s.authServer.AuthServer
+				role, err := types.NewRole(roleName, roleSpec)
+				require.NoError(t, err, "NewRole")
+				role, err = authServer.CreateRole(ctx, role)
+				require.NoError(t, err, "CreateRole")
 
-				// Create a role that requires a trusted device.
-				requiredDevRole, err := types.NewRole("require-trusted-devices-app", types.RoleSpecV6{
+				user := s.user
+				user.AddRole(role.GetName())
+				user, err = authServer.Services.UpdateUser(ctx, user)
+				require.NoError(t, err, "UpdateUser")
+
+				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */)
+			}
+
+			if test.requireTrustedDevice {
+				assignRoleAndRefreshCert("require-trusted-devices-app", types.RoleSpecV6{
 					Options: types.RoleOptions{
 						DeviceTrustMode: constants.DeviceTrustModeRequired,
 					},
@@ -993,18 +1015,17 @@ func TestAuthorize(t *testing.T) {
 						AppLabels: types.Labels{"*": []string{"*"}},
 					},
 				})
-				require.NoError(t, err, "NewRole")
-				requiredDevRole, err = authServer.CreateRole(ctx, requiredDevRole)
-				require.NoError(t, err, "CreateRole")
+			}
 
-				// Add role to test user.
-				user := s.user
-				user.AddRole(requiredDevRole.GetName())
-				user, err = authServer.Services.UpdateUser(ctx, user)
-				require.NoError(t, err, "UpdateUser")
-
-				// Refresh user certificate.
-				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */)
+			if test.requireMFADevice {
+				assignRoleAndRefreshCert("require-mfa-app", types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequireMFAType: types.RequireMFAType_SESSION,
+					},
+					Allow: types.RoleConditions{
+						AppLabels: types.Labels{"*": []string{"*"}},
+					},
+				})
 			}
 
 			if test.cloudLabels != nil {

@@ -96,6 +96,35 @@ spec:
               display:
                 description: Display is the friendly name for this provider.
                 type: string
+              entra_id_groups_provider:
+                description: EntraIDGroupsProvider configures out-of-band user groups
+                  provider. It works by following through the groups claim source,
+                  which is sent for the "groups" claim when the user's group membership
+                  exceeds 200 max item limit.
+                nullable: true
+                properties:
+                  disabled:
+                    description: Disabled specifies that the groups provider should
+                      be disabled even when Entra ID responds with a groups claim
+                      source. User may choose to disable it if they are using integrations
+                      such as SCIM or similar groups importer as connector based role
+                      mapping may be not needed in such a scenario.
+                    type: boolean
+                  graph_endpoint:
+                    description: GraphEndpoint is a Microsoft Graph API endpoint.
+                      The groups claim source endpoint provided by Entra ID points
+                      to the now-retired Azure AD Graph endpoint ("https://graph.windows.net").
+                      To convert it to the newer Microsoft Graph API endpoint, Teleport
+                      defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com").
+                      Update GraphEndpoint to point to a different Microsoft Graph
+                      national cloud deployment endpoint.
+                    type: string
+                  group_type:
+                    description: GroupType is a user group type filter. Defaults to
+                      "security-groups". Value can be "security-groups", "directory-roles",
+                      "all-groups".
+                    type: string
+                type: object
               google_admin_email:
                 description: GoogleAdminEmail is the email of a google admin to impersonate.
                 type: string
@@ -151,6 +180,15 @@ spec:
                       omits prompt. If not specified, it defaults to select_account
                       for backwards compatibility.
                     type: string
+                  request_object_mode:
+                    description: RequestObjectMode determines how JWT-Secured Authorization
+                      Requests will be used for authorization requests. JARs, or request
+                      objects, can provide integrity protection, source authentication,
+                      and confidentiality for authorization request parameters. If
+                      omitted, MFA flows will default to the `RequestObjectMode` behavior
+                      specified in the base OIDC connector. Set this property to 'none'
+                      to explicitly disable request objects for the MFA client.
+                    type: string
                 type: object
               pkce_mode:
                 description: PKCEMode represents the configuration state for PKCE
@@ -174,6 +212,12 @@ spec:
                 items:
                   type: string
                 type: array
+              request_object_mode:
+                description: RequestObjectMode determines how JWT-Secured Authorization
+                  Requests will be used for authorization requests. JARs, or request
+                  objects, can provide integrity protection, source authentication,
+                  and confidentiality for authorization request parameters.
+                type: string
               scope:
                 description: Scope specifies additional scopes set by provider.
                 items:

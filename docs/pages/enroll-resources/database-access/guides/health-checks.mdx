@@ -172,7 +172,7 @@ You can click on a highlighted database to view some health check failure detail
 In this AWS RDS database example the health check error is a connection dial timeout, which is commonly caused by AWS security groups blocking connections to the database.
 
 You can use `tctl` to view more information about the affected Teleport Database Service.
-For example, the affected Teleport Database Service instances in the screenshot were deployed using the [Teleport AWS RDS enrollment wizard](../../../admin-guides/management/guides/awsoidc-integration-rds.mdx), which is indicated by the `teleport.dev/awsoidc-agent` label:
+For example, the affected Teleport Database Service instances in the screenshot were deployed using the [Teleport AWS RDS enrollment wizard](../../../zero-trust-access/management/guides/awsoidc-integration-rds.mdx), which is indicated by the `teleport.dev/awsoidc-agent` label:
 
 ```code
 $ tctl get db_service/22c8ecba-69fc-4c15-b94e-e8815236b9f0
@@ -197,6 +197,25 @@ version: v1
 Refer to the [Database Service troubleshooting guide](../troubleshooting.mdx) for general troubleshooting steps.
 
 ## FAQ
+
+### Why are MySQL health checks disabled?
+
+MySQL tracks connection errors for each remote host that tries to connect to the database.
+Each TCP health check is counted as a connection error and eventually MySQL will
+block a host when `sum_connect_errors >= max_connect_errors`.
+As a result, TCP health checks eventually cause MySQL databases to block Teleport.
+
+To re-enable TCP health checks:
+- set `max_connect_errors` to its maximum value on the database to effectively disable the automatic host blocking.
+- set the environment variable `TELEPORT_ENABLE_MYSQL_DB_HEALTH_CHECKS=1` on your Teleport Database Service instance(s).
+
+<Admonition type="warning">
+[MySQL documentation](https://dev.mysql.com/doc/refman/8.4/en/host-cache.html#:~:text=The%20value%20of%20the%20max_connect_errors,host%20from%20further%20connection%20requests) notes:
+> The value of the max_connect_errors system variable determines how many successive interrupted connection requests the server permits before blocking a host. After max_connect_errors failed requests without a successful connection, the server assumes that something is wrong (for example, that someone is trying to break in), and blocks the host from further connection requests.
+
+Setting `max_connect_errors` to its maximum value will effectively disable MySQL's host blocking feature.
+See https://dev.mysql.com/doc/refman/8.4/en/server-system-variables.html#sysvar_max_connect_errors
+</Admonition>
 
 ### How to disable database health checks?
 

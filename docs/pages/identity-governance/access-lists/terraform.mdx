@@ -1,0 +1,346 @@
+---
+title: Managing Access Lists with Terraform
+description: Learn how to manage Access Lists and their members with Terraform.
+labels:
+ - how-to
+ - identity-governance
+---
+
+You can manage Access List and their members using Terraform. This guide will help you:
+
+- Understand how to manage Access Lists with Terraform
+- Understand the difference between Access Lists managed by Teleport vs Terraform
+- Understand how to manage Access List members with Terraform
+
+
+## How it works
+
+We will create a simple organization structure represented with Access Lists using
+Terraform. It will consist of:
+
+- Access List representing a team
+- Access List representing access to a resource (staging database)
+- assigning the team access to the resource
+- (optionally) assigning Okta and/or Entra ID group access to the resource
+
+Access List management with Terraform is done using 2 Terraform resources:
+`teleport_access_list` and `teleport_access_list_member`.
+
+There are some nuances to members management. This is where concept of *Access List type* comes
+into play. There are 2 key Access List types: *default* and *static*.
+
+### Access List of default type
+
+The default Access List has the `.spec.type` field unset, or set to null or an empty string. Those are
+regular Access Lists, like those created in the web UI. And as a consequence:
+
+- They require auditing. Even though `.spec.audit` is not required, to be specified in the
+  Terraform resource, the default value will be set and those lists have to be periodically
+  reviewed in the web UI.
+- Their members can be only managed with with the web UI and `tctl`. The source of truth
+  for these lists is Teleport so you cannot manage their members with Terraform.
+
+
+### Access List of static type
+
+Access List of type static, have `.spec.type` set to "static". They differ from the default Access Lists:
+
+- They don't support audit. `.spec.audit` field can be set, but it's ignored by Teleport.
+- Their members can be managed by Terraform.
+
+For static Access Lists, the source of truth for the membership is external (provisioned by
+Terraform) so audit is not supported. The members should be reviewed at source, which are the
+Terraform data sources or manifests and this process has to be external to Teleport.
+
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.2.0 or higher)"!)
+- Teleport [Terraform provider set up with credentials](../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+
+
+## Step 1/6. Create an Access List for a team
+
+First let's define a role, because Access List validation requires a role to be specified. Because
+this Access List represents a team and shouldn't grant any permissions on its own, let's create a
+noop role for it:
+
+```hcl
+resource "teleport_role" "noop" {
+  version = "v7"
+  metadata = {
+    name = "noop"
+  }
+}
+```
+
+And a static Access Lists representing a dev team with some user members:
+
+```hcl
+resource "teleport_access_list" "developers" {
+  depends_on = [ teleport_role.noop ] # roles can't be deleted if they are in use
+  header = {
+    version = "v1"
+    metadata = {
+      name = "developers"
+    }
+  }
+  spec = {
+    type = "static" # type must be set to "static" to manage members with Terraform
+    title       = "Developers"
+    description = "Dev team."
+    owners = [
+      { name = "admin" },
+    ]
+    grants = {
+      roles = ["noop"]
+    }
+  }
+}
+
+resource "teleport_access_list_member" "developers_alice" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "alice" # Teleport user name
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.developers.id # assign to "Developers" Access List
+    membership_kind = 1 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+
+resource "teleport_access_list_member" "developers_bob" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "bob"
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.developers.id
+    membership_kind = 1 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+```
+
+Note that the Developers list is just a container for the users which belong to a single team in
+the org. On its own it doesn't grant any permissions to its members, as it assigns only the "noop"
+role, but it is possible to nest this list in another Access List to inherit the permissions. That
+will be shown in the follow up step.
+
+
+## Step 2/6. Create an Access Lists granting database access
+
+Now let's create an Access List representing access:
+
+```hcl
+resource "teleport_role" "db_access_staging" {
+  version = "v7"
+  metadata = {
+    name = "db_access_staging"
+  }
+  spec = {
+    allow = {
+      db_users = ["viewer"]
+      db_names = ["*"]
+      db_labels = {
+        env = "staging"
+      }
+    }
+  }
+}
+
+resource "teleport_access_list" "db_access_staging" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "db_access_staging"
+    }
+  }
+  spec = {
+    type = "static" # static, so members can be assigned with Terraform
+    title       = "Staging DBs access"
+    description = "Read-only access to staging databases"
+    owners = [
+      { name = "admin" },
+    ]
+    grants = {
+      roles = [teleport_role.db_access_staging.id]
+    }
+  }
+}
+```
+
+
+## Step 3/6. Give access to the team
+
+Knowing that nested Access Lists inherit grants of the parent Access list, giving "Developers" team
+"Staging DBs access" is now as simple as creating a nested Access List membership:
+
+```hcl
+resource "teleport_access_list_member" "db_access_staging_developers" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = teleport_access_list.developers.id
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.db_access_staging.id
+    membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+```
+
+Once "Developers" Access List is a member of "Staging DBs access" Access Lists, "Developers" list
+inherits grants of the "Staging DBs access" and in effect developers are granted access to the
+staging databases.
+
+
+## Step 4/6. Give access to a team managed in the web UI
+
+This step will show how Access Lists of the default type can be employed in the structure. As a
+quick reminder, the default Access Lists are supposed to be managed with the web UI and they
+require periodic reviews performed by the list owners. The default Access List members cannot be
+manged with Terraform, but the lists themselves can be created/modified and imported to Terraform.
+
+Let's create a default Access List representing another team "DB Administrators" reusing the "noop"
+role created in the previous steps:
+
+```hcl
+resource "teleport_access_list" "dbas" {
+  depends_on = [ teleport_role.noop ] # roles can't be deleted if they are in use
+  header = {
+    version = "v1"
+    metadata = {
+      name = "dbas"
+    }
+  }
+  spec = {
+    # type is skipped, this is a regular Access List
+    title       = "DBAs"
+    description = "DB Administrators team."
+    owners = [
+      { name = "admin" },
+    ]
+    grants = {
+      roles = ["noop"]
+    }
+    # audit settings can be skipped, the values below are the defaults
+    audit = {
+      recurrence = {
+        frequency    = 6 # every 6 months
+        day_of_month = 1 # first day of the month
+      }
+    }
+  }
+}
+```
+
+The new "DBAs" team members can be managed using the web UI. Teleport user `admin`, as the Access List
+owner, will be automatically granted permissions to manage members of this list. `admin` will be
+also required to review this list in the web UI every 6 months as defined in the *audit* section.
+Because Access List members are separate resources in Teleport, modifying the members won't affect
+the Teleport state for the `"teleport_access_list" "dbas"` resource.
+
+Now, let's give "DBAs" the "Staging DBs access":
+
+```hcl
+resource "teleport_access_list_member" "db_access_staging_dbas" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = teleport_access_list.dbas.id
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.db_access_staging.id
+    membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+```
+
+
+## Step 5/6. (optional) Give access to a Okta group
+
+The Okta integration allows [synchronizing Okta groups and apps](../okta/app-and-group-sync.mdx) as
+Teleport Access Lists. 
+
+To give permissions to the Okta group represented as an Access List in Teleport, navigate to the Okta
+Access List in the web UI, and from its URL (e.g.
+`https://example.teleport.sh/web/accesslists/00gt3c8z9ukePm5uF697`) copy the last path segment. In
+this case `00gt3c8z9ukePm5uF697` - this is the name of the Okta Access List resource in Teleport.
+
+Now to give the Okta group members "Staging DBs access" permissions, create the nested Access List
+membership:
+
+```hcl
+resource "teleport_access_list_member" "db_access_staging_okta_group" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "00gt3c8z9ukePm5uF697"
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.db_access_staging
+    membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+```
+
+## Step 6/6. (optional) Give access to an Entra ID group
+
+Entra ID integration allows [synchronizing groups](../entra-id/entra-id.mdx) as
+Teleport Access Lists. 
+
+To give permissions to Entra ID group represented as Access List in Teleport navigate to the Entra
+ID Access List in the web UI, and from its URL (e.g.
+`https://example.teleport.sh/web/accesslists/b1a6a594-a4ac-51d1-a6f6-1746a413a79a`) copy the last
+path segment. In this case `b1a6a594-a4ac-51d1-a6f6-1746a413a79a` - this is the name of the Entra
+ID Access List resource in Teleport.
+
+Now to give the Entra ID group members "Staging DBs access" permissions, create the nested Access
+List membership:
+
+```hcl
+resource "teleport_access_list_member" "db_access_staging_entra_id_group" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "b1a6a594-a4ac-51d1-a6f6-1746a413a79a"
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.db_access_staging
+    membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+```
+
+## FAQ
+
+### Can I import my existing Access List into Terraform and start managing its members with IaC?
+
+This is usually not the case. Any Access List can be imported, but Access Lists created in the UI
+are not static type, so their members can't be managed with Terraform. The same applies to Access
+Lists created by an integration (e.g. [Okta](../okta/app-and-group-sync.mdx) or [Entra
+ID](../entra-id/entra-id.mdx)). An existing static list created by another Terraform setup (with
+a different state) could be imported and then its members can be managed by Terraform, but that's
+rather a rare use-case.
+
+The recommended solution is to create a static Access List managed with Terraform and make this
+list a member of the existing Access List. That way the members of the static Access List managed
+with Terraform will inherit the grants of the existing Access List.
+
+
+## Next Steps
+
+- Learn how [nested Access Lists](./nested-access-lists.mdx) grants inheritance work.
+- Familiarize yourself with
+  [teleport_access_list](../../reference/terraform-provider/resources/access_list.mdx) and
+  [teleport_access_list_member](../../reference/terraform-provider/resources/access_list_member.mdx)
+  Terraform resources.
+
