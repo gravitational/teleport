@@ -17,7 +17,6 @@
  */
 
 import { useCallback, type MouseEvent } from 'react';
-import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { ChatCircleSparkle, Cross } from 'design/Icon';
