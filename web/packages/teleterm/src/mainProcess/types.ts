@@ -334,6 +334,7 @@ export enum RendererIpc {
   DeepLinkLaunch = 'renderer-deep-link-launch',
   OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
   AppUpdateEvent = 'renderer-app-update-event',
+  WindowVisibility = 'renderer-window-visibility',
 }
 
 export enum MainProcessIpc {
@@ -356,7 +357,6 @@ export enum MainProcessIpc {
 
 export enum WindowsManagerIpc {
   SignalUserInterfaceReadiness = 'windows-manager-signal-user-interface-readiness',
-  WindowVisibility = 'windows-manager-window-visibility',
 }
 
 /**
