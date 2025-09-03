@@ -12,19 +12,21 @@ state: draft
 
 ## What
 
-Add support for templated Access List that have system behaviors such as Teleport creating the required roles and then Teleport assigning those roles to members and owners upon creating an Access List.
+Access lists grant roles (and traits) to users on a long lived basis. Currently, to grant access through an access list, admins must select roles that already exists. This requires the admins to know what a role is and know how to create a role to customize access.
+
+This RFD proposes a new type of access list, a templated access list that removes the need for admins to know about roles. Templated access lists will take a simplified access specification and execute system behaviors such as Teleport creating the required roles and then Teleport assigning those roles to members and owners upon creating an Access List.
 
 ## Why
 
 Improves Access List usability especially for day one users. Templated Access List allows an admin to focus on users and what resources users should have access to. It removes the need for an admin to learn how to create roles and removes how roles have relation to an Access List because Teleport will do it for them.
 
-### User story: As an admin, I want to create an access list that require members to request for access and then grants short-term access to resources
+### User story: As an admin, I want to create an access list that require members to request for short-term access to selected resources
 
 The template type to use for this case is `short-term`.
 
 Template type `short-term` represents an access list that utilizes JIT. Owners are reviewers. Members are requesters that are required to request access to resources and then upon approval are granted short-term access to requested Teleport resources.
 
-Admin will define what resources members will have access to by specifying the resource kinds and its labels and its the resource principals.
+Admin will define what resources members will have access to by specifying the resource kinds and their labels and their resource principals.
 
 ### User story: As an admin, I want to create an accesss list that grants long-term access to resources for members
 
@@ -32,7 +34,7 @@ The template type to use for this case is `long-term`.
 
 Template type `long-term` represents an access list that grants members standing access to Teleport resources. Owners will have no special purpose other than to audit.
 
-Admin will define what resources members will have access to by specifying the resource kinds and its labels and its the resource principals.
+Admin will define what resources members will have access to by specifying the resource kinds and their labels and their resource principals.
 
 This type of template is similar to how access list works now (non integrated types). Only difference is Teleport will create the necessary role for the admin.
 
@@ -46,7 +48,7 @@ In the current [AccessListSpec](https://github.com/gravitational/teleport/blob/b
 message AccessListSpec {
   // ... other existing fields
 
-  // Existing type values: dynamic, scim, and static
+  // Existing type values: "" (default), "scim", and "static"
   // NEW value: "template"
   string type = 12;
 }
@@ -76,7 +78,7 @@ message AccessListTemplateConfig {
 message TemplateLongTerm {
   // access_condition defines access to resources
   // and its principals.
-  AllowResourceAccessConditions access_condition = 1;
+    AccessConditions allow = 1;
 }
 
 // TemplateShortTerm describes fields required to create
@@ -84,7 +86,7 @@ message TemplateLongTerm {
 message TemplateShortTerm {
   // access_condition defines access to resources
   // and its principals.
-  AllowResourceAccessConditions access_condition = 1;
+    AccessConditions allow = 1;
 }
 ```
 
@@ -105,69 +107,123 @@ message AllowResourceAccessConditions {
 
 // ApplicationAccess are access related fields for application resource.
 message ApplicationAccess {
-  wrappers.LabelValues labels = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-  repeated string aws_role_arns = 2 [(gogoproto.jsontag) = "aws_role_arns,omitempty"];
-  repeated string azure_identities = 3 [(gogoproto.jsontag) = "azure_identities,omitempty"];
-  repeated string gcp_service_accounts = 4 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
-  types.MCPPermissions mcp = 5 [(gogoproto.jsontag) = "mcp,omitempty"];
+  repeated teleport.label.v1.Label labels = 1;
+  repeated string aws_role_arns = 2;
+  repeated string azure_identities = 3;
+  repeated string gcp_service_accounts = 4;
+  types.MCPPermissions mcp = 5;
 }
 
 // DatabaseAccess are access related fields for db resource.
 message DatabaseAccess {
-  wrappers.LabelValues labels = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-  repeated string names = 2 [(gogoproto.jsontag) = "names,omitempty"];
-  repeated string users = 3 [(gogoproto.jsontag) = "users,omitempty"];
+  repeated teleport.label.v1.Label labels = 1;
+  repeated string names = 2;
+  repeated string users = 3;
 }
 
 // GitServerAccess are access related fields for git server resource.
 message GitServerAccess {
-  repeated types.GitHubPermission permissions = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "permissions,omitempty"
-  ];
+  repeated types.GitHubPermission permissions = 1;
 }
 
 // KubernetesAccess are access related fields for kube resource.
 message KubernetesAccess {
-  wrappers.LabelValues labels = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-  repeated string groups = 2 [(gogoproto.jsontag) = "groups,omitempty"];
-  repeated string users = 3 [(gogoproto.jsontag) = "users,omitempty"];
-  repeated types.KubernetesResource resources = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "resources,omitempty"
-  ];
+  repeated teleport.label.v1.Label labels = 1;
+  repeated string groups = 2;
+  repeated string users = 3;
+  repeated types.KubernetesResource resources = 4;
 }
 
 // ServerAccess are access related fields for server resource.
 message ServerAccess {
-  wrappers.LabelValues labels = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-  repeated string logins = 2 [(gogoproto.jsontag) = "logins,omitempty"];
+  repeated teleport.label.v1.Label labels = 1;
+  repeated string logins = 2;
 }
 
 // WindowsDesktopAccess are access related fields for windows desktop resource.
 message WindowsDesktopAccess {
-  wrappers.LabelValues labels = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-  repeated string logins = 2 [(gogoproto.jsontag) = "logins,omitempty"];
+  repeated teleport.label.v1.Label labels = 1;
+  repeated string logins = 2;
+}
+```
+
+### CLI UX
+
+For all CLI examples, feature is added to the existing access list field `spec`. For `spec.title` new value `template` is introduced. And a new field `spec.template_config` is added:
+
+#### tctl example
+
+```yaml
+version: v1
+kind: access_list
+metadata:
+  name: example-long-term-template
+spec:
+  title: "Example Long-Term Template"
+  type: "template"
+  template_config:
+    long_term:
+      allow:
+        application:
+          labels:
+            env:
+            - prod
+            - staging
+          aws_role_arns:
+          - some-arn
+        server:
+          labels:
+            env:
+            - dev
+          logins:
+          - ubuntu
+          - ec2-user
+  ...
+```
+
+#### Terraform example
+
+```hcl
+resource "teleport_access_list" "example-long-term-template" {
+  header =  {
+    version = "v1"
+    metadata = {
+      name = "example-long-term-template"
+    }
+  }
+
+  spec = {
+    title = "Example Long-Term Template"
+    type = "template"
+    template_config = {
+      long_term = {
+        allow = {
+          application = {
+            labels = [
+              {
+                name = "env",
+                values = ["prod"]
+              },
+              {
+                name = "env",
+                values = ["staging"]
+              },
+            ]
+            aws_role_arns = ["some-arn"]
+          }
+          server = {
+            labels = [{
+              name = "env",
+              values = ["dev"]
+            }]
+            logins = ["ubuntu", "ec2-user"]
+          }
+          ...
+        }
+      }
+    }
+   ...
+  }
 }
 ```
 
@@ -217,7 +273,7 @@ For both templates, since only the `access` part of the `template_config` can be
 
 ##### Update quirk
 
-There is a quirk where the `access` definition set on an access list might not be in sync with the actual role resource because we don't prevent users from editing system roles with `tctl` (the web UI does not allow reading/updating system roles). If such a case happens, ultimately the role resource is the source of truth. Any updates made to `template_config` will overwrite any previous edits directly made to the system roles.
+There is a quirk where the `access` definition set on an access list might not be in sync with the actual role resource because we don't prevent users from editing system roles with `tctl`. If such a case happens, ultimately the role resource is the source of truth. Any updates made to `template_config` will overwrite any previous edits directly made to the system roles.
 
 #### Delete
 
@@ -225,17 +281,7 @@ In the backend, after an access list is successfully deleted, all system roles t
 
 In the case deleting roles fail for some reason, we can offer a retry if we detect the failure was due to clean up. An API endpoint will be created that is specific to cleaning up templated access list (which is to just delete roles at this moment).
 
-### Phases
-
-#### Phase 1
-
-Add CRUD support for templated access list (both short and long term) through the web UI and tctl.
-
-#### Phase 2
-
-Support scaling templated access list with terraform. In addition, add scaling directions on the web UI as `next steps` after creating an access list is successful.
-
-##### Feature extension
+### Feature extension
 
 Possibly add more option to `short-term` template such as providing the option to control requester role fields defined below:
 
