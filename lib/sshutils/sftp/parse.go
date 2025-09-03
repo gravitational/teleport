@@ -31,8 +31,8 @@ import (
 type Target struct {
 	// Login is a login username.
 	Login string
-	// Host is a host to copy to/from. If nil, target is a local path.
-	Host *utils.NetAddr
+	// Addr is the host and port to copy to/from. If nil, target is a local path.
+	Addr *utils.NetAddr
 	// Path is a path to copy to/from.
 	// An empty path name is valid, and it refers to the user's default directory (usually
 	// the user's home directory).
@@ -40,28 +40,35 @@ type Target struct {
 	Path string
 }
 
-func (t Target) GetHost() string {
-	if t.Host != nil {
-		return t.Host.String()
+// GetAddr gets the target address, or the empty string if not set.
+func (t Target) GetAddr() string {
+	if t.Addr != nil {
+		return t.Addr.String()
 	}
 	return ""
 }
 
-// ParseTarget takes a string representing a remote resource for SFTP
-// to download/upload in the form "[user@]host:[path]" and parses it into
+// ParseTarget takes a string representing a resource for SFTP
+// to download/upload in the form "[[user@]host:]path" and parses it into
 // a structured form.
+//
+// Examples of valid targets:
+//   - "/abs/or/rel/path"
+//   - "host:/abs/or/rel/path"
+//   - "user@host:/abs/or/rel/path"
 //
 // See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
 // section about details on file names.
 func ParseTarget(input string, port int) (Target, error) {
 	firstColonIdx := strings.Index(input, ":")
-	// if there are no colons, no path is specified
 	if firstColonIdx == -1 {
+		// No host or login, this is a local path.
 		if !strings.Contains(input, "@") {
 			return Target{
 				Path: input,
 			}, nil
 		}
+		// user@host, this is missing a path.
 		return Target{}, trace.BadParameter("%q is missing a path, use form [user@]host:[path]", input)
 	}
 	hostStartIdx := strings.LastIndex(input[:firstColonIdx], "@")
@@ -120,7 +127,7 @@ func ParseTarget(input string, port int) (Target, error) {
 
 	return Target{
 		Login: login,
-		Host:  host,
+		Addr:  host,
 		Path:  path,
 	}, nil
 }
@@ -156,19 +163,26 @@ func parseIPv6Host(input string, start int) (*utils.NetAddr, int, error) {
 	return host, start + rbraceIdx + 1 + 1, nil
 }
 
+// Sources is a list of paths to copy from either a local or remote host.
 type Sources struct {
+	// Login is a login username.
 	Login string
-	Host  *utils.NetAddr
+	// Addr is the host and port to copy to/from. If nil, target is a local path.
+	Addr *utils.NetAddr
+	// Paths are the paths to copy from.
 	Paths []string
 }
 
-func (s Sources) GetHost() string {
-	if s.Host != nil {
-		return s.Host.String()
+// GetAddr gets the target address, or the empty string if not set.
+func (s Sources) GetAddr() string {
+	if s.Addr != nil {
+		return s.Addr.String()
 	}
 	return ""
 }
 
+// ParseSources parses a list of strings representing resources for SFTP to
+// download into a structured form (same format as [ParseTarget]).
 func ParseSources(rawSources []string, port int) (Sources, error) {
 	if len(rawSources) == 0 {
 		return Sources{}, trace.BadParameter("at least one source requred")
@@ -179,7 +193,7 @@ func ParseSources(rawSources []string, port int) (Sources, error) {
 	}
 	sources := Sources{
 		Login: firstSource.Login,
-		Host:  firstSource.Host,
+		Addr:  firstSource.Addr,
 		Paths: []string{firstSource.Path},
 	}
 	for _, rawSource := range rawSources[1:] {
@@ -187,7 +201,7 @@ func ParseSources(rawSources []string, port int) (Sources, error) {
 		if err != nil {
 			return Sources{}, trace.Wrap(err)
 		}
-		if source.Login != sources.Login || source.GetHost() != sources.GetHost() {
+		if source.Login != sources.Login || source.GetAddr() != sources.GetAddr() {
 			return Sources{}, trace.BadParameter("multiple users/hosts not allowed")
 		}
 		sources.Paths = append(sources.Paths, source.Path)

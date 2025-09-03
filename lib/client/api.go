@@ -202,13 +202,17 @@ type Config struct {
 	// Remote host to connect
 	Host string
 
+	// SrcHost is the remote host to connect to for sources in sftp.
 	SrcHost string
 
+	// SrcLogin is the remote login to use for sources in sftp.
 	SrcLogin string
 
-	DestHost string
+	// DstHost is the remote host to connect to for the destination in sftp.
+	DstHost string
 
-	DestLogin string
+	// DstLogin is the remote login to use for the destination in sftp.
+	DstLogin string
 
 	// SearchKeywords host to connect
 	SearchKeywords []string
@@ -1533,21 +1537,6 @@ type TargetNode struct {
 	Addr string
 }
 
-func parseTargetNode(host string, port int) (TargetNode, error) {
-	// detect the common error when users use host:port address format
-	_, wrongPort, err := net.SplitHostPort(host)
-	// client has used host:port notation
-	if err == nil {
-		return TargetNode{}, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", wrongPort)
-	}
-
-	addr := net.JoinHostPort(host, strconv.Itoa(port))
-	return TargetNode{
-		Hostname: host,
-		Addr:     addr,
-	}, nil
-}
-
 // GetTargetNodes returns hosts matching the target host provided by users. Host resolution
 // honors an explicit host, i.e. tsh ssh user@hostname, label based hosts, i.e. tsh ssh user@foo=bar,
 // as well as respecting any proxy templates that are specified.
@@ -1606,11 +1595,20 @@ func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt client.ListUni
 
 	log.DebugContext(ctx, "Using provided host", "host", tc.Host)
 
-	target, err := parseTargetNode(tc.Host, tc.HostPort)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// detect the common error when users use host:port address format
+	_, port, err := net.SplitHostPort(tc.Host)
+	// client has used host:port notation
+	if err == nil {
+		return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
 	}
-	return []TargetNode{target}, nil
+
+	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+	return []TargetNode{
+		{
+			Hostname: tc.Host,
+			Addr:     addr,
+		},
+	}, nil
 }
 
 // GetTargetNode returns a single host matching the target host provided by users. Host resolution
@@ -1640,11 +1638,18 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
 		log.DebugContext(ctx, "Using provided host", "host", defaultHost)
 
-		target, err := parseTargetNode(defaultHost, tc.HostPort)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		// detect the common error when users use host:port address format
+		_, port, err := net.SplitHostPort(defaultHost)
+		// client has used host:port notation
+		if err == nil {
+			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
 		}
-		return &target, nil
+
+		addr := net.JoinHostPort(defaultHost, strconv.Itoa(tc.HostPort))
+		return &TargetNode{
+			Hostname: tc.Host,
+			Addr:     addr,
+		}, nil
 	}
 
 	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
@@ -1935,7 +1940,8 @@ type SSHOptions struct {
 	// HostAddress is the address of the target host. If specified it
 	// will be used instead of the target provided when `tsh ssh` was invoked.
 	HostAddress string
-
+	// DefaultHost overrides the default host to use when connecting to a node
+	// with no provided labels, search keywords, or predicate expression.
 	DefaultHost string
 	// LocalCommandExecutor should be used to execute the command on the local
 	// machine. If provided, it will be used instead of establishing a connection
@@ -2617,16 +2623,24 @@ func PlayFile(ctx context.Context, filename, sid string, speed float64, skipIdle
 	return playSession(ctx, sid, speed, streamer, skipIdleTime)
 }
 
+// SFTPRequests controls aspects of a file transfer.
 type SFTPRequest struct {
-	Sources        []string
-	Destination    string
-	Recursive      bool
-	PreserveAttrs  bool
-	Quiet          bool
+	// Sources are the source paths to transfer from, with optional user and host.
+	Sources []string
+	// Destination is the destination path to transfer to, with optional user and host.
+	Destination string
+	// Recursive indicates recursive file transfer.
+	Recursive bool
+	// PreserveAttrs preserves access and modification times
+	// from the original file.
+	PreserveAttrs bool
+	// Quiet indicates whether progress should be displayed.
+	Quiet bool
+	// ProgressWriter is used to write the progress output.
 	ProgressWriter io.Writer
 }
 
-// SFTP securely copies files between Nodes or SSH servers using SFTP
+// SFTP securely copies files between Nodes or SSH servers using SFTP.
 func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -2641,18 +2655,20 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error)
 	}
 	defer clt.Close()
 
+	// Parse sources and destination.
 	sources, err := sftp.ParseSources(req.Sources, tc.HostPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if sources.Host != nil {
+	if sources.Addr != nil {
+		// Respect any proxy templates and attempt host resolution.
 		target, err := tc.GetTargetNode(ctx, clt.AuthClient, &SSHOptions{
-			DefaultHost: sources.Host.Host(),
+			DefaultHost: sources.Addr.Host(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := sources.Host.Set(target.Addr); err != nil {
+		if err := sources.Addr.Set(target.Addr); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2663,14 +2679,15 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if dest.Host != nil {
+	if dest.Addr != nil {
+		// Respect any proxy templates and attempt host resolution.
 		target, err := tc.GetTargetNode(ctx, clt.AuthClient, &SSHOptions{
-			DefaultHost: dest.Host.Host(),
+			DefaultHost: dest.Addr.Host(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := dest.Host.Set(target.Addr); err != nil {
+		if err := dest.Addr.Set(target.Addr); err != nil {
 			return trace.Wrap(err)
 		}
 	}
