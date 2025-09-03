@@ -3694,6 +3694,9 @@ message DatabaseSessionEnd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Participants is the list of participants in a session.
+  repeated string Participants = 8 [(gogoproto.jsontag) = "participants,omitempty"];
 }
 
 // MFADeviceMetadata is a common MFA device metadata.

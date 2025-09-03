@@ -5576,7 +5576,8 @@ func TestShowSessions(t *testing.T) {
 		"db_protocol": "postgres",
 		"db_uri": "",
 		"session_start": "0001-01-01T00:00:00Z",
-		"session_stop": "0001-01-01T00:00:00Z"
+		"session_stop": "0001-01-01T00:00:00Z",
+		"participants": ["someParticipant"]
     } ]`
 	sessions := []events.AuditEvent{
 		&events.SessionEnd{
@@ -5613,8 +5614,9 @@ func TestShowSessions(t *testing.T) {
 			DatabaseMetadata: events.DatabaseMetadata{
 				DatabaseProtocol: "postgres",
 			},
-			StartTime: time.Time{},
-			EndTime:   time.Time{},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
 		},
 	}
 	var buf bytes.Buffer
