@@ -531,9 +531,16 @@ func (s *Service) GetAccessListsToReview(ctx context.Context, req *accesslistv1.
 
 // needsReviewBy returns true if the access list should be reviewed by the user.
 func (s *Service) needsReviewBy(ctx context.Context, user types.User, accessList *accesslist.AccessList, now time.Time) bool {
+	if accessList.Spec.Audit.NextAuditDate.Sub(now) > accessList.Spec.Audit.Notifications.Start {
+		// Access List is not yet within the review window.
+		// No need to check ownership.
+		return false
+	}
+
+	// TODO(smallinsky) Switch to GetHierarchyForUser when it will be supported in v18.
 	if ownershipType, err := accesslists.IsAccessListOwner(ctx, user, accessList, s.accessLists, s.lockGetter, s.clock); err == nil {
 		if ownershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-			return accessList.Spec.Audit.NextAuditDate.Sub(now) <= accessList.Spec.Audit.Notifications.Start
+			return true
 		}
 	}
 	return false

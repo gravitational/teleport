@@ -471,6 +471,8 @@ type suggestionValidator struct {
 func (v *suggestionValidator) isValidSuggestion(ctx context.Context, list *accesslist.AccessList) (bool, error) {
 	// If the user is already a member, or doesn't meet the requirements to be assigned to the access list,
 	// then the access list is not a valid suggestion.
+	//
+	// TODO(smallinsky) Switch to GetHierarchyForUser when it will be supported in v18
 	membershipType, err := accesslists.IsAccessListMember(ctx, v.requester, list, v.dataGetter, nil, v.clock)
 	if err != nil && !trace.IsAccessDenied(err) {
 		return false, trace.Wrap(err)
