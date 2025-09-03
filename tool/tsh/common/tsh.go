@@ -4541,11 +4541,11 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 				c.SrcLogin = hostLogin
 			}
 		} else {
-			hostUser = c.DestHost
-			if c.DestLogin != "" {
-				hostLogin = c.DestLogin
+			hostUser = c.DstHost
+			if c.DstLogin != "" {
+				hostLogin = c.DstLogin
 			} else {
-				c.DestLogin = hostLogin
+				c.DstLogin = hostLogin
 			}
 		}
 	}
@@ -4872,14 +4872,14 @@ func parseCopySpec(cf *CLIConf, config *client.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config.SrcHost = sources.GetHost()
+	config.SrcHost = sources.GetAddr()
 	config.SrcLogin = sources.Login
 	dest, err := sftp.ParseTarget(cf.CopySpec[len(cf.CopySpec)-1], int(cf.NodePort))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config.DestHost = dest.GetHost()
-	config.DestLogin = dest.Login
+	config.DstHost = dest.GetAddr()
+	config.DstLogin = dest.Login
 	return nil
 }
 

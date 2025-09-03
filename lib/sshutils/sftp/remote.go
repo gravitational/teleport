@@ -44,6 +44,7 @@ func NewRemoteFilesystem(c *sftp.Client) *RemoteFS {
 	return &RemoteFS{Client: c}
 }
 
+// OpenRemoteFilesystem opens a new remote file system on the given ssh client.
 func OpenRemoteFilesystem(ctx context.Context, sshClient *ssh.Client) (fs *RemoteFS, err error) {
 	s, err := sshClient.NewSession()
 	if err != nil {

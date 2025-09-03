@@ -223,7 +223,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	remoteTarget := sftp.Target{
 		Login: req.login,
-		Host: &utils.NetAddr{
+		Addr: &utils.NetAddr{
 			Addr: req.serverID + ":0",
 		},
 		Path: req.remoteLocation,
