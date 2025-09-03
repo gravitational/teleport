@@ -1058,14 +1058,18 @@ func getSubPageCheckpoint(e *event) (string, error) {
 // find completed session.
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
-	if req.Cond != nil {
+	if req.Cond != nil && req.Cond.Expr != nil {
 		params := condFilterParams{attrValues: make(map[string]any), attrNames: make(map[string]string)}
-		expr, err := fromWhereExpr(req.Cond, &params)
+		expr, err := fromWhereExpr(req.Cond.Expr, &params)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condExpr = expr
 		filter.condParams = params
+		filter.filterFunc, err = utils.ToFieldsCondition(*req.Cond)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
 	}
 	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
 	if err != nil {
@@ -1082,6 +1086,7 @@ type searchEventsFilter struct {
 	eventTypes []string
 	condExpr   string
 	condParams condFilterParams
+	filterFunc utils.FieldsCondition
 }
 
 type condFilterParams struct {
@@ -1089,9 +1094,34 @@ type condFilterParams struct {
 	attrNames  map[string]string
 }
 
+// fromWhereExpr converts a types.WhereExpr into a DynamoDB condition expression.
+// It fills in the provided condFilterParams with attribute names and values
+// that need to be supplied when executing the query.
+// For example, a condition like
+//
+// !(equals(login, "root") || equals(login, "admin")) && contains(participants, "test-user")
+// would be converted into a condition expression like
+//
+// "NOT ((#condName0 = :condValue0) OR (#condName1 = :condValue1)) AND (contains(#condName2, :condValue2))"
+// with condFilterParams containing:
+//
+//	attrNames: {"#condName0": "FieldsMap.login", "#condName1": "FieldsMap.login", "#condName2": "FieldsMap.participants"}
+//	attrValues: {":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"}
+//
+// This function supports a subset of the types.WhereExpr AST. Supported operations are:
+//   - Binary predicates: equals, notEquals
+//   - Logical operators: and, or, not
+//   - Map references: map_name["key"]
+//   - Literals: string
+//   - Functions: contains, contains_all, contains_any, can_view
+//
+// `can_view` is a special function that checks if the current user can view the underlying resource
+// based on their roles. This is a runtime check, so it cannot be converted into a static condition expression.
+// For this reason, `can_view` is handled by returning an always-true condition expression and setting a filter function
+// in condFilterParams that can be applied to the results after the query is executed.
 func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, error) {
 	if cond == nil {
-		return "", trace.BadParameter("cond is nil")
+		return "", trace.BadParameter("missing condition")
 	}
 
 	binOp := func(e types.WhereExpr2, format func(a, b string) string) (string, error) {
@@ -1135,9 +1165,58 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 		params.attrNames[k] = n
 		return fmt.Sprintf("FieldsMap.%s", k)
 	}
+
+	addMultiAttrNames := func(vals ...string) string {
+		var names []string
+		for _, n := range vals {
+			for k, v := range params.attrNames {
+				if n == v {
+					names = append(names, k)
+					continue
+				}
+			}
+			k := fmt.Sprintf("#condName%d", len(params.attrNames))
+			params.attrNames[k] = n
+			names = append(names, k)
+		}
+		return fmt.Sprintf("FieldsMap.%s", strings.Join(names, "."))
+	}
+
+	formatMap := func(m *types.WhereExpr2) (string, error) {
+		key, ok := m.R.Literal.(string)
+		if !ok {
+			return "", trace.BadParameter("map key must be a string, got %T", m.R.Literal)
+		}
+		return addMultiAttrNames(m.L.Field, key), nil
+	}
+
 	binPred := func(e types.WhereExpr2, format func(a, b string) string) (string, error) {
 		left, right := e.L, e.R
 		switch {
+		case left.MapRef != nil:
+			s, err := formatMap(left.MapRef)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			if right.Literal != nil {
+				return format(s, addAttrValue(right.Literal)), nil
+			}
+			if right.Field != "" {
+				return format(s, addAttrName(right.Field)), nil
+			}
+			return "", trace.BadParameter("right side of binary predicate must be a literal or field when left side is a map reference")
+		case right.MapRef != nil:
+			s, err := formatMap(right.MapRef)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			if right.Literal != nil {
+				return format(s, addAttrValue(left.Literal)), nil
+			}
+			if right.Field != "" {
+				return format(s, addAttrName(left.Field)), nil
+			}
+			return "", trace.BadParameter("left side of binary predicate must be a literal or field when right side is a map reference")
 		case left.Field != "" && right.Field != "":
 			return format(addAttrName(left.Field), addAttrName(right.Field)), nil
 		case left.Literal != nil && right.Field != "":
@@ -1146,6 +1225,74 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 			return format(addAttrName(left.Field), addAttrValue(right.Literal)), nil
 		}
 		return "", trace.BadParameter("failed to handle binary predicate with arguments %q and %q", left, right)
+	}
+	binPredSlice := func(e types.WhereExpr2, format func(a, b string) string) ([]string, error) {
+		left, right := e.L, e.R
+		switch {
+		case left.MapRef != nil:
+			s, err := formatMap(left.MapRef)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if right.Literal != nil {
+				sl, ok := right.Literal.([]string)
+				if !ok {
+					return nil, trace.BadParameter("expected slice literal, got %T", right.Literal)
+				}
+				var res []string
+				for _, v := range sl {
+					res = append(res, format(s, addAttrValue(v)))
+				}
+				return res, nil
+			}
+			if right.Field != "" {
+				return []string{format(s, addAttrName(right.Field))}, nil
+			}
+			return nil, trace.BadParameter("right side of binary predicate must be a literal or field when left side is a map reference")
+		case right.MapRef != nil:
+			s, err := formatMap(right.MapRef)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if left.Literal != nil {
+				sl, ok := left.Literal.([]string)
+				if !ok {
+					return nil, trace.BadParameter("expected slice literal, got %T", left.Literal)
+				}
+				var res []string
+				for _, v := range sl {
+					res = append(res, format(s, addAttrValue(v)))
+				}
+				return res, nil
+			}
+			if left.Field != "" {
+				return []string{format(s, addAttrName(left.Field))}, nil
+			}
+			return nil, trace.BadParameter("left side of binary predicate must be a literal or field when right side is a map reference")
+		case left.Field != "" && right.Field != "":
+			return []string{format(addAttrName(left.Field), addAttrName(right.Field))}, nil
+		case left.Literal != nil && right.Field != "":
+			sl, ok := left.Literal.([]string)
+			if !ok {
+				return nil, trace.BadParameter("expected slice literal, got %T", left.Literal)
+			}
+			var res []string
+			for _, v := range sl {
+				res = append(res, format(addAttrValue(v), addAttrName(right.Field)))
+			}
+			return res, nil
+		case left.Field != "" && right.Literal != nil:
+			sl, ok := right.Literal.([]string)
+			if !ok {
+				return nil, trace.BadParameter("expected slice literal, got %T", left.Literal)
+			}
+			var res []string
+			for _, v := range sl {
+				res = append(res, format(addAttrName(left.Field), addAttrValue(v)))
+			}
+			return res, nil
+		}
+		return nil, trace.BadParameter("failed to handle binary predicate with arguments %q and %q", left, right)
 	}
 	if cond.Equals.L != nil && cond.Equals.R != nil {
 		if expr, err := binPred(cond.Equals, func(a, b string) string { return fmt.Sprintf("%s = %s", a, b) }); err == nil {
@@ -1157,6 +1304,35 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 			return expr, nil
 		}
 	}
+
+	if cond.ContainsAny.L != nil && cond.ContainsAny.R != nil {
+		if expr, err := binPredSlice(cond.ContainsAny, func(a, b string) string { return fmt.Sprintf("contains(%s, %s)", a, b) }); err == nil {
+			return "(" + strings.Join(expr, " OR ") + ")", nil
+		}
+	}
+
+	if cond.ContainsAll.L != nil && cond.ContainsAll.R != nil {
+		if expr, err := binPredSlice(cond.ContainsAll, func(a, b string) string { return fmt.Sprintf("contains(%s, %s)", a, b) }); err == nil {
+			return "(" + strings.Join(expr, " AND ") + ")", nil
+		}
+	}
+
+	if cond.MapRef != nil && cond.MapRef.L != nil && cond.MapRef.R != nil {
+		key, ok := cond.MapRef.R.Literal.(string)
+		if !ok {
+			return "", trace.BadParameter("map key must be a string, got %T", cond.MapRef.R.Literal)
+		}
+		return addMultiAttrNames(cond.MapRef.L.Field, key), nil
+	}
+
+	if cond.CanView != nil {
+		// CanView is a special predicate that checks if the event can be viewed
+		// by a user with a given set of roles. This is implemented by checking
+		// access after fetching the events, so here we just return a no-op
+		// expression that is always true.
+		return "attribute_exists(SessionID)", nil
+	}
+
 	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
 }
 
@@ -1408,6 +1584,9 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		var e event
 		if err := attributevalue.UnmarshalMap(item, &e); err != nil {
 			return nil, false, trace.WrapWithMessage(err, "failed to unmarshal event")
+		}
+		if l.filter.filterFunc != nil && !l.filter.filterFunc(utils.Fields(e.FieldsMap)) {
+			continue
 		}
 		data, err := json.Marshal(e.FieldsMap)
 		if err != nil {

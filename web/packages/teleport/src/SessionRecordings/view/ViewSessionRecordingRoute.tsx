@@ -39,6 +39,8 @@ import {
 
 const validRecordingTypes = ['ssh', 'k8s', 'desktop', 'database'];
 
+const recordingTypesWithMetadata: RecordingType[] = ['ssh', 'k8s'];
+
 interface ViewSessionRecordingRouteProps {
   summarySlot?: SummarySlot;
 }
@@ -87,7 +89,7 @@ export function ViewSessionRecordingRoute({
     );
   }
 
-  if (recordingType === 'ssh') {
+  if (recordingTypesWithMetadata.includes(recordingType)) {
     // If the recording type is SSH, try to load the session metadata (ViewTerminalRecording)
     // and render the SSH player with the session metadata/summary.
     // If that errors (such as during a proxy upgrade), we fall back to the

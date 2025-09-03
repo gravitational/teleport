@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/session"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -48,6 +49,9 @@ type RuleContext interface {
 	// GetResource returns resource if specified in the context,
 	// if unspecified, returns error.
 	GetResource() (types.Resource, error)
+	// GetAccessChecker returns access checker if specified in the context,
+	// if unspecified, returns error.
+	GetAccessChecker() (AccessChecker, error)
 }
 
 var (
@@ -145,17 +149,33 @@ func predicateIsSubset(a any, b ...any) predicate.BoolPredicate {
 	}
 }
 
-// NewWhereParser returns standard parser for `where` section in access rules.
-func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
-	return predicate.NewParser(predicate.Def{
+func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
+	def := predicate.Def{
 		Operators: predicate.Operators{
 			AND: predicate.And,
 			OR:  predicate.Or,
 			NOT: predicate.Not,
+			EQ:  predicate.Equals,
+			NEQ: func(a any, b any) predicate.BoolPredicate {
+				return func() bool {
+					return !predicate.Equals(a, b)()
+				}
+			},
 		},
 		Functions: map[string]any{
 			"equals":       predicate.Equals,
 			"contains":     predicate.Contains,
+			"contains_all": predicateContainsAll,
+			"contains_any": predicateContainsAny,
+			"set": func(a ...any) []string {
+				aVal := make([]string, 0, len(a))
+				for _, v := range a {
+					if str, ok := v.(string); ok {
+						aVal = append(aVal, str)
+					}
+				}
+				return aVal
+			},
 			"all_end_with": predicateAllEndWith,
 			"all_equal":    predicateAllEqual,
 			"is_subset":    predicateIsSubset,
@@ -192,7 +212,69 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   GetStringMapValue,
-	})
+	}
+	return def
+}
+
+// WhereParserOpt is a function that modifies the default
+// predicate.Def used to create a parser for the `where` section in access rules.
+type WhereParserOpt func(RuleContext, *predicate.Def)
+
+// WithCanViewFunction adds a can_view function to the parser definition.
+// This function will be used to check if the user has access to the resource
+// specified in the context.
+func WithCanViewFunction() WhereParserOpt {
+	return func(ctx RuleContext, def *predicate.Def) {
+		def.Functions["can_view"] = CanViewResourceFunc(ctx)
+	}
+}
+
+// ConditionalOption applies the specified option if the condition is true.
+// Otherwise, the returned option is a no-op.
+func ConditionalOption(condition bool, option WhereParserOpt) WhereParserOpt {
+	return func(ctx RuleContext, def *predicate.Def) {
+		if condition {
+			option(ctx, def)
+		}
+	}
+}
+
+// NewWhereParser returns standard parser for `where` section in access rules.
+func NewWhereParser(ctx RuleContext, opts ...WhereParserOpt) (predicate.Parser, error) {
+	def := newDefaultWhereParserDef(ctx)
+	for _, opt := range opts {
+		opt(ctx, &def)
+	}
+	return predicate.NewParser(def)
+}
+
+// CanViewResourceFunc returns a function that checks if the user has access
+// to the resource specified in the context.
+func CanViewResourceFunc(ctx RuleContext) func() predicate.BoolPredicate {
+	return func() predicate.BoolPredicate {
+		return func() bool {
+			resource, err := ctx.GetResource()
+			if err != nil {
+				return false
+			}
+			accessCheckableResource, ok := resource.(AccessCheckable)
+			if !ok {
+				return false
+			}
+
+			checker, err := ctx.GetAccessChecker()
+			if err != nil {
+				return false
+			}
+
+			// We do not enforce MFA or Device Trust for this check because
+			// we don't have a way of checking it from the context.
+			return checker.CheckAccess(accessCheckableResource, AccessState{
+				MFARequired: MFARequiredNever,
+				MFAVerified: true,
+			}) == nil
+		}
+	}
 }
 
 // GetStringMapValue is a helper function that returns property
@@ -303,6 +385,9 @@ type Context struct {
 	HostCert *HostCertContext
 	// SessionTracker is an optional session tracker, in case if the rule checks access to the tracker.
 	SessionTracker types.SessionTracker
+	// AccessChecker is an optional access checker that can be used
+	// to check access to other resources.
+	AccessChecker AccessChecker
 }
 
 // String returns user friendly representation of this context
@@ -354,6 +439,13 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 	}
 }
 
+func (ctx *Context) GetAccessChecker() (AccessChecker, error) {
+	if ctx.AccessChecker == nil {
+		return nil, trace.NotFound("access checker is not set in the context")
+	}
+	return ctx.AccessChecker, nil
+}
+
 // GetIdentifier returns identifier defined in a context
 func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	switch fields[0] {
@@ -382,7 +474,7 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	case SessionIdentifier:
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
-		case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
+		case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.DatabaseSessionEnd:
 			session = ctx.Session
 		}
 		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
@@ -691,6 +783,30 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 				}
 				return types.WhereExpr{Not: &expr}
 			},
+			EQ: func(a, b any) types.WhereExpr {
+				aExpr, ok := a.(types.WhereExpr)
+				if !ok {
+					aExpr = types.WhereExpr{Literal: a}
+				}
+				bExpr, ok := b.(types.WhereExpr)
+				if !ok {
+					bExpr = types.WhereExpr{Literal: b}
+				}
+				return types.WhereExpr{Equals: types.WhereExpr2{L: &aExpr, R: &bExpr}}
+			},
+			NEQ: func(a, b any) types.WhereExpr {
+				aExpr, ok := a.(types.WhereExpr)
+				if !ok {
+					aExpr = types.WhereExpr{Literal: a}
+				}
+				bExpr, ok := b.(types.WhereExpr)
+				if !ok {
+					bExpr = types.WhereExpr{Literal: b}
+				}
+				return types.WhereExpr{
+					Not: &types.WhereExpr{Equals: types.WhereExpr2{L: &aExpr, R: &bExpr}},
+				}
+			},
 		},
 		Functions: map[string]any{
 			"equals": binaryPred(predicate.Equals, func(a, b types.WhereExpr) types.WhereExpr {
@@ -699,6 +815,24 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			"contains": binaryPred(predicate.Contains, func(a, b types.WhereExpr) types.WhereExpr {
 				return types.WhereExpr{Contains: types.WhereExpr2{L: &a, R: &b}}
 			}),
+			"contains_all": binaryPred(predicateContainsAll, func(a, b types.WhereExpr) types.WhereExpr {
+				return types.WhereExpr{ContainsAll: types.WhereExpr2{L: &a, R: &b}}
+			}),
+			"contains_any": binaryPred(predicateContainsAny, func(a, b types.WhereExpr) types.WhereExpr {
+				return types.WhereExpr{ContainsAny: types.WhereExpr2{L: &a, R: &b}}
+			}),
+			"set": func(a ...any) types.WhereExpr {
+				aVal := make([]string, 0, len(a))
+				for _, v := range a {
+					if str, ok := v.(string); ok {
+						aVal = append(aVal, str)
+					}
+				}
+				return types.WhereExpr{Literal: aVal}
+			},
+			"can_view": func() types.WhereExpr {
+				return types.WhereExpr{CanView: &types.WhereNoExpr{}}
+			},
 		},
 		GetIdentifier: func(fields []string) (any, error) {
 			if fields[0] == identifier {
@@ -721,6 +855,14 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			if !keyOK {
 				keyExpr = types.WhereExpr{Literal: keyVal}
 			}
+			if mapExpr.Field != "" && keyExpr.Literal != nil {
+				return types.WhereExpr{
+					MapRef: &types.WhereExpr2{
+						L: &mapExpr,
+						R: &keyExpr,
+					},
+				}, nil
+			}
 			if mapExpr.Literal == nil || keyExpr.Literal == nil {
 				// TODO: Add support for general WhereExpr.
 				return nil, trace.BadParameter("GetProperty is implemented only for literals")
@@ -728,6 +870,58 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			return GetStringMapValue(mapExpr.Literal, keyExpr.Literal)
 		},
 	})
+}
+
+// predicateContainsAll is a custom function to test if all entries in a []string
+// are contained in another []string. Order does not matter, but all entries
+// in the second slice must be present in the first slice.
+func predicateContainsAll(a, b any) predicate.BoolPredicate {
+	return func() bool {
+		aval, ok := a.([]string)
+		if !ok {
+			return false
+		}
+		bval, ok := b.([]string)
+		if !ok {
+			return false
+		}
+
+		if len(aval) == 0 || len(bval) == 0 {
+			return false
+		}
+
+		aSet := set.New(aval...)
+		for _, v := range bval {
+			if !aSet.Contains(v) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// predicateContainsAny is a custom function to test if any entry in a []string
+func predicateContainsAny(a, b any) predicate.BoolPredicate {
+	return func() bool {
+		aval, ok := a.([]string)
+		if !ok {
+			return false
+		}
+		bval, ok := b.([]string)
+		if !ok {
+			return false
+		}
+		if len(aval) == 0 || len(bval) == 0 {
+			return false
+		}
+		aSet := set.New(aval...)
+		for _, v := range bval {
+			if aSet.Contains(v) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // NewResourceExpression returns a [typical.Expression] that is to be evaluated against a

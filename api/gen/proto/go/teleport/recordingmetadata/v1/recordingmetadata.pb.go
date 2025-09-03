@@ -46,6 +46,8 @@ const (
 	SessionRecordingType_SESSION_RECORDING_TYPE_UNSPECIFIED SessionRecordingType = 0
 	// SessionRecordingTypeSsh is an interactive SSH session recording.
 	SessionRecordingType_SESSION_RECORDING_TYPE_SSH SessionRecordingType = 1
+	// SessionRecordingTypeKubernetes is an interactive Kubernetes session recording.
+	SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES SessionRecordingType = 2
 )
 
 // Enum value maps for SessionRecordingType.
@@ -53,10 +55,12 @@ var (
 	SessionRecordingType_name = map[int32]string{
 		0: "SESSION_RECORDING_TYPE_UNSPECIFIED",
 		1: "SESSION_RECORDING_TYPE_SSH",
+		2: "SESSION_RECORDING_TYPE_KUBERNETES",
 	}
 	SessionRecordingType_value = map[string]int32{
 		"SESSION_RECORDING_TYPE_UNSPECIFIED": 0,
 		"SESSION_RECORDING_TYPE_SSH":         1,
+		"SESSION_RECORDING_TYPE_KUBERNETES":  2,
 	}
 )
 
@@ -626,10 +630,11 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\fstart_offset\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
 	"\n" +
 	"end_offset\x18\a \x01(\v2\x19.google.protobuf.DurationR\tendOffset\x12%\n" +
-	"\x0ecursor_visible\x18\b \x01(\bR\rcursorVisible*^\n" +
+	"\x0ecursor_visible\x18\b \x01(\bR\rcursorVisible*\x85\x01\n" +
 	"\x14SessionRecordingType\x12&\n" +
 	"\"SESSION_RECORDING_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
-	"\x1aSESSION_RECORDING_TYPE_SSH\x10\x01BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
+	"\x1aSESSION_RECORDING_TYPE_SSH\x10\x01\x12%\n" +
+	"!SESSION_RECORDING_TYPE_KUBERNETES\x10\x02BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
 
 var (
 	file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescOnce sync.Once
