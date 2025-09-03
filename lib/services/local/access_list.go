@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"slices"
 	"time"
 
@@ -170,6 +171,26 @@ func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID
 // ListAccessLists returns a paginated list of access lists.
 func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
 	return a.service.ListResources(ctx, pageSize, nextToken)
+}
+
+// RangeAccessLists returns access list resources within the range [start, end).
+func (a *AccessListService) RangeAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) iter.Seq2[*accesslist.AccessList, error] {
+	// Currently, the backend only sorts on lexicographical keys and not
+	// based on fields within a resource
+	if req.SortBy != nil && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc != false) {
+		return func(yield func(*accesslist.AccessList, error) bool) {
+			yield(nil, trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc))
+		}
+	}
+
+	nextKey, err := services.ParseAccessListNextKey(req.PageToken, req.GetSortBy().Field)
+	if err != nil {
+		return func(yield func(*accesslist.AccessList, error) bool) {
+			yield(nil, err)
+		}
+	}
+
+	return a.service.Resources(ctx, nextKey, "")
 }
 
 // ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
