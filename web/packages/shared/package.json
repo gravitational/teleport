@@ -10,7 +10,7 @@
     "directory": "packages/shared"
   },
   "scripts": {
-    "build-wasm": "make -C ../../../ build-ironrdp-wasm"
+    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && make -C ../../../ build-ironrdp-wasm"
   },
   "dependencies": {
     "@gravitational/design": "workspace:*",
