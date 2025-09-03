@@ -487,23 +487,14 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
-			ctx,
-			provisionToken,
-			req.RegisterUsingTokenRequest,
-			nil,
-			&workloadidentityv1pb.JoinAttrs{
-				Azure: joinAttrs,
-			},
-		)
+		params := makeBotCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/, &workloadidentityv1pb.JoinAttrs{
+			Azure: joinAttrs,
+		})
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
 		return certs, trace.Wrap(err)
 	}
-	certs, err = a.generateCerts(
-		ctx,
-		provisionToken,
-		req.RegisterUsingTokenRequest,
-		nil,
-	)
+	params := makeHostCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/)
+	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
 	return certs, trace.Wrap(err)
 }
 
