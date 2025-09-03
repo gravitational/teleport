@@ -24,6 +24,8 @@ Teleport to push user and group changes.
 
 - Teleport Enterprise or Teleport Enterprise Cloud cluster version 17.0 or higher.
 - Administrative access to AWS IAM Identity Center.
+- Teleport preset `editor` role or equivalent to configure plugin resource, integration 
+  resource and SAML IdP service provider resource.
 
 Note that Identity Center integration requires using Teleport as an external
 identity source.
@@ -111,6 +113,21 @@ To avoid access interruptions, we recommend making sure that all existing
 Identity Center users have access to your Teleport cluster by, for example, using
 the same [IdP](../../zero-trust-access/sso/sso.mdx) as your current Identity Center
 external identity source.
+</Admonition>
+
+<Admonition type="info" title="SAML IdP RBAC">
+In this step, Teleport creates a `saml_idp_service_provider` resource for the 
+AWS IAM Identity Center. 
+
+Starting with Teleport version 18 and role version 8, the SAML IdP service provider 
+resources are gated behind `app_labels` label matchers. If you are using Teleport 
+role version 8 to manage access, you must update the role to grant access to this 
+service provider resource with `app_labels` matching `teleport.dev/origin: aws-identity-center` label.
+```yaml
+  allow:
+    app_labels:
+      'teleport.dev/origin': 'aws-identity-center'
+```
 </Admonition>
 
 Follow the instructions to change your Identity Center's identity source to
@@ -320,6 +337,73 @@ automatically removed as well once the plugin is uninstalled.
 
 To clean up AWS resources created for the integration, remove the Identity
 Provider and its role from your AWS IAM console as well.
+
+## Troubleshooting
+
+### Access forbidden during AWS account login.
+
+This may happen if the user does not have access to the SAML IdP service provider 
+resource created for the AWS IAM Identity Center. 
+
+First, check the SAML IdP audit event which can be found in the Teleport Audit Log UI. 
+
+![Assumed Role granting Identity Center Account Assignments](../../../img/identity-center/ic-saml-login-audit-log.png)
+
+More detail on the error message can be found by clicking on the "Details" button.
+
+Example of a failed login audit log due to missing permission:
+```
+{
+  "cluster_name": "example.teleport.sh",
+  "code": "TSI000I",
+  "ei": 0,
+  "error": "access to saml_idp_service_provider denied. User does not have permissions. ",
+  "event": "saml.idp.auth",
+  "service_provider_entity_id": "https://ca-central-1.signin.aws.amazon.com/platform/saml/d-xxxxxx",
+  "sid": "",
+  "success": false,
+  "time": "2025-09-03T04:36:40.123Z",
+  "uid": "7523b6cc-313e-4f56-9f58-3f1b91075c4d",
+  "user": "example-user"
+}
+```
+
+To resolve RBAC error, first, identify what roles are assigned to the user. 
+
+If the user has been assigned with a Teleport role of version 8, 
+the role must define `app_labels` matching `teleport.dev/origin: aws-identity-center`
+label.
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: ic-access-example
+spec:
+  allow:
+    app_labels:
+      'teleport.dev/origin': 'aws-identity-center'
+```
+
+If the role requires Device Trust, the user must have a device authenticated 
+Teleport web session.
+
+If the role requires a session MFA, the user must authorize the login flow with MFA.
+
+If the user is assigned with Teleport role version 7 or below, 
+check if the IDP role option is not disabled. 
+```yaml
+kind: role
+version: v7
+metadata:
+  name: ic-access-example
+spec:
+  options:
+    idp:
+      saml:
+        enabled: true # idp must be enabled.
+```
+
 
 ## Next steps
 
