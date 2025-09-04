@@ -6,32 +6,33 @@ labels:
  - zero-trust
 ---
 
-This guide shows how to configure Entra ID as an OIDC identity provider for 
-Teleport. With this configuration, users can access Teleport by authenticating 
-with Entra ID, and be granted with permissions to access or manage resource in 
-Teleport based on their group membership in Entra ID.
+This guide shows how to configure Microsoft Entra ID (formerly Azure AD) as an 
+OIDC identity provider for Teleport. With this configuration, users can access 
+Teleport by authenticating with Entra ID, and be granted with permissions to 
+access or manage resource in Teleport based on their group membership in Entra ID.
 
 A SAML-based Entra ID IdP configuration version is available in this [guide](entra-id.mdx).
 
 ## How it works
 
-In Entra ID, you will create an enterprise application and set up Teleport as an
-OIDC relying party. You will also configure the `groups` claim, which will be 
-included in the user's OIDC ID Token. 
+In the Microsoft Entra ID tenant, you will create an enterprise application and
+set it up as an OIDC identity provider for Teleport. You will also configure the
+`groups` claim, which will be included in the user's OIDC ID Token. 
 
-In Teleport, you will create an Auth Connector resource and set up Entra ID as 
-an OIDC identity provider. You will also map Entra ID groups to Teleport roles. 
+In Teleport, you will create an Auth Connector resource and set up Microsoft 
+Entra ID as an OIDC identity provider. You will also map Entra ID groups to 
+Teleport roles. 
 
-When Entra ID user signs in to Teleport by authenticating with Entra ID, the following 
-things happen in Teleport:
-- Teleport verifies the ID Token issued by Entra ID.
-- Teleport creates a temporary user account for the authenticated user with roles 
-  that are mapped from the user's OIDC `groups` claim values.
-- Teleport issues a pair of short-lived TLS and SSH certificates for user session. 
-  These certificates encodes user's Teleport roles (mapped via groups claim mapping), 
-  granting permission to manage or access resources in Teleport. 
+When a user signs in to Teleport by authenticating with their Microsoft Entra ID
+account, Teleport first creates a temporary user account with Teleport roles mapped
+from `groups` claim and traits. Traits are user attributes (key-value format). 
+Any claims that is present in the OIDC ID Token is preserved as user traits. 
+Teleport then starts a new session for the user by issuing a pair of short-lived 
+TLS and SSH certificates. These certificates encodes user's identity, 
+roles and traits, which are evaluated to grant access in Teleport. 
 
-For demonstration, we will have two user groups created in Entra ID: 
+To demonstrate Microsoft Entra ID group to Teleport role mapping, 
+we will have two user groups created in the Microsoft Entra ID tenant: 
 1. `ad-app-support`. We will map this group to Teleport preset `requester` role. 
     The preset `requester` role grants permission to request access to resources 
     that are enrolled in Teleport. 
@@ -39,13 +40,13 @@ For demonstration, we will have two user groups created in Entra ID:
 roles. The preset `editor` role grants permission to manage resource in Teleport. 
 The preset `reviewer` grants permission to review access to resources in Teleport.
 
-Instead of creating new groups, you may use an existing Entra ID groups to follow 
-through this guide. 
+Instead of creating new groups, you may use an existing Microsoft Entra ID groups 
+to follow through this guide. 
 
 ## Prerequisites
 
 - Permissions to create an enterprise application, configure and grant Microsoft 
-  Graph API permissions and manage groups in Entra ID.
+  Graph API permissions and manage groups in the Microsoft Entra ID tenant.
 - Teleport user with a preset `editor` or an equivalent role that allows to 
 read and write Auth Connector, users and roles.
 - (!docs/pages/includes/tctl.mdx!)
@@ -53,30 +54,32 @@ read and write Auth Connector, users and roles.
 ## Step 1/5. Create groups
 
 <Admonition type="info" title="New Group">
-  You may skip this step if you are using an existing Entra ID 
+  You may skip this step if you are using an existing Microsoft Entra ID 
   groups to follow through this guide.
 </Admonition>
 
-In the Azure portal, select the "Groups" menu under "Azure services". 
+In the Azure portal, select the "Groups" menu which is available under the
+"Azure services" menu. 
 
-From the "Groups" page, click the "New group" button to create a new user group 
-named `ad-app-admin`. You may add desired users to this group. 
+From the "Groups" UI, click the "New group" button to create a new user group 
+named `ad-app-admin`.
 
 ![Entra ID create group](../../../img/sso/entraid/oidc/entra-id-create-group.png) 
 
+You may add desired users to this group. 
 Repeat this step to create another group named `ad-app-support`.
 
 ## Step 2/5. Create an enterprise application
 
-In the Azure Portal, under “Azure services”, select “Enterprise applications”.
-Click on `+ New Application` button, then click `+ Create your own application` 
+In the Azure Portal, from the “Azure services” menu, select “Enterprise applications”.
+Click on the `+ New Application` button, then click `+ Create your own application` 
 button. Enter a name for your application and create the application.
 
 ![Entra ID create application](../../../img/sso/entraid/oidc/entra-id-create-application.png) 
 
 ## Step 3/5. Assign groups
 
-In the Azure Portal, in the enterprise application UI, select "Users and groups" 
+In the Azure Portal, in the enterprise application UI, select the "Users and groups" 
 menu which can be located under the "Manage" menu.
 
 In the "Users and groups" UI, click `+Add user/group` button. 
@@ -86,22 +89,22 @@ with an existing user groups, select those groups in this step.
 
 ![Entra ID assign](../../../img/sso/entraid/oidc/entra-id-assign-group.png) 
 
-## Step 3/5. Configure OIDC
+## Step 4/5. Configure OIDC
 
-Configuring OIDC involves setting up a redirect URI for the relying party, 
-setting up OIDC claim and a client credential. 
+Configuring OIDC involves setting up a redirect URI for the relying party (Teleport 
+in this case), setting up the OIDC claims and a client credential. 
 
 These OIDC configurations are available in the "App registrations" service.
 
-In the Azure Portal, under “Azure services”, select "App registrations".
+In the Azure Portal, from the “Azure services” menu, select "App registrations".
 In the "App registrations" UI, search and select the enterprise application you 
 created in Step 2.
 
 ### Configure redirect URI
 
-In the "App registrations" UI for the enterprise application, under the “Manage” menu, 
-select “Authentication”. In this configuration UI, under the "Platform configurations" 
-section, click `+ Add a platform` button. 
+In the "App registrations" UI for the enterprise application, from the “Manage” 
+menu, select the “Authentication” menu. In this configuration UI, under the 
+"Platform configurations" section, click `+ Add a platform` button. 
 
 OIDC redirect URI for Teleport should point to the OIDC callback endpoint, which 
 has the following URI format: `https://example.teleport.sh/v1/webapi/oidc/callback`.
@@ -115,17 +118,17 @@ https://<Var name="example.teleport.sh" />/v1/webapi/oidc/callback
 
 ![Entra ID OIDC redirect URI](../../../img/sso/entraid/oidc/entra-id-oidc-redirect-uri.png)
 
-Save the configuration once redirect URI is configured.
+Save the configuration once the redirect URI is configured.
 
 ### Setup Client credential 
 
-Teleport uses OIDC authorization code flow to exchange OIDC code for the 
-user's ID Token. To exchange the ID Token, a client credential must be set up for 
-Teleport. 
+Teleport uses OIDC authorization code flow to exchange OIDC authorization code 
+for the user's ID Token. To exchange the ID Token, a client credential must be 
+set up for Teleport. 
 
-In the "App registrations" UI for the enterprise application, under the "Manage" 
-menu, select "Certificates & secrets". Now select "Client secrets" tab and click 
-on the `+ New client secret` button. Create a new client secret. 
+In the "App registrations" UI for the enterprise application, from the "Manage" 
+menu, select "Certificates & secrets". Now select the "Client secrets" tab and 
+click on the `+ New client secret` button. Create a new client secret. 
 
 ![Entra ID OIDC client credential](../../../img/sso/entraid/oidc/entra-id-oidc-client-credential.png)
 
@@ -134,17 +137,11 @@ Once the secret is created, copy the value and save it in your working environme
 $ echo 'secret value copied from entra id' > /tmp/client-secret
 ``` 
 
-### Configure OIDC claims
+### Configure groups claims
 
-Teleport expects `openid`, `email`, `profile` and 
-`groups` claim at minimum.
+You need to configure `groups` claim to configure access in Teleport.
 
-The `openid`, `email` claims are requested by Teleport as a default. You must 
-configure the `groups` claim to configure access in Teleport. You may configure 
-other claims as desired. All the claims issued by Entra ID are preserved
-as user's traits in the user resource.
-
-In the "App registrations" UI for the enterprise application, under the "Manage" 
+In the "App registrations" UI for the enterprise application, from the "Manage" 
 menu, select "Token configuration".
 
 In the "Token configuration" UI, click `+ Add groups claim` button.
@@ -155,29 +152,24 @@ The reference image below shows that a "Security groups" type is selected.
 
 ![Entra ID OIDC groups claim](../../../img/sso/entraid/oidc/entra-id-oidc-group-claim.png)
 
-<Admonition type="warning" title="Email Claim">
-  Microsoft discourages using `email` claim value for uniquely identifying user 
-  as the value is not guaranteed to come from a verified email address. 
+You may configure other claims as desired. All the claims issued by Microsoft 
+Entra ID are preserved as user's traits in the user resource.
 
-  As a precaution, ensure that user's with unverified domain are not assigned to 
-  the enterprise application created in Step 2.
-</Admonition>
+### (Optional) Groups overage claim
 
-### (Optional) Groups claim overage
-
-If user's group membership exceeds 200 groups limit, Entra ID issues a groups 
-overage claim instead of the expected `groups` claim. To follow through the 
-groups overage claim, Teleport needs to query Microsoft Graph API and fetch 
-user's group membership details.
+If user's group membership exceeds 200 groups limit, Microsoft Entra ID issues a
+groups overage claim instead of the expected `groups` claim. The groups overage 
+claim contains an Azure AD Graph API link, which indicates that the user's group 
+membership is to be queried from the Microsoft Graph API. 
 
 If your user's group membership do not exceed this 200 max groups claim item limit, 
 you can skip this step. Otherwise, you will need to grant Teleport with a Microsoft
 Graph API permission so it can retrieve user's group membership using the Microsoft 
 Graph API. 
 
-Teleport requires `User.ReadBasic.All` permission to query user's group membership.
+To query user's group membership, Teleport requires `User.ReadBasic.All` permission.
 To grant this permission, in the "App registrations" UI for the enterprise 
-application, under the "Manage" menu, select "API permissions".
+application, from the "Manage" menu, select "API permissions".
 
 Next, click `+ Add a permission` button and then select "Microsoft APIs > Microsoft Graph >
 Application permissions". In the permission filter search bar, type `User.ReadBasic.All`.
@@ -202,7 +194,7 @@ Microsoft Graph API.
 Before creating the Auth Connector resource, its useful to first generate the 
 configuration spec and test the configuration.
 
-The Auth Connector spec can be created by using the `tctl sso configure` command. 
+The Auth Connector spec can be configured by using the `tctl sso configure` command. 
 
 ```code
 $ tctl sso configure oidc --name "entra-id" \
@@ -217,21 +209,52 @@ $ tctl sso configure oidc --name "entra-id" \
   --scope profile > entraid-oidc-connector.yaml
 ```
 
-- `--name`: Usually the name of the IdP, this is how the connector will be
-  identified in Teleport.
-- `--issuer-url`: This is the base path to the IdP's OIDC configuration endpoint,
-  excluding `.well-known/openid-configuration`. If, for example, the endpoint
-  is `https://example.com/.well-known/openid-configuration`, you would use
-  `https://example.com`.
-- `--id`: The client ID as defined in the IdP. Depending on your identity
-  provider this may be something you can define (for example, `teleport`), or 
-  may be an assigned string.
-- `--secret`: The client token/secret provided by the IdP to authorize this client.
+- `--name`: Teleport resource name for the Microsoft Entra ID Auth Connector. 
+- `--display`: Display name for the Microsoft Entra ID Auth Connector
+- `--issuer-url`: Microsoft Entra ID OIDC issuer URL. You need your Microsoft Entra 
+  ID tenant ID to configure this URL.
+- `--id`: The application (client) ID of the enterprise application you created in 
+  Step 2. This value can be copied from the "Overview" section of the enterprise 
+  application in the Azure Portal. 
+- `--secret`: The client secret we created in Step 4.
 - `--claims-to-roles`: A mapping of OIDC claims/values to be associated with
   Teleport roles. Note that the Entra ID `groups` claim includes group's object ID.
   As such, you will need to map groups by using groups object ID.
 
-Test the connector resource by piping the file to `tctl sso test` command:
+<details>
+<summary>Example Auth Connector resource file created by the `tctl sso configure` command</summary>
+
+```yaml
+kind: oidc
+metadata:
+  name: entra-id
+spec:
+  claims_to_roles:
+  - claim: groups
+    roles:
+    - editor
+    - reviewer
+    value: da770259-8007-42da-a9c2-3b366a88bc1c
+  - claim: groups
+    roles:
+    - requester
+    value: ed5763df-9465-45e8-b10b-06a8979b072e
+  client_id: d40666f7-3352-43e8-a8ad-b75e7a0a7be3
+  client_secret: example-secret-value
+  display: Entra ID
+  issuer_url: https://login.microsoftonline.com/0297d2f3-62c3-4598-aaa1-2104929ba73c/v2.0
+  redirect_url: https://example.teleport.sh:443/v1/webapi/oidc/callback
+  scope:
+  - openid
+  - email
+  - profile
+version: v3
+```
+
+</details>
+
+
+Now test the connector resource by piping the file to `tctl sso test` command:
 
 ```code
 $ cat entraid-oidc-connector.yaml | tctl sso test
@@ -239,11 +262,55 @@ $ cat entraid-oidc-connector.yaml | tctl sso test
 If the configuration test fails, the `tctl sso test` command will print helpful 
 information to debug the issue.
 
+By default, Teleport expects an `email` claim to be present in the OIDC claim. 
+The value from the `email` claim is used as a username in Teleport. If you wish 
+to use another claim to configure username, you can override the 
+default expected `email` claim with the `username_claim` field in the Auth 
+Connector spec. 
+
+The example below shows configuring the `username_claim` field with `preferred_username`
+value. This will configure Teleport to query `preferred_username` claim instead 
+of the `email` claim. 
+```yaml
+kind: oidc
+metadata:
+  name: entra-id
+spec:
+  ... # other fields not displayed for brevity
+  username_claim: preferred_username
+```
+
+<Admonition type="warning" title="Username claim">
+  Ensure that the claim value you use to configure `username_claim` is a uniquely
+  identifiable value for the user. 
+</Admonition>
+
 If the configuration is working for you, proceed creating the connector resource 
 by using the `tctl create` command:
 
 ```code
 $ tctl create -f entraid-oidc-connector.yaml
+```
+
+The Auth Connector resource for Microsoft Entra ID is now configured.
+
+## FAQ
+
+### I want to customize how Teleport follows the groups overage claim
+
+Groups overage claim setting can be customized by using the `entra_id_groups_provider`
+field in the Auth Connector spec.
+
+```yaml
+kind: oidc
+metadata:
+  name: entra-id
+spec:
+  ... # other fields not displayed for brevity
+  entra_id_groups_provider: 
+    disabled: false # set value to "true" to turn off the groups overage claim 
+    group_type: "security-groups" # can be "directory-roles", "all-groups"
+    graph_endpoint: "https://graph.microsoft.com" # update this value to point to another official Graph API endpoint
 ```
 
 ## Troubleshooting
@@ -258,11 +325,35 @@ claims.
 
 This can happen if the user does not have a domain verified email account.
 
-Alternatively, you can update the connector spec to use `preferred_username` value
-as an alternative of `email` claim.
+Alternatively, you can update the connector spec to use a different claim value
+(must be a uniquely identifiable value) as an alternative of `email` claim.
 
+Example:
 ```yaml
-  username_claim: preferred_username
+kind: oidc
+metadata:
+  name: entra-id
+spec:
+  ... # other fields not displayed for brevity
+  username_claim: oid
+```
+
+### oid claim not found
+
+User may receive this error if a groups overage claim was issued for the user but 
+Teleport could not find the `oid` claim.
+
+To resolve this, ensure that the `profile` scope is configured in the Auth Connector.
+```yaml
+kind: oidc
+metadata:
+  name: entra-id
+spec:
+  ... # other fields not displayed for brevity
+  scope:
+  - openid
+  - email
+  - profile
 ```
 
 ## Next steps
