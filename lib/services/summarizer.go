@@ -21,8 +21,11 @@ import (
 	"iter"
 
 	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
 
+	"github.com/gravitational/teleport"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/api/types"
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 )
 
@@ -98,6 +101,34 @@ type Summarizer interface {
 	AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv1.InferencePolicy, error]
 }
 
+// inferencePolicyValidationContext is a special kind of [RuleContext] that
+// allows validating inference policy filters by attempting to resolve
+// identifiers against other supported resource types.
+type inferencePolicyValidationContext struct {
+	Context
+}
+
+func (ctx *inferencePolicyValidationContext) GetIdentifier(fields []string) (any, error) {
+	// Use custom logic for resolving resource fields.
+	if fields[0] == ResourceIdentifier {
+		for _, dummyResource := range []any{
+			types.ServerV2{}, types.KubernetesClusterV3{}, types.DatabaseV3{},
+		} {
+			val, err := predicate.GetFieldByTag(dummyResource, teleport.JSON, fields[1:])
+			if err != nil {
+				if trace.IsNotFound(err) {
+					continue
+				}
+				return nil, err
+			}
+			return val, nil
+		}
+	}
+
+	// For other cases, use the standard procedure.
+	return ctx.Context.GetIdentifier(fields)
+}
+
 // ValidateInferencePolicy validates an inference policy, including checking
 // filter syntax. This function wraps [apisummarizer.ValidateInferencePolicy],
 // as no function in the api/types tree can depend on the lib/services package.
@@ -109,7 +140,7 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 
 	s := p.GetSpec()
 	if s.GetFilter() != "" {
-		parser, err := NewWhereParser(&Context{})
+		parser, err := NewWhereParser(&inferencePolicyValidationContext{})
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -28,26 +28,68 @@ import (
 
 func TestValidateInferencePolicy(t *testing.T) {
 	t.Parallel()
-	p := apisummarizer.NewInferencePolicy("my-policy", &summarizerv1.InferencePolicySpec{
-		Kinds:  []string{"ssh", "k8s", "db"},
-		Filter: `equals(resource.metadata.labels["env"], "prod") || equals(user.metadata.name, "admin")`,
-		Model:  "my-model",
-	})
-	require.NoError(t, ValidateInferencePolicy(p))
 
-	// Empty filter should also be valid.
-	p.Spec.Filter = ""
-	require.NoError(t, ValidateInferencePolicy(p))
+	allKinds := []string{"ssh", "k8s", "db"}
 
-	// Broken filter expression.
-	p.Spec.Filter = "equals("
-	err := ValidateInferencePolicy(p)
-	assert.ErrorContains(t, err, "spec.filter has to be a valid predicate")
+	cases := []struct {
+		name         string
+		kinds        []string
+		filter       string
+		errorMessage string
+	}{
+		{name: "valid empty filter", kinds: allKinds, filter: ""},
+		{name: "valid user filter", kinds: allKinds, filter: `contains(user.spec.roles, "admin")`},
+		{name: "valid server filter", kinds: allKinds, filter: `equals(resource.spec.hostname, "node1")`},
+		{name: "valid db filter", kinds: allKinds, filter: `equals(resource.spec.protocol, "postgres")`},
+		{name: "valid kube filter", kinds: allKinds, filter: `resource.metadata.labels["env"] == "prod"`},
+		{name: "valid shell session filter", kinds: allKinds, filter: `contains(session.participants, "joe")`},
+		{name: "valid db session filter", kinds: allKinds, filter: `session.db_protocol == "postgres"`},
 
-	// Verify that errors reported from the api/types package are also included.
-	p = apisummarizer.NewInferencePolicy("my-policy", &summarizerv1.InferencePolicySpec{
-		Model: "my-model",
-	})
-	err = ValidateInferencePolicy(p)
-	assert.ErrorContains(t, err, "spec.kinds are required")
+		{
+			name:         "invalid kinds",
+			kinds:        nil,
+			errorMessage: "spec.kinds are required",
+		},
+		{
+			name:         "invalid filter syntax",
+			kinds:        allKinds,
+			filter:       "equals(resource.metadata.name, ",
+			errorMessage: "spec.filter has to be a valid predicate",
+		},
+		{
+			name:         "invalid user filter field",
+			kinds:        allKinds,
+			filter:       `user.metadata.foo == "bar"`,
+			errorMessage: "field name foo is not found",
+		},
+		{
+			name:         "invalid resource filter field",
+			kinds:        allKinds,
+			filter:       `resource.spec.foo == "bar"`,
+			errorMessage: "field name spec.foo is not found",
+		},
+		{
+			name:         "invalid session filter field",
+			kinds:        allKinds,
+			filter:       `session.foo == "bar"`,
+			errorMessage: "field name foo is not found",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := apisummarizer.NewInferencePolicy("my-policy", &summarizerv1.InferencePolicySpec{
+				Kinds:  tc.kinds,
+				Filter: tc.filter,
+				Model:  "my-model",
+			})
+			err := ValidateInferencePolicy(p)
+			if tc.errorMessage == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tc.errorMessage)
+			}
+		})
+	}
 }
