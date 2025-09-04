@@ -241,6 +241,32 @@ func (handler *Handler) getMatchingRule(
 	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
 
 	for _, rule := range handler.rules.Get() {
+		schedules := make(map[string]accessmonitoring.Schedule)
+		for _, schedule := range rule.GetSpec().GetSchedules() {
+			switch {
+			case schedule.GetInline() != nil:
+				inline := schedule.GetInline()
+
+				var shifts []accessmonitoring.Shift
+				for _, shift := range inline.GetShifts() {
+					shifts = append(shifts, accessmonitoring.Shift{
+						Weekday: shift.GetWeekday(),
+						Start:   shift.GetStart(),
+						End:     shift.GetEnd(),
+					})
+				}
+
+				schedules[schedule.GetName()] = accessmonitoring.Schedule{
+					Timezone: inline.GetTimezone(),
+					Shifts:   shifts,
+				}
+			case schedule.GetSource() != nil:
+				handler.Logger.DebugContext(ctx, "source schedule not yet implemented")
+				continue
+			}
+		}
+		env.Schedules = schedules
+
 		conditionMatch, err := accessmonitoring.EvaluateCondition(rule.GetSpec().GetCondition(), env)
 		if err != nil {
 			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",

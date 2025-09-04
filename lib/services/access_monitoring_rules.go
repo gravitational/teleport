@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -93,6 +94,10 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 		return trace.BadParameter("accessMonitoringRule condition is missing")
 	}
 
+	if err := validateSchedules(accessMonitoringRule.GetSpec().GetSchedules()); err != nil {
+		return trace.Wrap(err, "validating spec.schedules")
+	}
+
 	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
 		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
 	}
@@ -135,6 +140,93 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 	}
 
 	return nil
+}
+
+func validateSchedules(schedules []*accessmonitoringrulesv1.Schedule) error {
+	seenSchedules := make(map[string]int, len(schedules))
+	for i, schedule := range schedules {
+		if schedule.GetName() == "" {
+			return trace.BadParameter("spec.schedules[%d].name is required", i)
+		}
+
+		// Ensure only one type of schedule is configured.
+		if schedule.GetInline() != nil && schedule.GetSource() != nil {
+			return trace.BadParameter("spec.schedules[%d] cannot specify both inline and source", i)
+		}
+
+		// Ensure at least one type of schedule is configured.
+		if schedule.GetInline() == nil && schedule.GetSource() == nil {
+			return trace.BadParameter("spec.schedules[%d] must must specify inline or source", i)
+		}
+
+		if err := validateInlineSchedule(schedule.GetInline()); err != nil {
+			return trace.Wrap(err, "validating spec.schedules[%d].inline", i)
+		}
+
+		if err := validateSourceSchedule(schedule.GetSource()); err != nil {
+			return trace.Wrap(err, "validating spec.schedules[%d].source", i)
+		}
+
+		if conflictingSchedule, exists := seenSchedules[schedule.GetName()]; exists {
+			return trace.BadParameter("spec.schedules contains schedules with the same name %q at indicies %d and %d",
+				schedule.GetName(), conflictingSchedule, i)
+		}
+		seenSchedules[schedule.GetName()] = i
+	}
+	return nil
+}
+
+func validateInlineSchedule(schedule *accessmonitoringrulesv1.InlineSchedule) error {
+	if schedule == nil {
+		return nil
+	}
+
+	if schedule.GetTimezone() == "" {
+		return trace.BadParameter("timezone is required")
+	}
+
+	if _, err := time.LoadLocation(schedule.GetTimezone()); err != nil {
+		return trace.Wrap(err, "timezone is invalid")
+	}
+
+	if len(schedule.GetShifts()) == 0 {
+		return trace.BadParameter("at least one shift is required")
+	}
+
+	for _, shift := range schedule.GetShifts() {
+		if err := validateShift(shift); err != nil {
+			return trace.Wrap(err, "shift is invalid")
+		}
+	}
+	return nil
+}
+
+func validateShift(shift *accessmonitoringrulesv1.InlineSchedule_Shift) error {
+	if _, ok := types.ParseWeekday(shift.GetWeekday()); !ok {
+		return trace.BadParameter("failed to parse weekday: %v", shift.GetWeekday())
+	}
+
+	start, err := accessmonitoring.ClockTime(time.Time{}, shift.GetStart())
+	if err != nil {
+		return trace.Wrap(err, "invalid start time")
+	}
+
+	end, err := accessmonitoring.ClockTime(time.Time{}, shift.GetEnd())
+	if err != nil {
+		return trace.Wrap(err, "invalid end time")
+	}
+
+	if !start.Before(end) {
+		return trace.BadParameter("start time must be before end time")
+	}
+	return nil
+}
+
+func validateSourceSchedule(schedule *accessmonitoringrulesv1.SourceSchedule) error {
+	if schedule == nil {
+		return nil
+	}
+	return trace.NotImplemented("validateSourceSchedule")
 }
 
 // MarshalAccessMonitoringRule marshals AccessMonitoringRule resource to JSON.
