@@ -20,6 +20,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -42,6 +43,11 @@ import (
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
+var echoHeaders = map[string]struct{}{
+	"X-Test-Header-A": {},
+	"X-Test-Header-B": {},
+}
+
 func TestE2E_ApplicationProxyService(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -49,9 +55,17 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 
 	// Spin up a test HTTP server
 	wantStatus := http.StatusTeapot
-	wantBody := []byte("hello this is a test")
+	wantBody := []byte("X-Test-Header-A: test-value-a\n")
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(wantStatus)
+
+		var body string
+		for header, values := range r.Header {
+			for _, value := range values {
+				body += fmt.Sprintf("%s: %s\n", header, value)
+			}
+		}
+
 		w.Write(wantBody)
 	}))
 	t.Cleanup(httpSrv.Close)
@@ -149,7 +163,15 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	// We can't predict exactly when the tunnel will be ready so we use
 	// EventuallyWithT to retry.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := httpClient.Get("http://" + appName)
+		requestUrl, _ := url.Parse("http://" + appName)
+		request := &http.Request{
+			URL: requestUrl,
+			Header: http.Header{
+				"X-Test-Header-A": []string{"test-value-a"},
+			},
+		}
+		resp, err := httpClient.Do(request)
+
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -160,7 +182,10 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 			return
 		}
 		assert.Equal(t, wantBody, body)
-	}, 10*time.Second, 100*time.Millisecond)
+
+		// Check that we see X-Test-Header-A echoed back, which means it was properly passed on by the HTTP Proxy
+		assert.Equal(t, resp.Header.Get("X-Test-Header-A"), []string{"test-value-a"})
+	}, 10*time.Second, 1*time.Second)
 
 	// Do a second request to test caching
 	resp, err := httpClient.Get("http://" + appName)
@@ -296,7 +321,8 @@ func TestE2E_ApplicationProxyServiceWithCaching(t *testing.T) {
 			return
 		}
 		assert.Equal(t, wantBody, body)
-	}, 10*time.Second, 100*time.Millisecond)
+
+	}, 10*time.Second, 1*time.Second)
 
 	// Do a second request to test caching
 	resp, err := httpClient.Get("http://" + appName)

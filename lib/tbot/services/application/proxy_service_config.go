@@ -18,7 +18,7 @@ type ProxyServiceConfig struct {
 	Listen             string                 `yaml:"listen"`
 	Roles              []string               `yaml:"roles,omitempty"`
 	CertificateCaching bool                   `yaml:"certificate_caching,omitempty"`
-	CredentialLifetime bot.CredentialLifetime `yaml:"credential-lifetime,omitempty"`
+	CredentialLifetime bot.CredentialLifetime `yaml:"credential_lifetime,omitempty"`
 	Listener           net.Listener           `yaml:"-"`
 }
 
