@@ -230,7 +230,7 @@ export function PlayerControls({
 
       {onToggleFullscreen && (
         <HoverTooltip
-          tipContent={fullscreen ? 'Exit full screen' : 'Full Screen'}
+          tipContent={fullscreen ? 'Exit Full Screen' : 'Full Screen'}
           portalRoot={containerRef.current}
         >
           <PlayerButton onClick={onToggleFullscreen}>
