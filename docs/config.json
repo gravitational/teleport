@@ -230,6 +230,11 @@
       "permanent": true
     },
     {
+      "source": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
+      "permanent": true
+    },
+    {
       "source": "/management/export-audit-events/fluentd/",
       "destination": "/zero-trust-access/export-audit-events/fluentd/",
       "permanent": true
@@ -656,7 +661,7 @@
     },
     {
       "source": "/enroll-resources/machine-id/getting-started/",
-      "destination": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
       "permanent": true
     },
     {

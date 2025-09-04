@@ -2495,7 +2495,7 @@ Some of the things you can do with Machine ID:
 - Configure role-based access controls and locking for machines.
 - Capture access events in the audit log.
 
-[Machine ID getting started guide](docs/pages/machine-workload-identity/machine-id/getting-started.mdx)
+[Machine ID getting started guide](docs/pages/machine-workload-identity/getting-started.mdx)
 
 ### Database access
 
