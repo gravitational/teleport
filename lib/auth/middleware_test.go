@@ -71,10 +71,11 @@ func TestMiddlewareGetUser(t *testing.T) {
 
 	var (
 		localUserIdentity = tlsca.Identity{
-			Username:        "foo",
-			Groups:          []string{"devs"},
-			TeleportCluster: localClusterName,
-			Expires:         now,
+			Username:          "foo",
+			Groups:            []string{"devs"},
+			TeleportCluster:   localClusterName,
+			OriginClusterName: localClusterName,
+			Expires:           now,
 		}
 		localUserIdentityNoTeleportCluster = tlsca.Identity{
 			Username: "foo",
@@ -82,16 +83,18 @@ func TestMiddlewareGetUser(t *testing.T) {
 			Expires:  now,
 		}
 		localSystemRole = tlsca.Identity{
-			Username:        "node",
-			Groups:          []string{string(types.RoleNode)},
-			TeleportCluster: localClusterName,
-			Expires:         now,
+			Username:          "node",
+			Groups:            []string{string(types.RoleNode)},
+			TeleportCluster:   localClusterName,
+			OriginClusterName: localClusterName,
+			Expires:           now,
 		}
 		remoteUserIdentity = tlsca.Identity{
-			Username:        "foo",
-			Groups:          []string{"devs"},
-			TeleportCluster: remoteClusterName,
-			Expires:         now,
+			Username:          "foo",
+			Groups:            []string{"devs"},
+			TeleportCluster:   remoteClusterName,
+			OriginClusterName: remoteClusterName,
+			Expires:           now,
 		}
 		remoteUserIdentityNoTeleportCluster = tlsca.Identity{
 			Username: "foo",
@@ -99,10 +102,11 @@ func TestMiddlewareGetUser(t *testing.T) {
 			Expires:  now,
 		}
 		remoteSystemRole = tlsca.Identity{
-			Username:        "node",
-			Groups:          []string{string(types.RoleNode)},
-			TeleportCluster: remoteClusterName,
-			Expires:         now,
+			Username:          "node",
+			Groups:            []string{string(types.RoleNode)},
+			TeleportCluster:   remoteClusterName,
+			OriginClusterName: remoteClusterName,
+			Expires:           now,
 		}
 	)
 
@@ -253,10 +257,11 @@ func TestWrapContextWithUser(t *testing.T) {
 
 	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
 	localUserIdentity := tlsca.Identity{
-		Username:        "foo",
-		Groups:          []string{"devs"},
-		TeleportCluster: localClusterName,
-		Expires:         now,
+		Username:          "foo",
+		Groups:            []string{"devs"},
+		TeleportCluster:   localClusterName,
+		OriginClusterName: localClusterName,
+		Expires:           now,
 	}
 
 	tests := []struct {
@@ -349,48 +354,53 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 
 	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
 	localUserIdentity := tlsca.Identity{
-		Username:        "foo",
-		Groups:          []string{"devs"},
-		TeleportCluster: localClusterName,
-		Expires:         now,
-		Usage:           []string{},
-		Principals:      []string{},
+		Username:          "foo",
+		Groups:            []string{"devs"},
+		TeleportCluster:   localClusterName,
+		OriginClusterName: localClusterName,
+		Expires:           now,
+		Usage:             []string{},
+		Principals:        []string{},
 	}
 
 	remoteUserIdentity := tlsca.Identity{
-		Username:        "foo",
-		Groups:          []string{"devs"},
-		TeleportCluster: remoteClusterName,
-		Expires:         now,
-		Usage:           []string{},
-		Principals:      []string{},
+		Username:          "foo",
+		Groups:            []string{"devs"},
+		TeleportCluster:   remoteClusterName,
+		OriginClusterName: remoteClusterName,
+		Expires:           now,
+		Usage:             []string{},
+		Principals:        []string{},
 	}
 
 	proxyIdentity := tlsca.Identity{
-		Username:        "proxy...",
-		Groups:          []string{string(types.RoleProxy)},
-		TeleportCluster: localClusterName,
-		Expires:         now,
-		Usage:           []string{},
-		Principals:      []string{},
+		Username:          "proxy...",
+		Groups:            []string{string(types.RoleProxy)},
+		TeleportCluster:   localClusterName,
+		OriginClusterName: localClusterName,
+		Expires:           now,
+		Usage:             []string{},
+		Principals:        []string{},
 	}
 
 	remoteProxyIdentity := tlsca.Identity{
-		Username:        "proxy...",
-		Groups:          []string{string(types.RoleProxy)},
-		TeleportCluster: remoteClusterName,
-		Expires:         now,
-		Usage:           []string{},
-		Principals:      []string{},
+		Username:          "proxy...",
+		Groups:            []string{string(types.RoleProxy)},
+		TeleportCluster:   remoteClusterName,
+		OriginClusterName: remoteClusterName,
+		Expires:           now,
+		Usage:             []string{},
+		Principals:        []string{},
 	}
 
 	dbIdentity := tlsca.Identity{
-		Username:        "db...",
-		Groups:          []string{string(types.RoleDatabase)},
-		TeleportCluster: localClusterName,
-		Expires:         now,
-		Usage:           []string{},
-		Principals:      []string{},
+		Username:          "db...",
+		Groups:            []string{string(types.RoleDatabase)},
+		TeleportCluster:   localClusterName,
+		OriginClusterName: localClusterName,
+		Expires:           now,
+		Usage:             []string{},
+		Principals:        []string{},
 	}
 
 	type args struct {
