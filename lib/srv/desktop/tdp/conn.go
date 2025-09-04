@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 
@@ -187,7 +188,7 @@ func IsFatalErr(err error) bool {
 
 // NewConnProxy creates a bidirectional proxy to copy messages between the client and server connection.
 // It accepts an optional interceptor to intercept server messages.
-func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor Interceptor) *ConnProxy {
+func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor OldInterceptor) *ConnProxy {
 	return &ConnProxy{
 		client:            NewConn(client),
 		server:            NewConn(server),
@@ -202,14 +203,16 @@ type ConnProxy struct {
 	// server is a connection to the server (Windows Desktop Service).
 	server *Conn
 	// serverInterceptor intercepts messages received from the serve.
-	serverInterceptor Interceptor
+	serverInterceptor OldInterceptor
 }
+
+type OldInterceptor func(c *Conn, message Message) (Message, error)
 
 // Interceptor intercepts messages on the connection. It should return
 // the [potentially modified] message in order to pass it on to the
 // other end of the connection, or nil to prevent the message from
 // being forwarded.
-type Interceptor func(conn *Conn, message Message) (Message, error)
+type Interceptor func(message Message) (Message, error)
 
 // SendToClient sends a message to the client and blocks until the operation completes.
 func (c *ConnProxy) SendToClient(message Message) error {
@@ -223,20 +226,129 @@ func (c *ConnProxy) SendToServer(message Message) error {
 	return trace.Wrap(err)
 }
 
+type readWriteInterceptor struct {
+	src   MessageReadWriteCloser
+	read  Interceptor
+	write Interceptor
+}
+
+func NewReadWriteInterceptor(src MessageReadWriteCloser, readIntercept, writeIntercept Interceptor) *readWriteInterceptor {
+	return &readWriteInterceptor{
+		src:   src,
+		read:  readIntercept,
+		write: writeIntercept,
+	}
+}
+
+func (i *readWriteInterceptor) WriteMessage(m Message) error {
+	var err error
+	if i.write != nil {
+		m, err = i.write(m)
+		if err != nil {
+			return err
+		}
+	}
+	// The interceptor is allowed to return a nil message
+	if m != nil {
+		return i.src.WriteMessage(m)
+	}
+	return nil
+}
+
+func (i *readWriteInterceptor) ReadMessage() (Message, error) {
+	var m Message
+	var err error
+	for m == nil && err == nil {
+		m, err = i.src.ReadMessage()
+		if err == nil && i.read != nil {
+			m, err = i.read(m)
+		}
+	}
+	return m, err
+}
+
+func (i *readWriteInterceptor) Close() error {
+	return i.src.Close()
+}
+
+// Same semantics as io.Copy
+func messageCopy(dest MessageWriter, src MessageReader) error {
+	var err error
+	var m Message
+	for err == nil {
+		m, err = src.ReadMessage()
+		if err == nil {
+			err = dest.WriteMessage(m)
+		}
+	}
+
+	if errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return nil
+}
+
+type ConnProxy2 struct {
+	server MessageReadWriteCloser
+	client MessageReadWriteCloser
+}
+
+type MessageReader interface {
+	ReadMessage() (Message, error)
+}
+
+type MessageWriter interface {
+	WriteMessage(Message) error
+}
+
+type MessageReadWriter interface {
+	MessageReader
+	MessageWriter
+}
+
+type MessageReadWriteCloser interface {
+	MessageReadWriter
+	Close() error
+}
+
+func NewConnProxy2(client, server MessageReadWriteCloser) ConnProxy2 {
+	return ConnProxy2{
+		server: server,
+		client: client,
+	}
+}
+
+func (c *ConnProxy2) Run() error {
+	// Copy from server to client
+	var toClientErr error
+	wait := make(chan struct{})
+	go func() {
+		defer close(wait)
+		toClientErr = messageCopy(c.client, c.server)
+		// Guaranteed to wake up the other goroutine
+		if err := c.client.Close(); err != nil {
+			slog.Error("error closing client connection", "error", trace.Wrap(err))
+		}
+	}()
+
+	// Copy from client to server
+	toServerErr := messageCopy(c.server, c.client)
+	// Guaranteed to wake up the other goroutine
+	if err := c.server.Close(); err != nil {
+		slog.Error("error closing server connection", "error", trace.Wrap(err))
+	}
+	<-wait
+	slog.Warn("exiting with errors", "toServerErr", toServerErr, "toClientErr", toClientErr)
+	return errors.Join(toServerErr, toClientErr)
+}
+
 // Run starts proxying the connection.
 func (c *ConnProxy) Run() error {
 	var errs errgroup.Group
 
-	closeAll := sync.OnceFunc(func() {
-		c.client.Close()
-		c.server.Close()
-	})
-	defer closeAll()
-
 	// Run a goroutine to read TDP messages from the Windows
 	// agent and write them to client.
 	errs.Go(func() error {
-		defer closeAll()
 
 		// We avoid using io.Copy here, as we want to make sure
 		// each TDP message is sent as a unit so that a single
@@ -254,10 +366,10 @@ func (c *ConnProxy) Run() error {
 			}
 
 			if c.serverInterceptor != nil {
-				msg, err = c.serverInterceptor(c.server, msg)
-				if err != nil {
-					return trace.Wrap(err)
-				}
+				//msg, err = c.serverInterceptor(c.server, msg)
+				//if err != nil {
+				//	return trace.Wrap(err)
+				//}
 			}
 			if msg != nil {
 				err := c.SendToClient(msg)
@@ -270,11 +382,14 @@ func (c *ConnProxy) Run() error {
 
 	// Run a goroutine to read TDP messages coming from the client
 	// and pass them on to the Windows agent.
-	errs.Go(func() error {
-		defer closeAll()
+	errs.Go(func() (err error) {
+		defer func() {
+			err = errors.Join(err, c.server.Close())
+		}()
 
+		var msg Message
 		for {
-			msg, err := c.client.ReadMessage()
+			msg, err = c.client.ReadMessage()
 			if err := c.handleError(err); err != nil {
 				return err
 			}
