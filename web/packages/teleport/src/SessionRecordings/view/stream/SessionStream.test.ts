@@ -114,7 +114,7 @@ describe('play', () => {
 
     stream.play();
 
-    expect(player.playState.onPlay).toBe(true);
+    expect(player.onPlay).toHaveBeenCalled();
   });
 });
 
@@ -152,7 +152,7 @@ describe('pause', () => {
     stream.play();
     stream.pause();
 
-    expect(player.playState.onPause).toBe(true);
+    expect(player.onPause).toHaveBeenCalled();
   });
 
   it('should not do anything if already paused', () => {
@@ -202,7 +202,7 @@ describe('seek', () => {
 
     stream.seek(750);
 
-    expect(player.playState.onSeek).toBe(true);
+    expect(player.onSeek).toHaveBeenCalledWith(750);
   });
 
   it('should clear player when seeking backwards', () => {
@@ -366,12 +366,6 @@ class MockPlayer extends Player<MockEvent> {
   cleared = false;
   destroyed = false;
   handleCalled = false;
-  playState = {
-    onPlay: false,
-    onPause: false,
-    onSeek: false,
-    onStop: false,
-  };
 
   init(): void {}
 
@@ -394,21 +388,10 @@ class MockPlayer extends Player<MockEvent> {
     this.events = [];
   }
 
-  onPlay(): void {
-    this.playState.onPlay = true;
-  }
-
-  onPause(): void {
-    this.playState.onPause = true;
-  }
-
-  onSeek(): void {
-    this.playState.onSeek = true;
-  }
-
-  onStop(): void {
-    this.playState.onStop = true;
-  }
+  onPlay = jest.fn();
+  onPause = jest.fn();
+  onSeek = jest.fn();
+  onStop = jest.fn();
 }
 
 interface WebSocketEventMap {
