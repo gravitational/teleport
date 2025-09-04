@@ -467,17 +467,11 @@ To avoid the need to "elect" a leader to calculate these metrics, each auth serv
 
 ## Backward Compatibility
 
-> Describe the impact that your design doc has on backwards compatibility and include any migration steps. (Non-exhaustive list below.)
-> Will the change impact older clients? (tsh, tctl)
-> What impact does the change have on remote clusters?
-> Are there any backend migrations required?
-> How will changes be rolled out across future versions?
+None of the proposed change are backwards incompatible, nor are any migrations required. Older CLI clients will continue to function as they did, with any extra data being ignored. Older `tbot` versions will continue to be supported, but will not submit config, service health or notices - the absense of this data will be supported by the web UI and CLI clients as well as the APIs they interact with.
 
-// TODO
+Where V2 versions of a webapi are added, the following backwards compatibility behaviour applies; In the situation where a new web client sends a request to an old proxy (in a load balanced setup), the old proxy will not host the new endpoint and will return a 404 and the proxy’s version. A helpful message is then displayed to the user advising that the proxy needs to be upgraded to support the operation.
 
 ## Test Plan
-
-> Include any changes or additions that will need to be made to the [Test Plan](https://www.notion.so/.github/ISSUE_TEMPLATE/testplan.md) to appropriately test the changes in your design doc and prevent any regressions from happening in the future.
 
 Addition after a Machine ID bot is created and an instance enrolled: "In the UI, a single Bot Instance record shows, with a heartbeat and an authentication record." and "In the CLI, using `tctl bot instance show [bot name]/[instance id]`, a single Bot Instance record shows, with a heartbeat and an authentication record.".
 
