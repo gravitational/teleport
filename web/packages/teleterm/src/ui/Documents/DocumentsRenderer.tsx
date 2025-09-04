@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MutableRefObject, ReactNode, useMemo, useState } from 'react';
+import { MutableRefObject, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
@@ -42,8 +42,6 @@ import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import { useIsInBackgroundMode } from 'teleterm/ui/hooks/useIsInBackgroundMode';
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import * as types from 'teleterm/ui/services/workspacesService';
 import {
   DocumentsService,
@@ -61,55 +59,11 @@ export function DocumentsRenderer(props: {
   topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
 }) {
   const { workspacesService } = useAppContext();
-  const isAnyDialogOpen = useStoreSelector('modalsService', state => {
-    return !!state.regular || state.important.length > 0;
-  });
-  const isInBackgroundMode = useIsInBackgroundMode();
 
   function renderDocuments(documentsService: DocumentsService) {
     return documentsService.getDocuments().map(doc => {
       const isActiveDoc = workspacesService.isDocumentActive(doc.uri);
-      const document = <MemoizedDocument doc={doc} visible={isActiveDoc} />;
-      const { kind } = doc;
-      switch (kind) {
-        case 'doc.authorize_web_session':
-        case 'doc.access_requests':
-        case 'doc.blank':
-        case 'doc.cluster':
-        case 'doc.connect_my_computer':
-        case 'doc.vnet_diag_report':
-        case 'doc.vnet_info':
-        case 'doc.gateway':
-          // Mount the document when it becomes visible.
-          return (
-            <MountOnVisible key={doc.uri} visible={isActiveDoc}>
-              {document}
-            </MountOnVisible>
-          );
-        // Documents that should be terminated when the window is hidden:
-        case 'doc.desktop_session':
-        case 'doc.gateway_cli_client':
-        case 'doc.gateway_kube':
-        case 'doc.terminal_shell':
-        case 'doc.terminal_tsh_node':
-          const isConnected =
-            kind === 'doc.terminal_shell' || kind === 'doc.terminal_tsh_node'
-              ? true
-              : doc.status === 'connected';
-          return (
-            <ForegroundSession
-              isInBackgroundMode={isInBackgroundMode}
-              isDocumentActive={isActiveDoc}
-              isDocumentConnected={isConnected}
-              isAnyDialogOpen={isAnyDialogOpen}
-              key={doc.uri}
-            >
-              {document}
-            </ForegroundSession>
-          );
-        default:
-          kind satisfies never;
-      }
+      return <MemoizedDocument doc={doc} visible={isActiveDoc} key={doc.uri} />;
     });
   }
 
@@ -234,62 +188,4 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         );
     }
   }, [visible, doc]);
-}
-
-/**
- * Wrapper for sessions that require user interaction.
- *
- * The component:
- * 1. Defers rendering the document until it's active.
- *    This prevents spamming the user with MFA prompts when restoring a session
- *    on launch or reopening a previously hidden window.
- * 2. Unmounts the document when it is connected but the window is hidden.
- *    This terminates the related connection, which will be restored when
- *    the window is visible again.
- *    Mounting the document is paused until dialogs are closed.
- *    Since showing the window can be triggered by a tshd event,
- *    it’s important to handle that event first (typically via a dialog) before
- *    displaying any MFA dialogs that may be required for resource access.
- */
-function ForegroundSession({
-  isDocumentActive,
-  isDocumentConnected,
-  isAnyDialogOpen,
-  isInBackgroundMode,
-  children,
-}: {
-  isDocumentActive: boolean;
-  isDocumentConnected: boolean;
-  isInBackgroundMode: boolean;
-  isAnyDialogOpen: boolean;
-  children: ReactNode;
-}) {
-  if (isInBackgroundMode && isDocumentConnected) {
-    return;
-  }
-
-  return (
-    <MountOnVisible
-      visible={!isInBackgroundMode && isDocumentActive && !isAnyDialogOpen}
-    >
-      {children}
-    </MountOnVisible>
-  );
-}
-
-/** Defers mounting the children until they are visible. */
-function MountOnVisible({
-  visible,
-  children,
-}: {
-  visible: boolean;
-  children: ReactNode;
-}) {
-  const [showChildren, setShowChildren] = useState(visible);
-
-  if (!showChildren && visible) {
-    setShowChildren(true);
-  }
-
-  return showChildren ? children : undefined;
 }
