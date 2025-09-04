@@ -131,7 +131,7 @@ func (c *Client) RangeAccessLists(ctx context.Context, start string, end string,
 				return
 			}
 
-			req.PageToken = next
+			start = next
 		}
 	}
 }
