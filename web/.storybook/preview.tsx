@@ -150,7 +150,12 @@ const preview: Preview = {
     controls: { expanded: true, disableSaveFromUI: true },
   },
   argTypes: { userContext: { table: { disable: true } } },
-  loaders: [mswLoader],
+  loaders: [
+    mswLoader,
+    () => {
+      queryClient.clear();
+    },
+  ],
   decorators: [
     (Story, meta) => (
       <QueryClientProvider client={queryClient}>
