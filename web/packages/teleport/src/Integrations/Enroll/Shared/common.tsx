@@ -17,8 +17,8 @@
  */
 
 export type BaseIntegration = (
-  | { name: string; title?: never }
-  | { title: string; name?: never }
+  | { name: string; title?: never } // Plugin, IntegrationSpec
+  | { title: string; name?: never } // BotIntegration uses title
 ) & {
   tags: IntegrationTag[];
   description?: string;

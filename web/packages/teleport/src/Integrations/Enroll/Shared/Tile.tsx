@@ -55,32 +55,23 @@ export function IntegrationTileWithSpec({
     ? { external: false, url: cfg.getIntegrationEnrollRoute(spec.kind) }
     : null;
 
-  const hasAccess = (() => {
-    if (spec.kind === IntegrationKind.ExternalAuditStorage) {
-      const externalAuditStorageEnabled =
-        cfg.entitlements.ExternalAuditStorage.enabled;
-      return (
-        hasIntegrationAccess &&
-        hasExternalAuditStorage &&
-        externalAuditStorageEnabled
-      );
-    }
-
-    return hasIntegrationAccess;
-  })();
-
   let Badge = undefined;
+  let hasAccess = hasIntegrationAccess;
 
   if (spec.kind === IntegrationKind.ExternalAuditStorage) {
     const externalAuditStorageEnabled =
       cfg.entitlements.ExternalAuditStorage.enabled;
 
+    hasAccess &&= hasExternalAuditStorage && externalAuditStorageEnabled;
+
     Badge = renderExternalAuditStorageBadge(
       hasExternalAuditStorage,
       externalAuditStorageEnabled
     );
-  } else if (!hasIntegrationAccess) {
-    Badge = <GenericNoPermBadge noAccess={!hasIntegrationAccess} />;
+  }
+
+  if (!hasAccess) {
+    Badge ||= <GenericNoPermBadge noAccess={!hasAccess} />;
   }
 
   const dataTestID = `tile-${spec.kind}`;
