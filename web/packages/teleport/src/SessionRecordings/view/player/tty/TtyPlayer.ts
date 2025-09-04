@@ -29,7 +29,7 @@ import { getMonoFont } from 'design/theme/fonts';
 
 import { Player } from '../Player';
 import { AspectFitAddon } from './AspectFitRatio';
-import { EventType, type TtyEvent } from './types';
+import { EventType, type TerminalSize, type TtyEvent } from './types';
 
 /**
  * TtyPlayer is a player that connects a stream of TtyEvents to an xterm.js terminal.
@@ -47,8 +47,7 @@ export class TtyPlayer extends Player<TtyEvent> {
 
   constructor(
     private theme: ThemeColors['terminal'],
-    private cols: number,
-    private rows: number
+    private size: TerminalSize
   ) {
     super();
   }
@@ -57,8 +56,8 @@ export class TtyPlayer extends Player<TtyEvent> {
     this.terminal = new Terminal({
       fontSize: getPlatform() === Platform.macOS ? 12 : 14,
       fontFamily: getMonoFont(),
-      cols: this.cols,
-      rows: this.rows,
+      cols: this.size.cols,
+      rows: this.size.rows,
       theme: this.theme,
     });
 
@@ -95,20 +94,19 @@ export class TtyPlayer extends Player<TtyEvent> {
 
     this.terminal.open(element);
 
-    this.aspectFitAddon.fitWithAspectRatio(this.cols, this.rows);
+    this.aspectFitAddon.fitWithAspectRatio(this.size);
   }
 
-  override apply(event: TtyEvent) {
+  override applyEvent(event: TtyEvent) {
     if (!this.terminal) {
       throw new Error('Terminal is not initialized');
     }
 
     switch (event.type) {
       case EventType.Resize:
-        this.cols = event.terminalSize.cols;
-        this.rows = event.terminalSize.rows;
+        this.size = event.terminalSize;
 
-        this.aspectFitAddon.fitWithAspectRatio(this.cols, this.rows);
+        this.aspectFitAddon.fitWithAspectRatio(this.size);
 
         break;
 
@@ -129,21 +127,21 @@ export class TtyPlayer extends Player<TtyEvent> {
   }
 
   fit() {
-    this.aspectFitAddon.fitWithAspectRatio(this.cols, this.rows);
+    this.aspectFitAddon.fitWithAspectRatio(this.size);
 
     if (this.playing) {
       this.terminal?.focus();
     }
   }
 
-  override handle(event: TtyEvent) {
+  override handleEvent(event: TtyEvent) {
     if (!this.terminal) {
       throw new Error('Terminal is not initialized');
     }
 
     if (event.type === EventType.Screen) {
-      this.cols = event.screen.cols;
-      this.rows = event.screen.rows;
+      this.size.cols = event.screen.cols;
+      this.size.rows = event.screen.rows;
 
       this.clear();
 
