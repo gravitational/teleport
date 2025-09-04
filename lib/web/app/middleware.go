@@ -73,10 +73,15 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	}
 
 	if h.c.WebPublicAddr == "" {
-		return trace.BadParameter(
-			"Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
-				"Please contact your Teleport cluster administrator to update the Teleport Proxy Service configuration " +
-				"or refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.")
+		const errMsg = "Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
+			"Update the Teleport Proxy Service configuration to include a public_addr. " +
+			"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
+
+		// Log the error to warn admins 🚩
+		h.logger.ErrorContext(r.Context(), errMsg)
+
+		// Immediately return an error since this is a critical misconfiguration 🛑
+		return trace.BadParameter(errMsg)
 	}
 
 	addr, err := utils.ParseAddr(r.Host)
@@ -87,14 +92,18 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	proxyPublicAddrs := make([]string, 0, len(h.c.ProxyPublicAddrs))
 
 	for _, proxyAddr := range h.c.ProxyPublicAddrs {
-		// Prevent routing conflicts and session hijacking by ensuring the application's public address
-		// does not match any of the proxy's public addresses. If both addresses are identical,
-		// requests intended for the proxy could be misrouted to the application, compromising security.
+		const errMsg = "Application public address conflicts with the Teleport Proxy public address. " +
+			"If both addresses are identical, requests intended for the proxy could be misrouted to the application, " +
+			"compromising security. " +
+			"Configure the application to use a unique public address that does not match the proxy's public addresses. " +
+			"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
+
+		// Log the error to warn admins 🚩
+		h.logger.ErrorContext(r.Context(), errMsg, "launcher_params", p)
+
+		// Immediately return an error since this is a critical misconfiguration 🛑
 		if p.publicAddr == proxyAddr.Host() {
-			return trace.BadParameter(
-				"Application public address conflicts with the Teleport Proxy public address. " +
-					"Contact your Teleport cluster administrator to configure the application to use a unique public address " +
-					"or refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.")
+			return trace.BadParameter(errMsg)
 		}
 
 		// Append the full proxy address (host:port) to the list, preserving the port information.

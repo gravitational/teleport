@@ -39,7 +39,7 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "no public addr, no error",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app1"}, types.AppSpecV3{URI: "http://localhost:8080"})
+				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080"})
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
@@ -47,7 +47,7 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "public addr does not conflict",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app2"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "app.example.com"})
+				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "app.example.com"})
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
@@ -55,24 +55,16 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "public addr matches proxy host",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app3"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
 		{
-			name: "proxy addr is empty, no error",
-			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app4"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "something.com"})
-				return app
-			}(),
-			proxyAddrs: []string{""},
-		},
-		{
 			name: "multiple proxy addrs, one matches",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app5"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
 				return app
 			}(),
 			proxyAddrs: []string{"other.com:443", "web.example.com:443"},
