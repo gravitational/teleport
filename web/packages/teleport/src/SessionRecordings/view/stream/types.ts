@@ -29,6 +29,9 @@ export enum ResponseType {
 
 export interface FetchRequest {
   endTime: number;
+  // requestCurrentScreen is used to request the stream to send the full state of the recording at the requested start time.
+  // This is so the correct state of the recording can be rendered without having to return all the events up until
+  // the requested start time.
   requestCurrentScreen?: boolean;
   requestId: number;
   startTime: number;
