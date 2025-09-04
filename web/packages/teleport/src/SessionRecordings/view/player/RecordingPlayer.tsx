@@ -167,8 +167,8 @@ export function RecordingPlayer<
         overflow="hidden"
       >
         {showPlayButton && (
-          <PlayButton>
-            <AdjustedPlay size="extra-large" onClick={handlePlay} />
+          <PlayButton onClick={handlePlay}>
+            <AdjustedPlay size="extra-large" />
           </PlayButton>
         )}
 
@@ -197,7 +197,13 @@ export function RecordingPlayer<
   );
 }
 
-const PlayButton = styled(Flex)`
+const PlayButton = styled.button`
+  border: none;
+  background: none;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   position: absolute;
   top: 50%;
   left: 50%;
