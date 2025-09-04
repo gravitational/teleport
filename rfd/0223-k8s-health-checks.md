@@ -452,9 +452,9 @@ Example metric definitions:
 	)
 ```
 
-A polling approach is used to aggregate health statuses in 30s intervals with jittered timing. Metric calculations are thread-safe, labeled with a resource type (db, k8s, etc), and reset to zero on close.
+Health check metrics are incremented and decremented in `worker.go` during state changes, and decremented on closing. Each metric is labeled with a resource type such as `db` or `kubernetes`.
 
-Database health checks, an existing user of the `healthcheck` package, will begin to emit health metrics. And any future users of the `healthcheck` package, such as MWI, will emit health metrics.
+Database health checks, an existing component which uses the `healthcheck` package, now emits health metrics. Any future components which use the `healthcheck` package, such as MWI, will also emit health metrics.
 
 The design is based on a [proposal by Tim Ross](https://github.com/gravitational/teleport/issues/50285#issuecomment-3198505619). 
 
