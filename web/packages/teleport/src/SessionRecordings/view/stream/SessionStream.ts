@@ -27,7 +27,7 @@ import {
   type BaseEvent,
 } from 'teleport/SessionRecordings/view/stream/types';
 
-import { type Player } from '../SshRecordingPlayer/Player';
+import { type Player } from '../player/Player';
 import { encodeFetchRequest } from './encoding';
 
 export enum PlayerState {
@@ -246,7 +246,7 @@ export class SessionStream<
         return;
       }
 
-      this.player.apply(event);
+      this.player.applyEvent(event);
     }
 
     this.checkBufferStatus(currentTime);
@@ -263,7 +263,7 @@ export class SessionStream<
 
       this.currentBufferIndex++;
 
-      this.player.apply(event);
+      this.player.applyEvent(event);
     }
 
     this.currentTime = time;
@@ -365,7 +365,8 @@ export class SessionStream<
       return;
     }
 
-    if (this.player.handle(parsed)) {
+    // if handleEvent returns true, it means the event has been handled and does not need to be added to the buffer
+    if (this.player.handleEvent(parsed)) {
       return;
     }
 
