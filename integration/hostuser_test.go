@@ -877,15 +877,15 @@ func testStaticHostUsers(t *testing.T, nodeUUID, goodLogin, goodLoginWithShell, 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Check that the user was created.
 		existingUser, err := user.Lookup(goodLogin)
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
 		assert.DirExists(collect, existingUser.HomeDir)
 		// Check that the user has the right groups, including teleport-static.
 		groupIDs, err := existingUser.GroupIds()
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
 		userGroups := make([]string, 0, len(groupIDs))
 		for _, gid := range groupIDs {
 			group, err := user.LookupGroupId(gid)
-			assert.NoError(collect, err)
+			require.NoError(collect, err)
 			userGroups = append(userGroups, group.Name)
 		}
 		assert.Subset(collect, userGroups, groups)
@@ -893,7 +893,7 @@ func testStaticHostUsers(t *testing.T, nodeUUID, goodLogin, goodLoginWithShell, 
 		// Check that the sudoers file was created.
 		assert.FileExists(collect, sudoersPath(goodLogin, nodeUUID))
 		userShells, err := getUserShells("/etc/passwd")
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
 		assert.Equal(collect, "/usr/bin/bash", userShells[goodLoginWithShell])
 	}, 10*time.Second, time.Second)
 
