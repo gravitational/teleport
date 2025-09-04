@@ -215,6 +215,10 @@ type Identity struct {
 	// JoinAttributes holds the attributes that resulted from the
 	// Bot/Agent join process.
 	JoinAttributes *workloadidentityv1pb.JoinAttrs
+
+	// OriginClusterName is the name of the cluster where the identity is
+	// authenticated.
+	OriginClusterName string
 }
 
 // RouteToApp holds routing information for applications.
@@ -398,6 +402,13 @@ func (id *Identity) CheckAndSetDefaults() error {
 	}
 	if len(id.Groups) == 0 {
 		return trace.BadParameter("missing identity groups")
+	}
+
+	// Set the origin cluster name to the teleport cluster name.
+	// OriginClusterName is never encoded in the certificate
+	// so we set it to cert's TeleportCluster.
+	if id.OriginClusterName == "" {
+		id.OriginClusterName = id.TeleportCluster
 	}
 
 	return nil
@@ -1277,7 +1288,10 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	default:
 		userKind = events.UserKind_USER_KIND_HUMAN
 	}
-
+	userTeleportCluster := id.OriginClusterName
+	if userTeleportCluster == "" {
+		userTeleportCluster = id.TeleportCluster
+	}
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1291,6 +1305,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		BotInstanceID:     id.BotInstanceID,
 		UserRoles:         slices.Clone(id.Groups),
 		UserTraits:        id.Traits.Clone(),
+		UserClusterName:   userTeleportCluster,
 	}
 }
 

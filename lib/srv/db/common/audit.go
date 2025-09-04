@@ -176,6 +176,7 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 		ConnectionMetadata: MakeConnectionMetadata(session),
 		DatabaseMetadata:   MakeDatabaseMetadata(session),
 		StartTime:          session.StartTime,
+		Participants:       []string{session.Identity.GetUserMetadata().User},
 	}
 	endTime := a.cfg.Clock.Now()
 	event.SetTime(endTime)
