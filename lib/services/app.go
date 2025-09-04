@@ -89,8 +89,6 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 			if app.GetPublicAddr() == proxyAddr.Host() {
 				return trace.BadParameter(
 					"Application %q public address %q conflicts with the Teleport Proxy public address. "+
-						"If both addresses are identical, requests intended for the proxy could be misrouted to the application, "+
-						"compromising security. "+
 						"Configure the application to use a unique public address that does not match the proxy's public addresses. "+
 						"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.",
 					app.GetName(),

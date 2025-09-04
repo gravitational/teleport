@@ -93,8 +93,6 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 
 	for _, proxyAddr := range h.c.ProxyPublicAddrs {
 		const errMsg = "Application public address conflicts with the Teleport Proxy public address. " +
-			"If both addresses are identical, requests intended for the proxy could be misrouted to the application, " +
-			"compromising security. " +
 			"Configure the application to use a unique public address that does not match the proxy's public addresses. " +
 			"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
 
