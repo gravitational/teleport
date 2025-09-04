@@ -28,8 +28,6 @@ pod, and the namespace in which `tbot` is running. The Teleport Auth Service
 checks the signature of the JWT against the Kubernetes OIDC provider's published
 signing keys to verify the pod identity.
 
-
-
 <Admonition type="warning" title="OIDC Support">
 Not all Kubernetes providers support [Service Account Issuer Discovery][said],
 which is required for this guide. If your provider does not support this
