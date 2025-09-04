@@ -19,6 +19,8 @@
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import type { IRenderDimensions } from '@xterm/xterm/src/browser/renderer/shared/Types';
 
+import type { TerminalSize } from 'teleport/SessionRecordings/view/player/tty/types';
+
 /**
  * AspectFitAddon is a xterm.js addon that resizes the terminal to fit within its parent element
  * while maintaining the specified aspect ratio defined by cols and rows.
@@ -34,7 +36,7 @@ export class AspectFitAddon implements ITerminalAddon {
 
   public dispose(): void {}
 
-  public fitWithAspectRatio(cols: number, rows: number): void {
+  public fitWithAspectRatio({ cols, rows }: TerminalSize): void {
     if (!this.terminal?.element?.parentElement) {
       return;
     }
