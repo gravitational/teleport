@@ -67,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/simple"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 var (
@@ -3706,29 +3705,6 @@ func (c *Cache) GetIdentityCenterAccountAssignment(ctx context.Context, id strin
 	return rg.reader.GetIdentityCenterAccountAssignment(ctx, id)
 }
 
-// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
-func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageToken *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccountAssignments")
-	defer span.End()
-
-	token, err := pageToken.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "extracting page token")
-	}
-
-	assignments, next, err := c.ListIdentityCenterAccountAssignments(ctx, pageSize, token)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	out := make([]services.IdentityCenterAccountAssignment, 0, len(assignments))
-	for _, assignment := range assignments {
-		out = append(out, services.IdentityCenterAccountAssignment{AccountAssignment: assignment})
-
-	}
-	return out, pagination.NextPageToken(next), nil
-}
-
 func (c *Cache) ListIdentityCenterAccountAssignments(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.AccountAssignment, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccountAssignments")
 	defer span.End()
@@ -3755,30 +3731,8 @@ func (c *Cache) GetIdentityCenterAccount(ctx context.Context, name string) (*ide
 	return rg.reader.GetIdentityCenterAccount(ctx, name)
 }
 
-func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, token *pagination.PageRequestToken) ([]services.IdentityCenterAccount, pagination.NextPageToken, error) {
+func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Account, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts")
-	defer span.End()
-
-	pageToken, err := token.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "extracting page token")
-	}
-
-	accounts, next, err := c.ListIdentityCenterAccounts2(ctx, pageSize, pageToken)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	var out []services.IdentityCenterAccount
-	for _, account := range accounts {
-		out = append(out, services.IdentityCenterAccount{Account: account})
-
-	}
-	return out, pagination.NextPageToken(next), nil
-}
-
-func (c *Cache) ListIdentityCenterAccounts2(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Account, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts2")
 	defer span.End()
 
 	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.identityCenterAccounts)
@@ -3787,7 +3741,7 @@ func (c *Cache) ListIdentityCenterAccounts2(ctx context.Context, pageSize int, p
 	}
 	defer rg.Release()
 
-	return rg.reader.ListIdentityCenterAccounts2(ctx, pageSize, pageToken)
+	return rg.reader.ListIdentityCenterAccounts(ctx, pageSize, pageToken)
 }
 
 func (c *Cache) GetPrincipalAssignment(ctx context.Context, id services.PrincipalAssignmentID) (*identitycenterv1.PrincipalAssignment, error) {
@@ -3803,24 +3757,7 @@ func (c *Cache) GetPrincipalAssignment(ctx context.Context, id services.Principa
 	return rg.reader.GetPrincipalAssignment(ctx, id)
 }
 
-func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, pageToken *pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
-	defer span.End()
-
-	token, err := pageToken.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "extracting page token")
-	}
-
-	page, next, err := c.ListPrincipalAssignments2(ctx, pageSize, token)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return page, pagination.NextPageToken(next), nil
-}
-
-func (c *Cache) ListPrincipalAssignments2(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PrincipalAssignment, string, error) {
+func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PrincipalAssignment, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
 	defer span.End()
 
@@ -3830,27 +3767,17 @@ func (c *Cache) ListPrincipalAssignments2(ctx context.Context, pageSize int, pag
 	}
 	defer rg.Release()
 
-	return rg.reader.ListPrincipalAssignments2(ctx, pageSize, pageToken)
+	return rg.reader.ListPrincipalAssignments(ctx, pageSize, pageToken)
 }
 
-func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, pageToken *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
+func (c *Cache) ListPrincipalAssignments2(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PrincipalAssignment, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments2")
 	defer span.End()
 
-	token, err := pageToken.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "extracting page token")
-	}
-
-	page, next, err := c.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, token)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return page, pagination.NextPageToken(next), nil
+	return c.ListPrincipalAssignments(ctx, pageSize, pageToken)
 }
 
-func (c *Cache) ListProvisioningStatesForAllDownstreams2(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
+func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
 	defer span.End()
 
@@ -3860,5 +3787,5 @@ func (c *Cache) ListProvisioningStatesForAllDownstreams2(ctx context.Context, pa
 	}
 	defer rg.Release()
 
-	return rg.reader.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, pageToken)
+	return rg.reader.ListProvisioningStatesForAllDownstreams(ctx, pageSize, pageToken)
 }

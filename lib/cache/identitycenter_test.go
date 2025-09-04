@@ -83,7 +83,7 @@ func TestIdentityCenterAccount(t *testing.T) {
 			return trace.Wrap(fixturePack.identityCenter.DeleteAllIdentityCenterAccounts(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]*identitycenterv1.Account, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListIdentityCenterAccounts2))
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListIdentityCenterAccounts))
 		},
 		cacheGet: func(ctx context.Context, id string) (*identitycenterv1.Account, error) {
 			r, err := fixturePack.cache.GetIdentityCenterAccount(ctx, id)
@@ -138,7 +138,7 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 			return trace.Wrap(fixturePack.identityCenter.DeleteAllPrincipalAssignments(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]*identitycenterv1.PrincipalAssignment, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListPrincipalAssignments2))
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListPrincipalAssignments))
 		},
 		cacheGet: func(ctx context.Context, id string) (*identitycenterv1.PrincipalAssignment, error) {
 			r, err := fixturePack.cache.identityCenterCache.GetPrincipalAssignment(

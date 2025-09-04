@@ -30,13 +30,13 @@ import (
 
 type identityCenterAccountGetter interface {
 	GetIdentityCenterAccount(context.Context, string) (*identitycenterv1.Account, error)
-	ListIdentityCenterAccounts2(context.Context, int, string) ([]*identitycenterv1.Account, string, error)
+	ListIdentityCenterAccounts(context.Context, int, string) ([]*identitycenterv1.Account, string, error)
 }
 
 type identityCenterAccountExecutor struct{}
 
 func (identityCenterAccountExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*identitycenterv1.Account, error) {
-	return stream.Collect(clientutils.Resources(ctx, cache.IdentityCenter.ListIdentityCenterAccounts2))
+	return stream.Collect(clientutils.Resources(ctx, cache.IdentityCenter.ListIdentityCenterAccounts))
 }
 
 func (identityCenterAccountExecutor) upsert(ctx context.Context, cache *Cache, acct *identitycenterv1.Account) error {
@@ -71,6 +71,7 @@ var _ executor[
 
 type identityCenterPrincipalAssignmentGetter interface {
 	GetPrincipalAssignment(context.Context, services.PrincipalAssignmentID) (*identitycenterv1.PrincipalAssignment, error)
+	ListPrincipalAssignments(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
 	ListPrincipalAssignments2(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
 }
 
@@ -82,7 +83,7 @@ var _ executor[
 ] = identityCenterPrincipalAssignmentExecutor{}
 
 func (identityCenterPrincipalAssignmentExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*identitycenterv1.PrincipalAssignment, error) {
-	return stream.Collect(clientutils.Resources(ctx, cache.IdentityCenter.ListPrincipalAssignments2))
+	return stream.Collect(clientutils.Resources(ctx, cache.IdentityCenter.ListPrincipalAssignments))
 }
 
 func (identityCenterPrincipalAssignmentExecutor) upsert(ctx context.Context, cache *Cache, resource *identitycenterv1.PrincipalAssignment) error {
