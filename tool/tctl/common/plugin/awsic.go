@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
@@ -42,9 +43,10 @@ const (
 	awsicPluginNameHelp    = "Name of the AWS Identity Center integration instance to update. Defaults to " + apicommon.OriginAWSIdentityCenter + "."
 	awsicRolesSyncModeFlag = "roles-sync-mode"
 	awsicRolesSyncModeHelp = "Control account-assignment role creation. ALL creates roles for all possible account assignments. NONE creates no roles, and also implies a totally-exclusive group import filter."
+	notAWSICPluginMsg      = "%q is not an AWS Identity Center integration"
 )
 
-type awsICArgs struct {
+type awsICInstallArgs struct {
 	cmd                       *kingpin.CmdClause
 	defaultOwners             []string
 	scimToken                 string
@@ -65,7 +67,7 @@ type awsICArgs struct {
 	excludeAccountIDFilters   []string
 }
 
-func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
+func (a *awsICInstallArgs) validate(ctx context.Context, log *slog.Logger) error {
 	if !awsregion.IsKnownRegion(a.region) {
 		return trace.BadParameter("unknown AWS region: %s", a.region)
 	}
@@ -85,7 +87,7 @@ func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
 	return nil
 }
 
-func (a *awsICArgs) validateSystemCredentialInput() error {
+func (a *awsICInstallArgs) validateSystemCredentialInput() error {
 	if !a.useSystemCredentials {
 		return trace.BadParameter("--use-system-credentials must be set. The tctl-based AWS IAM Identity Center plugin installation only supports AWS local system credentials")
 	}
@@ -101,7 +103,7 @@ func (a *awsICArgs) validateSystemCredentialInput() error {
 	return nil
 }
 
-func (a *awsICArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Logger) error {
+func (a *awsICInstallArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Logger) error {
 	validatedBaseUrl, err := icutils.EnsureSCIMEndpointURL(a.scimURL)
 	if err == nil {
 		a.scimURL = validatedBaseUrl
@@ -117,7 +119,7 @@ func (a *awsICArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Logger) e
 	return trace.Wrap(err)
 }
 
-func (a *awsICArgs) parseGroupFilters() (icfilters.Filters, error) {
+func (a *awsICInstallArgs) parseGroupFilters() (icfilters.Filters, error) {
 	filters := make([]*types.AWSICResourceFilter, 0, len(a.groupNameFilters)+len(a.excludeGroupNameFilters))
 	for _, n := range a.groupNameFilters {
 		filters = append(filters, &types.AWSICResourceFilter{
@@ -132,7 +134,7 @@ func (a *awsICArgs) parseGroupFilters() (icfilters.Filters, error) {
 	return icfilters.New(filters)
 }
 
-func (a *awsICArgs) parseAccountFilters() (icfilters.Filters, error) {
+func (a *awsICInstallArgs) parseAccountFilters() (icfilters.Filters, error) {
 	filtersCap := len(a.accountNameFilters) + len(a.excludeAccountNameFilters) + len(a.accountIDFilters) + len(a.excludeAccountIDFilters)
 	filters := make([]*types.AWSICResourceFilter, 0, filtersCap)
 	for _, n := range a.accountNameFilters {
@@ -162,7 +164,7 @@ func (a *awsICArgs) parseAccountFilters() (icfilters.Filters, error) {
 	return icfilters.New(filters)
 }
 
-func (a *awsICArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, error) {
+func (a *awsICInstallArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, error) {
 	result := make([]*types.AWSICUserSyncFilter, 0, len(a.userOrigins)+len(a.userLabels))
 
 	if len(a.userOrigins) > 0 {
@@ -381,5 +383,91 @@ func (p *PluginsCommand) EditAWSIC(ctx context.Context, args installPluginArgs) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+type awsICRotateCredsArgs struct {
+	cmd           *kingpin.CmdClause
+	pluginName    string
+	payload       string
+	validateToken bool
+}
+
+func (p *PluginsCommand) initRotateCredsAWSIC(parent *kingpin.CmdClause) {
+	p.rotateCreds.awsic.cmd = parent.Command("awsic", "Rotate the AWS Identity Center SCIM bearer token.")
+	cmd := p.rotateCreds.awsic.cmd
+	args := &p.rotateCreds.awsic
+
+	cmd.Flag("plugin-name", "Name of the AWSIC plugin instance to update. Defaults to "+apicommon.OriginAWSIdentityCenter+".").
+		Default(apicommon.OriginAWSIdentityCenter).
+		StringVar(&args.pluginName)
+
+	cmd.Flag("validate-token", "Validate that the supplied token is valid for the configured downstream SCIM service").
+		Default("true").
+		BoolVar(&args.validateToken)
+
+	cmd.Arg("token", "The new SCIM bearer token.").
+		PlaceHolder("TOKEN").
+		Required().
+		StringVar(&p.rotateCreds.awsic.payload)
+}
+
+func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args installPluginArgs) error {
+	cliArgs := &p.rotateCreds.awsic
+
+	slog.InfoContext(ctx, "Fetching plugin...", "plugin_name", cliArgs.pluginName)
+	plugin, err := args.plugins.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+		Name:        cliArgs.pluginName,
+		WithSecrets: true,
+	})
+	if err != nil {
+		return trace.Wrap(err, "fetching plugin %q", cliArgs.pluginName)
+	}
+
+	awsicSettings := plugin.Spec.GetAwsIc()
+	if awsicSettings == nil {
+		return trace.BadParameter(notAWSICPluginMsg, cliArgs.pluginName)
+	}
+
+	if p.rotateCreds.awsic.validateToken {
+		provisioningSpec := awsicSettings.ProvisioningSpec
+		if provisioningSpec == nil {
+			return trace.BadParameter("plugin is missing provisioning spec")
+		}
+
+		slog.InfoContext(ctx, "Validating token", "scim_server", provisioningSpec.BaseUrl)
+
+		scimClient, err := args.scimProvider(types.PluginTypeAWSIdentityCenter, provisioningSpec.BaseUrl, cliArgs.payload)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := scimClient.Ping(ctx); err != nil {
+			return trace.Wrap(err, "SCIM Token validation failed")
+		}
+	}
+
+	staticCredsRef := plugin.Credentials.GetStaticCredentialsRef()
+	if staticCredsRef == nil {
+		return trace.BadParameter("plugin has no credentials reference")
+	}
+
+	req := pluginspb.UpdatePluginStaticCredentialsRequest{
+		Target: &pluginspb.UpdatePluginStaticCredentialsRequest_Query{
+			Query: &pluginspb.CredentialQuery{
+				Labels: staticCredsRef.Labels,
+			},
+		},
+		Credential: &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+				APIToken: p.rotateCreds.awsic.payload,
+			},
+		},
+	}
+
+	_, err = args.plugins.UpdatePluginStaticCredentials(ctx, &req)
+	if err != nil {
+		return trace.Wrap(err, "updating credentials")
+	}
+
 	return nil
 }
