@@ -17,7 +17,7 @@ Application Service, which uses a join token to establish trust with the
 Teleport Auth Service. Users visit Teleport-protected web applications through
 the Teleport Web UI. The Teleport Proxy Service routes browser traffic to the
 Teleport Application Service, which forwards HTTP requests to and from target
-applications. 
+applications.
 
 ## Prerequisites
 
@@ -38,7 +38,7 @@ target application, then deploy a Teleport Agent to run the service.
 ### Generate a token
 
 A join token is required to authorize a Teleport Application Service to
-join the cluster. 
+join the cluster.
 
 1. Generate a short-lived join token. Make sure to change `app-name` to the name
    of your application and `app-uri` to the application's domain name and port:
@@ -195,6 +195,7 @@ address. To override the public address, specify the `public_addr` field:
 ```yaml
 - name: "jira"
   uri: "https://localhost:8001"
+  # The public address must be a unique DNS name and not conflict with the Teleport cluster's public addresses.
   public_addr: "jira.example.com"
 ```
 
