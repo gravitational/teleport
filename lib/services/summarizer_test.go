@@ -19,12 +19,137 @@ package services
 import (
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vulcand/predicate"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 )
+
+func TestInferencePolicyMatchingContext(t *testing.T) {
+	t.Parallel()
+
+	user, err := types.NewUser("alice")
+	require.NoError(t, err)
+
+	// server, err := types.NewServer("server-1", types.KindNode, types.ServerSpecV2{Hostname: "host-1"})
+	// require.NoError(t, err)
+
+	// kubeCluster, err := types.NewKubernetesClusterV3(
+	// 	types.Metadata{Name: "kube-1"},
+	// 	types.KubernetesClusterSpecV3{AWS: types.KubeAWS{Name: "aws-name"}},
+	// )
+	// require.NoError(t, err)
+
+	database, err := types.NewDatabaseV3(
+		types.Metadata{Name: "db-1"},
+		types.DatabaseSpecV3{Protocol: types.DatabaseProtocolPostgreSQL, URI: "postgres://dummy"},
+	)
+	require.NoError(t, err)
+
+	sessionEnd := &events.SessionEnd{
+		KubernetesPodMetadata: events.KubernetesPodMetadata{KubernetesPodName: "pod-1"},
+	}
+
+	cases := []struct {
+		name       string
+		user       types.User
+		resource   types.Resource
+		session    events.AuditEvent
+		expression string
+		expected   any
+		notFound   bool
+	}{
+		{
+			name:       "known user field",
+			user:       user,
+			expression: "user.metadata.name",
+			expected:   "alice",
+		},
+		{
+			name:       "unknown user field",
+			user:       user,
+			expression: "user.spec.unknown",
+			notFound:   true,
+		},
+		// {
+		// 	name:       "known server field",
+		// 	resource:   server,
+		// 	expression: "resource.spec.hostname",
+		// 	expected:   "host-1",
+		// },
+		// {
+		// 	name:       "unknown server field",
+		// 	resource:   server,
+		// 	expression: "resource.spec.unknown",
+		// 	notFound:   true,
+		// },
+		{
+			name:       "known session field",
+			session:    sessionEnd,
+			expression: "session.kubernetes_pod_name",
+			expected:   "pod-1",
+		},
+		{
+			name:       "unknown session field",
+			session:    sessionEnd,
+			expression: "session.unknown",
+			notFound:   true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := &InferencePolicyMatchingContext{
+				Context: Context{
+					User:     tc.user,
+					Resource: tc.resource,
+					Session:  tc.session,
+				},
+			}
+			parser, err := NewWhereParser(ctx)
+			require.NoError(t, err)
+
+			val, err := parser.Parse(tc.expression)
+			if tc.notFound {
+				require.Error(t, err)
+				assert.True(t, trace.IsNotFound(err))
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, val)
+			}
+		})
+	}
+}
+
+func TestInferencePolicyMatchingContext_MixedResourceBooleanExpression(t *testing.T) {
+	t.Parallel()
+
+	server, err := types.NewServer("server-1", types.KindNode, types.ServerSpecV2{Hostname: "host-1"})
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+
+	ctx := &InferencePolicyMatchingContext{
+		Context: Context{
+			Resource: server,
+		},
+	}
+	parser, err := NewWhereParser(ctx)
+	require.NoError(t, err)
+
+	// Deliberately crafted expression that requires falling back from an unknown
+	// `protocol` field to the second condition.
+	parseResult, err := parser.Parse(`resource.spec.protocol == "postgres" || resource.spec.hostname == "host-1"`)
+	require.NoError(t, err)
+	pred, ok := parseResult.(predicate.BoolPredicate)
+	require.True(t, ok, "expected BoolPredicate, got %T", parseResult)
+	assert.True(t, pred())
+}
 
 func TestValidateInferencePolicy(t *testing.T) {
 	t.Parallel()
