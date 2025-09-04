@@ -463,11 +463,11 @@ To avoid the need to "elect" a leader to calculate these metrics, each auth serv
 | **GET /webapi/sites/:site/machine-id/bot/:name/bot-instance/:id/config** | A new endpoint to return the _effective_ `tbot` config in YAML format for a bot instance. |
 | **GET /webapi/sites/:site/machine-id/bot/:name/bot-instance/:id/service_health** | A new paginated endpoint to return a list of health statuses, one for each instance service/output. Sorting will not be configurable, and will be in alphabetical order based on user-provided service name. No filtering is supported. |
 | **GET /webapi/sites/:site/machine-id/bot/:name/bot-instance/:id/notice** | A new paginated endpoint to return a list of notices for an instance. Sorting by recency is supported, with the most recent first by default. No filtering is supported. |
-| **GET /webap i/:site/machine-id/bot-instance/dashboard** | A new endpoint to return summary data for bot instances. The result will contain multiple named datasets (one for each supported visualization). A “last updated at” timestamp will be included to give users a sense of recency. |
+| **GET /webapi/:site/machine-id/bot-instance/dashboard** | A new endpoint to return summary data for bot instances. The result will contain multiple named datasets (one for each supported visualization). A “last updated at” timestamp will be included to give users a sense of recency. |
 
 ## Backward Compatibility
 
-None of the proposed change are backwards incompatible, nor are any migrations required. Older CLI clients will continue to function as they did, with any extra data being ignored. Older `tbot` versions will continue to be supported, but will not submit config, service health or notices - the absense of this data will be supported by the web UI and CLI clients as well as the APIs they interact with.
+None of the proposed change are backwards incompatible, nor are any migrations required. Older CLI clients will continue to function as they did, with any extra data being ignored. Older `tbot` versions will continue to be supported, but will not submit config, service health or notices - the absence of this data will be supported by the web UI and CLI clients as well as the APIs they interact with.
 
 Where V2 versions of a webapi are added, the following backwards compatibility behaviour applies; In the situation where a new web client sends a request to an old proxy (in a load balanced setup), the old proxy will not host the new endpoint and will return a 404 and the proxy’s version. A helpful message is then displayed to the user advising that the proxy needs to be upgraded to support the operation.
 
