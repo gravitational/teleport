@@ -328,6 +328,9 @@ export const eventCodes = {
   AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
   AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
   AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
+  BOUND_KEYPAIR_RECOVERY: 'TBK001I',
+  BOUND_KEYPAIR_ROTATION: 'TBK002I',
+  BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
 } as const;
 
 /**
@@ -1901,6 +1904,34 @@ export type RawEvents = {
     {
       user: string;
       groups: string[];
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_RECOVERY,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+      recovery_count: number;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_ROTATION,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
     }
   >;
 };

@@ -1242,3 +1242,70 @@ func TestBotDeviceTrust(t *testing.T) {
 	b = New(botConfig, log)
 	require.NoError(t, b.Run(ctx))
 }
+
+// TestBotJoiningURI ensures configured joining URIs work in place of
+// traditional YAML onboarding config.
+func TestBotJoiningURI(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := utils.NewSlogLoggerForTests()
+
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	role, err := types.NewRole("role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	botParams, _ := makeBot(t, rootClient, "test", "role")
+	cfg := &config.BotConfig{
+		JoinURI: fmt.Sprintf(
+			"tbot+proxy+%s://%s@%s",
+			botParams.JoinMethod,
+			botParams.TokenValue,
+			process.Config.Proxy.WebAddr.String(),
+		),
+		Storage: &config.StorageConfig{
+			Destination: &destination.Memory{},
+		},
+		Services: config.ServiceConfigs{
+			&identitysvc.OutputConfig{
+				Destination: &destination.Memory{},
+			},
+		},
+		Oneshot:  true,
+		Insecure: true,
+	}
+	require.NoError(t, cfg.CheckAndSetDefaults())
+
+	bot := New(cfg, log)
+	require.NoError(t, bot.Run(ctx))
+
+	// Perform some cursory checks on the identity to make sure a cert bundle
+	// was actually produced.
+	id := bot.getBotIdentity()
+	tlsIdent, err := tlsca.FromSubject(
+		id.X509Cert.Subject, id.X509Cert.NotAfter,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "test", tlsIdent.BotName)
+}
