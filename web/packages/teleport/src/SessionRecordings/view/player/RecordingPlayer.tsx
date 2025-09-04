@@ -77,7 +77,7 @@ export function RecordingPlayer<
   ref,
   ws,
 }: RecordingPlayerProps<TEvent>) {
-  const [state, setState] = useState(PlayerState.Loading);
+  const [playerState, setPlayerState] = useState(PlayerState.Loading);
 
   const [showPlayButton, setShowPlayButton] = useState(true);
 
@@ -91,7 +91,7 @@ export function RecordingPlayer<
 
   useEffect(() => {
     stream.on('state', next => {
-      setState(next);
+      setPlayerState(next);
     });
 
     stream.on('time', time => {
@@ -175,7 +175,7 @@ export function RecordingPlayer<
         <PlayPauseKeyboardShortcuts
           onPlay={handlePlay}
           onPause={handlePause}
-          state={state}
+          state={playerState}
         />
 
         <PlayerBox ref={playerRef} />
@@ -189,7 +189,7 @@ export function RecordingPlayer<
           onPlay={handlePlay}
           onPause={handlePause}
           onSeek={handleSeek}
-          state={state}
+          state={playerState}
           ref={controlsRef}
         />
       </Flex>
