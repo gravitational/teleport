@@ -525,7 +525,7 @@ const cfg = {
 
     sessionRecording: {
       metadata:
-        '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws',
+        'wss://:fqdn/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
   },

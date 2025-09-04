@@ -171,7 +171,7 @@ export function RecordingItem({
               {recording.sid}
             </Text>
 
-            {actions}
+            {recording.playable && actions}
           </Flex>
         </RecordingDetails>
       </Flex>
