@@ -567,7 +567,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 	serverConn := tdp.NewConn(wds)
 
 	interceptedServerConn := tdp.NewReadWriteInterceptor(serverConn, f, nil)
-	proxy := tdp.NewConnProxy2(clientConn, interceptedServerConn)
+	proxy := tdp.NewConnProxy(clientConn, interceptedServerConn)
 	if latencySupported {
 		pinger := desktopPinger{
 			server: serverConn,
