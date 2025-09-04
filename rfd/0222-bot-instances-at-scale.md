@@ -180,31 +180,65 @@ The proposed changes are mainly capturing extra data and presenting it in the we
 
 In order to allow instance config to be viewed without needing log in to the machine running `tbot` the complete configuration will be included in the start-up heartbeat and stored for the lifetime of the instance. Instead of capturing the config YAML verbatim, the _effective_ configuration will be used. This includes any environment variable and flag overrides. For security reasons, the join token will be omitted. For privacy reasons, any unrecognized values as well as comments will also be omitted. There may be other sensitive information such as service/output names, but these are only visible to authorised users.
 
-## Heartbeat additions
+## Proto changes
+
+### RPC: `SubmitHeartbeat()`
 
 ```protobuf
-message BotInstanceStatusHeartbeat {
-  // ...[snip]...
+// BotInstanceService provides functions to record and manage bot instances.
+service BotInstanceService {
+  // SubmitHeartbeat submits a heartbeat for a BotInstance.
+  rpc SubmitHeartbeat(SubmitHeartbeatRequest) returns (SubmitHeartbeatResponse);
+}
+
+// The request for SubmitHeartbeat.
+message SubmitHeartbeatRequest {
+  // The heartbeat data to submit.
+  BotInstanceStatusHeartbeat heartbeat = 1;
 
   // The health of the services/output `tbot` is running.
-  repeated BotInstanceServiceHealth service_health = 10;
+  repeated BotInstanceServiceHealth service_health = 2;
 
   // tbot configuration, sourced from YAML configuration file and CLI flags.
   //
   // Will only be sent on startup. Could later be whenever the configuration
   // changes if we support reloading by sending SIGHUP or something.
-  structpb.Struct config = 11;
-
-  // Kind identifies whether the bot is running in the tbot binary or embedded
-  // in another component.
-  BotKind kind = 12;
+  structpb.Struct config = 3;
 
   // Notices emitted since the last heartbeat.
   //
   // The server will clear any previous notices if `is_startup` is true, so that
   // editing tbot's configuration and restarting it clears any warnings from a
   // previous bad configuration.
-  repeated BotInstanceNotice notices = 13;
+  repeated BotInstanceNotice notices = 4;
+}
+```
+
+### Bot instance
+
+```protobuf
+// BotInstanceStatus holds the status of a BotInstance.
+message BotInstanceStatus {
+  // ...[snip]...
+
+  // Notices emitted since the last heartbeat.
+  //
+  // The server will clear any previous notices on start-up, so that editing
+  // tbot's configuration and restarting it clears any warnings from a previous
+  // bad configuration.
+  repeated BotInstanceNotice notices = 5;
+}
+```
+
+### Bot instance heartbeat
+
+```protobuf
+message BotInstanceStatusHeartbeat {
+  // ...[snip]...
+
+  // Kind identifies whether the bot is running in the tbot binary or embedded
+  // in another component.
+  BotKind kind = 12;
 }
 
 // BotKind identifies whether the bot is the tbot binary or embedded in another
@@ -222,7 +256,24 @@ enum BotKind {
   // Means the bot is running inside the Teleport Kubernetes operator.
   BOT_KIND_KUBERNETES_OPERATOR = 3;
 }
+```
 
+### Bot instance configuration
+
+```protobuf
+// BotInstanceConfig encapsulates bot instance configuration for storage
+message BotInstanceConfig {
+  // tbot configuration, sourced from YAML configuration file and CLI flags.
+  //
+  // Will only be sent on startup. Could later be whenever the configuration
+  // changes if we support reloading by sending SIGHUP or something.
+  structpb.Struct config = 11;
+}
+```
+
+### Bot instance notices
+
+```protobuf
 // BotInstanceNotice contains an error message, deprecation warning, etc. emitted
 // by the bot instance.
 message BotInstanceNotice {
@@ -232,21 +283,21 @@ message BotInstanceNotice {
   string id = 1;
 
   // Type of notice (e.g. deprecation or warning).
-  BotInstanceNoticeType type = 1;
+  BotInstanceNoticeType type = 2;
 
   // Service this notice relates to (or nil if it relates to the bot instance
   // more generally).
-  optional BotInstanceService service = 2;
+  optional BotInstanceServiceIdentifier service = 3;
 
   // Timestamp at which this notice was emitted.
-  google.protobuf.Timestamp timestamp = 3;
+  google.protobuf.Timestamp timestamp = 4;
 
   oneof notice {
     // Deprecation warning details.
-    BotInstanceDeprecationWarning deprecation_warning = 4;
+    BotInstanceDeprecationWarning deprecation_warning = 5;
 
     // Generic message text.
-    string message = 5;
+    string message = 6;
   }
 }
 
@@ -271,6 +322,35 @@ message BotInstanceDeprecationWarning {
   // The major version in which the deprecated configuration will no longer work.
   string removal_version = 2;
 }
+```
+
+### Bot instance service health
+
+```protobuf
+// BotInstanceServiceHealth is a snapshot of a `tbot` service's health.
+message BotInstanceServiceHealth {
+  // Service identifies the service.
+  BotInstanceServiceIdentifier service = 1;
+
+  // Status describes the service's healthiness.
+  BotInstanceHealthStatus status = 2;
+
+  // Reason is a human-readable explanation for the service's status. It might
+  // include an error message.
+  optional string reason = 3;
+
+  // UpdatedAt is the time at which the service's health last changed.
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+// BotInstanceServiceIdentifier uniquely identifies a `tbot` service.
+message BotInstanceServiceIdentifier {
+  // Type of service (e.g. database-tunnel, ssh-multiplexer).
+  string type = 1;
+
+  // Name of the service, either given by the user or auto-generated.
+  string name = 2;
+}
 
 // BotInstanceHealthStatus describes the healthiness of a `tbot` service.
 enum BotInstanceHealthStatus {
@@ -286,31 +366,6 @@ enum BotInstanceHealthStatus {
 
   // Means the service is failing to serve traffic or generate output.
   BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY = 3;
-}
-
-// BotInstanceServiceIdentifier uniquely identifies a `tbot` service.
-message BotInstanceServiceIdentifier {
-  // Type of service (e.g. database-tunnel, ssh-multiplexer).
-  string type = 1;
-
-  // Name of the service, either given by the user or auto-generated.
-  string name = 2;
-}
-
-// BotInstanceServiceHealth is a snapshot of a `tbot` service's health.
-message BotInstanceServiceHealth {
-  // Service identifies the service.
-  BotInstanceServiceIdentifier service = 1;
-
-  // Status describes the service's healthiness.
-  BotInstanceHealthStatus status = 2;
-
-  // Reason is a human-readable explanation for the service's status. It might
-  // include an error message.
-  optional string reason = 3;
-
-  // UpdatedAt is the time at which the service's health last changed.
-  google.protobuf.Timestamp updated_at = 4;
 }
 ```
 
