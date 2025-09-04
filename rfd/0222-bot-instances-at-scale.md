@@ -42,11 +42,11 @@ A breakdown of active instance versions will make the process of monitoring the 
 
 Currently in the web UI the instances list can be filtered by version, but this is a text search and it is not aware of semantic versioning. It’s possible to find a specific version number, but it’s not easy to isolate a range of versions, such as “>18 & <18.2.1”, which is likely required to find instances between a vulnerable and patched version.
 
-To support this use-case, the filter for bot instances will support the predicate language and allow queries such as `newer_than_or_equal(version, "18.1.0") && older_than(version, "19.0.0")`. This works though the web UI and the CLI (`tctl`).
+To support this use-case, the filter for bot instances will support the predicate language and allow queries such as `version.between("18.1.0")`. This works though the web UI and the CLI (`tctl`).
 
 **As a cluster owner (Infrastructure Security team), I want to know which Bot Instances are running with deprecated/problematic configuration.**
 
-Issues in `tbot` (or just typos) can be difficult to detect and logs may not adequately highlight these. To improve the rate of these events reaching users, `tbot` will detect and collate notices which are sent with the next heartbeat. They will then be available to view for a bot instance. To help in situations where it’s infeasible to check each individual instance, notices will be summarized by title and presented in aggregate form. Each aggregated item will be selectable and will filter the bot instances list. An advanced filter such as `contains(notices, "Proxy URL not set")` will be applied.
+Issues in `tbot` (or just typos) can be difficult to detect and logs may not adequately highlight these. To improve the rate of these events reaching users, `tbot` will detect and collate notices which are sent with the next heartbeat. They will then be available to view for a bot instance. To help in situations where it’s infeasible to check each individual instance, notices will be summarized by title and presented in aggregate form. Each aggregated item will be selectable and will filter the bot instances list. An advanced filter such as `has_notice("Proxy URL not set")` will be applied.
 
 **As a Bot Instance owner (Dev/Dev Ops team), I'd like help in understanding why my Bot Instance is not working properly.**
 
@@ -168,11 +168,11 @@ The predicate language will be used to provide advanced filtering for instances.
 
 Instance-specific functions will be supported by implementing a custom `typical.ParserSpec`, such as those in the table below.
 
-| Purpose | Example |
-| --- | --- |
-| Find instances running versions less than a given version - based on the most recent heartbeat | `older_than(version, 18.1.0)` |
-| Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat | `newer_than_or_equal(version, "18.0.0") && older_than(version, "18.1.0")` |
-| Find instances which have a particular notice (by title) | `contains(notices, "Proxy URL not set")` |
+| Function | Purpose | Example |
+| --- | --- | --- |
+| **older_than** | Find instances running versions less than a given version - based on the most recent heartbeat | `older_than(version, "18.1.0")` or `version.older_than("18.1.0")` |
+| **between** | Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat. Inclusive of from and exclusive of to. | `between(version, "18.0.0", "18.1.0")` or `version.between("18.0.0", "18.1.0")` |
+| **has_notice** | Find instances which have a particular notice (by title) | `has_notice("Proxy URL not set")` |
 
 ## Privacy and Security
 
