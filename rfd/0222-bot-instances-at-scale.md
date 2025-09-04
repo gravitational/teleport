@@ -456,15 +456,14 @@ To avoid the need to "elect" a leader to calculate these metrics, each auth serv
 
 ## Web API
 
-**GET /v2/webapi/sites/:site/machine-id/bot-instance**
-
-A new version of an existing API with a `query` parameter added to accept a string query in the Teleport predicate language (e.g. `older_than(version, 18.1)`) which is used to filter returned instances.
-
-In the situation where a new web client sends a request to an old proxy (in a load balanced setup), the old proxy will not host the new endpoint and will return a 404 and the proxy’s version. A helpful message is then displayed to the user advising that the proxy needs to be upgraded to support the operation.
-
-**GET /webapi/:site/machine-id/bot-instance/dashboard**
-
-A new endpoint to return summary data for bot instances. The result will contain multiple named datasets (one for each supported visualization). A “last updated at” timestamp will be included to give users a sense of recency.
+| Endpoint | Description |
+| --- | --- |
+| **GET /v2/webapi/sites/:site/machine-id/bot-instance** | A new version of an existing endpoint with a `query` parameter added to accept a string query in the Teleport predicate language (e.g. `older_than(version, 18.1)`) which is used to filter returned instances. |
+| **GET /v2/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id** | A new version of an existing endpoint which includes the new fields on bot instance (such as notices). The `yaml` field is removed, as it is no longer required in the UI. |
+| **GET /webapi/sites/:site/machine-id/bot/:name/bot-instance/:id/config** | A new endpoint to return the _effective_ `tbot` config in YAML format for a bot instance. |
+| **GET /webapi/sites/:site/machine-id/bot/:name/bot-instance/:id/service_health** | A new paginated endpoint to return a list of health statuses, one for each instance service/output. Sorting will not be configurable, and will be in alphabetical order based on user-provided service name. No filtering is supported. |
+| **GET /webapi/sites/:site/machine-id/bot/:name/bot-instance/:id/notice** | A new paginated endpoint to return a list of notices for an instance. Sorting by recency is supported, with the most recent first by default. No filtering is supported. |
+| **GET /webap i/:site/machine-id/bot-instance/dashboard** | A new endpoint to return summary data for bot instances. The result will contain multiple named datasets (one for each supported visualization). A “last updated at” timestamp will be included to give users a sense of recency. |
 
 ## Backward Compatibility
 
