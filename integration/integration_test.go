@@ -3795,6 +3795,9 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	// create agentless node in leaf cluster
 	node := testenv.CreateAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node")
 
+	err = main.WaitForNodeCount(ctx, clusterAux, 1)
+	require.NoError(t, err)
+
 	// connect to leaf agentless node
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:        main.Process,
