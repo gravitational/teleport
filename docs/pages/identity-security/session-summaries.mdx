@@ -55,9 +55,9 @@ There are three fundamental concepts to that underpin session summarization:
 
 In order to manage the summary inference configuration, you need a write access
 to `inference_model`, `inference_secret`, and `inference_policy` resources,
-which is granted by default through the built-in `editor` role.
+which is granted by default through the preset `editor` role.
 
-You can either use the built-in roles or create a new one to make sure you have
+Alternatively, you can create a new role to make sure you have
 access to all necessary resources. To create a new role:
 
 1. Create a `summarizer-admin.yaml` file with the following content:
@@ -190,9 +190,9 @@ sections of [Teleport Resources Reference](../reference/resources.mdx):
 
 Every user who has access to
 [given session recording](../reference/access-controls/roles.mdx#rbac-for-session-recordings)
-also has access to its summary through a `session` resource kind. The built-in
+also has access to its summary through a `session` resource kind. The preset
 `access` role allows users to only view their sessions; in order to allow a
-user to view all recordings and summaries, it's easiest to use the built-in
+user to view all recordings and summaries, it's easiest to use the preset
 `auditor` role.
 
 You can either use the built-in roles or create a new one to make sure you have
@@ -238,7 +238,7 @@ summary button will show the summary.
 <Admonition type="info">
 It can take a while to generate a summary, and the time depends on multiple
 factors, including session size, model, and its temperature. Usually it should
-appear up to a minute after the session is uploaded to Auth service.
+appear up to a minute after the session is uploaded to the Auth service.
 </Admonition>
 
 ## Limitations
