@@ -77,7 +77,6 @@ export class TtyPlayer extends Player<TtyEvent> {
       const canvasAddon = new CanvasAddon();
 
       this.addons.push(canvasAddon);
-
       this.terminal.loadAddon(canvasAddon);
     };
 
@@ -89,7 +88,6 @@ export class TtyPlayer extends Player<TtyEvent> {
       });
 
       this.terminal.loadAddon(webglAddon);
-
       this.addons.push(webglAddon);
     } catch {
       createCanvasAddon();
@@ -162,7 +160,8 @@ export class TtyPlayer extends Player<TtyEvent> {
       try {
         addon.dispose();
       } catch {
-        // ignore
+        // eslint-disable-next-line no-console
+        console.warn('Failed to dispose terminal addon', addon);
       }
     }
 
