@@ -175,6 +175,29 @@ func (s stringerAttr) LogValue() slog.Value {
 	return slog.StringValue(s.Stringer.String())
 }
 
+type stringerSliceAttr[T fmt.Stringer] struct {
+	stringers []T
+}
+
+func (s stringerSliceAttr[T]) LogValue() slog.Value {
+	return slog.StringValue(fmt.Sprint(s.stringers))
+}
+
+// StringerSliceAttr creates a [slog.LogValuer] that will defer formatting a
+// slice of [fmt.Stringer] as a string. All slog attributes are always evaluated,
+// even if the log event is discarded due to the configured log level.
+// A text [slog.Handler] will try to defer evaluation if the attribute is a
+// [fmt.Stringer], however, the JSON [slog.Handler] only defers to [json.Marshaler].
+// This means that to defer evaluation and creation of the string representation,
+// the object must implement [fmt.Stringer] and [json.Marshaler], otherwise additional
+// and unwanted values may be emitted if the logger is configured to use JSON
+// instead of text. This wrapping mechanism allows a slice of a type that
+// implements [fmt.Stringer], to be guaranteed to be lazily constructed and
+// always output the same content regardless of the output format.
+func StringerSliceAttr[T fmt.Stringer](ss []T) slog.LogValuer {
+	return stringerSliceAttr[T]{stringers: ss}
+}
+
 type typeAttr struct {
 	val any
 }

@@ -32,7 +32,7 @@ import (
 
 // newAzureManagedSQLServerFetcher creates a fetcher for Azure SQL Servers.
 func newAzureManagedSQLServerFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher[*armsql.ManagedInstance, azure.ManagedSQLServerClient](config, &azureManagedSQLServerFetcher{})
+	return newAzureFetcher(config, &azureManagedSQLServerFetcher{})
 }
 
 // azureManagedSQLServerFetcher implements azureFetcherPlugin for Azure Managed

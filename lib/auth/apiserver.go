@@ -132,6 +132,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// trusted clusters
+	// TODO(noah): DELETE IN v21.0.0 - this has been migrated to gRPC from v19.
 	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
 	// SSO validation handlers

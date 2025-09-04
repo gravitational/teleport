@@ -24,8 +24,10 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"os"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -96,7 +98,9 @@ func init() {
 	objects.RegisterObjectFetcher(postgres.NewObjectFetcher, defaults.ProtocolPostgres)
 
 	endpoints.RegisterResolver(postgres.NewEndpointsResolver, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
-	endpoints.RegisterResolver(mysql.NewEndpointsResolver, defaults.ProtocolMySQL)
+	if isMySQLHealthCheckEnabled() {
+		endpoints.RegisterResolver(mysql.NewEndpointsResolver, defaults.ProtocolMySQL)
+	}
 	endpoints.RegisterResolver(mongodb.NewEndpointsResolver, defaults.ProtocolMongoDB)
 
 	endpoints.RegisterResolver(cassandra.NewEndpointsResolver, defaults.ProtocolCassandra)
@@ -109,6 +113,14 @@ func init() {
 	endpoints.RegisterResolver(snowflake.NewEndpointsResolver, defaults.ProtocolSnowflake)
 	endpoints.RegisterResolver(spanner.NewEndpointsResolver, defaults.ProtocolSpanner)
 	endpoints.RegisterResolver(sqlserver.NewEndpointsResolver, defaults.ProtocolSQLServer)
+}
+
+// isMySQLHealthCheckEnabled returns true if MySQL health checks are enabled.
+// The default MySQL settings will automatically block a host after it dials
+// MySQL without handshaking 100 times, so we make MySQL health checks opt-in.
+func isMySQLHealthCheckEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("TELEPORT_ENABLE_MYSQL_DB_HEALTH_CHECKS"))
+	return err == nil && enabled
 }
 
 // Config is the configuration for a database proxy server.
@@ -510,7 +522,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 // startDatabase performs initialization actions for the provided database
 // such as starting dynamic labels and initializing CA certificate.
 func (s *Server) startDatabase(ctx context.Context, database types.Database) error {
-	if err := s.startHealthCheck(ctx, database); err != nil {
+	if err := s.startHealthCheck(ctx, database); err != nil && endpoints.IsRegistered(database) {
 		s.log.DebugContext(ctx, "Failed to start database health checker",
 			"db", database.GetName(),
 			"error", err,
@@ -1176,7 +1188,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) error {
-	sessionCtx, err := s.authorize(ctx)
+	sessionCtx, err := s.authorize(ctx, clientConn.RemoteAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1333,7 +1345,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 	})
 }
 
-func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
+func (s *Server) authorize(ctx context.Context, clientIP net.Addr) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
 	userType, err := authz.UserFromContext(ctx)
 	if err != nil {
@@ -1382,6 +1394,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		Log:                s.log.With("id", id, "db", database.GetName()),
 		LockTargets:        authContext.LockTargets(),
 		StartTime:          s.cfg.Clock.Now(),
+		ClientIP:           clientIP.String(),
 	}
 
 	s.log.DebugContext(ctx, "Created session context.", "session", sessionCtx)
@@ -1490,7 +1503,11 @@ func (s *Server) stopHealthCheck(db types.Database) error {
 // getTargetHealth returns the target health for the database.
 func (s *Server) getTargetHealth(ctx context.Context, db types.Database) types.TargetHealth {
 	if err := checkSupportsHealthChecks(db); err != nil {
-		return types.TargetHealth{}
+		return types.TargetHealth{
+			Status:           string(types.TargetHealthStatusUnknown),
+			TransitionReason: string(types.TargetHealthTransitionReasonDisabled),
+			Message:          err.Error(),
+		}
 	}
 
 	health, err := s.cfg.healthCheckManager.GetTargetHealth(db)

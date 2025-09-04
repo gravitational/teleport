@@ -19,6 +19,7 @@ package wrappers
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -56,6 +57,18 @@ func UnmarshalTraits(data []byte, traits *Traits) error {
 		return traits.Unmarshal(data)
 	}
 	return nil
+}
+
+// Clone returns a copy of the Traits map.
+func (l Traits) Clone() Traits {
+	if l == nil {
+		return nil
+	}
+	clone := make(Traits, len(l))
+	for key, vals := range l {
+		clone[key] = slices.Clone(vals)
+	}
+	return clone
 }
 
 // Marshal marshals value into protobuf representation

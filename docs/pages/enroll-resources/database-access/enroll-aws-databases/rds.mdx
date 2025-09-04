@@ -308,18 +308,7 @@ $ tsh db ls
 # rds-example             env=dev
 ```
 
-Retrieve credentials for the database and connect to it as the `alice` user:
-
-```code
-$ tsh db connect --db-user=alice --db-name=postgres rds-example
-```
-
-(!docs/pages/includes/database-access/pg-access-webui.mdx!)
-
-<Admonition type="note" title="Note">
-  The appropriate database command-line client (`psql`, `mysql`, `mariadb`) should be
-  available in `PATH` in order to be able to connect.
-</Admonition>
+(!docs/pages/includes/database-access/pg-mysql-connect.mdx dbUser="alice" dbService="rds-example"!)
 
 Log out of the database and remove credentials:
 

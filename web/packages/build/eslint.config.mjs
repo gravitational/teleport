@@ -27,6 +27,21 @@ import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+const commonNoRestrictedImportsPaths = [
+  {
+    name: 'usehooks-ts',
+    importNames: ['useResizeObserver'],
+    message:
+      "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead.",
+  },
+  {
+    name: 'usehooks-ts',
+    importNames: ['useCopyToClipboard'],
+    message:
+      "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead.",
+  },
+];
+
 export default tseslint.config(
   {
     // Citing from the ESLint docs:
@@ -42,6 +57,7 @@ export default tseslint.config(
     // And just to be future-proof we specify other non-default extensions used in the project.
     files: ['**/*.ts', '**/*.mts', '**/*.tsx', '**/*.jsx'],
   },
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   {
     ignores: [
       '**/dist/**',
@@ -194,6 +210,7 @@ export default tseslint.config(
               group: ['teleport/*', 'e-teleport/*', 'teleterm/*'],
             },
           ],
+          paths: commonNoRestrictedImportsPaths,
         },
       ],
     },
@@ -209,6 +226,7 @@ export default tseslint.config(
               group: ['e-teleport/*', 'teleterm/*'],
             },
           ],
+          paths: commonNoRestrictedImportsPaths,
         },
       ],
     },
@@ -224,6 +242,7 @@ export default tseslint.config(
               group: ['teleterm/*'],
             },
           ],
+          paths: commonNoRestrictedImportsPaths,
         },
       ],
     },
@@ -239,6 +258,20 @@ export default tseslint.config(
               group: ['teleport/*', 'e-teleport/*'],
             },
           ],
+          paths: commonNoRestrictedImportsPaths,
+        },
+      ],
+    },
+  },
+
+  {
+    // Anything but the packages which have more specific patterns written out above.
+    files: ['web/packages/!(teleterm|teleport|shared)/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: commonNoRestrictedImportsPaths,
         },
       ],
     },

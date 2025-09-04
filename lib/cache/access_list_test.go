@@ -31,6 +31,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -274,6 +276,109 @@ func TestAccessListReviews(t *testing.T) {
 
 }
 
+func TestListAccessListsV2(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	names := []string{"apple-list", "banana-access", "cherry-management", "apple-admin", "zebra-test"}
+
+	for i, name := range names {
+		al := newAccessList(t, name, clock)
+		auditDate := clock.Now().Add(time.Duration(i) * (time.Hour) * 24)
+		// add arbitrary date so we can make sure its not just sorted by name
+		if name == "banana-access" {
+			auditDate = clock.Now().Add(100 * (time.Hour) * 24)
+		}
+		al.Spec.Audit.NextAuditDate = auditDate
+
+		_, err := p.accessLists.UpsertAccessList(ctx, al)
+		require.NoError(t, err)
+	}
+
+	testCases := []struct {
+		name            string
+		search          string
+		sortBy          *types.SortBy
+		expectedNames   []string
+		pageSize        int
+		expectedNextKey string
+		startKey        string
+	}{
+		{
+			name:          "no filter - all lists",
+			expectedNames: []string{"apple-admin", "apple-list", "banana-access", "cherry-management", "zebra-test"},
+		},
+		{
+			name:          "sort by name reverse",
+			sortBy:        &types.SortBy{Field: "name", IsDesc: true},
+			expectedNames: []string{"zebra-test", "cherry-management", "banana-access", "apple-list", "apple-admin"},
+		},
+		{
+			name:          "sort by audit date",
+			sortBy:        &types.SortBy{Field: "auditNextDate", IsDesc: false},
+			expectedNames: []string{"apple-list", "cherry-management", "apple-admin", "zebra-test", "banana-access"},
+		},
+		{
+			name:          "sort by audit date reverse",
+			sortBy:        &types.SortBy{Field: "auditNextDate", IsDesc: true},
+			expectedNames: []string{"banana-access", "zebra-test", "apple-admin", "cherry-management", "apple-list"},
+		},
+		{
+			name:            "paginated results",
+			expectedNames:   []string{"apple-admin", "apple-list"},
+			pageSize:        2,
+			expectedNextKey: "banana-access",
+		},
+		{
+			name:            "paginated results reverse",
+			expectedNames:   []string{"zebra-test", "cherry-management", "banana-access"},
+			sortBy:          &types.SortBy{Field: "name", IsDesc: true},
+			pageSize:        3,
+			expectedNextKey: "apple-list",
+		},
+		{
+			name:          "with search",
+			search:        "apple",
+			expectedNames: []string{"apple-admin", "apple-list"},
+		},
+		{
+			name:          "with startKey",
+			startKey:      "banana-access",
+			expectedNames: []string{"banana-access", "cherry-management", "zebra-test"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				results, nextToken, err := p.cache.ListAccessListsV2(ctx, &accesslistv1.ListAccessListsV2Request{
+					PageSize:  int32(tc.pageSize),
+					PageToken: tc.startKey,
+					Filter: &accesslistv1.AccessListsFilter{
+						Search: tc.search,
+					},
+					SortBy: tc.sortBy,
+				})
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedNextKey, nextToken)
+
+				assert.Len(t, results, len(tc.expectedNames))
+				actualNames := make([]string, len(results))
+				for i, al := range results {
+					actualNames[i] = al.GetName()
+				}
+
+				assert.Equal(t, tc.expectedNames, actualNames)
+			}, 5*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
 func TestCountAccessListMembersScoping(t *testing.T) {
 	t.Parallel()
 
@@ -341,4 +446,33 @@ func TestCountAccessListMembersScoping(t *testing.T) {
 		case <-p.eventsC:
 		}
 	}
+}
+
+func TestGetAllAccessListMembers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClock()
+
+	_, members, err := p.accessLists.UpsertAccessListWithMembers(context.Background(), newAccessList(t, "access-list", clock),
+		makeMembers(t, "access-list", 10),
+	)
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		result, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListAllAccessListMembers, 1))
+		require.NoError(t, err)
+		require.Len(t, result, len(members))
+	}, time.Second*10, time.Millisecond*30)
+}
+
+func makeMembers(t *testing.T, alName string, count int) []*accesslist.AccessListMember {
+	members := make([]*accesslist.AccessListMember, 0, count)
+	for i := 0; i < count; i++ {
+		members = append(members, newAccessListMember(t, alName, fmt.Sprintf("member-%d", i)))
+	}
+	return members
 }

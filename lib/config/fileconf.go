@@ -747,7 +747,7 @@ type Auth struct {
 
 	// SessionRecordingConfig configures how session recording should be handled including things like
 	// encryption and key management.
-	SessionRecordingConfig *types.SessionRecordingConfigSpecV2 `yaml:"session_recording_config,omitempty"`
+	SessionRecordingConfig *SessionRecordingConfig `yaml:"session_recording_config,omitempty"`
 
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
@@ -2020,6 +2020,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS `yaml:"rds"`
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
+	// ElastiCacheServerless contains ElastiCache Serverless specific settings.
+	ElastiCacheServerless DatabaseAWSElastiCacheServerless `yaml:"elasticache_serverless"`
 	// SecretStore contains settings for managing secrets.
 	SecretStore SecretStore `yaml:"secret_store"`
 	// MemoryDB contains MemoryDB specific settings.
@@ -2054,6 +2056,13 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
+}
+
+// DatabaseAWSElastiCacheServerless contains settings for ElastiCache Serverless
+// databases.
+type DatabaseAWSElastiCacheServerless struct {
+	// CacheName is the ElastiCache Serverless cache name.
+	CacheName string `yaml:"cache_name,omitempty"`
 }
 
 // DatabaseAWSMemoryDB contains settings for MemoryDB databases.
@@ -2562,6 +2571,8 @@ type WindowsDesktopService struct {
 	DiscoveryConfigs []LDAPDiscoveryConfig `yaml:"discovery_configs,omitempty"`
 	// DiscoveryInterval controls how frequently the discovery process runs.
 	DiscoveryInterval time.Duration `yaml:"discovery_interval"`
+	// PublishCRLInterval determines how frequently CRLs should be published.
+	PublishCRLInterval time.Duration `yaml:"publish_crl_interval"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
@@ -2928,4 +2939,51 @@ type Relay struct {
 	// APIPublicHostnames is the list of DNS names and IP addresses that the
 	// Relay service credentials should be authoritative for.
 	APIPublicHostnames []string `yaml:"api_public_hostnames"`
+}
+
+// SessionRecordingEncryptionConfig is the session_recording_config.encryption
+// section of the Teleport config file. It maps directly to [types.SessionRecordingEncryptionConfig]
+type SessionRecordingEncryptionConfig struct {
+	Enabled             bool `yaml:"enabled,omitempty"`
+	ManualKeyManagement *struct {
+		Enabled     bool              `yaml:"enabled,omitempty"`
+		ActiveKeys  []*types.KeyLabel `yaml:"active_keys,omitempty"`
+		RotatedKeys []*types.KeyLabel `yaml:"rotated_keys,omitempty"`
+	} `yaml:"manual_key_management,omitempty"`
+}
+
+// SessionRecordingConfig is the session_recording_config section of the Teleport config file.
+// It maps directly to [types.SessionRecordingConfigSpecV2]
+type SessionRecordingConfig struct {
+	Mode                string                            `yaml:"mode"`
+	ProxyChecksHostKeys *types.BoolOption                 `yaml:"proxy_checks_host_keys,omitempty"`
+	Encryption          *SessionRecordingEncryptionConfig `yaml:"encryption,omitempty"`
+}
+
+// toSpec converts SessionRecordingConfig into a types.SessionRecordingConfigSpecV2 so it can
+// be used to initialize session recording.
+func (src *SessionRecordingConfig) toSpec() types.SessionRecordingConfigSpecV2 {
+	if src == nil {
+		return types.SessionRecordingConfigSpecV2{}
+	}
+
+	var encryption *types.SessionRecordingEncryptionConfig
+	if src.Encryption != nil {
+		encryption = &types.SessionRecordingEncryptionConfig{
+			Enabled: src.Encryption.Enabled,
+		}
+		if src.Encryption.ManualKeyManagement != nil {
+			encryption.ManualKeyManagement = &types.ManualKeyManagementConfig{
+				Enabled:     src.Encryption.ManualKeyManagement.Enabled,
+				ActiveKeys:  src.Encryption.ManualKeyManagement.ActiveKeys,
+				RotatedKeys: src.Encryption.ManualKeyManagement.RotatedKeys,
+			}
+		}
+	}
+
+	return types.SessionRecordingConfigSpecV2{
+		Mode:                src.Mode,
+		ProxyChecksHostKeys: src.ProxyChecksHostKeys,
+		Encryption:          encryption,
+	}
 }

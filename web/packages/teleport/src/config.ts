@@ -95,6 +95,9 @@ const cfg = {
   // isPolicyEnabled refers to the Teleport Policy product
   isPolicyEnabled: false,
 
+  // sessionSummarizerEnabled refers to the AI session summary feature
+  sessionSummarizerEnabled: false,
+
   configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
@@ -218,8 +221,6 @@ const cfg = {
     integrationStatusResources:
       '/web/integrations/status/:type/:name/resources/:resourceKind',
     integrationEnroll: '/web/integrations/new/:type?/:subPage?',
-    integrationEnrollChild:
-      '/web/integrations/new/:type/:name/child/:subType/:subPage?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
@@ -259,7 +260,7 @@ const cfg = {
     clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
-    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
+    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
 
@@ -415,6 +416,8 @@ const cfg = {
     resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
 
     awsRolesAnywhere: {
+      validate:
+        '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/validate',
       generate:
         '/v1/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=:integrationName?&trustAnchor=:trustAnchor?&syncRole=:syncRole?&syncProfile=:syncProfile',
       ping: '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/ping',
@@ -522,9 +525,8 @@ const cfg = {
 
     sessionRecording: {
       metadata:
-        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/metadata/ws',
-      thumbnail:
-        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/thumbnail',
+        '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws',
+      thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
   },
 
@@ -580,10 +582,32 @@ const cfg = {
     clusterId: string,
     params: UrlSessionRecordingsParams
   ) {
-    return generatePath(cfg.api.clusterEventsRecordingsPath, {
+    const searchParams = new URLSearchParams();
+
+    if (params.start) {
+      searchParams.append('from', params.start);
+    }
+
+    if (params.end) {
+      searchParams.append('to', params.end);
+    }
+
+    if (params.limit) {
+      searchParams.append('limit', params.limit.toString());
+    }
+
+    if (params.startKey) {
+      searchParams.append('startKey', params.startKey);
+    }
+
+    const paramsString = searchParams.toString();
+    const queryString = paramsString ? `?${paramsString}` : '';
+
+    const path = generatePath(cfg.api.clusterEventsRecordingsPath, {
       clusterId,
-      ...params,
     });
+
+    return `${path}${queryString}`;
   },
 
   getAuthProviders() {
@@ -901,10 +925,15 @@ const cfg = {
     return route;
   },
 
-  getSessionRecordingMetadataUrl(clusterId: string, sessionId: string) {
+  getSessionRecordingMetadataUrl(
+    clusterId: string,
+    sessionId: string,
+    fqdn: string
+  ) {
     return generatePath(cfg.api.sessionRecording.metadata, {
       clusterId,
       sessionId,
+      fqdn,
     });
   },
 
@@ -1350,6 +1379,14 @@ const cfg = {
     return generatePath(cfg.api.resolveUserTaskPath, {
       clusterId,
       name,
+    });
+  },
+
+  getValidateAWSRolesAnywhereIntegrationUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.awsRolesAnywhere.validate, {
+      clusterId,
+      integrationName,
     });
   },
 

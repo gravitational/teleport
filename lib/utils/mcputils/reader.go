@@ -31,7 +31,7 @@ import (
 )
 
 // HandleParseErrorFunc handles parse errors.
-type HandleParseErrorFunc func(context.Context, *mcp.JSONRPCError) error
+type HandleParseErrorFunc func(context.Context, mcp.RequestId, error) error
 
 // HandleRequestFunc handles a request.
 type HandleRequestFunc func(context.Context, *JSONRPCRequest) error
@@ -45,16 +45,17 @@ type HandleNotificationFunc func(context.Context, *JSONRPCNotification) error
 // ReplyParseError returns a HandleParseErrorFunc that forwards the error to
 // provided writer.
 func ReplyParseError(w MessageWriter) HandleParseErrorFunc {
-	return func(ctx context.Context, parseError *mcp.JSONRPCError) error {
-		return trace.Wrap(w.WriteMessage(ctx, parseError))
+	return func(ctx context.Context, id mcp.RequestId, parseError error) error {
+		rpcError := mcp.NewJSONRPCError(id, mcp.PARSE_ERROR, parseError.Error(), nil)
+		return trace.Wrap(w.WriteMessage(ctx, rpcError))
 	}
 }
 
 // LogAndIgnoreParseError returns a HandleParseErrorFunc that logs the parse
 // error.
 func LogAndIgnoreParseError(log *slog.Logger) HandleParseErrorFunc {
-	return func(ctx context.Context, parseError *mcp.JSONRPCError) error {
-		log.DebugContext(ctx, "Ignore parse error", "error", parseError)
+	return func(ctx context.Context, id mcp.RequestId, parseError error) error {
+		log.DebugContext(ctx, "Ignore parse error", "error", parseError, "id", id)
 		return nil
 	}
 }
@@ -77,8 +78,6 @@ type MessageReaderConfig struct {
 	Transport TransportReader
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
-	// ParentContext is the parent's context. Used for logging during tear down.
-	ParentContext context.Context
 
 	// OnClose is an optional callback when reader finishes.
 	OnClose func()
@@ -109,9 +108,6 @@ func (c *MessageReaderConfig) CheckAndSetDefaults() error {
 	}
 	if c.OnRequest == nil && c.OnResponse == nil {
 		return trace.BadParameter("one of OnRequest or OnResponse must be set")
-	}
-	if c.ParentContext == nil {
-		return trace.BadParameter("missing parameter ParentContext")
 	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "mcp")
@@ -151,9 +147,9 @@ func (r *MessageReader) Run(ctx context.Context) {
 	case <-ctx.Done():
 	}
 
-	r.cfg.Logger.InfoContext(r.cfg.ParentContext, "Finished processing messages", "transport", r.cfg.Transport.Type())
+	r.cfg.Logger.InfoContext(ctx, "Finished processing messages", "transport", r.cfg.Transport.Type())
 	if err := r.cfg.Transport.Close(); err != nil && !IsOKCloseError(err) {
-		r.cfg.Logger.ErrorContext(r.cfg.ParentContext, "Failed to close reader", "error", err)
+		r.cfg.Logger.ErrorContext(ctx, "Failed to close reader", "error", err)
 	}
 	if r.cfg.OnClose != nil {
 		r.cfg.OnClose()
@@ -177,17 +173,20 @@ func (r *MessageReader) startProcess(ctx context.Context) {
 
 func (r *MessageReader) processNextLine(ctx context.Context) error {
 	rawMessage, err := r.cfg.Transport.ReadMessage(ctx)
-	if err != nil {
-		// TODO(greedy52) handle ParseError from Transport.ReadMessage.
-		return trace.Wrap(err, "reading line")
+	switch {
+	case isReaderParseError(err):
+		if err := r.cfg.OnParseError(ctx, mcp.NewRequestId(nil), err); err != nil {
+			return trace.Wrap(err, "handling reader parse error")
+		}
+	case err != nil:
+		return trace.Wrap(err, "reading next message")
 	}
 
 	r.cfg.Logger.Log(ctx, logutils.TraceLevel, "Trace read", "raw", rawMessage)
 
 	var base baseJSONRPCMessage
 	if parseError := json.Unmarshal([]byte(rawMessage), &base); parseError != nil {
-		rpcError := mcp.NewJSONRPCError(mcp.NewRequestId(nil), mcp.PARSE_ERROR, parseError.Error(), nil)
-		if err := r.cfg.OnParseError(ctx, &rpcError); err != nil {
+		if err := r.cfg.OnParseError(ctx, mcp.NewRequestId(nil), parseError); err != nil {
 			return trace.Wrap(err, "handling JSON unmarshal error")
 		}
 	}
@@ -210,9 +209,8 @@ func (r *MessageReader) processNextLine(ctx context.Context) error {
 		r.cfg.Logger.DebugContext(ctx, "Skipping response", "id", base.ID)
 		return nil
 	default:
-		rpcError := mcp.NewJSONRPCError(base.ID, mcp.PARSE_ERROR, "unknown message type", rawMessage)
 		return trace.Wrap(
-			r.cfg.OnParseError(ctx, &rpcError),
+			r.cfg.OnParseError(ctx, base.ID, trace.BadParameter("unknown message type")),
 			"handling unknown message type error",
 		)
 	}

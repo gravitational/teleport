@@ -1,0 +1,327 @@
+---
+title: Machine ID with Argo CD
+description: How to use Machine ID to enable Argo CD to connect to external Kubernetes clusters
+labels:
+ - how-to
+ - mwi
+---
+
+Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. It
+runs in Kubernetes and can deploy applications to the same cluster or to other
+"external" clusters.
+
+In this guide, you will configure the Machine ID agent, `tbot`, to manage Argo
+CD's cluster credentials, enabling it to securely deploy applications using
+Teleport Kubernetes Access.
+
+## Prerequisite
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- Argo CD [installed](https://argo-cd.readthedocs.io/en/latest/#quick-start)
+  in a Kubernetes cluster. This cluster will be referred to as the **source
+  cluster** throughout this guide, it does not need to be enrolled into Teleport.
+- The Kubernetes cluster to which you'd like Argo CD to deploy applications.
+  This cluster will be referred to as the **target cluster** throughout this
+  guide, it must be enrolled into Teleport, if you have not already done this,
+  follow the [Enroll a Kubernetes Cluster](../../../enroll-resources/kubernetes-access/getting-started.mdx)
+  guide.
+- (!docs/pages/includes/tctl.mdx!)
+- To configure Kubernetes and deploy `tbot` you will need
+  [`kubectl`](https://kubernetes.io/docs/tasks/tools/) and
+  [`helm`](https://helm.sh/docs/intro/install/) installed.
+- To check clusters have been registered with Argo CD, you will need the
+  [`argocd` CLI](https://argo-cd.readthedocs.io/en/stable/cli_installation/)
+  installed.
+
+## Step 1/4. Configure Teleport and Kubernetes RBAC
+
+First, we need to configure the RBAC for both Teleport and Kubernetes in order
+to grant the Machine ID agent the correct level of access.
+
+When forwarding requests to the Kubernetes API on behalf of a bot, the Teleport
+Proxy attaches the groups configured (using `kubernetes_groups`) in the bot's
+Teleport roles to the request. These groups are then used to configure a
+RoleBinding or ClusterRoleBinding in Kubernetes to grant specific permissions
+within the Kubernetes cluster to the bot.
+
+For the purpose of this guide, we will bind the `editor` group to the default
+`edit` ClusterRole that is preconfigured in most Kubernetes clusters to give the
+bot read and write access to resources in all the cluster namespaces.
+
+When configuring this in a production environment, you should consider:
+
+- If RoleBinding should be used instead of ClusterRoleBinding to limit the bot's
+  access to a specific namespace.
+- If a Role should be created that grants the bot the least privileges necessary
+  rather than using a pre-existing general Role such as `edit`.
+
+To bind the `editor` group to the `edit` Cluster Role, run the following command
+against both the **source and target clusters**:
+
+```code
+$ kubectl create clusterrolebinding teleport-editor-edit \
+  --clusterrole=edit \
+  --group=editor
+```
+
+With the appropriate RoleBinding configured in Kubernetes to grant access to a
+specific group, you now need to add this group to the role that the bot will
+impersonate when producing credentials. You also need to grant the bot access
+through Teleport to the cluster itself. This is done by creating a role that
+grants the necessary permissions and then assigning this role to the bot.
+
+Create a file called `role.yaml` with the following content:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example-role
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_groups:
+    - editor
+    kubernetes_resources:
+    - kind: "*"
+      namespace: "*"
+      name: "*"
+      verbs: ["*"]
+```
+
+Replace `example-role` with a descriptive name related to your use case.
+
+Adjust the `allow` field for your environment:
+
+- `kubernetes_labels` should be adjusted to grant access to only the clusters
+  that the bot will need to access. The value shown, `'*': '*'` will grant
+  access to all Kubernetes clusters.
+- `editor` must match the name of the group you specified in the RoleBinding or
+  ClusterRoleBinding.
+- `kubernetes_resources` can be used to apply additional restrictions to what
+  the bot can access within the Kubernetes cluster. These restrictions are
+  layered upon the RBAC configured within the Kubernetes role itself.
+
+Use `tctl create -f ./role.yaml` to create the role.
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+## Step 2/4. Create a bot
+
+Next, we need to create the bot. A bot is a Teleport identity for a machine or
+group of machines.
+
+Create a file called `bot.yaml` with the following content:
+
+```yaml
+kind: bot
+version: v1
+metadata:
+  # name uniquely identifies the bot within Teleport
+  name: example-bot
+spec:
+  # roles that will be granted to the bot.
+  roles: [example-role]
+```
+
+Make sure you replace `example-bot` with a unique, descriptive name for your Bot,
+and replace `example-role` with the name of the role you created in the previous
+step.
+
+Use `tctl create -f ./bot.yaml` to create the bot.
+
+## Step 3/4. Create a join token
+
+In order for `tbot` to be able to authenticate and join the Teleport cluster,
+we need to configure a join token. There are a number of different available
+[methods](../../../reference/join-methods.mdx), but for this guide we will use
+the `kubernetes` method with a static JWKS. Please refer to the
+[Deploying tbot on Kubernetes](../deployment/kubernetes.mdx) guide for more
+in-depth information.
+
+<Admonition type="warning" title="OIDC Joining">
+Certain cloud providers like Amazon EKS regularly rotate their OIDC signing
+keys, which will cause the `static_jwks` configuration you create in this guide
+to become invalid after a short period of time.
+
+On Kubernetes providers with OIDC support, like Amazon's Elastic Kubernetes
+Service (EKS), Google Kubernetes Engine (GKE), and Azure Kubernetes Service
+(AKS), consider using [Kubernetes OIDC joining](../deployment/kubernetes-oidc.mdx)
+instead.
+</Admonition>
+
+First, run the following command against the **source cluster**, to determine
+the JWKS-formatted public key:
+
+```code
+$ kubectl get --raw /openid/v1/jwks
+{"keys":[--snip--]}%
+```
+
+Next, create a file called `join-token.yaml` with the following content, ensuring
+you insert the output from the `curl` command in `spec.kubernetes.static_jwks.jwks`
+and specify the namespace in which Argo CD is running in
+`spec.kubernetes.allow[0].service_account`:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  # name will be specified in the tbot Helm chart values later
+  name: example-join-token
+spec:
+  roles: [Bot]
+  # bot_name must match the name of the bot created earlier in this guide.
+  bot_name: example-bot
+  join_method: kubernetes
+  kubernetes:
+    # static_jwks configures the Auth Service to validate the JWT presented by
+    # `tbot` using the public key from a statically configured JWKS.
+    type: static_jwks
+    static_jwks:
+      jwks: |
+        # Place the data returned by the curl command here
+        {"keys":[--snip--]}
+    # allow specifies the rules by which the Auth Service determines if `tbot`
+    # should be allowed to join.
+    allow:
+    - service_account: "argocd:tbot" # namespace:service_account
+```
+
+Use `tctl create -f ./join-token.yaml` to create the join.
+
+## Step 4/4. Deploy `tbot`
+
+Finally, we'll use the official [Helm chart](../../../reference/helm-reference/tbot.mdx)
+to deploy `tbot`.
+
+Find your cluster name by running `tctl status`.
+
+Create a file called `tbot-values.yaml` with the following content, ensuring you
+replace the placeholder values with your cluster name, proxy address, and using
+`clusterSelectors` to identify which Kubernetes clusters you'd like to expose to
+Argo CD:
+
+```yaml
+clusterName: "test.teleport.sh"
+teleportProxyAddress: "test.teleport.sh:443"
+token: "example-join-token"
+defaultOutput:
+  enabled: false
+argocd:
+  enabled: true
+  clusterSelectors:
+    - labels:
+        environment: production
+```
+
+Please refer to the [Helm chart reference](../../../reference/helm-reference/tbot.mdx#argocd)
+for all of the supported configuration options.
+
+Install the Helm chart by running the following commands against the source
+cluster, ensuring you specify the namespace in which Argo CD is running:
+
+```code
+$ helm repo add teleport (=teleport.helm_repo_url=)
+$ helm repo update
+$ helm install tbot teleport/tbot \
+  --namespace argocd \
+  --values tbot-values.yaml
+```
+
+Once the Helm chart installation is complete (usually after a few minutes), you
+should see your Kubernetes clusters in Argo CD. You can check this by running
+the following command:
+
+```code
+$ argocd cluster list
+SERVER                                                                    NAME
+https://test.teleport.sh:443/v1/teleport/dHAxLmZsb3BweS5jbw/Ym94b2ZyYWQ1  test.teleport.sh-prod-eu-1
+https://kubernetes.default.svc                                            in-cluster
+```
+
+You should also be able to see the `tbot`-managed cluster secrets in Kubernetes
+when running the following command:
+
+```code
+$ kubectl get secrets -n argocd | grep ^teleport.argocd-cluster.
+teleport.argocd-cluster.e815df7b7588be17   Opaque               3      7d3h
+```
+
+You can now configure Argo CD to deploy applications to your Teleport-enrolled
+clusters!
+
+If new matching clusters are added in Teleport, `tbot` will register them with
+Argo CD on the bot's next certificate renewal. If needed, the `tbot` process can
+be restarted by deleting the pod or signalled (`pkill -USR1 tbot`) to trigger an
+immediate reload.
+
+Please note that, for safety, if a cluster is deleted in Teleport or no longer
+matches your `clusterSelectors`, it will **not** be automatically removed from
+Argo CD - but `tbot` will stop refreshing its credentials.
+
+### Argo CD Impersonation
+
+Argo CD [supports using](https://argo-cd.readthedocs.io/en/latest/operator-manual/app-sync-using-impersonation/)
+Kubernetes' user impersonation feature to give the application sync process more
+restrictive privileges than the Argo control plane has generally. This can be
+used to create a permission boundary where applications deployed to the same
+cluster, but in different projects, cannot read or modify each other's resources.
+
+In order to use Argo CD impersonation with Teleport Kubernetes Access, your bot
+must have a role where `kubernetes_users` contains a wildcard. For example:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: kube-wildcard-access
+spec:
+  allow:
+    kubernetes_users:
+    - '*'
+```
+
+If you simply enumerate the users that Argo CD is allowed to impersonate in
+`kubernetes_users`, you will encounter the following error:
+
+```
+please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user
+```
+
+This happens because Argo CD *only* sets impersonation headers on requests that
+operate on application-scoped resources. Because your role has permission to
+impersonate many users, it's ambiguous which one Teleport should use by default.
+
+When `kubernetes_users` contains a wildcard, and no specific user is being
+impersonated, Kubernetes Access will fall back to sending your bot's Teleport
+username by default. You should therefore create a RoleBinding or
+ClusterRoleBinding, in the **target cluster**, granting your bot user the
+broader permissions needed by the Argo CD control plane.
+
+```code
+$ kubectl create clusterrolebinding example-bot-edit \
+  --clusterrole=edit \
+  --user=bot-example-bot
+```
+
+<Admonition type="warning">
+When using impersonation to create a permission boundary between Argo CD
+projects, remember that Kubernetes Access will automatically impersonate any
+groups listed in `kubernetes_groups` by default.
+
+You should ensure that your bot user does not have any roles which contain
+`kubernetes_groups`, otherwise the privilege isolation provided by impersonating
+different users is compromised, because the application sync process will have
+the combination of the impersonated user's privileges and those granted to the
+groups.
+</Admonition>
+
+## Next steps
+
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx)
+  to explore all the available configuration options.
+- Read the [Teleport Kubernetes RBAC guide](../../../enroll-resources/kubernetes-access/controls.mdx)
+  for more details on controlling Kubernetes access.

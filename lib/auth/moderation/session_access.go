@@ -93,6 +93,10 @@ type SessionAccessContext struct {
 	Mode     types.SessionParticipantMode
 }
 
+func (ctx *SessionAccessContext) GetAccessChecker() (services.AccessChecker, error) {
+	return nil, trace.NotImplemented("access checker is not implemented for session access context")
+}
+
 // GetIdentifier is used by the `predicate` library to evaluate variable expressions when
 // evaluating policy filters. It deals with evaluating strings like `participant.name` to the appropriate value.
 func (ctx *SessionAccessContext) GetIdentifier(fields []string) (any, error) {

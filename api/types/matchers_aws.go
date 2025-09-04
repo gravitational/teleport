@@ -56,6 +56,8 @@ const (
 	AWSMatcherRedshiftServerless = "redshift-serverless"
 	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
 	AWSMatcherElastiCache = "elasticache"
+	// AWSMatcherElastiCacheServerless is the AWS matcher type for ElastiCacheServerless databases.
+	AWSMatcherElastiCacheServerless = "elasticache-serverless"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
 	AWSMatcherMemoryDB = "memorydb"
 	// AWSMatcherOpenSearch is the AWS matcher type for OpenSearch databases.
@@ -81,6 +83,7 @@ var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherRedshift,
 	AWSMatcherRedshiftServerless,
 	AWSMatcherElastiCache,
+	AWSMatcherElastiCacheServerless,
 	AWSMatcherMemoryDB,
 	AWSMatcherOpenSearch,
 	AWSMatcherDocumentDB,

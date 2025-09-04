@@ -126,6 +126,22 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
     event: DiscoverEventResource.DatabaseRedisElasticache,
   },
   {
+    id: DiscoverGuideId.DatabaseAwsElastiCacheServerless,
+    dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redis },
+    name: 'ElastiCache Serverless',
+    keywords: [
+      ...awsDatabaseKeywords,
+      'elasticache-serverless',
+      'valkey',
+      'redis',
+    ],
+    kind: ResourceKind.Database,
+    icon: 'aws',
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/elasticache-serverless',
+    event: DiscoverEventResource.DatabaseRedisElastiCacheServerless,
+  },
+  {
     id: DiscoverGuideId.DatabaseAwsCassandraKeyspaces,
     dbMeta: {
       location: DatabaseLocation.Aws,

@@ -66,7 +66,7 @@ func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcher
 		return nil, trace.Wrap(err)
 	}
 	clt := cfg.awsClients.GetRDSClient(awsCfg)
-	instances, err := getAllDBInstances(ctx, clt, maxAWSPages, cfg.Logger)
+	instances, err := getAllDBInstances(ctx, clt, cfg.Logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -104,18 +104,18 @@ func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcher
 
 // getAllDBInstances fetches all RDS instances using the provided client, up
 // to the specified max number of pages.
-func getAllDBInstances(ctx context.Context, clt RDSClient, maxPages int, logger *slog.Logger) ([]rdstypes.DBInstance, error) {
-	return getAllDBInstancesWithFilters(ctx, clt, maxPages, rdsInstanceEngines(), rdsEmptyFilter(), logger)
+func getAllDBInstances(ctx context.Context, clt RDSClient, logger *slog.Logger) ([]rdstypes.DBInstance, error) {
+	return getAllDBInstancesWithFilters(ctx, clt, rdsInstanceEngines(), rdsEmptyFilter(), logger)
 }
 
 // findDBInstancesForDBCluster returns the DBInstances associated with a given DB Cluster Identifier
-func findDBInstancesForDBCluster(ctx context.Context, clt RDSClient, maxPages int, dbClusterIdentifier string, logger *slog.Logger) ([]rdstypes.DBInstance, error) {
-	return getAllDBInstancesWithFilters(ctx, clt, maxPages, auroraEngines(), rdsClusterIDFilter(dbClusterIdentifier), logger)
+func findDBInstancesForDBCluster(ctx context.Context, clt RDSClient, dbClusterIdentifier string, logger *slog.Logger) ([]rdstypes.DBInstance, error) {
+	return getAllDBInstancesWithFilters(ctx, clt, auroraEngines(), rdsClusterIDFilter(dbClusterIdentifier), logger)
 }
 
 // getAllDBInstancesWithFilters fetches all RDS instances matching the filters using the provided client, up
 // to the specified max number of pages.
-func getAllDBInstancesWithFilters(ctx context.Context, clt RDSClient, maxPages int, engines []string, baseFilters []rdstypes.Filter, logger *slog.Logger) ([]rdstypes.DBInstance, error) {
+func getAllDBInstancesWithFilters(ctx context.Context, clt RDSClient, engines []string, baseFilters []rdstypes.Filter, logger *slog.Logger) ([]rdstypes.DBInstance, error) {
 	var out []rdstypes.DBInstance
 	err := retryWithIndividualEngineFilters(ctx, logger, engines, func(engineFilters []rdstypes.Filter) error {
 		pager := rds.NewDescribeDBInstancesPaginator(clt,
@@ -127,8 +127,7 @@ func getAllDBInstancesWithFilters(ctx context.Context, clt RDSClient, maxPages i
 			},
 		)
 		var instances []rdstypes.DBInstance
-		for i := 0; i < maxPages && pager.HasMorePages(); i++ {
-			page, err := pager.NextPage(ctx)
+		for page, err := range pagesWithLimit(ctx, pager, logger) {
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -163,7 +162,7 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 		return nil, trace.Wrap(err)
 	}
 	clt := cfg.awsClients.GetRDSClient(awsCfg)
-	clusters, err := getAllDBClusters(ctx, clt, maxAWSPages, cfg.Logger)
+	clusters, err := getAllDBClusters(ctx, clt, cfg.Logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,7 +185,7 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 			continue
 		}
 
-		rdsDBInstances, err := findDBInstancesForDBCluster(ctx, clt, maxAWSPages, aws.ToString(cluster.DBClusterIdentifier), cfg.Logger)
+		rdsDBInstances, err := findDBInstancesForDBCluster(ctx, clt, aws.ToString(cluster.DBClusterIdentifier), cfg.Logger)
 		if err != nil || len(rdsDBInstances) == 0 {
 			cfg.Logger.WarnContext(ctx, "Could not fetch Member Instance for DB Cluster",
 				"instance", aws.ToString(cluster.DBClusterIdentifier),
@@ -208,7 +207,7 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 
 // getAllDBClusters fetches all RDS clusters using the provided client, up to
 // the specified max number of pages.
-func getAllDBClusters(ctx context.Context, clt RDSClient, maxPages int, logger *slog.Logger) ([]rdstypes.DBCluster, error) {
+func getAllDBClusters(ctx context.Context, clt RDSClient, logger *slog.Logger) ([]rdstypes.DBCluster, error) {
 	var out []rdstypes.DBCluster
 	err := retryWithIndividualEngineFilters(ctx, logger, auroraEngines(), func(filters []rdstypes.Filter) error {
 		pager := rds.NewDescribeDBClustersPaginator(clt,
@@ -221,8 +220,7 @@ func getAllDBClusters(ctx context.Context, clt RDSClient, maxPages int, logger *
 		)
 
 		var clusters []rdstypes.DBCluster
-		for i := 0; i < maxPages && pager.HasMorePages(); i++ {
-			page, err := pager.NextPage(ctx)
+		for page, err := range pagesWithLimit(ctx, pager, logger) {
 			if err != nil {
 				return trace.Wrap(err)
 			}

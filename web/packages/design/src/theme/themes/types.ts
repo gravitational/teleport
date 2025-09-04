@@ -222,6 +222,49 @@ export type ThemeColors = {
     caribbean: string;
   };
 
+  sessionRecording: {
+    resource: string;
+    user: string;
+  };
+
+  sessionRecordingTimeline: {
+    background: string;
+    headerBackground: string;
+    frameBorder: string;
+    progressLine: string;
+    cursor: string;
+    border: {
+      default: string;
+      hover: string;
+    };
+    events: {
+      inactivity: {
+        background: string;
+        text: string;
+      };
+      resize: {
+        semiBackground: string;
+        background: string;
+        border: string;
+        text: string;
+      };
+      join: {
+        background: string;
+        text: string;
+      };
+      default: {
+        background: string;
+        text: string;
+      };
+    };
+    timeMarks: {
+      primary: string;
+      secondary: string;
+      absolute: string;
+      text: string;
+    };
+  };
+
   link: string;
 
   highlightedNavigationItem: string;

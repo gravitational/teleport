@@ -148,7 +148,7 @@ type JSONRPCResponse struct {
 // the corresponding go object.
 func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 	var listResult mcp.ListToolsResult
-	if err := json.Unmarshal(r.Result, &listResult); err != nil {
+	if err := json.Unmarshal([]byte(r.Result), &listResult); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &listResult, nil

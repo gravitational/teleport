@@ -22,12 +22,12 @@ import styled from 'styled-components';
 
 import {
   Box,
-  ButtonPrimary,
   ButtonSecondary,
   Flex,
   H1,
   H2,
   H3,
+  MenuItem,
   P1,
   P2,
   ResourceIcon,
@@ -46,6 +46,7 @@ import {
   FeatureContainer,
   FeatureSlider,
 } from 'shared/components/EmptyState/EmptyState';
+import { MenuButton } from 'shared/components/MenuAction';
 import { pluralize } from 'shared/utils/text';
 
 import {
@@ -123,7 +124,7 @@ export const EmptyList = ({
             isSliding={!!intervalId}
             onClick={() => handleOnClick(3)}
             title="Integrates with your MDM"
-            description="Auto-enroll and sync device registry from Jamf."
+            description="Auto-enroll and sync device registry from Jamf&nbsp;Pro or&nbsp;Microsoft&nbsp;Intune."
           />
         </Box>
         <Box>
@@ -146,21 +147,22 @@ export const EmptyList = ({
           )}
           {currIndex === 3 && (
             <FadedTable>
-              <Flex flexDirection="column" justifyContent="center">
-                <JamfCard margin="auto" mb={4}>
-                  <ResourceIcon height="20px" width="20px" name="jamf" />
-                  {/* purposefully "creating" the text ourselves to avoid having a light and dark logo just for text */}
-                  <Text
-                    css={`
-                      font-size: 28px;
-                      line-height: 30px;
-                    `}
-                    ml={3}
-                  >
-                    jamf
-                  </Text>
-                </JamfCard>
-                <Flex justifyContent="center" gap={4}>
+              <Flex
+                flexDirection="column"
+                justifyContent="center"
+                gap={iconGap}
+              >
+                <Flex gap={iconGap}>
+                  <MdmCard>
+                    <ResourceIcon height="20px" width="20px" name="jamf" />
+                    <MdmText>Jamf Pro</MdmText>
+                  </MdmCard>
+                  <MdmCard>
+                    <ResourceIcon height="20px" width="20px" name="intune" />
+                    <MdmText>Microsoft Intune</MdmText>
+                  </MdmCard>
+                </Flex>
+                <Flex justifyContent="center" gap={iconGap}>
                   <IconCard>
                     <Password />
                   </IconCard>
@@ -197,17 +199,30 @@ export const EmptyList = ({
         >
           {isEnterprise ? (
             <>
-              <ButtonPrimary
-                width="280px"
-                as={Link}
-                to={cfg.getIntegrationEnrollRoute('jamf')}
-                size="large"
+              <MenuButton
+                buttonText="Get Started with an MDM"
+                buttonProps={{
+                  size: 'large',
+                  intent: 'primary',
+                  fill: 'filled',
+                  color: 'text.primaryInverse',
+                  width: '280px',
+                }}
               >
-                Get Started with JAMF
-              </ButtonPrimary>
+                <MenuItem as={Link} to={cfg.getIntegrationEnrollRoute('jamf')}>
+                  Jamf Pro
+                </MenuItem>
+                <MenuItem
+                  as={Link}
+                  to={cfg.getIntegrationEnrollRoute('intune')}
+                >
+                  Microsoft Intune
+                </MenuItem>
+              </MenuButton>
+
               <ButtonSecondary
                 as="a"
-                href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/"
+                href="https://goteleport.com/docs/identity-governance/device-trust/"
                 target="_blank"
                 width="280px"
                 size="large"
@@ -230,48 +245,50 @@ export const EmptyList = ({
   );
 };
 
+const iconGap = 4;
+
 export const fakeItems: TrustedDevice[] = [
   {
     id: 'FWPGP915V',
     assetTag: 'FWPGP915V',
     osType: 'macOS',
     enrollStatus: 'enrolled',
-    owner: 'mykel',
+    owner: 'alice',
   },
   {
     id: 'M7XJR4GK8823',
     assetTag: 'M7XJR4GK8823',
     osType: 'Windows',
     enrollStatus: 'enrolled',
-    owner: 'lila',
+    owner: 'bob',
   },
   {
     id: 'L2FQZ9VH4466',
     assetTag: 'L2FQZ9VH4466',
     osType: 'Linux',
     enrollStatus: 'enrolled',
-    owner: 'bart',
+    owner: 'charlie',
   },
   {
     id: 'N8EYW1DP7732',
     assetTag: 'N8EYW1DP7732',
     osType: 'Linux',
     enrollStatus: 'not enrolled',
-    owner: 'rafao',
+    owner: '',
   },
   {
     id: 'K5BHP6CT5598',
     assetTag: 'K5BHP6CT5598',
     osType: 'Windows',
     enrollStatus: 'not enrolled',
-    owner: 'gzz',
+    owner: '',
   },
   {
     id: 'Y3RSL7FJ2104',
     assetTag: 'Y3RSL7FJ2104',
     osType: 'macOS',
     enrollStatus: 'enrolled',
-    owner: 'ryry',
+    owner: 'dan',
   },
 ];
 
@@ -292,7 +309,7 @@ const auditEvents = [
     code: 'TC000I',
     event: 'cert.create',
     identity: {
-      user: 'lisa',
+      user: 'charlie',
     },
     time: '2024-02-04T19:43:23.529Z',
   },
@@ -303,14 +320,14 @@ const auditEvents = [
     success: true,
     time: '2024-02-04T19:43:22.529Z',
     uid: 'fa279611-91d8-47b5-9fad-b8ea3e5286e0',
-    user: 'lisa',
+    user: 'charlie',
   },
   {
     cert_type: 'user',
     code: 'TC000I',
     event: 'cert.create',
     identity: {
-      user: 'isabelle',
+      user: 'dan',
     },
     time: '2024-02-04T19:43:21.529Z',
   },
@@ -319,7 +336,7 @@ const auditEvents = [
     code: 'T1016I',
     time: '2024-02-04T19:43:20.529Z',
     uid: '815bbcf4-fb05-4e08-917c-7259e9332d69',
-    user: 'isabelle',
+    user: 'dan',
   },
 ].map(makeEvent);
 
@@ -467,12 +484,17 @@ const PreviewBox = styled(Box)`
   border-radius: ${p => p.theme.radii[3]}px;
 `;
 
-const JamfCard = styled(Flex)`
-  justify-content: center;
-  align-items: center;
-  padding: ${p => p.theme.space[5]}px;
-  border-radius: ${p => p.theme.radii[3]}px;
-  background-color: ${p => p.theme.colors.levels.surface};
+const MdmCard = styled(Flex).attrs({
+  justifyContent: 'center',
+  alignItems: 'center',
+  p: 5,
+  borderRadius: 3,
+  backgroundColor: 'levels.surface',
+  gap: 3,
+})``;
+
+const MdmText = styled(Text).attrs({ fontSize: '28px' })`
+  line-height: 30px;
 `;
 
 const IconCard = styled(Flex)`

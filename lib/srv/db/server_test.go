@@ -708,11 +708,16 @@ func TestHealthCheck(t *testing.T) {
 		withSQLServer("sqlserver")(t, ctx, testCtx),
 		withAzureRedis("redis-azure", azureRedisToken)(t, ctx, testCtx),
 		withElastiCacheRedis("redis-elasticache", elastiCacheRedisToken, "7.0.0")(t, ctx, testCtx),
+		withElastiCacheServerlessRedis("redis-serverless-elasticache", elastiCacheServerlessRedisToken, "8.0.0")(t, ctx, testCtx),
 		withMemoryDBRedis("redis-memorydb", memorydbToken, "7.0")(t, ctx, testCtx),
 		withSelfHostedRedis("redis-self-hosted")(t, ctx, testCtx),
 		withSnowflake("snowflake")(t, ctx, testCtx),
 	}
 	for _, db := range databases {
+		if db.GetProtocol() == defaults.ProtocolMySQL {
+			require.False(t, endpoints.IsRegistered(db), "health checks for MySQL protocol should be disabled")
+			continue
+		}
 		require.True(t, endpoints.IsRegistered(db), "database %v does not have a registered endpoint resolver", db.GetName())
 	}
 	dynamoListenAddr := net.JoinHostPort("localhost", testCtx.dynamodb["dynamodb"].db.Port())
@@ -755,6 +760,12 @@ func TestHealthCheck(t *testing.T) {
 			t.Parallel()
 			dbServer, err := testCtx.server.getServerInfo(ctx, db)
 			require.NoError(t, err)
+			if db.GetProtocol() == defaults.ProtocolMySQL {
+				require.Equal(t, "unknown", dbServer.GetTargetHealth().Status)
+				require.Equal(t, "disabled", dbServer.GetTargetHealth().TransitionReason)
+				require.Equal(t, `endpoint health checks for database protocol "mysql" are not supported`, dbServer.GetTargetHealth().Message)
+				return
+			}
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				assert.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
 			}, 30*time.Second, time.Millisecond*250, "waiting for database %s to become healthy", db.GetName())

@@ -321,7 +321,7 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	pingResp, err := awsra.Ping(ctx, pingClient)
+	pingResp, err := awsra.Ping(ctx, pingClient, profileARN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

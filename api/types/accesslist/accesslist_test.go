@@ -22,10 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
 
 func TestParseReviewFrequency(t *testing.T) {
@@ -392,4 +394,13 @@ func TestAccessList_setInitialReviewDate(t *testing.T) {
 			require.Equal(t, test.expected, accessList.Spec.Audit.NextAuditDate)
 		})
 	}
+}
+
+func TestAccessListClone(t *testing.T) {
+	item := &AccessList{}
+	err := structfill.Fill(item)
+	require.NoError(t, err)
+	cpy := item.Clone()
+	require.Empty(t, cmp.Diff(item, cpy))
+	require.NotSame(t, item, cpy)
 }

@@ -9,7 +9,7 @@ publish.workspace = true
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.9.1"
+bitflags = "2.9.3"
 boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 byteorder = "1.5.0"
 bytes = "1.10.1"
@@ -36,10 +36,10 @@ tokio = { version = "1.47", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 utf16string = "0.2.0"
 uuid = { version = "1.16.0", features = ["v4"] }
-url = "2.5.4"
+url = "2.5.7"
 picky = { version = "7.0.0-rc.11", default-features = false }
 picky-asn1-der = "0.5.2"
-picky-asn1-x509 = "0.14.5"
+picky-asn1-x509 = "0.14.6"
 reqwest = { version = "0.12", default-features = false }
 rustls = { version = "0.23.31", default-features = false, features = [
     "aws-lc-rs",
@@ -47,7 +47,7 @@ rustls = { version = "0.23.31", default-features = false, features = [
 
 [build-dependencies]
 cbindgen = "0.29.0"
-tempfile = "3.20.0"
+tempfile = "3.21.0"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]

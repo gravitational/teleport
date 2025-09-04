@@ -35,28 +35,35 @@ var (
 	// PrecomputedKeys is a queue of cached keys ready for usage.
 	PrecomputedKeys = make(chan *rsa.PrivateKey, 25)
 
+	// PrecomputedKeys4096 is a queue of cached 4096-bit keys ready for usage.
+	PrecomputedKeys4096 = make(chan *rsa.PrivateKey, 10)
+
 	// StartPrecomputeOnce is used to start the background task that precomputes key pairs.
 	StartPrecomputeOnce sync.Once
 )
 
 // GenerateKey returns a newly generated RSA private key.
 func GenerateKey() (*rsa.PrivateKey, error) {
-	return getOrGenerateRSAPrivateKey()
+	return getOrGenerateRSAPrivateKey(constants.RSAKeySize)
 }
 
 // GenerateKey4096 generates a 4096-bit RSA private key meant for use in asymmetric encryption use cases such as
-// encrypted session recordings. It is exposed as a separate function from [GenerateKey] so that the precomputed
-// keys optimization used for sign/verify use cases does not have to be extended to support mixed key sizes.
+// encrypted session recordings.
 func GenerateKey4096() (*rsa.PrivateKey, error) {
-	return generateRSAPrivateKey(4096)
+	return getOrGenerateRSAPrivateKey(4096)
 }
 
-func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
+func getOrGenerateRSAPrivateKey(bitSize int) (*rsa.PrivateKey, error) {
+	source := PrecomputedKeys
+	if bitSize == 4096 {
+		source = PrecomputedKeys4096
+	}
+
 	select {
-	case k := <-PrecomputedKeys:
+	case k := <-source:
 		return k, nil
 	default:
-		rsaKeyPair, err := generateRSAPrivateKey(constants.RSAKeySize)
+		rsaKeyPair, err := generateRSAPrivateKey(bitSize)
 		if err != nil {
 			return nil, err
 		}

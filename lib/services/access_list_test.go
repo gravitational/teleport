@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
@@ -236,6 +238,153 @@ func TestAccessListReviewUnmarshal(t *testing.T) {
 	actual, err := UnmarshalAccessListReview(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+}
+
+func TestMatchAccessList(t *testing.T) {
+	al := &accesslist.AccessList{
+		Spec: accesslist.Spec{
+			Title:       "Production Database Access",
+			Description: "Access to production MySQL and PostgreSQL databases",
+			Owners: []accesslist.Owner{
+				{Name: "john.doe"},
+				{Name: "jane.smith"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"db-admin", "db-readonly", "backup-operator"},
+			},
+		},
+	}
+	al.SetName("prod-db-access")
+	al.SetOrigin(types.OriginOkta)
+
+	tests := []struct {
+		name     string
+		search   string
+		owners   []string
+		roles    []string
+		origin   string
+		expected bool
+	}{
+		{
+			name:     "empty search matches all",
+			expected: true,
+		},
+		{
+			name:     "whitespace only search matches all",
+			search:   "   ",
+			expected: true,
+		},
+		{
+			name:     "origin matches",
+			origin:   "okta",
+			expected: true,
+		},
+		{
+			name:     "origin does not match",
+			origin:   "teleport",
+			expected: false,
+		},
+		{
+			name:     "case insensitive title match",
+			search:   "database",
+			expected: true,
+		},
+		{
+			name:     "partial name match",
+			search:   "prod-db",
+			expected: true,
+		},
+		{
+			name:     "case insensitive owner match",
+			search:   "JANE",
+			expected: true,
+		},
+		{
+			name:     "case insensitive description match",
+			search:   "postgresql",
+			expected: true,
+		},
+		{
+			name:     "case insensitive role match",
+			search:   "BACKUP",
+			expected: true,
+		},
+		{
+			name:     "multiple terms all found",
+			search:   "Production db",
+			expected: true,
+		},
+		{
+			name:     "no match found",
+			search:   "nonexistent",
+			expected: false,
+		},
+		{
+			name:     "partial match but not all terms",
+			search:   "Production nonexistent",
+			expected: false,
+		},
+		{
+			name:     "single owner match",
+			owners:   []string{"john.doe"},
+			expected: true,
+		},
+		{
+			name:     "no owner match",
+			owners:   []string{"nonexistent.user"},
+			expected: false,
+		},
+		{
+			name:     "mixed owner match and no match",
+			owners:   []string{"john.doe", "nonexistent.user"},
+			expected: true,
+		},
+		{
+			name:     "single role match",
+			roles:    []string{"db-admin"},
+			expected: true,
+		},
+		{
+			name:     "no role match",
+			roles:    []string{"nonexistent-role"},
+			expected: false,
+		},
+		{
+			name:     "all filters match",
+			search:   "Production",
+			owners:   []string{"john.doe"},
+			roles:    []string{"db-admin"},
+			expected: true,
+		},
+		{
+			name:     "search matches but owner does not",
+			search:   "Production",
+			owners:   []string{"nonexistent.user"},
+			expected: false,
+		},
+		{
+			name:     "owner matches but search does not",
+			search:   "nonexistent",
+			owners:   []string{"john.doe"},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := &accesslistv1.AccessListsFilter{
+				Search: tt.search,
+				Owners: tt.owners,
+				Roles:  tt.roles,
+				Origin: tt.origin,
+			}
+			result := MatchAccessList(al, filter)
+			if result != tt.expected {
+				t.Errorf("MatchAccessList(search: %q, owners: %v, roles: %v) = %v, want %v",
+					tt.search, tt.owners, tt.roles, result, tt.expected)
+			}
+		})
+	}
 }
 
 // TestAccessListReviewMarshal verifies a marshaled access list review resource can be unmarshaled back.

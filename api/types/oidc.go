@@ -133,6 +133,10 @@ type OIDCConnector interface {
 	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
 	// for identifier-first login.
 	SetUserMatchers([]string)
+	// GetEntraIDGroupsProvider returns Entra ID groups provider.
+	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
+	// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
+	IsEntraIDGroupsProviderDisabled() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -514,6 +518,13 @@ func (o *OIDCConnectorV3) Validate() error {
 		}
 	}
 
+	entra := o.GetEntraIDGroupsProvider()
+	if entra != nil {
+		if err := entra.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -577,6 +588,12 @@ func (o *OIDCConnectorV3) WithMFASettings() error {
 	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
 	o.Spec.ACR = o.Spec.MFASettings.AcrValues
 	o.Spec.Prompt = o.Spec.MFASettings.Prompt
+	// Overwrite the base connector's request object mode iff the MFA setting's
+	// request object mode is explicitly set. Otherwise, the base setting should be assumed.
+	if o.Spec.MFASettings.RequestObjectMode != string(constants.OIDCRequestObjectModeUnknown) {
+		o.Spec.RequestObjectMode = o.Spec.MFASettings.RequestObjectMode
+	}
+
 	// In rare cases, some providers will complain about the presence of the 'max_age'
 	// parameter in auth requests. Provide users with a workaround to omit it.
 	omitMaxAge, _ := strconv.ParseBool(os.Getenv("TELEPORT_OIDC_OMIT_MFA_MAX_AGE"))
@@ -639,4 +656,29 @@ func (r *OIDCAuthRequest) Check() error {
 		return trace.BadParameter("wrong CertTTL")
 	}
 	return nil
+}
+
+func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
+	if e.GroupType != "" {
+		if !slices.Contains(EntraIDGroupsTypes, e.GroupType) {
+			return trace.BadParameter("expected group type to be one of %q, got %q", EntraIDGroupsTypes, e.GroupType)
+		}
+	}
+
+	if err := ValidateMSGraphEndpoints("", e.GraphEndpoint); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// GetEntraIDGroupsProvider returns Entra ID groups provider.
+func (o *OIDCConnectorV3) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
+	return o.Spec.EntraIdGroupsProvider
+}
+
+// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
+func (o *OIDCConnectorV3) IsEntraIDGroupsProviderDisabled() bool {
+	entra := o.Spec.EntraIdGroupsProvider
+	return entra != nil && entra.Disabled
 }

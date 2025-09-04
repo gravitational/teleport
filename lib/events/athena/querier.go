@@ -130,7 +130,6 @@ func (cfg *querierConfig) CheckAndSetDefaults() error {
 
 	if cfg.logger == nil {
 		cfg.logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
-
 	}
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewRealClock()
@@ -555,7 +554,7 @@ func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSess
 	// for sessionID != "". This kind of call is done on RBAC to check if user can access that session.
 	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
 	if req.Cond != nil {
-		condFn, err := utils.ToFieldsCondition(req.Cond)
+		condFn, err := utils.ToFieldsCondition(*req.Cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

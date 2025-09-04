@@ -75,11 +75,11 @@ func TestPing(t *testing.T) {
 				disabledProfile,
 				profileWithoutRoles,
 			},
-		})
+		}, *syncProfile.ProfileArn)
 		require.NoError(t, err)
 
 		require.Equal(t, "123456789012", resp.AccountID)
-		require.Equal(t, 2, resp.EnabledProfileCounter)
+		require.Equal(t, 1, resp.EnabledProfileCounter)
 	})
 
 }

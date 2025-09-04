@@ -19,14 +19,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { screen } from '@testing-library/react';
 
 import { render, userEvent } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport/index';
 import {
   IamIntegration,
   parseOutput,
 } from 'teleport/Integrations/Enroll/AwsConsole/IamIntegration/IamIntegration';
-import { makeAwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/testHelpers/makeAwsOidcStatusContextState';
-import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { integrationService } from 'teleport/services/integrations';
 
@@ -38,23 +37,40 @@ const queryClient = new QueryClient({
   },
 });
 
+jest.mock('react-router', () => ({
+  ...jest.requireActual('react-router'),
+  useHistory: () => ({
+    goBack: jest.fn(),
+    push: jest.fn(),
+  }),
+}));
+
+beforeEach(() => {
+  jest
+    .spyOn(integrationService, 'createIntegration')
+    .mockResolvedValue({} as any);
+  jest
+    .spyOn(integrationService, 'validateAWSRolesAnywhereIntegration')
+    .mockResolvedValue({} as any);
+  jest
+    .spyOn(integrationService, 'awsRolesAnywherePing')
+    .mockResolvedValue({} as any);
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 test('flows through roles anywhere IAM setup', async () => {
   const user = userEvent.setup();
 
-  const pingSpy = jest
-    .spyOn(integrationService, 'awsRolesAnywherePing')
-    .mockResolvedValue({} as any);
-
   render(
     <ContextProvider ctx={createTeleportContext()}>
-      <QueryClientProvider client={queryClient}>
-        <MockAwsOidcStatusProvider
-          value={makeAwsOidcStatusContextState()}
-          path=""
-        >
+      <InfoGuidePanelProvider>
+        <QueryClientProvider client={queryClient}>
           <IamIntegration />
-        </MockAwsOidcStatusProvider>
-      </QueryClientProvider>
+        </QueryClientProvider>
+      </InfoGuidePanelProvider>
     </ContextProvider>
   );
 
@@ -98,8 +114,8 @@ test('flows through roles anywhere IAM setup', async () => {
     screen.getByRole('button', { name: 'Test Configuration' })
   ).toBeEnabled();
   await user.click(screen.getByRole('button', { name: 'Test Configuration' }));
-  expect(pingSpy).toHaveBeenCalledTimes(1);
-  expect(pingSpy).toHaveBeenCalledWith({
+  expect(integrationService.awsRolesAnywherePing).toHaveBeenCalledTimes(1);
+  expect(integrationService.awsRolesAnywherePing).toHaveBeenCalledWith({
     integrationName: 'some-integration-name',
     syncProfileArn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar',
     syncRoleArn: 'arn:aws:iam::123456789012:role/baz',
@@ -110,6 +126,25 @@ test('flows through roles anywhere IAM setup', async () => {
   expect(
     screen.getByRole('button', { name: 'Next: Configure Access' })
   ).toBeEnabled();
+  await user.click(
+    screen.getByRole('button', { name: 'Next: Configure Access' })
+  );
+
+  expect(integrationService.createIntegration).toHaveBeenCalledWith({
+    name: 'some-integration-name',
+    subKind: 'aws-ra',
+    kind: 'aws-ra',
+    awsRa: {
+      trustAnchorARN:
+        'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+      profileSyncConfig: {
+        enabled: false,
+        profileArn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar',
+        filters: [],
+        roleArn: 'arn:aws:iam::123456789012:role/baz',
+      },
+    },
+  });
 });
 
 describe('parseOutput', () => {
