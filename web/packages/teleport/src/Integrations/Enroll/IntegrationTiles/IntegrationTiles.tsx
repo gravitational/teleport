@@ -31,6 +31,7 @@ import { IntegrationKind } from 'teleport/services/integrations';
 import { IntegrationIcon, IntegrationTile } from '../common';
 import { installableIntegrations, IntegrationTileSpec } from './integrations';
 
+// TODO(alexhemard): delete in a follow up PR
 export function IntegrationTiles({
   hasIntegrationAccess = true,
   hasExternalAuditStorage = true,
