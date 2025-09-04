@@ -22,7 +22,7 @@
 * Teleport Connect now brings focus back from the browser to itself after a successful SSO login. [#58260](https://github.com/gravitational/teleport/pull/58260)
 * Added support for GCP AlloyDB. [#58202](https://github.com/gravitational/teleport/pull/58202)
 * Added Microsoft Intune integration for syncing devices into Teleport Device Trust. [#57986](https://github.com/gravitational/teleport/pull/57986)
-* Added support for encrypting session recordings at rest across all recording modes. Encryption can be enabled statically by setting `auth_server.session_recording_config.enabled: yes` in the Teleport file configuration, or dynamically by editing the `sesion_recording_config` resource and setting `spec.encryption.enabled: yes`. [#57959](https://github.com/gravitational/teleport/pull/57959)
+* Added support for encrypting session recordings at rest across all recording modes. Encryption can be enabled statically by setting `auth_server.session_recording_config.enabled: yes` in the Teleport file configuration, or dynamically by editing the `session_recording_config` resource and setting `spec.encryption.enabled: yes`. [#57959](https://github.com/gravitational/teleport/pull/57959)
 * Added a MySQL database client REPL to the Teleport web UI. [#57798](https://github.com/gravitational/teleport/pull/57798)
 * Added SSH SELinux module management to teleport-update. [#57660](https://github.com/gravitational/teleport/pull/57660)
 * Added Terraform support for Access List members. [#57058](https://github.com/gravitational/teleport/pull/57058)
