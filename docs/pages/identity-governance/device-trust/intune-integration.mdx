@@ -1,0 +1,182 @@
+---
+title: Microsoft Intune Integration
+description: Sync your Microsoft Intune inventory into Teleport
+labels:
+ - how-to
+ - identity-governance
+---
+
+The Device Trust Microsoft Intune integration lets you automatically sync your managed devices from
+Intune into Teleport. This guide explains how to set up the integration.
+
+## How it works
+
+The Teleport Intune integration periodically reads your managed device inventory from Microsoft
+Intune and syncs it to Teleport. It performs both incremental (called "partial") and full syncs,
+as well as removals from Teleport if a device is removed from Intune.
+
+Syncing devices from Intune is an **inventory management** step, equivalent to
+automatically running the corresponding `tctl devices add` commands.
+
+See the [Device Trust guide](device-trust.mdx) for fundamental Device Trust concepts
+and behavior.
+
+<Admonition type="note">
+The Microsoft Intune integration is available exclusively as a hosted plugin through the
+Teleport Web UI. Running it as a standalone service is not currently supported.
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+
+(!docs/pages/includes/device-trust/prereqs.mdx!)
+- Access to Microsoft Entra ID with Global Administrator or Application Administrator permissions.
+- An active Microsoft Intune subscription with managed devices.
+
+## Step 1/3. Register an application in Microsoft Entra ID
+
+Create and configure an application in Microsoft Entra ID that Teleport will use to access your
+Intune data:
+
+1. Sign in to the [Microsoft Entra admin center](https://entra.microsoft.com) with an account
+   that has Global Administrator or Application Administrator permissions.
+2. Navigate to Entra ID > App registrations and select New registration.
+3. Configure the application:
+   - Name: enter a descriptive name (e.g., "Teleport Intune Integration").
+   - Supported account types: select "Accounts in this organizational directory only".
+   - Redirect URI: leave this blank and click "Register".
+4. Once created, copy the Application (client) ID from the Overview page. You'll need this
+   when configuring the integration in Teleport.
+
+In case of problems with the above instructions, follow [the official docs for registering an
+application](https://learn.microsoft.com/en-us/graph/auth-register-app-v2).
+
+## Step 2/3. Configure API permissions and create client secret
+
+Grant the application permission to read Intune managed devices:
+
+1. In your registered application, navigate to API permissions > Add a permission.
+2. Select Microsoft Graph > Application permissions.
+3. Search for and add the `DeviceManagementManagedDevices.Read.All` permission.
+4. Click "Grant admin consent" for your organization and confirm.
+
+In case of problems with the above instructions, follow [the official docs for granting application
+permission](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-access-web-apis#application-permission-to-microsoft-graph).
+
+<Admonition type="note">
+The consent must be granted by a Global Administrator or Privileged Role Administrator. Failure to
+grant this permission will result in an error from the Graph API.
+</Admonition>
+
+To create a client secret:
+
+1. In your registered application, navigate to Certificates & secrets > Client secrets.
+2. Click New client secret.
+3. Add a description and select an expiration period (we recommend setting a reminder to rotate
+   the secret before it expires).
+4. Click "Add" and copy the Value (not the Secret ID).
+
+In case of problems with the above instructions, follow [the official docs for adding a client
+secret](https://learn.microsoft.com/en-us/graph/auth-register-app-v2#option-2-add-a-client-secret).
+
+## Step 3/3. Configure the Intune integration in Teleport
+
+1. Follow [the official docs to find your tenant
+   identifier](https://learn.microsoft.com/en-us/partner-center/account-settings/find-ids-and-domain-names#find-the-microsoft-entra-tenant-id-and-primary-domain-name)
+   (e.g., `contoso.onmicrosoft.com` or the tenant GUID).
+2. In the Web UI, navigate to Add New > Integration and select "Microsoft Intune".
+3. Fill in the required information:
+   - Primary domain or Microsoft Entra tenant ID: enter your tenant identifier.
+   - Application (client) ID: Paste the Application ID you copied in Step 1.
+   - Client secret value: Paste the client secret value you copied in Step 2.
+4. Click "Connect Microsoft Intune" to complete the setup.
+
+The integration will begin syncing devices from your Intune inventory within two minutes. Depending
+on the size of your inventory, the initial sync may take a few minutes to complete.
+
+## How syncing works
+
+### Sync schedule
+
+The Intune integration uses the following fixed schedule that starts when the integration is
+installed, updated, or when the Auth Service is restarted:
+
+- Full sync: every 24 hours – fetches all devices from Intune, reconciles the complete
+  inventory and removes missing devices.
+- Partial sync: every 6 hours between full syncs – fetches only devices that have been modified in
+  Intune since the last sync.
+
+The integration tracks the last sync time from Intune to fetch only changed devices during partial
+syncs.
+
+### Device requirements
+
+For a device to be synced, it must have a serial number, its device registration state must be set
+to "registered" and its operating system must be either macOS, Windows, or Linux.
+
+### Device ownership and removal
+
+When syncing inventory, the Intune integration claims ownership of all synced devices.
+This can be verified by inspecting a device's `source` field:
+
+```yaml
+# tctl get device/mydevice
+kind: device
+metadata:
+  name: 20ec6373-9e8e-46e0-8f1c-47ad6b06a768
+spec:
+  asset_tag: mydevice
+  os_type: macos
+  # ...
+  source:
+    name: intune
+    origin: intune
+  update_time: "2023-06-21T19:44:40.40601Z"
+version: v1
+```
+
+During full syncs, devices that are no longer present in Intune or have mismatched properties
+(different serial number or OS type for the same Intune device ID) will be automatically removed
+from Teleport's inventory.
+
+<Admonition type="note">
+Only devices synced by Intune are subject to automatic deletion. Devices added manually via `tctl
+devices add` or synced from other sources won't be deleted by the Intune integration.
+</Admonition>
+
+For immediate removal of unwanted devices, first lock the device in Teleport,
+then remove it from Intune:
+
+```code
+$ tctl devices lock --asset-tag=SERIAL_NUMBER --message='reason for locking'
+Created a lock with name "a2f1491c-4a3e-4daf-9c83-2fe931668076".
+```
+
+Manual removal via `tctl devices rm` is possible, but note that if the device is still in the Intune
+inventory, it'll be recreated during the next sync.
+
+## Monitoring the integration
+
+After configuration, you can monitor the integration status in the Web UI. Navigate to Zero Trust
+Access > Integrations. If the integration status indicates an error, check the Auth Service logs for
+errors from the Intune integration.
+
+You can also verify synced devices using the command line:
+
+```code
+$ tctl devices ls
+Asset Tag    OS      Source Enroll Status Owner Device ID
+------------ ------- ------ ------------- ----- ------------------------------------
+CXXXXXXXXX17 macOS   Intune not enrolled        20ec6373-9e8e-46e0-8f1c-47ad6b06a768
+CXXXXXXXXX2T macOS   Intune not enrolled        79755778-7cbe-4e2c-83ec-7eaa3d4d7e36
+CXXXXXXXXX3T Windows Intune not enrolled        665e59d5-393a-4894-841d-edad06329717
+CXXXXXXXXX4T macOS   Intune not enrolled        dd032e90-bfb0-47d5-bce5-e57545f6788f
+CXXXXXXXXX5T Windows Intune not enrolled        bf189863-a94a-40dc-9013-d96f8dada2f1
+(...)
+```
+
+## Next steps
+
+Automatically enroll synced devices on user login with
+[auto-enrollment](./device-management.mdx#auto-enrollment).

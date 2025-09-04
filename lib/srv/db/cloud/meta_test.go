@@ -110,6 +110,13 @@ func TestAWSMetadata(t *testing.T) {
 				UserGroupIds:             []string{"my-user-group"},
 			},
 		},
+		Caches: []ectypes.ServerlessCache{
+			{
+				ARN:                 aws.String("arn:aws:elasticache:ca-central-1:123456789012:serverlesscache:my-serverless-example"),
+				ServerlessCacheName: aws.String("my-serverless-example"),
+				UserGroupId:         aws.String("my-serverless-user-group"),
+			},
+		},
 	}
 
 	// Configure MemoryDB API mock.
@@ -273,6 +280,25 @@ func TestAWSMetadata(t *testing.T) {
 					UserGroupIDs:             []string{"my-user-group"},
 					TransitEncryptionEnabled: true,
 					EndpointType:             "configuration",
+				},
+			},
+		},
+		{
+			name: "ElastiCacheServerless",
+			inAWS: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				ElastiCacheServerless: types.ElastiCacheServerless{
+					CacheName: "my-serverless-example",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID:     "123456789012",
+				Region:        "ca-central-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				ElastiCacheServerless: types.ElastiCacheServerless{
+					CacheName: "my-serverless-example",
 				},
 			},
 		},

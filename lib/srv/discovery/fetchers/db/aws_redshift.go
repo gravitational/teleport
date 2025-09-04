@@ -20,6 +20,7 @@ package db
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -54,7 +55,7 @@ func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters, err := getRedshiftClusters(ctx, cfg.awsClients.GetRedshiftClient(awsCfg))
+	clusters, err := getRedshiftClusters(ctx, cfg.awsClients.GetRedshiftClient(awsCfg), cfg.Logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -89,7 +90,7 @@ func (f *redshiftPlugin) ComponentShortName() string {
 
 // getRedshiftClusters fetches all Reshift clusters using the provided client,
 // up to the specified max number of pages
-func getRedshiftClusters(ctx context.Context, clt RedshiftClient) ([]redshifttypes.Cluster, error) {
+func getRedshiftClusters(ctx context.Context, clt RedshiftClient, log *slog.Logger) ([]redshifttypes.Cluster, error) {
 	pager := redshift.NewDescribeClustersPaginator(clt,
 		&redshift.DescribeClustersInput{},
 		func(dcpo *redshift.DescribeClustersPaginatorOptions) {
@@ -97,8 +98,7 @@ func getRedshiftClusters(ctx context.Context, clt RedshiftClient) ([]redshifttyp
 		},
 	)
 	var clusters []redshifttypes.Cluster
-	for pageNum := 0; pageNum < maxAWSPages && pager.HasMorePages(); pageNum++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, libcloudaws.ConvertRequestFailureError(err)
 		}

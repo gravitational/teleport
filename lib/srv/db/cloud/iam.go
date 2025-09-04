@@ -207,6 +207,8 @@ func (c *IAM) isSetupRequiredForDatabase(ctx context.Context, database types.Dat
 			return true
 		}
 		return ok
+	case types.DatabaseTypeElastiCacheServerless:
+		return true
 	case types.DatabaseTypeMemoryDB:
 		ok, err := iam.CheckMemoryDBSupportsIAMAuth(database)
 		if err != nil {
