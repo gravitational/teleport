@@ -42,7 +42,7 @@ import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import { useIsWindowVisibile } from 'teleterm/ui/hooks/useIsWindowVisibile';
+import { useIsInBackgroundMode } from 'teleterm/ui/hooks/useIsInBackgroundMode';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import * as types from 'teleterm/ui/services/workspacesService';
 import {
@@ -64,7 +64,7 @@ export function DocumentsRenderer(props: {
   const isAnyDialogOpen = useStoreSelector('modalsService', state => {
     return !!state.regular || state.important.length > 0;
   });
-  const isWindowVisible = useIsWindowVisibile();
+  const isInBackgroundMode = useIsInBackgroundMode();
 
   function renderDocuments(documentsService: DocumentsService) {
     return documentsService.getDocuments().map(doc => {
@@ -98,7 +98,7 @@ export function DocumentsRenderer(props: {
               : doc.status === 'connected';
           return (
             <ForegroundSession
-              isWindowVisible={isWindowVisible}
+              isInBackgroundMode={isInBackgroundMode}
               isDocumentActive={isActiveDoc}
               isDocumentConnected={isConnected}
               isAnyDialogOpen={isAnyDialogOpen}
@@ -255,22 +255,22 @@ function ForegroundSession({
   isDocumentActive,
   isDocumentConnected,
   isAnyDialogOpen,
-  isWindowVisible,
+  isInBackgroundMode,
   children,
 }: {
   isDocumentActive: boolean;
   isDocumentConnected: boolean;
-  isWindowVisible: boolean;
+  isInBackgroundMode: boolean;
   isAnyDialogOpen: boolean;
   children: ReactNode;
 }) {
-  if (!isWindowVisible && isDocumentConnected) {
+  if (isInBackgroundMode && isDocumentConnected) {
     return;
   }
 
   return (
     <MountOnVisible
-      visible={isWindowVisible && isDocumentActive && !isAnyDialogOpen}
+      visible={!isInBackgroundMode && isDocumentActive && !isAnyDialogOpen}
     >
       {children}
     </MountOnVisible>
