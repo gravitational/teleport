@@ -151,22 +151,6 @@ func (ss *ProvisioningStateService) ListProvisioningStatesForAllDownstreams(
 	pageSize int,
 	token string,
 ) ([]*provisioningv1.PrincipalState, string, error) {
-	resp, nextPage, err := ss.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, token)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return resp, nextPage, nil
-}
-
-// ListProvisioningStatesForAllDownstreams2 lists all provisioning state records for all
-// downstream receivers. Note that the returned record names may not be unique
-// across all downstream receivers. Check the records' `DownstreamID` field
-// to disambiguate.
-func (ss *ProvisioningStateService) ListProvisioningStatesForAllDownstreams2(
-	ctx context.Context,
-	pageSize int,
-	token string,
-) ([]*provisioningv1.PrincipalState, string, error) {
 	resp, nextPage, err := ss.service.ListResources(ctx, pageSize, token)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing provisioning state records")

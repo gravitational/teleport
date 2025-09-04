@@ -86,19 +86,11 @@ func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pag
 	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisioningStatesForAllDownstreams")
 	defer span.End()
 
-	out, next, err := c.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, pageToken)
-	return out, next, trace.Wrap(err)
-}
-
-func (c *Cache) ListProvisioningStatesForAllDownstreams2(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisioningStatesForAllDownstreams2")
-	defer span.End()
-
 	lister := genericLister[*provisioningv1.PrincipalState, principalStateIndex]{
 		cache:        c,
 		collection:   c.collections.provisioningStates,
 		index:        principalStateNameIndex,
-		upstreamList: c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams2,
+		upstreamList: c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams,
 		nextToken: func(t *provisioningv1.PrincipalState) string {
 			return t.GetMetadata().GetName()
 		},
