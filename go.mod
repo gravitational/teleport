@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.24.6
+go 1.25
 
 require (
 	cloud.google.com/go/alloydb v1.18.0
