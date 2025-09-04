@@ -54,11 +54,10 @@ export function TtyRecordingPlayer({
     queryFn: async () => {
       const ws = await createWebSocket(clusterId, sessionId);
 
-      const player = new TtyPlayer(
-        theme.colors.terminal,
-        initialCols,
-        initialRows
-      );
+      const player = new TtyPlayer(theme, {
+        cols: initialCols,
+        rows: initialRows,
+      });
 
       return {
         ws,
