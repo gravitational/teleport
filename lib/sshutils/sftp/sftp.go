@@ -110,8 +110,7 @@ type FileTransferRequest struct {
 	dstFS FileSystem
 }
 
-// CheckAndSetDefault checks for misconfiguration and sets default values.
-func (req *FileTransferRequest) CheckAndSetDefaults() error {
+func (req *FileTransferRequest) checkAndSetDefaults() error {
 	if len(req.Sources.Paths) == 0 {
 		return trace.BadParameter("missing sources")
 	}
@@ -280,7 +279,7 @@ func (h HTTPTransferRequest) checkDefaults() error {
 // TransferFiles transfers files from the configured source paths to the
 // configured destination path over SFTP or HTTP depending on the Config.
 func TransferFiles(ctx context.Context, req FileTransferRequest) error {
-	if err := req.CheckAndSetDefaults(); err != nil {
+	if err := req.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	// Set up file systems.
@@ -325,9 +324,6 @@ func TransferFiles(ctx context.Context, req FileTransferRequest) error {
 	case req.Destination.Addr != nil:
 		sshClient, err := req.DialHost(ctx, req.Destination.Login, req.Destination.Addr.String())
 		if err != nil {
-			if req.srcFS.Type() == "remote" && strings.Contains(err.Error(), "too many concurrent ssh connections") {
-				return trace.LimitExceeded("max_connections in role prevents copying between two hosts")
-			}
 			return trace.Wrap(err)
 		}
 		req.dstFS, err = OpenRemoteFilesystem(ctx, sshClient)

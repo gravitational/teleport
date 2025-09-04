@@ -4550,19 +4550,19 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		if err := parseCopySpec(cf, c); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if c.SrcHost != "" {
-			hostUser = c.SrcHost
-			if c.SrcLogin != "" {
-				hostLogin = c.SrcLogin
+		if c.SFTPSrcHost != "" {
+			hostUser = c.SFTPSrcHost
+			if c.SFTPSrcLogin != "" {
+				hostLogin = c.SFTPSrcLogin
 			} else {
-				c.SrcLogin = hostLogin
+				c.SFTPSrcLogin = hostLogin
 			}
 		} else {
-			hostUser = c.DstHost
-			if c.DstLogin != "" {
-				hostLogin = c.DstLogin
+			hostUser = c.SFTPDestHost
+			if c.SFTPDestLogin != "" {
+				hostLogin = c.SFTPDestLogin
 			} else {
-				c.DstLogin = hostLogin
+				c.SFTPDestLogin = hostLogin
 			}
 		}
 	}
@@ -4900,14 +4900,14 @@ func parseCopySpec(cf *CLIConf, config *client.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config.SrcHost = sources.GetAddr()
-	config.SrcLogin = sources.Login
+	config.SFTPSrcHost = sources.GetAddr()
+	config.SFTPSrcLogin = sources.Login
 	dest, err := sftp.ParseTarget(cf.CopySpec[len(cf.CopySpec)-1], int(cf.NodePort))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config.DstHost = dest.GetAddr()
-	config.DstLogin = dest.Login
+	config.SFTPDestHost = dest.GetAddr()
+	config.SFTPDestLogin = dest.Login
 	return nil
 }
 
