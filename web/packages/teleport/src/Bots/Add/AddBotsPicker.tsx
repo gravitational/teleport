@@ -168,6 +168,7 @@ export const integrations: BotIntegration[] = [
   },
 ];
 
+// TODO(alexhemard): delete in a follow up PR
 export function AddBotsPicker() {
   const ctx = useTeleport();
   return (
@@ -273,21 +274,21 @@ function GuidedTile({
     });
   };
 
-  const Badge = hasCreateBotPermission ? (
+  const Badge = hasCreateBotPermission ? undefined : (
     <ToolTipNoPermBadge>
       <div>
         You don’t have sufficient permissions to create bots. Reach out to your
         Teleport administrator to request additional permissions.
       </div>
     </ToolTipNoPermBadge>
-  ) : undefined;
+  );
 
   return (
     <Tile
       title={`Machine ID: ${integration.title}`}
       description={integration.description}
       tags={integration.tags}
-      hasAccess={true}
+      hasAccess={hasCreateBotPermission}
       icon={integration.icon}
       link={{ url: integration.link, onClick: onBotClick }}
       Badge={Badge}

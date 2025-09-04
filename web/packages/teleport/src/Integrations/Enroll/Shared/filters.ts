@@ -38,7 +38,7 @@ export function filterIntegrations<T extends BaseIntegration>(
       s =>
         displayName<T>(i).toLowerCase().includes(s) ||
         i.tags.some(tag => tag.includes(s)) ||
-        (i.description && i.description.toLowerCase().includes(s))
+        i.description?.toLowerCase().includes(s)
     )
   );
 
