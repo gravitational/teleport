@@ -260,21 +260,13 @@ function PlayButton({
 }: PlayButtonProps) {
   const { icon: Icon, text } = getIconAndText(state);
 
-  const button = (
-    <PlayerButton disabled={disabled} onClick={onClick}>
-      <Icon size="small" color="text.main" />
-    </PlayerButton>
+  return (
+    <HoverTooltip tipContent={text} portalRoot={containerRef.current}>
+      <PlayerButton disabled={disabled} onClick={onClick}>
+        <Icon size="small" color="text.main" />
+      </PlayerButton>
+    </HoverTooltip>
   );
-
-  if (text) {
-    return (
-      <HoverTooltip tipContent={text} portalRoot={containerRef.current}>
-        {button}
-      </HoverTooltip>
-    );
-  }
-
-  return button;
 }
 
 const AdjustedIndicator = styled(Indicator)`
