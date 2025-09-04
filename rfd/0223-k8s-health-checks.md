@@ -576,6 +576,20 @@ Kubernetes health checks are backported to `v18`.
 
 The [healthcheck](https://github.com/gravitational/teleport/tree/branch/v18/lib/healthcheck) package used by Kubernetes health checks was introduced in `v18`, and is unsupported in `v16` and `v17`.
 
+#### Adding Kubernetes Label Matchers Verified 
+
+Backward compatibility for adding Kubernetes label matchers was tested and verified to function without issue.
+
+Testing was performed in a proof-concept environment.
+
+Teleport `v19` was run with auth+proxy+kube. The health check config was edited to Kubernetes-only label matchers (no db matchers). Writing of the health check config to the backend `events` table was double checked by viewing `/health_check_config/default` key data with [DB Browser for SQLite](https://sqlitebrowser.org/).
+
+Then Teleport `v18` auth+proxy+kube was run with identical config and backend. `v18` runs without issue. Kubernetes health checks are simply omitted on a `v18` without backporting.
+
+Validation of health check config is performed only on writes to the backend database with [ValidateHealthCheckConfig](https://github.com/gravitational/teleport/blob/447cb50d24b763b9a3a6c78558560ba05c89ef18/lib/services/health_check_config.go#L58), and not during reads of the config.
+
+Customers would update to `v19` or a `v18` with a backport to participate in Kubernetes health checks.
+
 
 ### Audit Events
 
