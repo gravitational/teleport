@@ -1403,16 +1403,17 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
-		Context:        scx.srv.Context(),
-		PID:            s.term.PID(),
-		Emitter:        s.emitter,
-		Namespace:      scx.srv.GetNamespace(),
-		SessionID:      s.id.String(),
-		ServerID:       scx.srv.HostUUID(),
-		ServerHostname: scx.srv.GetInfo().GetHostname(),
-		Login:          scx.Identity.Login,
-		User:           scx.Identity.TeleportUser,
-		Events:         eventsMap,
+		Context:               scx.srv.Context(),
+		PID:                   s.term.PID(),
+		Emitter:               s.emitter,
+		Namespace:             scx.srv.GetNamespace(),
+		SessionID:             s.id.String(),
+		ServerID:              scx.srv.HostUUID(),
+		ServerHostname:        scx.srv.GetInfo().GetHostname(),
+		Login:                 scx.Identity.Login,
+		User:                  scx.Identity.TeleportUser,
+		UserOriginClusterName: scx.Identity.OriginClusterName,
+		Events:                eventsMap,
 	}
 
 	bpfService := scx.srv.GetBPF()
@@ -1618,16 +1619,17 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
-		Context:        scx.srv.Context(),
-		PID:            scx.execRequest.PID(),
-		Emitter:        s.emitter,
-		Namespace:      scx.srv.GetNamespace(),
-		SessionID:      string(s.id),
-		ServerID:       scx.srv.HostUUID(),
-		ServerHostname: scx.srv.GetInfo().GetHostname(),
-		Login:          scx.Identity.Login,
-		User:           scx.Identity.TeleportUser,
-		Events:         eventsMap,
+		Context:               scx.srv.Context(),
+		PID:                   scx.execRequest.PID(),
+		Emitter:               s.emitter,
+		Namespace:             scx.srv.GetNamespace(),
+		SessionID:             string(s.id),
+		ServerID:              scx.srv.HostUUID(),
+		ServerHostname:        scx.srv.GetInfo().GetHostname(),
+		Login:                 scx.Identity.Login,
+		User:                  scx.Identity.TeleportUser,
+		UserOriginClusterName: scx.Identity.OriginClusterName,
+		Events:                eventsMap,
 	}
 
 	if err := execRequest.WaitForChild(); err != nil {

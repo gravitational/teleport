@@ -154,6 +154,11 @@ message UserMetadata {
     (gogoproto.jsontag) = "user_traits,omitempty",
     (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
   ];
+
+  // UserClusterName represents the Teleport Cluster name the user belongs to.
+  // For leaf clusters, this field represents the root cluster name.
+  // For root clusters, this field holds the cluster name.
+  string UserClusterName = 16 [(gogoproto.jsontag) = "user_cluster_name,omitempty"];
 }
 
 // Server is a server metadata
