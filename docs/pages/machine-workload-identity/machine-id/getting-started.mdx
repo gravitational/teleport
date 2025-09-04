@@ -1,6 +1,6 @@
 ---
-title: Machine ID Getting Started Guide
-description: Getting started with Teleport Machine ID
+title: Machine and Workload Identity Getting Started Guide
+description: Getting started with Teleport Machine and Workload Identity
 labels:
  - get-started
  - mwi
@@ -8,214 +8,341 @@ labels:
 
 {/* lint disable page-structure remark-lint */}
 
-In this getting started guide, you will configure Machine ID to issue
-certificates that enable a bot user to connect to a remote host.
+Teleport Machine and Workload Identity (MWI) is a versatile tool that integrates
+with many platforms and protected resource types and enables use cases from
+secure [Infrastructure-as-Code](../iac-mwi.mdx) to [AI Agents](../ai-agents-mwi.mdx).
+This guide shows one of the most common use cases, running commands on deployment targets
+from CI/CD. If this is not your goal, this guide will show you the basics of how to get started with MWI
+configuration, and you can then explore the use case pages to find links to your tools.
 
 Here's an overview of what you will do:
 
-- Download and install `tbot` on the host that will run Machine ID.
-- Create a bot user.
-- Start Machine ID.
-- Use certificates issued by Machine ID to connect to a remote machine with SSH.
+- Choose a Linux server or Kubernetes cluster as your target resource.
+- Create a Role for your Bot, or choose an existing one.
+- Create a Bot in Teleport with a role allowing it to access your target resource.
+- Create a GitHub join token for the Bot.
+- Set up a GitHub Actions workflow that authenticates and issues a command using the `tbot` binary.
 
-This guide covers configuring Machine ID for development and learning purposes.
-For a production-ready configuration of Machine ID, visit the [Deploying Machine
+This guide covers configuring MWI for development and learning purposes.
+For a production-ready configuration of MWI, visit the [Deploying Machine
 ID](deployment/deployment.mdx) guides.
 
 ## Prerequisites
 
-- A host that you wish to assign an identity to using Machine ID.
+In this getting started guide, you will configure MWI to issue commands to a Linux
+server or Kubernetes cluster from a GitHub Actions workflow. Linux servers
+and Kubernetes clusters are the most common targets in Teleport, so you don't need to set up new
+infrastructure. If you need a new target resource in Teleport, create an SSH server
+or Kubernetes cluster you can let the bot access before starting.
+
+- A GitHub repository where you have permissions to create a GitHub Actions workflows.
+  - You can fork the [example repository for this guide](https://github.com/asteroid-earth/mwi-getting-started-guide) to go faster.
+- A target resource enrolled in Teleport, either:
+  - A Linux server
+  - A Kubernetes cluster
+
+Most people should be able to set up a GitHub Actions workflow on a personal repository, and
+will already have one of those targets enrolled. If you don't have a target resource that you can use
+for this guide enrolled, follow one of the [guides](../../enroll-resources/enroll-resources.mdx) for
+enrolling a new resource.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!/docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Download and install Teleport
+## Step 1/5. Choose a target resource
 
-In this step, you will be downloading and installing Teleport binaries onto the
-machine you wish to assign an identity to.
+First choose a target resource that you want to access using Machine and Workload Identity. We will
+use the labels for this resource in the Role that we assign to the bot so it can access the resource.
 
-Each Teleport package hosted on our downloads page ships with several useful
-binaries, including `teleport`, `tctl`, `tsh`,`tbot`, and `fdpass-teleport`:
+Here are example resources with labels we can reference:
 
-- `teleport` is the daemon used to initialize a Teleport cluster; this binary is not used in this guide
-- `tctl` is the administrative tool you will use to create the bot user (step 1/4)
-- `tsh` is the client tool you will use to log in to the Teleport Cluster (steps 2/4 and 4/4)
-- `tbot` is the Machine ID tool you will use to associate a bot user with a machine (step 3/4)
-- `fdpass-teleport` is used to integrate Machine ID with OpenSSH to enable higher performance and reduced resource consumption when establishing SSH connections; this binary is not used in this guide
+<Tabs>
+<TabItem label="Server">
 
-Download the appropriate Teleport package for your platform: 
+![Example ssh server resource with label env: mwidemo](../../../img/machine-id/ssh-target-example.png)
 
-(!docs/pages/includes/install-linux.mdx!)
+You can also find your nodes with the following command:
 
-## Step 2/4. Create a Bot
+```code
+$ tctl nodes ls --format=text
+
+Host    UUID                                 Public Address Labels                              Version
+------- ------------------------------------ -------------- ----------------------------------- -------
+target1 8a50c8aa-c45f-403c-95ff-83f50561d64c                env=mwi-demo,hostname=ip-10-0-0-200 18.1.5
+```
+</TabItem>
+<TabItem label="Kubernetes">
+![Example kubernetes cluster resource with label env: mwidemo](../../../img/machine-id/k8s-target-example.png)
+
+You can also find your clusters with the following command:
+
+```code
+$ tctl kube ls --format=text
+
+Cluster  Labels                        Version
+-------- ----------------------------- -------
+crumpet  env=dogfood,region=us-west-2  18.1.5
+```
+</TabItem>
+</Tabs>
+
+## Step 2/5. Choose or Create a Role
+
+If you have an existing role that allows access to your target resource, you can skip this step.
+Every Teleport cluster has a default `access` role that allows access to all nodes and clusters,
+but if you cannot use that one for this guide, we can quickly make a new, more restrictive role.
+
+<Tabs>
+<TabItem label="Server">
+
+Copy the following into a file called `github-bot-role.yaml`, and edit the `node_labels`
+field to match the labels on your target resource. You can also change the `logins` field to match the user
+you want to log in as on your target resource.
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: github-bot
+spec:
+  allow:
+    logins:
+    - ubuntu
+    - root
+  node_labels:
+    env: mwi-demo
+```
+
+</TabItem>
+<TabItem label="Kubernetes">
+
+Copy the following into a file called `github-bot-role.yaml`, and edit the `kubernetes_labels`
+fields to match the labels on your target resource. To make going through this guide more secure,
+this role only allows the bot to take actions in the `default` namespace.
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: github-bot
+spec:
+  allow:
+    kubernetes_labels:
+      env: dogfood
+    kubernetes_groups:
+    - system:masters
+    kubernetes_resources:
+    - kind: '*'
+      name: '*'
+      namespace: default
+      verbs:
+      - '*'
+```
+
+</TabItem>
+</Tabs>
+
+Now run `tctl create` with the file:
+
+```code
+$ tctl create -f github-bot-role.yaml
+```
+
+## Step 3/5. Create a Bot
 
 In Teleport, a **Bot** represents an identity for a machine. This is similar to
 how a user represents the identity of a human. Like users, bots are assigned
-roles to manage their access to resources. However, unlike users, bots do not
-authenticate using a username and password or SSO. Instead, they initially
-authenticate in a process called joining.
-
-Teleport supports a number of secure join methods specific to the platform the
-bot is running on, but for the purposes of this guide, we will use the simpler
-`token` join method. You can follow a deployment guide later to learn about the
-secure join methods available for your platform.
-
-Before you create a bot user, you need to determine which role(s) you want to
-assign to it. You can use the `tctl` command below to examine what roles exist
-on your system.
-
-On your client machine, log in to Teleport using `tsh`, then use `tctl` to examine
-what roles exist on your system.
-
-```code
-$ tctl get roles --format=text
-```
-
-You will see something like the output below on a fresh install of Teleport with the
-default roles—your cluster may have different roles. In this example, let's
-assume you want to give the bot the `access` role to allow it to connect to
-machines within your cluster.
-
-```
-Role    Allowed to login as                           Node Labels Access to resources
-------- --------------------------------------------- ----------- ----------------------------------------
-access  {{internal.logins}}                           <all nodes> event:list,read,session:read,list
-auditor no-login-6566121f-b602-47f1-a118-c9c618ee5aec             session:list,read,event:list,read
-editor                                                            user:list,create,read,update,delete,...
-```
-
-The `internal.logins` trait is replaced with values from the Teleport local user
-database. For full details on how traits work in Teleport roles, see the
-[Access Controls
-Reference](../../reference/access-controls/roles.mdx).
-
-Assuming that you are using the default `access` role, ensure that you use the 
-`--logins` flag when adding your bot to specify the SSH logins that you wish to 
-allow the bot to access on hosts. For our example, we will be using `root`.
+roles to manage their access to resources.
 
 Use `tctl bots add` to create our bot:
 
 ```code
-$ tctl bots add robot --roles=access --logins=root
+$ tctl bots add github-bot --roles=github-bot
 ```
 
-## Step 3/4. Start Machine ID
+## Step 4/5 Create a Join Token
+Unlike users, bots do not authenticate using a username and password or SSO.
+Instead, they initially authenticate in a process called joining. Teleport
+uses metadata about the platform the bot is running on, such as OIDC endpoints for CI pipelines,
+or the Assumed Role of an AWS EC2 Instance, to ensure that only authorized bots can join the cluster.
+This means the bot has a verified <i>identity</i>, rather than just a shared secret.
 
-Now start Machine ID using the `tbot` binary. The `tbot start` command will
-start running Machine ID in a loop, writing renewable certificates to
-`/var/lib/teleport/bot` and the short-lived certificates your application will
-use to `/opt/machine-id`.
+Teleport supports a number of secure [join methods](../../../reference/join-methods/#delegated-join-methods)
+specific to the platform the bot is running on. Since we are using GitHub Actions,
+we will use the `github` join method.
 
-In a production environment you will want to run Machine ID in the background
-using a service manager like systemd. However, in this guide you will run it in
-the foreground to better understand how it works.
+Copy the following into a file called `github-bot-token.yaml`, and edit the `repository`
+field to match the GitHub repository where you will run the GitHub Actions workflow.
+When a bot attempts to join from that GitHub organization and repository, Teleport
+will identify it as your `github-bot` and assign it the correct role. If a bot attempts
+to join from any other repository, it will be rejected.
+
+```yaml
+version: v2
+metadata:
+  name: github-bot
+spec:
+  join_method: github
+  roles:
+  - Bot
+  bot_name: github-bot
+  github:
+    allows:
+    - repository: "your-github-username/mwi-getting-started-guide" # if you cloned the example repo, if not, use your repo name
+```
+
+Now run `tctl create` with the file:
 
 ```code
-$ export TELEPORT_ANONYMOUS_TELEMETRY=1
-$ sudo tbot start \
- --data-dir=/var/lib/teleport/bot \
- --destination-dir=/opt/machine-id \
- --token=(=presets.tokens.first=) \
- --join-method=token \
- --proxy-server=example.teleport.sh:443
+$ tctl create -f github-bot-token.yaml
 ```
 
-`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
-telemetry. This helps us shape the future development of `tbot`. You can disable
-this by omitting this.
 
-Replace the following fields with values from your own cluster.
+## Step 5/5 Access a Resource from GitHub Actions
 
-- `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
-- `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
-- `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `proxy-server` is the address of your Teleport Proxy service, for example `example.teleport.sh:443`.
+You can find the files you'll need in the
+[example repository](https://github.com/asteroid-earth/mwi-getting-started-guide) for this guide.
+We'll examine the files here, but you can fork that repository, or clone it and copy the files to your own.
 
-Now that Machine ID has successfully started, let's investigate the
-`/opt/machine-id` directory to see what was written to disk.
+We have several published [Actions](../../../reference/machine-id/github-actions/#github-actions-helpers)
+for convenience, but for this guide we will look at things explicitly to aid understanding.
 
-```code
-$ tree /opt/machine-id
-machine-id
-├── identity
-├── key
-├── key-cert.pub
-├── key.pub
-├── known_hosts
-├── ssh_config
-├── teleport-database-ca.crt
-├── teleport-host-ca.crt
-├── teleport-user-ca.crt
-└── tlscert
+<Tabs>
+<TabItem label="Server">
 
-0 directories, 10 files
+Our config file for `tbot` is at `action_support/server_bot.yaml`:
+
+```yaml
+version: v2
+proxy_server: my.cluster.com:443
+onboarding:
+  join_method: github
+  token: github-bot
+certificate_ttl: 5m
+storage:
+  type: memory
+outputs:
+- type: identity
+  destination:
+    type: directory
+    path: ./ssh-out
 ```
 
-This directory contains private key material in the `key.*` files, SSH
-certificates in the `identity` file, X.509 certificates in the `tls*` and
-`*.crt` files, OpenSSH configuration in the `ssh_config` and
-`known_hosts` files to make it easy to integrate Machine ID with external
- applications and tools.
+- Replace the `proxy_server` address with your Teleport Proxy address.
+- The `token` value matches the name of the token we created in Step 4/5.
+- The certificate_ttl is set to 5 minutes. In production you can make this slightly longer than the runtime of your job, so the identity expires when its purpose is complete.
+- The output path is set to `./ssh-out`. This is where `tbot` will output the SSH configuration and credentials that our command will use.
 
-## Step 4/4. Use certificates issued by Machine ID
+Our workflow is at `.github/workflows/server.yaml`:
 
-To use Machine ID, find a host that you want to connect to within your cluster
-using `tsh ls`. You might see output like the following on your system.
+```yaml
+on:
+  workflow_dispatch:
 
-```code
-$ tsh ls
-Node Name Address        Labels
---------- -------------- -----------------------------
-node-name  127.0.0.1:3022 arch=x86_64,group=api-servers
+jobs:
+  check_resource_usage:
+    permissions:
+      # The "id-token: write" permission is required, or MWI will not be
+      # able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    name: Check resource usage
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Fetch Teleport binaries
+      uses: teleport-actions/setup@v1
+      with:
+        version: 18.1.5
+    - name: Export ssh config
+      run: tbot start --oneshot -c ./action_support/server_bot.yaml
+    - name: Run mpstat
+      run: |
+        ssh -f ./ssh_out/ssh_config ubuntu@target1.my.cluster.com mpstat
 ```
 
-<details>
-<summary>Not seeing Nodes?</summary>
+- In our second step, we use one of the published Actions, which installs the `tbot` binary into the runner.
+- Then we run `tbot start` in one-shot mode with our config file. This authenticates the bot, and writes the SSH configuration and credentials to `./ssh_out`, without starting a long-running process.
+- Finally we run an ssh command using our new identity. No certificates need to be distributed to the target server, or stored as secrets in the Action.
 
-(!docs/pages/includes/node-logins.mdx!)
+This kind of workflow can be used with Ansible or any other kind of SSH-based automation.
+</TabItem>
+<TabItem label="Kubernetes">
 
-</details>
+Our config file for `tbot` is at `action_support/k8s_bot.yaml`:
 
-To use Machine ID with the OpenSSH integration, run the following command to
-connect to `node-name` within cluster `example.com`.
-
-```code
-$ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
+```yaml
+version: v2
+proxy_server: my.cluster.com:443
+onboarding:
+join_method: github
+token: github-bot
+certificate_ttl: 5m
+storage:
+type: memory
+outputs:
+- type: kubernetes/v2
+  selectors:
+  - env: myenvlabel
+  destination:
+    type: directory
+    path: ./k8s-out
 ```
 
-In addition to the `ssh` client you can use `tsh`. Replace the `--proxy` parameter
-with your proxy address. 
+- Replace the `proxy_server` address with your Teleport Proxy address.
+- Replace the label selector with your Kubernetes cluster label.
+- The `token` value matches the name of the token we created in Step 4/5.
+- The certificate_ttl is set to 5 minutes. In production you can make this slightly longer than the runtime of your job, so the identity expires when its purpose is complete.
+- The output path is set to `./k8s-out`. This is where `tbot` will output the kubeconfig that our command will use.
 
-```code
-$ tsh ssh --proxy=mytenant.teleport.sh -i /opt/machine-id/identity root@node-name
+Our workflow is at `.github/workflows/k8s.yaml`:
+
+```yaml
+on:
+  workflow_dispatch:
+
+jobs:
+  list_pods:
+    permissions:
+      # The "id-token: write" permission is required, or MWI will not be
+      # able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    name: Run ssh command
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Fetch kubectl
+      uses: azure/setup-kubectl@v3
+    - name: Fetch Teleport binaries
+      uses: teleport-actions/setup@v1
+      with:
+        version: 18.1.5
+    - name: Export ssh config
+      run: tbot start --oneshot -c ./action_support/server_bot.yaml
+    - name: Get pods in default namespace
+      run: |
+        kubectl --kubeconfig=./k8s_out/config get pods -n default
 ```
 
-<Admonition type="note" title="Roles must have logins defined">
-  The below error can occur when the bot does not have permission to log in to
-  a node as the requested user:
+- In our third step, we use one of the published Actions, which installs the `tbot` binary into the runner.
+- Then we run `tbot start` in one-shot mode with our config file. This authenticates the bot, and writes the kubeconfig to `./k8s_out`, without starting a long-running process.
+- Finally we run a kubectl command using our new identity. No certificates need to be distributed to the target server, or stored as secrets in the Action.
 
-  ```code
-  $ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
-  root@node-name: Permission denied (publickey).
-  kex_exchange_identification: Connection closed by remote host
-  ```
-  This can happen in two circumstances:
-  - The user you are trying to log in as is not specified under `logins` in the
-   role you are using
-  - If you have used `--logins` when creating the bot user, the role the bot is 
-  impersonating does not have the `{{ internal.logins }}` variable specified.
+This kind of workflow can be used with Helm to deploy apps, or any other kind of automation that relies on kubeconfig.
 
-  If you have been following along with the `access` role, do the following.
+</TabItem>
+</Tabs>
 
-  - Export the role by running `tctl get roles/access > access.yaml`
-  - Edit the `logins` field in `access.yaml`
-  - Update the role by running `tctl create -f access.yaml`
-</Admonition>
+## Optional: View Audit Logs
+TODO
 
-Now you can replace any invocations of `ssh` with the above command to provide
-your applications and tools a machine identity that can be rotated, audited,
-and controlled with access controls.
+## Summary
+TODO
+You've successfully set up a workflow in GitHub Actions that can access your resources securely.
 
 ## Next Steps
 
