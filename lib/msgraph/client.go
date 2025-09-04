@@ -35,10 +35,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -188,7 +188,8 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 	})
 	if err != nil {
 		authFailedError := &azidentity.AuthenticationFailedError{}
-		if ok := errors.As(err, &authFailedError); ok && authFailedError.RawResponse != nil {
+		if ok := errors.As(err, &authFailedError); ok && authFailedError.RawResponse != nil &&
+			authFailedError.RawResponse.Body != nil {
 			resp := authFailedError.RawResponse
 			authError, conversionErr := readAuthError(resp.Body, resp.StatusCode)
 			resp.Body.Close()
