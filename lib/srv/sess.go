@@ -1164,6 +1164,9 @@ func (s *session) emitSessionLeaveEventUnderLock(ctx *ServerContext) {
 		UserMetadata:    ctx.Identity.GetUserMetadata(),
 	}
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionLeaveEvent)
+	// Make a copy of the event to prevent a race between emitAuditEvent and
+	// FastMarshal (and capture changes from PrepareSessionEvent).
+	leaveEventCopy := *sessionLeaveEvent
 	if err == nil {
 		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
 			s.logger.WarnContext(ctx.srv.Context(), "Failed to record session leave event.", "error", err)
@@ -1178,7 +1181,7 @@ func (s *session) emitSessionLeaveEventUnderLock(ctx *ServerContext) {
 	// Notify all members of the party that a new member has left over the
 	// "x-teleport-event" channel.
 	for _, p := range s.parties {
-		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
+		eventPayload, err := utils.FastMarshal(leaveEventCopy)
 		if err != nil {
 			s.logger.WarnContext(ctx.srv.Context(), "Unable to marshal session leave event for party.", "error", err, "party", p)
 			continue
