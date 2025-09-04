@@ -387,10 +387,9 @@ func (p *PluginsCommand) EditAWSIC(ctx context.Context, args installPluginArgs) 
 }
 
 type awsICRotateCredsArgs struct {
-	cmd           *kingpin.CmdClause
-	pluginName    string
-	payload       string
-	validateToken bool
+	cmd        *kingpin.CmdClause
+	pluginName string
+	payload    string
 }
 
 func (p *PluginsCommand) initRotateCredsAWSIC(parent *kingpin.CmdClause) {
@@ -401,10 +400,6 @@ func (p *PluginsCommand) initRotateCredsAWSIC(parent *kingpin.CmdClause) {
 	cmd.Flag("plugin-name", "Name of the AWSIC plugin instance to update. Defaults to "+apicommon.OriginAWSIdentityCenter+".").
 		Default(apicommon.OriginAWSIdentityCenter).
 		StringVar(&args.pluginName)
-
-	cmd.Flag("validate-token", "Validate that the supplied token is valid for the configured downstream SCIM service").
-		Default("true").
-		BoolVar(&args.validateToken)
 
 	cmd.Arg("token", "The new SCIM bearer token.").
 		PlaceHolder("TOKEN").
@@ -427,23 +422,6 @@ func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args installPlugi
 	awsicSettings := plugin.Spec.GetAwsIc()
 	if awsicSettings == nil {
 		return trace.BadParameter(notAWSICPluginMsg, cliArgs.pluginName)
-	}
-
-	if p.rotateCreds.awsic.validateToken {
-		provisioningSpec := awsicSettings.ProvisioningSpec
-		if provisioningSpec == nil {
-			return trace.BadParameter("plugin is missing provisioning spec")
-		}
-
-		slog.InfoContext(ctx, "Validating token", "scim_server", provisioningSpec.BaseUrl)
-
-		scimClient, err := args.scimProvider(types.PluginTypeAWSIdentityCenter, provisioningSpec.BaseUrl, cliArgs.payload)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := scimClient.Ping(ctx); err != nil {
-			return trace.Wrap(err, "SCIM Token validation failed")
-		}
 	}
 
 	staticCredsRef := plugin.Credentials.GetStaticCredentialsRef()
