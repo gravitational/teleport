@@ -194,7 +194,7 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 		Clock:                 c.cfg.Clock,
 		ServerID:              c.cfg.ServerID,
 		TeleportUser:          identity.Username,
-		UserOriginClusterName: authzCtx.UnmappedIdentity.GetIdentity().TeleportCluster,
+		UserOriginClusterName: identity.OriginClusterName,
 		Emitter:               c.cfg.Emitter,
 		EmitterContext:        c.cfg.EmitterContext,
 		Logger:                c.cfg.Logger,

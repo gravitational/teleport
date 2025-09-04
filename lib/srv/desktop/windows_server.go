@@ -856,7 +856,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
 		Tracker:               rdpc,
 		TeleportUser:          identity.Username,
-		UserOriginClusterName: authCtx.UnmappedIdentity.GetIdentity().TeleportCluster,
+		UserOriginClusterName: identity.OriginClusterName,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MessageWriter:         &monitorErrorSender{tdpConn: tdpConn},
