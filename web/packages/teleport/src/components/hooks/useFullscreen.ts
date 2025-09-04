@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fscreen from 'fscreen';
 import { useCallback, useEffect, useState, type RefObject } from 'react';
 
 export function useFullScreen(
@@ -26,32 +25,33 @@ export function useFullScreen(
 
   useEffect(() => {
     function handleFullscreenChange() {
-      setActive(fscreen.fullscreenElement === ref.current);
+      setActive(document.fullscreenElement === ref.current);
     }
 
-    fscreen.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
 
     return () => {
-      fscreen.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, [ref]);
 
-  const enter = useCallback(() => {
-    if (fscreen.fullscreenElement) {
-      fscreen.exitFullscreen();
+  const enter = useCallback(async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
 
-      return fscreen.requestFullscreen(ref.current);
+      return ref.current?.requestFullscreen();
     }
 
     if (ref.current) {
-      return fscreen.requestFullscreen(ref.current);
+      return ref.current.requestFullscreen();
     }
   }, [ref]);
 
   const exit = useCallback(() => {
-    if (fscreen.fullscreenElement === ref.current) {
-      return fscreen.exitFullscreen();
+    if (document.fullscreenElement === ref.current) {
+      return document.exitFullscreen();
     }
+
     return Promise.resolve();
   }, [ref]);
 
