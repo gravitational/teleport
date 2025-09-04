@@ -25,8 +25,9 @@ import {
   type RefObject,
 } from 'react';
 import styled from 'styled-components';
-import Box from 'web/packages/design/src/Box';
-import Flex from 'web/packages/design/src/Flex';
+
+import Box from 'design/Box';
+import Flex from 'design/Flex';
 import {
   CirclePause,
   CirclePlay,
@@ -36,8 +37,8 @@ import {
   Layout,
   Refresh,
   Spinner,
-} from 'web/packages/design/src/Icon';
-import { HoverTooltip } from 'web/packages/design/src/Tooltip';
+} from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { PlayerState } from 'teleport/SessionRecordings/view/stream/SessionStream';
 
