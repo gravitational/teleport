@@ -70,6 +70,10 @@ type SessionContext struct {
 	// User is the Teleport user.
 	User string
 
+	// UserOriginClusterName is the name of the cluster where the user is
+	// originally from.
+	UserOriginClusterName string
+
 	// PID is the process ID of Teleport when it re-executes itself. This is
 	// used by Teleport to find itself by cgroup.
 	PID int

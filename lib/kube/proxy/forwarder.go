@@ -2443,6 +2443,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Conn:                  tc,
 		Context:               connCtx,
 		TeleportUser:          s.User.GetName(),
+		UserOriginClusterName: s.Identity.GetIdentity().OriginClusterName,
 		ServerID:              s.parent.cfg.HostID,
 		Logger:                s.parent.log,
 		Emitter:               s.parent.cfg.AuthClient,

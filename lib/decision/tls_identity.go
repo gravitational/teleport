@@ -54,6 +54,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 		Traits:                  traitToWrappers(id.Traits),
 		RouteToApp:              routeToAppFromProto(id.RouteToApp),
 		TeleportCluster:         id.TeleportCluster,
+		OriginClusterName:       id.TeleportCluster,
 		RouteToDatabase:         routeToDatabaseFromProto(id.RouteToDatabase),
 		DatabaseNames:           id.DatabaseNames,
 		DatabaseUsers:           id.DatabaseUsers,

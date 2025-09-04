@@ -15,59 +15,30 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import styled from 'styled-components';
-import * as Icons from 'web/packages/design/src/Icon';
+import { Link as InternalLink } from 'react-router-dom';
+import styled, { useTheme } from 'styled-components';
 
 import { P3, SyncStamp, Text } from 'design';
 import Box from 'design/Box';
 import { CardTile } from 'design/CardTile';
 import Flex from 'design/Flex';
+import * as Icons from 'design/Icon';
 import { H2, H3, P2 } from 'design/Text';
 
-export function ConsoleCard({
-  enrolled,
-  filters,
-  groups,
-  lastUpdated,
-  profiles,
-  roles,
-}: {
-  filters?: string[];
-  groups?: number;
-  lastUpdated?: number;
-  profiles?: number;
-  roles?: number;
-  enrolled: boolean;
-}) {
-  if (!enrolled) {
-    return <EnrollCard />;
-  }
+import cfg from 'teleport/config';
+import {
+  IntegrationKind,
+  RolesAnywhereProfileSync,
+} from 'teleport/services/integrations';
 
-  return (
-    <EnrolledCard
-      filters={filters}
-      groups={groups}
-      lastUpdated={lastUpdated}
-      profiles={profiles}
-      roles={roles}
-    />
-  );
-}
-
-function EnrolledCard({
-  filters,
-  groups,
-  lastUpdated,
-  profiles,
-  roles,
+export function ConsoleCardEnrolled({
+  stats,
 }: {
-  filters?: string[];
-  groups?: number;
-  lastUpdated?: number;
-  profiles?: number;
-  roles?: number;
+  stats: RolesAnywhereProfileSync;
 }) {
-  const updated = lastUpdated ? new Date(lastUpdated) : undefined;
+  const theme = useTheme();
+  const { syncedProfiles, syncEndTime } = stats;
+  const updated = syncEndTime ? new Date(syncEndTime) : undefined;
 
   return (
     <CardTile width="100%" data-testid={`console-enrolled`}>
@@ -100,46 +71,25 @@ function EnrolledCard({
         <Flex gap={3} my={3}>
           <Box>
             <Text fontWeight="500" fontSize={9} mb={2} css={{ lineHeight: 1 }}>
-              {profiles}
+              {syncedProfiles || 0}
             </Text>
             <H3>Profiles</H3>
-            <P3 color="text.muted" mb={1}>
-              AWS Roles Anywhere Profiles are available on the Resources Page.
-            </P3>
-            <Box borderTop={1} borderColor="interactive.tonal.neutral.0">
-              <Text
-                color="text.muted"
-                fontSize={2}
-                fontWeight="300"
-                mb={2}
-                mt={1}
-                css={{ fontStyle: 'italic' }}
-              >
-                All {groups} Groups are being synced
-              </Text>
-            </Box>
-          </Box>
-          <Box>
-            <Text fontWeight="500" fontSize={9} mb={2} css={{ lineHeight: 1 }}>
-              {roles}
-            </Text>
-            <H3>Roles</H3>
-            <P3 color="text.muted" mb={1}>
-              AWS IAM Roles are available as dropdown options for the respective
-              Profiles.
-            </P3>
-            <Box borderTop={1} borderColor="interactive.tonal.neutral.0">
-              <Text
-                color="text.muted"
-                fontSize={2}
-                fontWeight="300"
-                mb={2}
-                mt={1}
-                css={{ fontStyle: 'italic' }}
-              >
-                Filtered By: {filters.join(', ')}
-              </Text>
-            </Box>
+            {syncedProfiles > 0 ? (
+              <P3 color="text.muted" mb={1}>
+                {' '}
+                AWS Roles Anywhere Profiles are available on the{' '}
+                <InternalLink
+                  to={cfg.getUnifiedResourcesRoute(cfg.proxyCluster)}
+                  style={{ color: theme.colors.text.muted }}
+                >
+                  Resources Page.
+                </InternalLink>
+              </P3>
+            ) : (
+              <P3 color="text.muted" mb={1}>
+                Edit the integration to sync profiles.
+              </P3>
+            )}
           </Box>
         </Flex>
         <SyncStamp date={updated} />
@@ -148,16 +98,21 @@ function EnrolledCard({
   );
 }
 
-function EnrollCard() {
+export function ConsoleCardEnroll() {
   return (
-    <CardTile width="100%" data-testid={`console-enroll`}>
+    <CardTile
+      width="100%"
+      data-testid={`console-enroll`}
+      as={InternalLink}
+      to={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa)}
+    >
       <Flex flexDirection="column" justifyContent="space-between" height="100%">
         <Box>
           <Flex alignItems="center">
             <H2>AWS Console and CLI Access</H2>
           </Flex>
           <P2 mb={2} color="text.slightlyMuted">
-            Create new app resources to access your AWS account.
+            Configure access to your AWS account.
           </P2>
         </Box>
         <Flex alignItems="center" gap={2}>
