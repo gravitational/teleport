@@ -35,10 +35,15 @@ export class HeadlessAuthenticationService {
     request: SendPendingHeadlessAuthenticationRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
-    // Open the dialog before showing the window to defer connecting to
-    // resources that could show per-session MFA dialogs
-    // (see the comment for ForegroundSession in DocumentsRenderer.tsx).
-    const dialog = new Promise<void>(resolve => {
+    const skipConfirm = this.configService.get('headless.skipConfirm').value;
+
+    // If the user wants to skip the confirmation step, then don't force the window.
+    // Instead, they can just tap their blinking yubikey with the window in the background.
+    if (!skipConfirm) {
+      await this.mainProcessClient.forceFocusWindow();
+    }
+
+    return new Promise(resolve => {
       const { closeDialog } = this.modalsService.openImportantDialog({
         kind: 'headless-authn',
         rootClusterUri: request.rootClusterUri,
@@ -51,15 +56,6 @@ export class HeadlessAuthenticationService {
 
       onRequestCancelled(closeDialog);
     });
-
-    const skipConfirm = this.configService.get('headless.skipConfirm').value;
-    // If the user wants to skip the confirmation step, then don't force the window.
-    // Instead, they can just tap their blinking yubikey with the window in the background.
-    if (!skipConfirm) {
-      await this.mainProcessClient.forceFocusWindow();
-    }
-
-    await dialog;
   }
 
   async updateHeadlessAuthenticationState(
