@@ -1582,7 +1582,7 @@
     },
     {
       "source": "/access-controls/sso/azuread/",
-      "destination": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     },
     {
@@ -2957,7 +2957,7 @@
     },
     {
       "source": "/admin-guides/access-controls/sso/azuread/",
-      "destination": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     },
     {
@@ -3579,6 +3579,12 @@
       "source": "/admin-guides/migrate-plans/",
       "destination": "/migrate-plans/",
       "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
+      "permanent": true
     }
   ]
+
 }
