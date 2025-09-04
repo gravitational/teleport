@@ -164,8 +164,6 @@ loop:
 				if !hasSeenPrintEvent {
 					metadata.StartCols = int32(size.W)
 					metadata.StartRows = int32(size.H)
-
-					hasSeenPrintEvent = true
 				}
 
 				metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
