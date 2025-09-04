@@ -54,6 +54,8 @@ export function fetchSessionRecordingMetadata(
       cfg.getSessionRecordingMetadataUrl(clusterId, sessionId, getHostName())
     );
 
+    ws.binaryType = 'arraybuffer';
+
     let metadata: SessionRecordingMetadata | null = null;
 
     const frames: SessionRecordingThumbnail[] = [];
