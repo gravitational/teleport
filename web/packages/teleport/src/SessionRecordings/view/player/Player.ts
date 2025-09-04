@@ -25,12 +25,37 @@ export abstract class Player<
   abstract init(element: HTMLElement): void;
   abstract destroy(): void;
 
-  abstract apply(event: TEvent): void;
-  abstract handle(event: TEvent): boolean;
+  /**
+   * clear is called to clear the current state of the player. This is called when seeking to a time before the
+   * current time, to reset the state of the player before receiving the state of the screen.
+   */
   abstract clear(): void;
 
+  /**
+   * applyEvent is called to apply a single event to the player, at the correct moment in time.
+   * This is typically used for events that change the state of the player, such as print or resize.
+   *
+   * @param event The event to apply.
+   *
+   * @returns void
+   */
+  abstract applyEvent(event: TEvent): void;
+
+  /**
+   * handleEvent is called to handle an event that needs to be handled as soon as it is received from
+   * the stream, regardless of the current playback time. Typically this would be for receiving the
+   * full state of the screen.
+   *
+   * @param event The event to handle.
+   *
+   * @returns true if the event was handled (and therefore should not be added to the stream buffer), false otherwise.
+   */
+  abstract handleHandle(event: TEvent): boolean;
+
+  // fit is called to resize the player to fit its container. This is typically player specific.
   fit(): void {}
 
+  // Event hooks for subclasses to optionally implement.
   onPlay(): void {}
   onPause(): void {}
   // eslint-disable-next-line unused-imports/no-unused-vars
