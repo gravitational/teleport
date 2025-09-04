@@ -7,9 +7,24 @@ labels:
   - data-protection
 ---
 
+This guide explains how to rotate encryption keys for session recordings.
+
+For instructions on using the automatic approach, see [Rotating Session
+Recording Encryption Keys](rotating-keys.mdx).
+
+## How it works
+
+In the manual approach to session recording key management, a user provides the
+Auth Service with the types and labels of keys used to encrypt Teleport session
+recordings. In this way, the user has control over the keys the Auth Service
+uses to encrypt session recordings, as well as rotated keys that the Auth
+Service no longer uses for encryption, but that are available for decrypting
+stored session recordings.
+
 ## Prerequisites
 
-- (!docs/pages/enroll-resources/server-access/guides/encrypted-session-recordings/encrypted-session-recordings.mdx!)
+This guide assumes that you have followed the setup instructions in [Encrypted
+Session Recordings](encrypted-session-recordings.mdx).
 
 Although Manual Key Management leaves key rotation entirely up to the
 administrator, the `manual_key_management` configuration can be leveraged to help facilitate rotations.
