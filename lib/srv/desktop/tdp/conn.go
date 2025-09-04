@@ -308,7 +308,7 @@ func (c *ConnProxy) Run() error {
 			defer func() {
 				// Call close on the other side of the connection.
 				// This should wake them up.
-				*e = errors.Join(*e, c.client.Close())
+				*e = errors.Join(*e, dst.Close())
 			}()
 			// Copy from server to client
 			*e = messageCopy(dst, src)
