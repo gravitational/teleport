@@ -183,6 +183,9 @@ type Server struct {
 	// btmpPath is the path to the user accounting failed login log.
 	btmpPath string
 
+	// wtmpdbPath is the path to the wtmpdb database file.
+	wtmpdbPath string
+
 	// allowTCPForwarding indicates whether the ssh server is allowed to offer
 	// TCP port forwarding.
 	allowTCPForwarding bool
@@ -275,8 +278,8 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 }
 
 // GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp paths.
-func (s *Server) GetUserAccountingPaths() (string, string, string) {
-	return s.utmpPath, s.wtmpPath, s.btmpPath
+func (s *Server) GetUserAccountingPaths() (utmp string, wtmp string, btmp string, wtmpdb string) {
+	return s.utmpPath, s.wtmpPath, s.btmpPath, s.wtmpdbPath
 }
 
 // GetPAM returns the PAM configuration for this server.
@@ -440,11 +443,12 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 // SetUserAccountingPaths is a functional server option to override the user accounting database and log path.
-func SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath string) ServerOption {
+func SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath, wtmpdbPath string) ServerOption {
 	return func(s *Server) error {
 		s.utmpPath = utmpPath
 		s.wtmpPath = wtmpPath
 		s.btmpPath = btmpPath
+		s.wtmpdbPath = wtmpdbPath
 		return nil
 	}
 }

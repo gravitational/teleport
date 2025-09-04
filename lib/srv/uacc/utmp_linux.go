@@ -27,7 +27,8 @@ package uacc
 import "C"
 
 import (
-	"os"
+	"encoding/binary"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -56,49 +57,81 @@ const uaccPathErrMaxLength = 4096
 // In the meantime, we just try to resolve from these paths instead.
 
 const (
-	utmpFilePath = "/var/run/utmp"
-	wtmpFilePath = "/var/log/wtmp"
+	defaultUtmpFilePath = "/var/run/utmp"
+	defaultWtmpFilePath = "/var/log/wtmp"
 	// wtmpAltFilePath exists only because on some system the path is different.
 	// It's being used when the wtmp path is not provided and the wtmpFilePath doesn't exist.
-	wtmpAltFilePath = "/var/run/wtmp"
-	btmpFilePath    = "/var/log/btmp"
+	wtmpAltFilePath     = "/var/run/wtmp"
+	defaultBtmpFilePath = "/var/log/btmp"
+
+	// utmpx equivalents of the above paths.
+	defaultUtmpxFilePath = "/var/run/utmpx"
+	defaultWtmpxFilePath = "/var/log/wtmpx"
+	wtmpxAltFilePath     = "/var/run/wtmpx"
+	defaultBtmpxFilePath = "/var/log/btmpx"
 )
 
-// Open writes a new entry to the utmp database with a tag of `USER_PROCESS`.
-// This should be called when an interactive session is started.
-//
-// `username`: Name of the user the interactive session is running under.
-// `hostname`: Name of the system the user is logged into.
-// `remote`: IPv6 address of the remote host.
-// `tty`: Pointer to the tty stream
-func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
-	ttyName, err := os.Readlink(tty.Name())
-	if err != nil {
-		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
-	}
+// UtmpBackend handles user accounting with a utmp(x) system.
+type UtmpBackend struct {
+	utmpPath string
+	wtmpPath string
+	btmpPath string
+}
 
+func getTargetFile(candidates ...string) (string, error) {
+	for _, candidate := range candidates {
+		if utils.FileExists(candidate) {
+			return candidate, nil
+		}
+	}
+	return "", trace.BadParameter("no target files exist")
+}
+
+// NewUtmpBackend creates a new utmp(x) backend.
+func NewUtmpBackend(utmpFile, wtmpFile, btmpFile string) (*UtmpBackend, error) {
+	utmp, err := getTargetFile(utmpFile, defaultUtmpxFilePath, defaultUtmpFilePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	wtmp, err := getTargetFile(wtmpFile, defaultWtmpxFilePath, wtmpxAltFilePath, defaultWtmpFilePath, wtmpAltFilePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	btmp, err := getTargetFile(btmpFile, defaultBtmpxFilePath, defaultBtmpFilePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &UtmpBackend{
+		utmpPath: utmp,
+		wtmpPath: wtmp,
+		btmpPath: btmp,
+	}, nil
+}
+
+// Login creates a new session entry for the given user.
+func (u *UtmpBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) error {
 	// String parameter validation.
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
 	}
-	if len(hostname) > hostMaxLen {
+	addr := utils.FromAddr(remote)
+	if len(addr.Host()) > hostMaxLen {
 		return trace.BadParameter("hostname length exceeds OS limits")
 	}
 	if len(ttyName) > (int)(C.max_len_tty_name()-1) {
 		return trace.BadParameter("tty name length exceeds OS limits")
 	}
 
-	utmpPath, wtmpPath = getDefaultPaths(utmpPath, wtmpPath)
 	// Convert Go strings into C strings that we can pass over ffi.
-	cUtmpPath := C.CString(utmpPath)
+	cUtmpPath := C.CString(u.utmpPath)
 	defer C.free(unsafe.Pointer(cUtmpPath))
 
-	cWtmpPath := C.CString(wtmpPath)
+	cWtmpPath := C.CString(u.wtmpPath)
 	defer C.free(unsafe.Pointer(cWtmpPath))
 
 	cUsername := C.CString(username)
 	defer C.free(unsafe.Pointer(cUsername))
-	cHostname := C.CString(hostname)
+	cHostname := C.CString(addr.Host())
 	defer C.free(unsafe.Pointer(cHostname))
 	cTtyName := C.CString(strings.TrimPrefix(ttyName, "/dev/"))
 	defer C.free(unsafe.Pointer(cTtyName))
@@ -106,8 +139,12 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	defer C.free(unsafe.Pointer(cIDName))
 
 	// Convert IPv6 array into C integer format.
-	cIP := convertIPToC(remote)
-	secondsElapsed, microsFraction := cTimestamp()
+	remoteIP, err := prepareAddr(remote)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cIP := convertIPToC(remoteIP)
+	secondsElapsed, microsFraction := cTimestamp(ts)
 
 	accountDb.Lock()
 	defer accountDb.Unlock()
@@ -130,35 +167,22 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	}
 }
 
-// Close marks an entry in the utmp database as DEAD_PROCESS.
-// This should be called when an interactive session exits.
-//
-// The `ttyName` parameter must be the name of the TTY including the `/dev/` prefix.
-func Close(utmpPath, wtmpPath string, tty *os.File) error {
-	ttyName, err := os.Readlink(tty.Name())
-	if err != nil {
-		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
-	}
-
+// Logout marks the user corresponding to the given tty name as logged out.
+func (u *UtmpBackend) Logout(ttyName string, ts time.Time) error {
 	// String parameter validation.
 	if len(ttyName) > (int)(C.max_len_tty_name()-1) {
 		return trace.BadParameter("tty name length exceeds OS limits")
 	}
 
-	utmpPath, wtmpPath = getDefaultPaths(utmpPath, wtmpPath)
-
 	// Convert Go strings into C strings that we can pass over ffi.
-	cUtmpPath := C.CString(utmpPath)
+	cUtmpPath := C.CString(u.utmpPath)
 	defer C.free(unsafe.Pointer(cUtmpPath))
-	cWtmpPath := C.CString(wtmpPath)
+	cWtmpPath := C.CString(u.wtmpPath)
 	defer C.free(unsafe.Pointer(cWtmpPath))
 
 	cTtyName := C.CString(strings.TrimPrefix(ttyName, "/dev/"))
 	defer C.free(unsafe.Pointer(cTtyName))
-
-	timestamp := time.Now()
-	secondsElapsed := (C.int32_t)(timestamp.Unix())
-	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
+	secondsElapsed, microsFraction := cTimestamp(ts)
 
 	accountDb.Lock()
 	defer accountDb.Unlock()
@@ -183,97 +207,33 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	}
 }
 
-// getDefaultPaths sets the default paths for utmp and wtmp files if passed empty.
-// This function always returns both paths, even if they don't exist in the system.
-func getDefaultPaths(utmpPath, wtmpPath string) (string, string) {
-	if utmpPath == "" {
-		utmpPath = utmpFilePath
-	}
-
-	if wtmpPath == "" {
-		// Check where wtmp is located.
-		if utils.FileExists(wtmpFilePath) {
-			wtmpPath = wtmpFilePath
-		} else {
-			wtmpPath = wtmpAltFilePath
-		}
-	}
-
-	return utmpPath, wtmpPath
-}
-
-// getDefaultBtmpPaths sets the default paths for the btmp file if passed empty.
-// This function always returns a path, even if it doesn't exist in the system.
-func getDefaultBtmpPath(btmpPath string) string {
-	if btmpPath == "" {
-		return btmpFilePath
-	}
-	return btmpPath
-}
-
-// UserWithPtyInDatabase checks the user accounting database for the existence of an USER_PROCESS entry with the given username.
-func UserWithPtyInDatabase(utmpPath string, username string) error {
-	if len(username) > userMaxLen {
-		return trace.BadParameter("username length exceeds OS limits")
-	}
-
-	// Convert Go strings into C strings that we can pass over ffi.
-	var cUtmpPath *C.char
-	if len(utmpPath) > 0 {
-		cUtmpPath = C.CString(utmpPath)
-		defer C.free(unsafe.Pointer(cUtmpPath))
-	}
-	cUsername := C.CString(username)
-	defer C.free(unsafe.Pointer(cUsername))
-
-	accountDb.Lock()
-	defer accountDb.Unlock()
-	var uaccPathErr [uaccPathErrMaxLength]C.char
-	status, errno := C.uacc_has_entry_with_user(cUtmpPath, cUsername, &uaccPathErr[0])
-
-	switch status {
-	case C.UACC_UTMP_FAILED_OPEN:
-		return trace.AccessDenied("failed to open user account database, code: %d", errno)
-	case C.UACC_UTMP_ENTRY_DOES_NOT_EXIST:
-		return trace.NotFound("user not found")
-	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
-		return trace.BadParameter("failed to select file")
-	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
-		return trace.NotFound("user accounting files are missing from the system, running in a container?")
-	default:
-		return decodeUnknownError(int(status), uaccPathErr)
-	}
-}
-
-// LogFailedLogin writes a new entry to the btmp failed login log.
-// This should be called when an interactive session fails due to a missing
-// local user.
-//
-// `username`: Name of the user the interactive session is running under.
-// `hostname`: Name of the system the user is logged into.
-// `remote`: IPv6 address of the remote host.
-func LogFailedLogin(btmpPath, username, hostname string, remote [4]int32) error {
+// FailedLogin logs a failed login attempt.
+func (u *UtmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time) error {
 	// String parameter validation.
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
 	}
-	if len(hostname) > hostMaxLen {
+	addr := utils.FromAddr(remote)
+	if len(addr.Host()) > hostMaxLen {
 		return trace.BadParameter("hostname length exceeds OS limits")
 	}
 
-	btmpPath = getDefaultBtmpPath(btmpPath)
 	// Convert Go strings into C strings that we can pass over ffi.
-	cBtmpPath := C.CString(btmpPath)
+	cBtmpPath := C.CString(u.btmpPath)
 	defer C.free(unsafe.Pointer(cBtmpPath))
 	cUsername := C.CString(username)
 	defer C.free(unsafe.Pointer(cUsername))
-	cHostname := C.CString(hostname)
+	cHostname := C.CString(addr.Host())
 	defer C.free(unsafe.Pointer(cHostname))
 
 	// Convert IPv6 array into C integer format.
-	cIP := convertIPToC(remote)
+	remoteIP, err := prepareAddr(remote)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cIP := convertIPToC(remoteIP)
 
-	secondsElapsed, microsFraction := cTimestamp()
+	secondsElapsed, microsFraction := cTimestamp(ts)
 
 	accountDb.Lock()
 	defer accountDb.Unlock()
@@ -295,18 +255,74 @@ func LogFailedLogin(btmpPath, username, hostname string, remote [4]int32) error 
 	}
 }
 
+// IsUserInFile checks if the given user has been logged in a specific file.
+func (u *UtmpBackend) IsUserInFile(utmpFile string, username string) (bool, error) {
+	if len(username) > userMaxLen {
+		return false, trace.BadParameter("username length exceeds OS limits")
+	}
+
+	// Convert Go strings into C strings that we can pass over ffi.
+	var cUtmpPath *C.char
+	if len(utmpFile) > 0 {
+		cUtmpPath = C.CString(utmpFile)
+		defer C.free(unsafe.Pointer(cUtmpPath))
+	}
+	cUsername := C.CString(username)
+	defer C.free(unsafe.Pointer(cUsername))
+
+	accountDb.Lock()
+	defer accountDb.Unlock()
+	var uaccPathErr [uaccPathErrMaxLength]C.char
+	status, errno := C.uacc_has_entry_with_user(cUtmpPath, cUsername, &uaccPathErr[0])
+
+	switch status {
+	case C.UACC_UTMP_FAILED_OPEN:
+		return false, trace.AccessDenied("failed to open user account database, code: %d", errno)
+	case C.UACC_UTMP_ENTRY_DOES_NOT_EXIST:
+		return false, nil
+	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
+		return false, trace.BadParameter("failed to select file")
+	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
+		return false, trace.NotFound("user accounting files are missing from the system, running in a container?")
+	default:
+		return status == 0, decodeUnknownError(int(status), uaccPathErr)
+	}
+}
+
 func convertIPToC(remote [4]int32) [4]C.int32_t {
 	var cIP [4]C.int32_t
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		cIP[i] = (C.int32_t)(remote[i])
 	}
 	return cIP
 }
 
-func cTimestamp() (C.int32_t, C.int32_t) {
-	timestamp := time.Now()
-	secondsElapsed := (C.int32_t)(timestamp.Unix())
-	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
+// prepareAddr parses and transforms a net.Addr into a format usable by other uacc functions.
+func prepareAddr(addr net.Addr) ([4]int32, error) {
+	stringIP, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return [4]int32{}, trace.Wrap(err)
+	}
+	ip := net.ParseIP(stringIP)
+	rawV6 := ip.To16()
+
+	// this case can occur if the net.Addr isn't in an expected IP format, in that case, ignore it
+	// we have to guard against this because the net.Addr internal format is implementation specific
+	if rawV6 == nil {
+		return [4]int32{}, nil
+	}
+
+	groupedV6 := [4]int32{}
+	for i := range groupedV6 {
+		// some bit magic to convert the byte array into 4 32 bit integers
+		groupedV6[i] = int32(binary.LittleEndian.Uint32(rawV6[i*4 : (i+1)*4]))
+	}
+	return groupedV6, nil
+}
+
+func cTimestamp(ts time.Time) (C.int32_t, C.int32_t) {
+	secondsElapsed := (C.int32_t)(ts.Unix())
+	microsFraction := (C.int32_t)((ts.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
 	return secondsElapsed, microsFraction
 }
 
