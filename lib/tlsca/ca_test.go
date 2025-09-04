@@ -230,6 +230,7 @@ func TestKubeExtensions(t *testing.T) {
 		KubernetesUsers:   []string{"IAM#alice@example.com"},
 		KubernetesCluster: "kube-cluster",
 		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
 		RouteToDatabase: RouteToDatabase{
 			ServiceName: "postgres-rds",
 			Protocol:    "postgres",
@@ -269,11 +270,12 @@ func TestDatabaseExtensions(t *testing.T) {
 
 	expires := clock.Now().Add(time.Hour)
 	identity := Identity{
-		Username:        "alice@example.com",
-		Groups:          []string{"admin"},
-		Impersonator:    "bob@example.com",
-		Usage:           []string{teleport.UsageDatabaseOnly},
-		TeleportCluster: "tele-cluster",
+		Username:          "alice@example.com",
+		Groups:            []string{"admin"},
+		Impersonator:      "bob@example.com",
+		Usage:             []string{teleport.UsageDatabaseOnly},
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
 		RouteToDatabase: RouteToDatabase{
 			ServiceName: "postgres-rds",
 			Protocol:    "postgres",
@@ -325,8 +327,9 @@ func TestAzureExtensions(t *testing.T) {
 			Name:          "azure-app",
 			AzureIdentity: "azure-identity-3",
 		},
-		TeleportCluster: "tele-cluster",
-		Expires:         expires,
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		Expires:           expires,
 	}
 
 	subj, err := identity.Subject()
@@ -466,8 +469,9 @@ func TestGCPExtensions(t *testing.T) {
 			Name:              "GCP-app",
 			GCPServiceAccount: "acct-3@example-123456.iam.gserviceaccount.com",
 		},
-		TeleportCluster: "tele-cluster",
-		Expires:         expires,
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		Expires:           expires,
 	}
 
 	subj, err := identity.Subject()
