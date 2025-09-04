@@ -2,6 +2,44 @@
 
 ## 18.2.0 (09/04/25)
 
+### Encrypted session recordings
+
+Teleport now provides the ability to integrate with Hardware Security Modules (HSMs) in order to encrypt session recordings prior to uploading them to storage.
+
+### AI session summaries
+
+Teleport Identity Security users are now able to view AI-generated summaries for SSH, Kubernetes and database sessions.
+
+### Updated session recordings page
+
+Session recordings page in Teleport web UI are now updated with a new design that will include session thumbnails and ability to view session summaries for Identity Security users.
+
+### Teleport Connect Managed Updates
+
+Teleport Connect is now able to detect when application updates are available and automatically apply them on the next restart.
+
+### Teleport Device Trust Intune Support
+
+Teleport now includes a new hosted plugin for Microsoft's Intune suite, allowing trusted devices to be synchronized from the Intune inventory.
+
+### Terraform support for Access List members
+
+Users are now able to provision Access Lists and their members (including other nested Access Lists) with terraform.
+
+### Long-term access requests UX
+
+Teleport access requests creation dialog in web UI now better differentiate between short and long-term access requests.
+
+### Database web terminal for MySQL
+
+Teleport web UI now provides terminal interface for MySQL database access.
+
+### Database access for AlloyDB
+
+Teleport now supports database access for GCP AlloyDB databases.
+
+### Other changes and improvements
+
 * Improved observability by adding health check metrics for healthy, unhealthy, and unknown states. Database health checks can now be monitored with these metrics. [#58708](https://github.com/gravitational/teleport/pull/58708)
 * New session recordings now display an interactive timeline for faster navigation. [#58671](https://github.com/gravitational/teleport/pull/58671)
 * Removed AccessList review notification check from tsh login/status flow. [#58662](https://github.com/gravitational/teleport/pull/58662)
