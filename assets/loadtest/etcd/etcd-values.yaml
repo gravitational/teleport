@@ -1,6 +1,6 @@
 persistence:
   enabled: true
-  storageClass: "gp2"
+  storageClass: "io2"
   accessModes:
     - ReadWriteOnce
   size: 64Gi # twice the quota
