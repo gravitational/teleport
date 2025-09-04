@@ -93,7 +93,7 @@ The configuration tab show the _effective_ `tbot` configuration as readonly yaml
 
 ### tctl bots instances ls --search [term] --query [tql]
 
-The list bot instances command will include extra information about each instance; version, health status and notices count. A search term or advanced query can be used to filter the results - in this case a filter summary is included below the results confirming the applied filter and giving a result count. The data is not paginated and all instances are returned and displayed.
+The list bot instances command will include extra information about each instance; version, health status and notices count. A search term (`--search` flag) or advanced query (`--query` flag) can be used to filter the results. All instances are displayed, by fetching all available pages.
 
 ```diff
 - ID                                         Join Method Hostname      Joined               Last Seen            Generation
@@ -103,11 +103,6 @@ The list bot instances command will include extra information about each instanc
 + ID                                         Join Method Version Hostname      Status    Notices Last Seen
 + ------------------------------------------ ----------- ------- ------------- --------- ------- --------------------
 + bot-1/d83b381d-b46c-4b92-a899-755991a6d0f5 iam         v18.2.1 ip-10-0-15-34 UNHEALTHY 6       2025-09-01T12:49:26Z
-+
-+ Filter:
-+ Search text: "ip-10-0-15"
-+ Query: older_than(version, "18.0.0")
-+ Results: 128
 +
 To view more information on a particular instance, run:
 
