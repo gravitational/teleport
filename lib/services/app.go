@@ -76,6 +76,11 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		}
 
 		for _, proxyServer := range proxyServers {
+			// If the proxy server's public address is not set, skip it and validate the next one.
+			if proxyServer.GetPublicAddr() == "" {
+				continue
+			}
+
 			proxyAddr, err := utils.ParseAddr(proxyServer.GetPublicAddr())
 			if err != nil {
 				return trace.Wrap(err)
