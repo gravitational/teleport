@@ -92,15 +92,15 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	proxyPublicAddrs := make([]string, 0, len(h.c.ProxyPublicAddrs))
 
 	for _, proxyAddr := range h.c.ProxyPublicAddrs {
-		const errMsg = "Application public address conflicts with the Teleport Proxy public address. " +
-			"Configure the application to use a unique public address that does not match the proxy's public addresses. " +
-			"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
-
-		// Log the error to warn admins 🚩
-		h.logger.ErrorContext(r.Context(), errMsg, "launcher_params", p)
-
-		// Immediately return an error since this is a critical misconfiguration 🛑
 		if p.publicAddr == proxyAddr.Host() {
+			const errMsg = "Application public address conflicts with the Teleport Proxy public address. " +
+				"Configure the application to use a unique public address that does not match the proxy's public addresses. " +
+				"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
+
+			// Log the error to warn admins 🚩
+			h.logger.ErrorContext(r.Context(), errMsg, "launcher_params", p)
+
+			// Immediately return an error since this is a critical misconfiguration 🛑
 			return trace.BadParameter(errMsg)
 		}
 
