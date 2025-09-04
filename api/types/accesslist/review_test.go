@@ -21,9 +21,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
 
 func TestReviewSpecMarshaling(t *testing.T) {
@@ -121,4 +123,13 @@ func TestReviewSpecUnmarshaling(t *testing.T) {
 	require.Equal(t, time.Date(2023, 01, 01, 0, 0, 0, 0, time.UTC), reviewSpec.ReviewDate)
 	require.Equal(t, OneMonth, reviewSpec.Changes.ReviewFrequencyChanged)
 	require.Equal(t, FirstDayOfMonth, reviewSpec.Changes.ReviewDayOfMonthChanged)
+}
+
+func TestReviewClone(t *testing.T) {
+	item := &Review{}
+	err := structfill.Fill(item)
+	require.NoError(t, err)
+	cpy := item.Clone()
+	require.Empty(t, cmp.Diff(item, cpy))
+	require.NotSame(t, item, cpy)
 }

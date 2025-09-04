@@ -20,6 +20,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -27,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // Review is an access list review resource.
@@ -37,6 +37,17 @@ type Review struct {
 
 	// Spec is the specification for the access list review.
 	Spec ReviewSpec `json:"spec" yaml:"spec"`
+}
+
+// Clone returns a copy of the review.
+func (a *Review) Clone() *Review {
+	if a == nil {
+		return nil
+	}
+	return &Review{
+		ResourceHeader: *a.ResourceHeader.Clone(),
+		Spec:           a.Spec.Clone(),
+	}
 }
 
 // ReviewSpec describes the specification of a review of an access list.
@@ -58,6 +69,20 @@ type ReviewSpec struct {
 	Changes ReviewChanges `json:"changes" yaml:"changes"`
 }
 
+// Clone returns a copy of the review spec.
+func (r *ReviewSpec) Clone() ReviewSpec {
+	if r == nil {
+		return ReviewSpec{}
+	}
+	return ReviewSpec{
+		AccessList: r.AccessList,
+		Reviewers:  slices.Clone(r.Reviewers),
+		ReviewDate: r.ReviewDate,
+		Notes:      r.Notes,
+		Changes:    r.Changes.Clone(),
+	}
+}
+
 // ReviewChanges are the changes that were made as part of the review.
 type ReviewChanges struct {
 	// MembershipRequirementsChanged is populated if the requirements were changed as part of this review.
@@ -71,6 +96,20 @@ type ReviewChanges struct {
 
 	// ReviewDayOfMonthChanged is populated if the review day of month has changed.
 	ReviewDayOfMonthChanged ReviewDayOfMonth `json:"review_day_of_month_changed" yaml:"review_day_of_month_changed"`
+}
+
+func (r *ReviewChanges) Clone() ReviewChanges {
+	if r == nil {
+		return ReviewChanges{}
+	}
+	m := r.MembershipRequirementsChanged.Clone()
+	out := ReviewChanges{
+		RemovedMembers:                slices.Clone(r.RemovedMembers),
+		ReviewFrequencyChanged:        r.ReviewFrequencyChanged,
+		ReviewDayOfMonthChanged:       r.ReviewDayOfMonthChanged,
+		MembershipRequirementsChanged: &m,
+	}
+	return out
 }
 
 // NewReview will create a new access list review.
@@ -115,13 +154,6 @@ func (r *Review) CheckAndSetDefaults() error {
 // and should be removed when possible.
 func (r *Review) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(r.Metadata)
-}
-
-// Clone returns a copy of the review.
-func (a *Review) Clone() *Review {
-	var copy *Review
-	utils.StrictObjectToStruct(a, &copy)
-	return copy
 }
 
 func (r *ReviewSpec) UnmarshalJSON(data []byte) error {
