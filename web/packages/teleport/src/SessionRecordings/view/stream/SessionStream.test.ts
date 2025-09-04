@@ -18,7 +18,6 @@
 
 import { EventEmitter } from 'events';
 
-import { Player } from 'teleport/SessionRecordings/view/SshRecordingPlayer/Player';
 import {
   PlayerState,
   SessionStream,
@@ -27,6 +26,8 @@ import {
   ResponseType,
   type BaseEvent,
 } from 'teleport/SessionRecordings/view/stream/types';
+
+import { Player } from '../player/Player';
 
 function setup() {
   const ws = new MockWebSocket();
@@ -378,11 +379,11 @@ class MockPlayer extends Player<MockEvent> {
     this.destroyed = true;
   }
 
-  apply(event: MockEvent): void {
+  applyEvent(event: MockEvent): void {
     this.events.push(event);
   }
 
-  handle(event: MockEvent): boolean {
+  handleEvent(event: MockEvent): boolean {
     this.handleCalled = true;
 
     return event.type === MockEventType.End;
