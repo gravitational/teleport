@@ -145,7 +145,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	}
 
 	serverConn := tdp.NewConn(conn)
-	intercept := func(message tdp.Message) (tdp.Message, error) {
+	tdpConnProxy := tdp.NewConnProxy(tdp.NewConn(downstreamRW), tdp.NewReadWriteInterceptor(serverConn, func(message tdp.Message) (tdp.Message, error) {
 		msg, intErr := fsHandle.process(message, func(message tdp.Message) error {
 			return trace.Wrap(serverConn.WriteMessage(message))
 		})
@@ -157,9 +157,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 			}, nil
 		}
 		return msg, nil
-	}
-
-	tdpConnProxy := tdp.NewConnProxy(tdp.NewConn(downstreamRW), tdp.NewReadWriteInterceptor(serverConn, intercept, nil))
+	}, nil))
 
 	return trace.Wrap(tdpConnProxy.Run())
 }

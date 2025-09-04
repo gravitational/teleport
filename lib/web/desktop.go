@@ -549,7 +549,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 	}
 
 	pings := make(chan tdp.Ping)
-	f := func(msg tdp.Message) (tdp.Message, error) {
+	serverReadInterceptor := func(msg tdp.Message) (tdp.Message, error) {
 		if ping, ok := msg.(tdp.Ping); ok {
 			if !latencySupported {
 				return nil, trace.BadParameter("received unexpected Ping message from server (this is a bug)")
@@ -565,9 +565,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 	clientConn := tdp.NewConn(&WebsocketIO{Conn: ws})
 	serverConn := tdp.NewConn(wds)
-
-	interceptedServerConn := tdp.NewReadWriteInterceptor(serverConn, f, nil)
-	proxy := tdp.NewConnProxy(clientConn, interceptedServerConn)
+	proxy := tdp.NewConnProxy(clientConn, tdp.NewReadWriteInterceptor(serverConn, serverReadInterceptor, nil))
 	if latencySupported {
 		pinger := desktopPinger{
 			server: serverConn,
