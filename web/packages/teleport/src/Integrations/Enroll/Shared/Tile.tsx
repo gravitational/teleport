@@ -69,26 +69,19 @@ export function IntegrationTileWithSpec({
     return hasIntegrationAccess;
   })();
 
-  const renderBadge = (() => {
-    if (spec.kind === IntegrationKind.ExternalAuditStorage) {
-      const externalAuditStorageEnabled =
-        cfg.entitlements.ExternalAuditStorage.enabled;
+  let Badge = undefined;
 
-      return () => {
-        return renderExternalAuditStorageBadge(
-          hasExternalAuditStorage,
-          externalAuditStorageEnabled
-        );
-      };
-    }
-    if (!hasIntegrationAccess) {
-      return () => {
-        return <GenericNoPermBadge noAccess={!hasIntegrationAccess} />;
-      };
-    }
+  if (spec.kind === IntegrationKind.ExternalAuditStorage) {
+    const externalAuditStorageEnabled =
+      cfg.entitlements.ExternalAuditStorage.enabled;
 
-    return undefined;
-  })();
+    Badge = renderExternalAuditStorageBadge(
+      hasExternalAuditStorage,
+      externalAuditStorageEnabled
+    );
+  } else if (!hasIntegrationAccess) {
+    Badge = <GenericNoPermBadge noAccess={!hasIntegrationAccess} />;
+  }
 
   const dataTestID = `tile-${spec.kind}`;
 
@@ -100,7 +93,7 @@ export function IntegrationTileWithSpec({
       tags={spec.tags}
       icon={spec.icon}
       description={spec.description}
-      renderBadge={renderBadge}
+      Badge={Badge}
       data-testid={dataTestID}
     />
   );
@@ -114,7 +107,7 @@ export function Tile({
   link,
   tags = [],
   enrolled = false,
-  renderBadge,
+  Badge,
   'data-testid': dataTestID,
 }: {
   title: string;
@@ -124,7 +117,7 @@ export function Tile({
   icon: ResourceIconName;
   link?: IntegrationLink;
   tags?: IntegrationTag[];
-  renderBadge?: () => ReactNode;
+  Badge?: ReactNode;
   'data-testid'?: string;
 }) {
   const nameForTag = (tag: IntegrationTag) => {
@@ -164,7 +157,7 @@ export function Tile({
       $enrolled={enrolled}
       {...tileProps}
     >
-      {renderBadge?.() ??
+      {Badge ||
         (link && !link.external ? (
           <BadgeGuided>Guided</BadgeGuided>
         ) : (
