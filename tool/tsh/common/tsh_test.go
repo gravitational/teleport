@@ -7775,10 +7775,10 @@ func TestParseCopySpec(t *testing.T) {
 				CopySpec: tc.copySpec,
 			}, &config)
 			tc.assertErr(t, err)
-			assert.Equal(t, tc.expectedSrcHost, config.SrcHost)
-			assert.Equal(t, tc.expectedSrcLogin, config.SrcLogin)
-			assert.Equal(t, tc.expectedDestHost, config.DstHost)
-			assert.Equal(t, tc.expectedDestLogin, config.DstLogin)
+			assert.Equal(t, tc.expectedSrcHost, config.SFTPSrcHost)
+			assert.Equal(t, tc.expectedSrcLogin, config.SFTPSrcLogin)
+			assert.Equal(t, tc.expectedDestHost, config.SFTPDestHost)
+			assert.Equal(t, tc.expectedDestLogin, config.SFTPDestLogin)
 		})
 	}
 }

@@ -202,7 +202,7 @@ func ParseSources(rawSources []string, port int) (Sources, error) {
 			return Sources{}, trace.Wrap(err)
 		}
 		if source.Login != sources.Login || source.GetAddr() != sources.GetAddr() {
-			return Sources{}, trace.BadParameter("multiple users/hosts not allowed")
+			return Sources{}, trace.BadParameter("sources must all have the same user and host")
 		}
 		sources.Paths = append(sources.Paths, source.Path)
 	}

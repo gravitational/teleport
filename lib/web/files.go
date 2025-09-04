@@ -216,6 +216,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 		return nil, trace.Wrap(err)
 	}
+
 	defer nodeClient.Close()
 
 	webTarget := sftp.Target{

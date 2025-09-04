@@ -202,17 +202,17 @@ type Config struct {
 	// Remote host to connect
 	Host string
 
-	// SrcHost is the remote host to connect to for sources in sftp.
-	SrcHost string
+	// SFTPSrcHost is the remote host to connect to for sftp sources.
+	SFTPSrcHost string
 
-	// SrcLogin is the remote login to use for sources in sftp.
-	SrcLogin string
+	// SFTPSrcLogin is the remote login to use for sftp sources.
+	SFTPSrcLogin string
 
-	// DstHost is the remote host to connect to for the destination in sftp.
-	DstHost string
+	// SFTPDestHost is the remote host to connect to for the sftp destination.
+	SFTPDestHost string
 
-	// DstLogin is the remote login to use for the destination in sftp.
-	DstLogin string
+	// SFTPDestLogin is the remote login to use for the sftp destination.
+	SFTPDestLogin string
 
 	// SearchKeywords host to connect
 	SearchKeywords []string
