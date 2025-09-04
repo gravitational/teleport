@@ -50,6 +50,7 @@ const ViewSummaryButton = styled.button<{ active: boolean }>`
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  color: ${p => p.theme.colors.text.main};
 
   &:hover {
     background: ${p => p.theme.colors.spotBackground[0]};
