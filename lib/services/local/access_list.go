@@ -174,16 +174,16 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 }
 
 // RangeAccessLists returns access list resources within the range [start, end).
-func (a *AccessListService) RangeAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) iter.Seq2[*accesslist.AccessList, error] {
+func (a *AccessListService) RangeAccessLists(ctx context.Context, start string, end string, req *accesslistv1.AccessListsFilter, sort *types.SortBy) iter.Seq2[*accesslist.AccessList, error] {
 	// Currently, the backend only sorts on lexicographical keys and not
 	// based on fields within a resource
-	if req.SortBy != nil && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc != false) {
+	if sort != nil && (sort.Field != "name" || sort.IsDesc != false) {
 		return func(yield func(*accesslist.AccessList, error) bool) {
-			yield(nil, trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc))
+			yield(nil, trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", sort.Field, sort.IsDesc))
 		}
 	}
 
-	nextKey, err := services.ParseAccessListNextKey(req.PageToken, req.GetSortBy().Field)
+	nextKey, err := services.ParseAccessListNextKey(start, sort.Field)
 	if err != nil {
 		return func(yield func(*accesslist.AccessList, error) bool) {
 			yield(nil, err)

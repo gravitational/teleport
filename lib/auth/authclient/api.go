@@ -1220,7 +1220,7 @@ type Cache interface {
 	// ListAccessListsV2 returns a paginated list of access lists.
 	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// RangeAccessLists returns access list resources within the range [start, end).
-	RangeAccessLists(context.Context, *accesslistv1.ListAccessListsV2Request) iter.Seq2[*accesslist.AccessList, error]
+	RangeAccessLists(context.Context, string, string, *accesslistv1.AccessListsFilter, *types.SortBy) iter.Seq2[*accesslist.AccessList, error]
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 

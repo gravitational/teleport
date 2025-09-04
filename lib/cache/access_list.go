@@ -114,7 +114,7 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 }
 
 // RangeAccessLists returns access list resources within the range [start, end).
-func (c *Cache) RangeAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) iter.Seq2[*accesslist.AccessList, error] {
+func (c *Cache) RangeAccessLists(ctx context.Context, start string, end string, filter *accesslistv1.AccessListsFilter, sort *types.SortBy) iter.Seq2[*accesslist.AccessList, error] {
 	return func(yield func(*accesslist.AccessList, error) bool) {
 		ctx, span := c.Tracer.Start(ctx, "cache/RangeAccessLists")
 		defer span.End()
@@ -126,15 +126,20 @@ func (c *Cache) RangeAccessLists(ctx context.Context, req *accesslistv1.ListAcce
 		}
 		defer rg.Release()
 
-		indexKey := req.GetSortBy().Field
-		nextKey, err := services.ParseAccessListNextKey(req.PageToken, indexKey)
+		indexKey := ""
+		isDesc := false
+		if sort != nil {
+			indexKey = sort.Field
+			isDesc = sort.IsDesc
+		}
+		nextKey, err := services.ParseAccessListNextKey(start, indexKey)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 		if rg.ReadCache() {
 			storeFn := rg.store.resources
-			if req.GetSortBy().IsDesc {
+			if isDesc {
 				storeFn = rg.store.resourcesDescend
 			}
 			for accessList := range storeFn(accessListIndex(indexKey), nextKey, "") {
@@ -147,7 +152,7 @@ func (c *Cache) RangeAccessLists(ctx context.Context, req *accesslistv1.ListAcce
 
 		rg.Release()
 
-		for accessList, err := range c.Config.AccessLists.RangeAccessLists(ctx, req) {
+		for accessList, err := range c.Config.AccessLists.RangeAccessLists(ctx, start, end, filter, sort) {
 			if err != nil {
 				yield(nil, err)
 				return

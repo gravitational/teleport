@@ -30,6 +30,7 @@ import (
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -47,7 +48,7 @@ type AccessListsGetter interface {
 	// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
 	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// RangeAccessLists returns a range of access list resources.
-	RangeAccessLists(context.Context, *accesslistv1.ListAccessListsV2Request) iter.Seq2[*accesslist.AccessList, error]
+	RangeAccessLists(context.Context, string, string, *accesslistv1.AccessListsFilter, *types.SortBy) iter.Seq2[*accesslist.AccessList, error]
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 	// GetAccessListsToReview returns access lists that the user needs to review.
