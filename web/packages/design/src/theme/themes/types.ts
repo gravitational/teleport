@@ -226,7 +226,6 @@ export type ThemeColors = {
     resource: string;
     user: string;
     player: {
-      background: string;
       progressBar: {
         background: string;
         seeking: string;
