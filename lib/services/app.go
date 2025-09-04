@@ -75,22 +75,13 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 			return trace.Wrap(err)
 		}
 
-		proxyAddrs := make([]string, 0, len(proxyServers))
 		for _, proxyServer := range proxyServers {
-			proxyAddrs = append(proxyAddrs, proxyServer.GetPublicAddr())
-		}
-
-		for _, proxyAddr := range proxyAddrs {
-			if proxyAddr == "" {
-				continue
-			}
-
-			proxyHost, err := utils.ParseAddr(proxyAddr)
+			proxyAddr, err := utils.ParseAddr(proxyServer.GetPublicAddr())
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			if app.GetPublicAddr() == proxyHost.Host() {
+			if app.GetPublicAddr() == proxyAddr.Host() {
 				return trace.BadParameter(
 					"Application %q public address %q conflicts with the Teleport Proxy public address. "+
 						"Contact your Teleport cluster administrator to configure the application to use a unique public address "+
