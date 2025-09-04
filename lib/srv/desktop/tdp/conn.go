@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 type MessageReader interface {
@@ -303,21 +304,21 @@ func NewConnProxy(client, server MessageReadWriteCloser) ConnProxy {
 // 'close' on both streams before exiting and returns any errors occurred from
 // reading, writing, or closing both streams.
 func (c *ConnProxy) Run() error {
-	var toClientErr error
-	var clientCloseErr error
-	wait := make(chan struct{})
-	go func() {
-		defer close(wait)
-		// Copy from server to client
-		toClientErr = messageCopy(c.client, c.server)
-		// Guaranteed to wake up the other goroutine
-		clientCloseErr = c.client.Close()
-	}()
-
-	// Copy from client to server
-	toServerErr := messageCopy(c.server, c.client)
-	// Guaranteed to wake up the other goroutine
-	serverCloseErr := c.server.Close()
-	<-wait
-	return errors.Join(toServerErr, toClientErr, serverCloseErr, clientCloseErr)
+	newCopyFunc := func(dst, src MessageReadWriteCloser) func() error {
+		return func() (err error) {
+			defer func() {
+				// Call close on the other side of the connection.
+				// This should wake them up.
+				err = errors.Join(err, c.client.Close())
+			}()
+			// Copy from server to client
+			err = messageCopy(dst, src)
+			return
+		}
+	}
+	g := new(errgroup.Group)
+	// Copy in both directions
+	g.Go(newCopyFunc(c.client, c.server))
+	g.Go(newCopyFunc(c.server, c.client))
+	return g.Wait()
 }
