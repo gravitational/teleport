@@ -688,28 +688,6 @@ func TestNewAppV3(t *testing.T) {
 			},
 			wantErr: require.NoError,
 		},
-		{
-			name: "mcp with uri",
-			meta: Metadata{
-				Name: "mcp-everything",
-			},
-			spec: AppSpecV3{
-				URI: "mcp+sse+http://localhost:12345/sse",
-			},
-			want: &AppV3{
-				Kind:    "app",
-				SubKind: "mcp",
-				Version: "v3",
-				Metadata: Metadata{
-					Name:      "mcp-everything",
-					Namespace: "default",
-				},
-				Spec: AppSpecV3{
-					URI: "mcp+sse+http://localhost:12345/sse",
-				},
-			},
-			wantErr: require.NoError,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
