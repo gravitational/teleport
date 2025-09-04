@@ -25,7 +25,7 @@ import {
   type SessionRecordingThumbnail,
 } from 'teleport/services/recordings';
 
-export interface MetadataHandlerOptions {
+interface MetadataHandlerOptions {
   shouldError?: boolean;
   errorMessage?: string;
 }
