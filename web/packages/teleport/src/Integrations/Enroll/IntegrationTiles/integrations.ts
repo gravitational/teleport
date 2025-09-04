@@ -60,8 +60,11 @@ const integrations: IntegrationTileSpec[] = [
   {
     type: 'integration',
     kind: IntegrationKind.AwsRa,
-    icon: 'aws',
+    description:
+      'Use AWS Roles Anywhere to provide AWS Console and CLI access.',
+    icon: 'awsidentityandaccessmanagementiam',
     name: 'AWS IAM Roles Anywhere',
+    tags: ['resourceaccess'],
   },
 ];
 
