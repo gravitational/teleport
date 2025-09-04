@@ -55,7 +55,7 @@ type GraphError struct {
 	// encountered while processing the request.
 	Details []GraphError `json:"details,omitempty"`
 	// StatusCode is the status code of the HTTP response that GraphError arrived with.
-	StatusCode int
+	StatusCode int `json:"-"`
 }
 
 func (g *GraphError) Error() string {
@@ -97,7 +97,7 @@ type AuthError struct {
 	// as to why a request have failed.
 	// https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes#aadsts-error-codes
 	DiagCodes  []int `json:"error_codes"`
-	StatusCode int
+	StatusCode int   `json:"-"`
 }
 
 func (a *AuthError) Error() string {
