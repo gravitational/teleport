@@ -26,24 +26,21 @@ import type { IRenderDimensions } from '@xterm/xterm/src/browser/renderer/shared
  * It applies CSS transforms to scale and center the terminal within its parent element.
  */
 export class AspectFitAddon implements ITerminalAddon {
-  private _terminal: Terminal | undefined;
+  private terminal: Terminal | undefined;
 
   public activate(terminal: Terminal): void {
-    this._terminal = terminal;
+    this.terminal = terminal;
   }
 
   public dispose(): void {}
 
   public fitWithAspectRatio(cols: number, rows: number): void {
-    if (
-      !this._terminal ||
-      !this._terminal.element ||
-      !this._terminal.element.parentElement
-    ) {
+    if (!this.terminal?.element?.parentElement) {
       return;
     }
 
-    const core = (this._terminal as any)._core;
+    // accessing the internals of xterm, this is how the fit addon does it
+    const core = (this.terminal as any)._core;
     const dims: IRenderDimensions = core._renderService.dimensions;
 
     if (dims.css.cell.width === 0 || dims.css.cell.height === 0) {
@@ -51,7 +48,7 @@ export class AspectFitAddon implements ITerminalAddon {
     }
 
     const parentElementStyle = window.getComputedStyle(
-      this._terminal.element.parentElement
+      this.terminal.element.parentElement
     );
     const parentElementHeight = parseInt(
       parentElementStyle.getPropertyValue('height')
@@ -64,9 +61,9 @@ export class AspectFitAddon implements ITerminalAddon {
     const availableHeight = parentElementHeight;
     const availableWidth = parentElementWidth;
 
-    if (this._terminal.rows !== rows || this._terminal.cols !== cols) {
+    if (this.terminal.rows !== rows || this.terminal.cols !== cols) {
       core._renderService.clear();
-      this._terminal.resize(cols, rows);
+      this.terminal.resize(cols, rows);
     }
 
     const requiredWidth = cols * dims.css.cell.width;
@@ -82,7 +79,7 @@ export class AspectFitAddon implements ITerminalAddon {
     const horizontalOffset = (availableWidth - scaledWidth) / 2;
     const verticalOffset = (availableHeight - scaledHeight) / 2;
 
-    const terminalElement = this._terminal.element;
+    const terminalElement = this.terminal.element;
 
     terminalElement.style.width = `${requiredWidth}px`;
     terminalElement.style.height = `${requiredHeight}px`;
