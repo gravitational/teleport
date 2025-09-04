@@ -57,27 +57,27 @@ func TestReplaceHTTPResponse(t *testing.T) {
 		mcpclienttransport.WithContinuousListening(),
 	)
 	require.NoError(t, err)
-	defer mcpClientTransport.Close()
-
-	// Listen for notifications.
-	require.NoError(t, mcpClientTransport.Start(ctx))
+	client := mcpclient.NewClient(mcpClientTransport)
+	require.NoError(t, client.Start(ctx))
 
 	// Initialize client and call a tool.
-	client := mcpclient.NewClient(mcpClientTransport)
 	_, err = mcptest.InitializeClient(ctx, client)
 	require.NoError(t, err)
 	mcptest.MustCallServerTool(t, ctx, client)
-	assert.Equal(t, httpClientTransport.countMCPResponse.Load(), uint32(2))
+	assert.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
 
 	// Send notifications from server. Notifications will be sent through SSE.
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assert.Greater(collect, httpClientTransport.getCountMethods()["GET"], 0)
+	}, 2*time.Second, 100*time.Millisecond, "client SSE connected")
 	mcpServer.SendNotificationToAllClients("notifications/test", nil)
 	mcpServer.SendNotificationToAllClients("notifications/test", nil)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assert.Equal(collect, httpClientTransport.countMCPNotification.Load(), uint32(2))
+		assert.Equal(collect, uint32(2), httpClientTransport.countMCPNotification.Load())
 	}, 2*time.Second, 100*time.Millisecond, "expected to receive notification")
 
 	// Close client and count the requests.
-	require.NoError(t, mcpClientTransport.Close())
+	require.NoError(t, client.Close())
 	require.Equal(t, map[string]int{
 		"GET":    1, // For listening on SSE events.
 		"POST":   3, // "initialize", "notifications/initialize", and "tools/call".
