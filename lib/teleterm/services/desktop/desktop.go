@@ -144,9 +144,10 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		directoryAccessProvider: s,
 	}
 
-	intercept := func(_ *tdp.Conn, message tdp.Message) (tdp.Message, error) {
+	serverConn := tdp.NewConn(conn)
+	intercept := func(message tdp.Message) (tdp.Message, error) {
 		msg, intErr := fsHandle.process(message, func(message tdp.Message) error {
-			return trace.Wrap(tdpConn.WriteMessage(message))
+			return trace.Wrap(serverConn.WriteMessage(message))
 		})
 		if intErr != nil {
 			// Treat all file system errors as warnings, do not interrupt the connection.
@@ -158,7 +159,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return msg, nil
 	}
 
-	tdpConnProxy := tdp.NewConnProxy2(tdp.NewConn(downstreamRW), tdp.NewConn(conn))
+	tdpConnProxy := tdp.NewConnProxy(tdp.NewConn(downstreamRW), tdp.NewReadWriteInterceptor(serverConn, intercept, nil))
 
 	return trace.Wrap(tdpConnProxy.Run())
 }
