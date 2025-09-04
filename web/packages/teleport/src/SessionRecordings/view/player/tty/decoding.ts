@@ -31,7 +31,7 @@ export function decodeTtyEvent(buffer: ArrayBuffer): TtyEvent {
   }
 
   const view = new DataView(buffer);
-  const eventType = view.getUint8(0) as EventType;
+  const eventType = view.getUint8(0);
   const timestamp = Number(view.getBigInt64(1));
   const dataLength = view.getUint32(9);
 
