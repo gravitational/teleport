@@ -98,7 +98,9 @@ function decodeSerializedTerminal(data: Uint8Array): SerializedTerminal {
   const cursorY = view.getUint32(12, false);
   const dataLength = view.getUint32(16, false);
 
-  if (data.length < responseHeaderSize + dataLength) {
+  const totalLength = responseHeaderSize + dataLength;
+
+  if (data.length < totalLength) {
     throw new Error('Incomplete serialized terminal data');
   }
 
@@ -106,7 +108,7 @@ function decodeSerializedTerminal(data: Uint8Array): SerializedTerminal {
     cols,
     cursorX,
     cursorY,
-    data: data.subarray(responseHeaderSize, responseHeaderSize + dataLength),
+    data: data.subarray(responseHeaderSize, totalLength),
     rows,
   };
 }

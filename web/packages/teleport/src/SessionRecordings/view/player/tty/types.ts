@@ -44,13 +44,6 @@ export interface SerializedTerminal {
 
 export interface SessionEndEvent extends BaseEvent<EventType.SessionEnd> {}
 
-export type TtyEvent =
-  | ResizeEvent
-  | ScreenEvent
-  | SessionEndEvent
-  | SessionPrintEvent
-  | SessionStartEvent;
-
 export interface SessionPrintEvent extends BaseEvent<EventType.SessionPrint> {
   data: Uint8Array;
 }
@@ -63,3 +56,10 @@ export interface TerminalSize {
   cols: number;
   rows: number;
 }
+
+export type TtyEvent =
+  | ResizeEvent
+  | ScreenEvent
+  | SessionEndEvent
+  | SessionPrintEvent
+  | SessionStartEvent;
