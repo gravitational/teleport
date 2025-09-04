@@ -128,20 +128,9 @@ func (a *AccessListMember) Clone() *AccessListMember {
 	if a == nil {
 		return nil
 	}
-	return &AccessListMember{
-		ResourceHeader: *a.ResourceHeader.Clone(),
-		Spec: AccessListMemberSpec{
-			AccessList:       a.Spec.AccessList,
-			Name:             a.Spec.Name,
-			Title:            a.Spec.Title,
-			Joined:           a.Spec.Joined,
-			Expires:          a.Spec.Expires,
-			Reason:           a.Spec.Reason,
-			AddedBy:          a.Spec.AddedBy,
-			IneligibleStatus: a.Spec.IneligibleStatus,
-			MembershipKind:   a.Spec.MembershipKind,
-		},
-	}
+	out := &AccessListMember{}
+	deriveDeepCopyAccessListMember(out, a)
+	return out
 }
 
 // IsExpired checks if the access list member is expired based on the current time.
