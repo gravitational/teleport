@@ -79,7 +79,7 @@ $ tctl create -f autoupdate_config.yaml
 Joining a Teleport cluster is the act of establishing trust between a new Teleport instance and all
 the existing instances already part of the Teleport cluster. At the end of the joining process,
 the Auth Service signs certificates for the joining instance. Those certificates represent the
-trust that was established. With them, the newly-joined instance can interact with the other Teleport instances.
+trust that was established.
 
 For bootstrapping EC2, the most appropriate methods are creating short-lived or long-lived tokens,
 or using delegated join with the IAM join method.
@@ -183,7 +183,7 @@ To do this, follow these steps:
 1. Create an IAM role with a trust policy that allows EC2 to assume it:
 
    ```code
-   aws iam create-role \
+   $ aws iam create-role \
      --role-name EC2TeleportRole \
      --assume-role-policy-document '{
        "Version": "2012-10-17",
@@ -200,26 +200,27 @@ To do this, follow these steps:
 1. Attach a permissions policy that allows reading only your secret (least privilege):
 
    ```code
-   aws iam put-role-policy \
+   $ ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+   $ aws iam put-role-policy \
      --role-name EC2TeleportRole \
      --policy-name TeleportSecretPolicy \
-     --policy-document '{
-       "Version": "2012-10-17",
-       "Statement": [
+     --policy-document "{
+       \"Version\": \"2012-10-17\",
+       \"Statement\": [
          {
-           "Effect": "Allow",
-           "Action": "secretsmanager:GetSecretValue",
-           "Resource": "arn:aws:secretsmanager:<Var name="us-west-2" />:<Var name="aws-account-id"></Var>:secret:teleport/join-token-*"
+           \"Effect\": \"Allow\",
+           \"Action\": \"secretsmanager:GetSecretValue\",
+           \"Resource\": \"arn:aws:secretsmanager:<Var name="us-west-2" />:${ACCOUNT_ID}\:secret\:<Var name="teleport/join-token" />-*\"
          }
        ]
-     }'
+     }"
    ```
 
 1. Create an EC2 instance profile to use the role:
 
    ```code
-   aws iam create-instance-profile --instance-profile-name EC2TeleportInstanceProfile
-   aws iam add-role-to-instance-profile \
+   $ aws iam create-instance-profile --instance-profile-name EC2TeleportInstanceProfile
+   $ aws iam add-role-to-instance-profile \
      --instance-profile-name EC2TeleportInstanceProfile \
      --role-name EC2TeleportRole
    ```
@@ -263,12 +264,12 @@ To do this, follow these steps:
 
    ```code
    # Specify the AMI image for the instance and a security group that allows at least outbound traffic.
-   aws ec2 run-instances \
+   $ aws ec2 run-instances \
      --image-id <Var name="ami-xxxx" /> \
      --instance-type t3.micro \
      --iam-instance-profile Name=EC2TeleportInstanceProfile \
      --security-group-ids <Var name="sg-xxxx" /> \
-     --region <Var name="us-west-2" />
+     --region <Var name="us-west-2" /> \
      --user-data file://cloud-init.yaml
    ```
 
