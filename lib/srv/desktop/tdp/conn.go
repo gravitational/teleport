@@ -271,7 +271,7 @@ func (i *readWriteInterceptor) Close() error {
 	return i.src.Close()
 }
 
-// Same semantics as io.Copy
+// Same semantics as io.Copy, but for Message instead of []byte
 func messageCopy(dest MessageWriter, src MessageReader) error {
 	var err error
 	var m Message
@@ -321,25 +321,22 @@ func NewConnProxy2(client, server MessageReadWriteCloser) ConnProxy2 {
 func (c *ConnProxy2) Run() error {
 	// Copy from server to client
 	var toClientErr error
+	var clientCloseErr error
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
 		toClientErr = messageCopy(c.client, c.server)
 		// Guaranteed to wake up the other goroutine
-		if err := c.client.Close(); err != nil {
-			slog.Error("error closing client connection", "error", trace.Wrap(err))
-		}
+		clientCloseErr = c.client.Close()
 	}()
 
 	// Copy from client to server
 	toServerErr := messageCopy(c.server, c.client)
 	// Guaranteed to wake up the other goroutine
-	if err := c.server.Close(); err != nil {
-		slog.Error("error closing server connection", "error", trace.Wrap(err))
-	}
+	serverCloseErr := c.server.Close()
 	<-wait
-	slog.Warn("exiting with errors", "toServerErr", toServerErr, "toClientErr", toClientErr)
-	return errors.Join(toServerErr, toClientErr)
+	slog.Warn("exiting with errors", "toServerErr", toServerErr, "toClientErr", toClientErr, "serverCloseErr", serverCloseErr, "clientCloseErr", clientCloseErr)
+	return errors.Join(toServerErr, toClientErr, serverCloseErr, clientCloseErr)
 }
 
 // Run starts proxying the connection.
