@@ -227,7 +227,7 @@ to use.
    Created session 0
 
    # Create an Authentication Key for Teleport
-   yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:sign-pss:sign-ecdsa:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep:sign-ecdsa
+   yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:sign-pss:sign-ecdsa:delete-asymmetric-key:decrypt-oaep sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep:sign-ecdsa
    Enter password:
    Stored Authentication key 0x85cf
 
