@@ -151,6 +151,15 @@ export default function Table<T>(props: TableProps<T>) {
       return <tbody>{rows}</tbody>;
     }
 
+    // if we provide infiniteScrollProps, we want to not render anything if
+    // the fetch status is loading. this is so that the existing items dont dissapear
+    // during the fetch, but also, we dont want the empty text to show while fetching
+    // and lastly, the infinite scroll page will usually provide its own loading
+    // indicator at the bottom of the component
+    if (props.infiniteScrollProps?.fetchStatus === 'loading') {
+      return <tbody></tbody>;
+    }
+
     return (
       <EmptyIndicator
         emptyText={emptyText}

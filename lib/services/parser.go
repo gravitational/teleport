@@ -167,14 +167,14 @@ func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
 			"contains":     predicate.Contains,
 			"contains_all": predicateContainsAll,
 			"contains_any": predicateContainsAny,
-			"set": func(a ...any) types.WhereExpr {
+			"set": func(a ...any) []string {
 				aVal := make([]string, 0, len(a))
 				for _, v := range a {
 					if str, ok := v.(string); ok {
 						aVal = append(aVal, str)
 					}
 				}
-				return types.WhereExpr{Literal: aVal}
+				return aVal
 			},
 			"all_end_with": predicateAllEndWith,
 			"all_equal":    predicateAllEqual,
@@ -477,7 +477,20 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 		case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.DatabaseSessionEnd:
 			session = ctx.Session
 		}
-		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
+		v, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
+		if trace.IsNotFound(origErr) {
+			// Special case: session is a special resource because
+			// it's backed by different object kinds (events.SessionEnd,
+			// events.WindowsDesktopSessionEnd, events.DatabaseSessionEnd)
+			// and these objects have different schemas, so it's possible that
+			// the parser can't find a field mentioned in the "where" clause.
+			// In this case, we try to find the field in all supported
+			// session end events and return the value if found.
+			if v, err := getMissingEmptyFieldForSessionEnd(fields); err == nil {
+				return v, nil
+			}
+		}
+		return v, trace.Wrap(origErr)
 	case SSHSessionIdentifier:
 		// Do not expose the original session.Session, instead transform it into a
 		// ctxSession so the exposed fields match our desired API.
@@ -515,6 +528,16 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
 	}
+}
+
+func getMissingEmptyFieldForSessionEnd(fields []string) (any, error) {
+	for _, emptySession := range []events.AuditEvent{&events.SessionEnd{}, &events.WindowsDesktopSessionEnd{}, &events.DatabaseSessionEnd{}} {
+		v, err := predicate.GetFieldByTag(emptySession, teleport.JSON, fields[1:])
+		if err == nil {
+			return v, nil
+		}
+	}
+	return nil, trace.NotFound("field %q is not found in any supported session end event", strings.Join(fields, "."))
 }
 
 // ctxSession represents the public contract of a session.Session, as exposed
