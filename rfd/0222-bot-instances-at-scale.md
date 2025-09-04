@@ -176,9 +176,9 @@ Instance-specific functions will be supported by implementing a custom `typical.
 
 ## Privacy and Security
 
-The proposed changes are mainly capturing extra data and presenting it in the web UI. As such, it is light on security and privacy concerns.
+The proposed changes are mainly capturing extra data and presenting it in the web UI and CLI. As such, it is light on security and privacy concerns.
 
-In order to allow instance config to be viewed without needing log in to the machine running `tbot` the complete configuration will be included in the start-up heartbeat and stored for the lifetime of the instance. Instead of capturing the config YAML verbatim, the _effective_ configuration will be used. This includes any environment variable and flag overrides. For security reasons, the join token will be omitted. For privacy reasons, any unrecognized values as well as comments will also be omitted. There may be other sensitive information such as service/output names, but these are only visible to authorised users.
+In order to allow instance config to be viewed, without needing to log in to the machine running `tbot`, the complete configuration will be included in the start-up heartbeat and stored for the lifetime of the instance. Instead of capturing the config YAML verbatim, the _effective_ configuration will be used. This includes any environment variable and flag overrides. For security reasons, the join token will be omitted. For privacy reasons, any unrecognized values as well as comments will also be omitted. There may be other sensitive information such as service/output names and filepaths, but these are only visible to logged-in, authorised users.
 
 ## Proto changes
 
@@ -369,7 +369,7 @@ enum BotInstanceHealthStatus {
 }
 ```
 
-### Data fields and expected quantities
+## Data fields and expected quantities
 
 | Field | Description | Example | Quantity | Limitations |
 | --- | --- | --- | --- | --- |
@@ -377,8 +377,9 @@ enum BotInstanceHealthStatus {
 | Bot instance | A unique joined instance of `tbot` in either a long-running or ephemeral environment |  | 1-300+ per bot |  |
 | Authentication record | Created for each join or renewal |  | 0-10 per instance (max enforced) |  |
 | Instance heartbeat | Self-reported by each bot instance |  | 0-10 per instance (max enforced) | Data is **not** validated by the auth server, and cannot be used for making access decisions. |
-| Service | An independent, internal part of `tbot`. Generally maps 1:1 with configured outputs/tunnels. | `application-tunnel`, `workload-identity-api` | 1-30+ per heartbeat |  |
-| Notice | An item created by `tbot` to capture an unusual event, configuration warning, or important status |  | 0-100+ per heartbeat |  |
+| config (tbot) | The effective `tbot` configuration |  | 1 per instance | `tbot` wont send config bigger than 1MiB |
+| Service | An independent, internal part of `tbot`. Generally maps 1:1 with configured outputs/tunnels. | `application-tunnel`, `workload-identity-api` | 1-30+ per instance |  |
+| Notice | An item created by `tbot` to capture an unusual event, configuration warning, or important status |  | 0-50 per instance (max enforced) |  |
 | OS | Operating system from `runtime.GOOS` | linux, windows or darwin | Once per heartbeat |  |
 | Version | Version of `tbot` | 18.1.0 | Once per heartbeat |  |
 | Hostname |  |  | Once per heartbeat |  |
@@ -389,6 +390,16 @@ enum BotInstanceHealthStatus {
 | Join attributes | Metadata specific to a join method | GitHub repository name | Once per auth |  |
 | Health status |  | INITIALIZING, HEALTHY, UNHEALTHY,
 UNKNOWN | Once per service |  |
+
+## Resource storage (backend)
+
+This proposal adds a number of extra data fields pertaining to bot instances; namely `tbot` configuration, service health, and notices. To avoid bloating instance records, some fields will be extracted (stored separately) while others will have hard limits. Any data extracted from an instance will match the instance's expiry. If an instance is deleted, its related records will also be removed.
+
+Configuration will be limited before it is sent by `tbot`. It will be stored as its own resource (`BotInstanceConfig`) in `/bot_instance/:bot_name/:uuid/tbot_config`. Only one config record is stored per bot instance, and its value is overwritten when new data arrives.
+
+Service health scales with the number of services/outputs `tbot` is configured with. It doesn't make sense to limit the number of service records, as this would no longer provide a complete picture of the instance. Service health items will be extracted to their own resources (`BotInstanceServiceHealth`) in `/bot_instance/:bot_name/:uuid/service_health/:service_name`. An instance can have any number of service records, but only one per user-provided service name. New data will overwrite existing data.
+
+Notices will be limited in number (likely 50) per instance, and older items will be discarded - much the same way as heartbeats and authentications work today. Notices for an instance are cleared when the instance starts-up (denoted by the heartbeat field `is_startup`). Notices will be stored as part of an instance's state, alongside heartbeats and authentications. Notice are required for filtering the list of bot instance in the web UI and CLI, and so need to remain local to the instance itself.
 
 ## Notices
 
@@ -418,7 +429,7 @@ type NoticeLogger interface {
 
 Notices emitted using the `NoticeLogger` will be buffered in-memory and flushed to the auth server on the bot’s next heartbeat. Once notices have been sent to the auth server, `tbot` will delete them from memory. To avoid unbounded memory growth if the heartbeat service becomes unavailable, notices will be stored in fixed-size data structure such as a ring buffer, although the volume of notices should be low enough for this not to be a problem anyway.
 
-On the auth server, notices will be stored on the bot instance record like all other heartbeat data. The server will keep a limited number (e.g. 50) of the most recent notices and discard the rest. We do not need to worry about concurrent writers because the `tbot`'s heartbeat service is a singleton and except in rare misconfigurations, it’s only possible for a single `tbot` process to use a bot instance’s identity at a time.
+On the auth server, notices will be stored outside the bot instance record. The server will keep a limited number (e.g. 50 per instance) of the most recent notices and discard the rest. We do not need to worry about concurrent writers because the `tbot`'s heartbeat service is a singleton and except in rare misconfigurations, it’s only possible for a single `tbot` process to use a bot instance’s identity at a time.
 
 If the heartbeat message’s `is_startup` flag is set, the auth server will discard all previous notices so that if the user fixes their configuration and restarts `tbot`, any warnings from their previous bad configuration will be immediately cleared to avoid confusion. This decision will also prevent us from treating notices as a general logging solution, as they will inherently be ephemeral and only representative of the most recent run.
 
