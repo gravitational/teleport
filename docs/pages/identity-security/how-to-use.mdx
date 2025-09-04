@@ -1,18 +1,22 @@
 ---
-title: How to use Teleport Identity Security
-description: Using Access Graph with Identity Security.
+title: Using Teleport Identity Security
+description: Explore identity risks and access pathways with dashboards, graph visualization, and SQL queries.
 labels:
  - conceptual
  - identity-security
 ---
 
-Identity Security provides a framework for visualizing and managing access controls across an organization’s infrastructure.
+Teleport Identity Security helps teams expose and eliminate hidden risk in their infrastructure. 
 
-This interface enables administrators to efficiently identify and address potential security risks,
-such as overly broad permissions or conflicting roles, ensuring that access is granted
-on principles of least privilege.
+These are some use cases for Teleport Identity Security:  
 
-## How to use Identity Security
+- Find users with the highest standing privilege with the Standing Privilege Dashboard.
+- Visually understand which resources a user can access and which users and bots can access a resource. 
+- Quickly query key access pathways with SQL Editor.
+- Know when access pathways change for a critical asset with Crown Jewel Alerting.
+- Investigate identity breaches by correlating audit logs with Identity Activity Center. 
+
+## How to use Identity Security Graph Explorer 
 
 Identity Security with Access Graph feature can help you to answer questions like:
 
@@ -36,6 +40,14 @@ without creating an Access Request. Details about standing privileges can be fou
 user or bot. 
 
 ![Standing Privileges](../../img/access-graph/standing-privileges.png)
+
+## Identity Activity Center Investigate View
+
+The Identity Security with Identity Activity Center dashboard provides an overview of recent identity activity
+across your infrastructure. Ingest and correlate data between IdPs (Okta), Code ([GitHub](./integrations/github.mdx)), Cloud Providers ([AWS](./integrations/aws-sync.mdx)) and 
+Teleport Audit Log. 
+
+![Investigate](../../img/access-graph/investigate.png)
 
 ## Graph View
 
@@ -153,6 +165,12 @@ SELECT * FROM access_path WHERE identity = 'bob' AND resource = 'postgres';
 Show all access paths for resources with specific labels:
 ```sql
 SELECT * FROM access_path WHERE resource_labels @> '{"key": "value"}';
+```
+
+Show all SSH Keys from SSH Key Scanning:
+
+```sql
+SELECT * FROM ssh_keys;
 ```
 
 You can view more SQL examples in the editor.

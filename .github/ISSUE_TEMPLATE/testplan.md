@@ -1545,6 +1545,7 @@ manualy testing.
   - [ ] Amazon Redshift Serverless.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Amazon ElastiCache.
+  - [ ] Amazon ElastiCache Serverless.
   - [ ] Amazon MemoryDB.
   - [ ] Amazon OpenSearch.
   - [ ] Amazon Dynamodb.
@@ -1583,6 +1584,7 @@ manualy testing.
   - [ ] Amazon Redshift.
   - [ ] Amazon Redshift Serverless.
   - [ ] Amazon ElastiCache.
+  - [ ] Amazon ElastiCache Serverless.
   - [ ] Amazon MemoryDB.
   - [ ] Amazon OpenSearch.
   - [ ] Amazon Dynamodb.
@@ -1643,6 +1645,7 @@ manualy testing.
       - [x] Can detect and register Redshift clusters. (covered by E2E test)
       - [x] Can detect and register Redshift serverless workgroups, and their VPC endpoints. (covered by E2E test)
       - [ ] Can detect and register ElastiCache Redis clusters.
+      - [ ] Can detect and register ElastiCache Serverless Redis/Valkey clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
       - [ ] Can detect and register DocumentDB clusters.

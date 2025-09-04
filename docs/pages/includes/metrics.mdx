@@ -221,6 +221,14 @@ The following table identifies all metrics available for incoming connections.
 | `teleport_cache_stale_events` | counter | Teleport | Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend. |
 | `tx` | counter | Teleport | Number of bytes transmitted during an SSH connection. |
 
+## Teleport Health Checks
+
+| Name                                         | Type  | Component             | Description                                     |
+|----------------------------------------------|-------|-----------------------|-------------------------------------------------|
+| `teleport_resources_health_status_healthy`   | gauge | Teleport Health Check | Number of healthy resources.                    |
+| `teleport_resources_health_status_unhealthy` | gauge | Teleport Health Check | Number of unhealthy resources.                  |
+| `teleport_resources_health_status_unknown`   | gauge | Teleport Health Check | Number of resources in an unknown health state. |
+
 ## Go runtime metrics
 
 These metrics are surfaced by the Go runtime and are not specific to Teleport.

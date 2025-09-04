@@ -390,7 +390,12 @@ func validateRoleExpressions(r types.Role) error {
 // validateRule parses the where and action fields to validate the rule.
 func validateRule(r types.Rule) error {
 	if len(r.Where) != 0 {
-		parser, err := NewWhereParser(&Context{})
+		parser, err := NewWhereParser(&Context{},
+			ConditionalOption(
+				slices.Contains(r.Resources, types.KindSession),
+				WithCanViewFunction(),
+			),
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3182,7 +3187,11 @@ func (p boolParser) Parse(string) (any, error) {
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
 func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
-	whereParser, err := NewWhereParser(ctx)
+	whereParser, err := NewWhereParser(
+		ctx,
+		// register can_view function if the resource is a session.
+		ConditionalOption(resource == types.KindSession, WithCanViewFunction()),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

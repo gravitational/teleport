@@ -3597,7 +3597,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			AzureIdentity:                   req.azureIdentity,
 			GCPServiceAccount:               req.gcpServiceAccount,
 		},
-		TeleportCluster: clusterName,
+		TeleportCluster:   clusterName,
+		OriginClusterName: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
 			ServiceName: req.dbService,
 			Protocol:    req.dbProtocol,
@@ -5587,7 +5588,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
 	}
 
-	var resources = []string{}
+	resources := []string{}
 	if len(req.GetRoles()) != 0 {
 		resources = append(resources, types.KindRole)
 	}
@@ -5703,8 +5704,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
 		// be able to see their assigned permission sets.
-		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
-		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
+		asmt, err := a.GetIdentityCenterAccountAssignment(ctx, resource.Name)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching identity center account assignment")
 		}
@@ -5750,6 +5750,7 @@ type cacheWithFetchedAccessLists struct {
 func (c *cacheWithFetchedAccessLists) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
 	return c.fetchedACLs, nil
 }
+
 func (c *cacheWithFetchedAccessLists) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
 	return c.fetchedACLs, "", nil
 }
@@ -5953,7 +5954,7 @@ func (a *Server) submitAccessReview(
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 
-	var resources = []string{}
+	resources := []string{}
 	if len(req.GetRoles()) != 0 {
 		resources = append(resources, types.KindRole)
 	}

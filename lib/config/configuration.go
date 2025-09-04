@@ -282,6 +282,13 @@ type CommandLineFlags struct {
 	// is not set to enforcing mode or the global SELinux mode is not set to
 	// enforcing.
 	EnsureSELinuxEnforcing bool
+
+	// BackendKey is the backend key to use for various `teleport backend` commands.
+	BackendKey string
+	// BackendPrefix limits `teleport backend ls` to only output keys matching the prefix.
+	BackendPrefix string
+	// Format is used to change the format of output.
+	Format string
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -2189,6 +2196,11 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.WindowsDesktop.DiscoveryInterval = fc.WindowsDesktop.DiscoveryInterval
 	if cfg.WindowsDesktop.DiscoveryInterval < 0 {
 		return trace.BadParameter("desktop discovery interval must not be negative (%v)", fc.WindowsDesktop.DiscoveryInterval.String())
+	}
+
+	cfg.WindowsDesktop.PublishCRLInterval = fc.WindowsDesktop.PublishCRLInterval
+	if cfg.WindowsDesktop.PublishCRLInterval < 0 {
+		return trace.BadParameter("publish CRL interval must not be negative (%v)", fc.WindowsDesktop.PublishCRLInterval.String())
 	}
 
 	var err error
