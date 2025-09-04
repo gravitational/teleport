@@ -101,14 +101,23 @@ type Summarizer interface {
 	AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv1.InferencePolicy, error]
 }
 
-// inferencePolicyValidationContext is a special kind of [RuleContext] that
+// InferencePolicyMatchingContext is a special kind of [RuleContext] that
 // allows validating inference policy filters by attempting to resolve
 // identifiers against other supported resource types.
-type inferencePolicyValidationContext struct {
+type InferencePolicyMatchingContext struct {
 	Context
 }
 
-func (ctx *inferencePolicyValidationContext) GetIdentifier(fields []string) (any, error) {
+func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, error) {
+	// // First, try to get the identifier from the underlying context.
+	// val, err := ctx.Context.GetIdentifier(fields)
+	// if err == nil {
+	// 	return val, err
+	// }
+	// if !trace.IsNotFound(err) {
+	// 	return nil, err
+	// }
+
 	// Use custom logic for resolving resource fields.
 	if fields[0] == ResourceIdentifier {
 		for _, dummyResource := range []any{
@@ -140,7 +149,7 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 
 	s := p.GetSpec()
 	if s.GetFilter() != "" {
-		parser, err := NewWhereParser(&inferencePolicyValidationContext{})
+		parser, err := NewWhereParser(&InferencePolicyMatchingContext{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
