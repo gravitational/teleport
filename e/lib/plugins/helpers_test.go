@@ -4,9 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
 // createSlackPlugin creates a basic Slack plugin for testing purposes
@@ -45,8 +47,11 @@ func createSlackPlugin(t *testing.T, name string) types.Plugin {
 func createOktaPlugin(t *testing.T, name string) (types.Plugin, types.PluginStaticCredentials) {
 	t.Helper()
 
+	id := uuid.NewString()
+
 	labels := map[string]string{
-		"label1": "value1",
+		"label1":              "value1",
+		eteleport.PluginLabel: id,
 	}
 
 	p := types.NewPluginV1(

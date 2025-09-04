@@ -18,24 +18,38 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// setupMockAWSICEnvironment sets the test aws mocks
-// and reverts the change in the test cleanup function.
-// It must not be used in parallel tests.
-// )
-func setupMockAWSICEnvironment(t *testing.T, icMock icsdk.Client, scimMock scimsdk.Client) {
-	defaultSCIM := scimsdk.ClientProvider
-	defaultIC := icsdk.ClientProvider
-
-	t.Setenv("TELEPORT_TEST_NOT_SAFE_FOR_PARALLEL", "true")
+// setMockICClientProvider sets a custom Identity Center client provider for a
+// test. The original provider is automatically restored when the test completes.
+func setMockICClientProvider(t *testing.T, provider func(icsdk.Config) (icsdk.Client, error)) {
+	oldProvider := icsdk.ClientProvider
 	t.Cleanup(func() {
-		scimsdk.ClientProvider = defaultSCIM
-		icsdk.ClientProvider = defaultIC
+		icsdk.ClientProvider = oldProvider
 	})
-
-	scimsdk.ClientProvider = func(config *scimsdk.Config) (scimsdk.Client, error) { return scimMock, nil }
-	icsdk.ClientProvider = func(config icsdk.Config) (icsdk.Client, error) { return icMock, nil }
+	t.Setenv("TELEPORT_TEST_NOT_SAFE_FOR_PARALLEL", "true")
+	icsdk.ClientProvider = provider
 }
 
+// setMockSCIMClientProvider sets a custom SCIM client provider for a test.
+// The original provider is automatically restored when the test completes.
+func setMockSCIMClientProvider(t *testing.T, provider func(config *scimsdk.Config) (scimsdk.Client, error)) {
+	oldProvider := scimsdk.ClientProvider
+	t.Cleanup(func() {
+		scimsdk.ClientProvider = oldProvider
+	})
+	t.Setenv("TELEPORT_TEST_NOT_SAFE_FOR_PARALLEL", "true")
+	scimsdk.ClientProvider = provider
+}
+
+// setupMockAWSICEnvironment sets the test aws mocks and reverts the change in
+// the test cleanup function.
+// It must not be used in parallel tests.
+func setupMockAWSICEnvironment(t *testing.T, icMock icsdk.Client, scimMock scimsdk.Client) {
+	setMockSCIMClientProvider(t, func(config *scimsdk.Config) (scimsdk.Client, error) { return scimMock, nil })
+	setMockICClientProvider(t, func(config icsdk.Config) (icsdk.Client, error) { return icMock, nil })
+}
+
+// mustSetupAWSIdentityCenterIntegration creates and installs an Identity Center
+// plugin resource
 func mustSetupAWSIdentityCenterIntegration(t *testing.T, authClient authclient.ClientI) {
 	t.Helper()
 	mustSetupOIDCIntegration(t, authClient)
@@ -121,7 +135,7 @@ func withGroupSyncFilterExclude(re string) pluginOption {
 	}
 }
 
-// withSystemAWSCredentials
+// withSystemAWSCredentials configures the IC plugin to use system AWS credentials
 func withSystemAWSCredentials(opts *pluginOptions) {
 	opts.awsCredentials = &types.AWSICCredentials{
 		Source: &types.AWSICCredentials_System{
@@ -139,11 +153,15 @@ func withSAMLProviderName(n string) pluginOption {
 	}
 }
 
+// withDefaultAccessListOwners sets the default access list owners
 func withDefaultAccessListOwners(owners ...string) pluginOption {
 	return func(opts *pluginOptions) {
 		opts.defaultOwners = owners
 	}
 }
+
+// DefaultSCIMBearerToken is the value of the default SCIM bearer token created for the Identity Center integration
+const DefaultSCIMBearerToken = "api-token-secret"
 
 // awsICPluginRequest creates a potentially-customized plugin creation request
 // for an AWSIC plugin
@@ -175,6 +193,7 @@ func awsICPluginRequest(options ...pluginOption) *pluginspb.CreatePluginRequest 
 			Spec: types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_AwsIc{
 					AwsIc: &types.PluginAWSICSettings{
+						IntegrationName:         "aws-oidc-integration",
 						Region:                  "eu-central-1",
 						Arn:                     "arn:aws:sso:::instance/ssoins-1111111111111111",
 						AccessListDefaultOwners: opts.defaultOwners,
@@ -200,26 +219,32 @@ func awsICPluginRequest(options ...pluginOption) *pluginspb.CreatePluginRequest 
 			},
 			Spec: &types.PluginStaticCredentialsSpecV1{
 				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: "api-token-secret",
+					APIToken: DefaultSCIMBearerToken,
 				},
 			},
 		},
 	}
 }
 
-func mustUpdatePlugin(t *testing.T, authClient authclient.ClientI, updateFn func(plugin *types.PluginAWSICSettings)) {
+func mustGetPluginResource(t *testing.T, authClient authclient.ClientI, withSecrets bool) *types.PluginV1 {
 	t.Helper()
-	plugin, err := authClient.PluginsClient().GetPlugin(t.Context(), &pluginspb.GetPluginRequest{
+	plugin, err := authClient.PluginsClient().GetPlugin(context.Background(), &pluginspb.GetPluginRequest{
 		Name:        types.PluginTypeAWSIdentityCenter,
-		WithSecrets: false,
+		WithSecrets: withSecrets,
 	})
 	require.NoError(t, err)
+	return plugin
+}
+
+func mustUpdatePlugin(t *testing.T, authClient authclient.ClientI, updateFn func(plugin *types.PluginAWSICSettings)) {
+	t.Helper()
+	plugin := mustGetPluginResource(t, authClient, false /* withoutSecrets */)
 
 	settings := plugin.Spec.GetAwsIc()
 	updateFn(settings)
 
 	plugin.Spec.Settings = &types.PluginSpecV1_AwsIc{AwsIc: settings}
-	_, err = authClient.PluginsClient().UpdatePlugin(t.Context(), &pluginspb.UpdatePluginRequest{Plugin: plugin})
+	_, err := authClient.PluginsClient().UpdatePlugin(t.Context(), &pluginspb.UpdatePluginRequest{Plugin: plugin})
 	require.NoError(t, err)
 }
 

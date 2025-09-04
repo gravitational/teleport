@@ -43,6 +43,23 @@ type instanceFactory func(ctx context.Context, plugin *types.PluginV1, deps inst
 type instance struct {
 	// cancel is a function that closes the instance's context
 	cancel func()
-	// spec is the spec that the instance is currently configured with
-	spec *types.PluginSpecV1
+
+	// plugin is a copy of the resource that was used to configure the running plugin instance
+	plugin *types.PluginV1
+
+	// staticCredentials is the list of known credential at startup time.
+	staticCredentials []*types.PluginStaticCredentialsV1
+}
+
+func (i *instance) isUpToDate(p *types.PluginV1) bool {
+	return i.plugin.Spec.Equal(p.Spec) && i.plugin.Credentials.Equal(p.Credentials)
+}
+
+func (i *instance) findCredentialByName(name string) *types.PluginStaticCredentialsV1 {
+	for _, c := range i.staticCredentials {
+		if c.GetName() == name {
+			return c
+		}
+	}
+	return nil
 }

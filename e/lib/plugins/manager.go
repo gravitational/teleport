@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	teleclient "github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
@@ -115,7 +116,8 @@ type Manager struct {
 	pluginStaticCredentials services.PluginStaticCredentials
 	events                  types.Events
 	factories               map[types.PluginType]instanceFactory
-	instances               map[string]*instance
+	instancesByName         map[string]*instance
+	instancesByCredential   map[string]*instance
 	teleportClient          teleclient.Client
 	watcher                 types.Watcher
 	retryConfig             retryutils.RetryV2Config
@@ -137,13 +139,35 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		pluginStaticCredentials: cfg.PluginStaticCredentials,
 		events:                  cfg.Events,
 		factories:               cfg.Factories,
-		instances:               make(map[string]*instance),
+		instancesByName:         make(map[string]*instance),
+		instancesByCredential:   make(map[string]*instance),
 		teleportClient:          cfg.TeleportClient,
 		retryConfig:             *cfg.RetryConfig,
 		parentProcess:           cfg.ParentProcess,
 		log:                     cfg.Logger,
 	}
 	return m, nil
+}
+
+func (m *Manager) recordInstance(i *instance) {
+	m.instancesByName[i.plugin.GetName()] = i
+
+	if credRef := i.plugin.GetCredentials().GetStaticCredentialsRef(); credRef != nil {
+		staticCredentialID := credRef.Labels[eteleport.PluginLabel]
+		m.instancesByCredential[staticCredentialID] = i
+	}
+}
+
+func (m *Manager) deleteInstance(instanceName string) {
+	instance, ok := m.instancesByName[instanceName]
+	if !ok {
+		return
+	}
+
+	delete(m.instancesByName, instanceName)
+	if credRef := instance.plugin.GetCredentials().GetStaticCredentialsRef(); credRef != nil {
+		delete(m.instancesByCredential, credRef.Labels[eteleport.PluginLabel])
+	}
 }
 
 // Run runs the main loop of Manager until the Manager's context is canceled.
@@ -185,7 +209,7 @@ func (m *Manager) Run(ctx context.Context) error {
 // and applies them to concrete running plugin instances.
 func (m *Manager) runInner(ctx context.Context) error {
 	defer func() {
-		for name := range m.instances {
+		for name := range m.instancesByName {
 			m.shutdownInstance(name)
 		}
 	}()
@@ -196,6 +220,7 @@ func (m *Manager) runInner(ctx context.Context) error {
 	m.watcher, err = m.events.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{Kind: types.KindPlugin},
+			{Kind: types.KindPluginStaticCredentials},
 		},
 	})
 	if err != nil {
@@ -244,11 +269,21 @@ func (m *Manager) dispatchEvent(ctx context.Context, e types.Event) error {
 	if e.Resource == nil || e.Resource.GetKind() == types.KindWatchStatus {
 		return nil
 	}
-	name := e.Resource.GetName()
 
-	if e.Resource.GetKind() != types.KindPlugin {
-		return trace.BadParameter(`unsupported resource: "%s/%s"`, e.Resource.GetKind(), name)
+	switch e.Resource.GetKind() {
+	case types.KindPlugin:
+		return m.dispatchPluginEvent(ctx, e)
+
+	case types.KindPluginStaticCredentials:
+		return m.dispatchPluginStaticCredentialsEvent(ctx, e)
+
+	default:
+		return trace.BadParameter(`unsupported resource: "%s/%s"`, e.Resource.GetKind(), e.Resource.GetName())
 	}
+}
+
+func (m *Manager) dispatchPluginEvent(ctx context.Context, e types.Event) error {
+	name := e.Resource.GetName()
 
 	switch e.Type {
 	case types.OpDelete:
@@ -266,27 +301,76 @@ func (m *Manager) dispatchEvent(ctx context.Context, e types.Event) error {
 			return trace.BadParameter("unsupported plugin type: %T", e.Resource)
 		}
 
-		if m.instanceUpToDate(name, &plugin.Spec) {
-			break
+		if m.instanceUpToDate(name, plugin) {
+			return nil
 		}
+
 		m.shutdownInstance(name)
 		if err := m.startInstance(ctx, plugin); err != nil {
 			return trace.Wrap(err, "starting %v", name)
 		}
 	}
-
 	return nil
 }
 
+func (m *Manager) dispatchPluginStaticCredentialsEvent(ctx context.Context, e types.Event) error {
+	if e.Type != types.OpPut {
+		return nil
+	}
+
+	log := m.log.With(slog.String("credential_resource_name", e.Resource.GetName()))
+	log.InfoContext(ctx, "Handling credential update for plugin")
+
+	updatedCredential, ok := e.Resource.(*types.PluginStaticCredentialsV1)
+	if !ok {
+		return trace.BadParameter("unexpected resource type %T received for plugin static credential", updatedCredential)
+	}
+
+	pluginCredentialID, ok := updatedCredential.GetLabel(eteleport.PluginLabel)
+	if !ok {
+		return trace.BadParameter("credential missing plugin label")
+	}
+
+	log = log.With(slog.String("plugin_unique_id", pluginCredentialID))
+	log.InfoContext(ctx, "Looking up plugin instance")
+
+	instance, ok := m.instancesByCredential[pluginCredentialID]
+	if !ok {
+		log.InfoContext(ctx, "No such plugin instance")
+		return nil
+	}
+
+	log = log.With(slog.String("plugin_name", instance.plugin.GetName()))
+	log.InfoContext(ctx, "Looking up in-use credential by name")
+
+	liveCred := instance.findCredentialByName(updatedCredential.GetName())
+	if liveCred == nil {
+		log.WarnContext(ctx, "No in-use credentials found for plugin")
+		return nil
+	}
+
+	log.InfoContext(ctx, "Checking changes in credential")
+	if m.credentialUpToDate(liveCred, updatedCredential) {
+		log.InfoContext(ctx, "Credential unchanged. Do not restart.")
+		return nil
+	}
+
+	// If we get to here, we know that a credential has changed, AND that the
+	// credential belongs to a running plugin. Restart it so that it can pick up
+	// the new, updated credentials
+	log.InfoContext(ctx, "Detected credential update. Restarting plugin")
+	return trace.Wrap(m.restartInstance(ctx, instance.plugin.GetName()))
+}
+
 func (m *Manager) shutdownInstance(name string) {
-	instance, ok := m.instances[name]
+	instance, ok := m.instancesByName[name]
 	if !ok {
 		return
 	}
 
 	m.log.InfoContext(context.Background(), "Stopping plugin", "plugin_name", name)
 	instance.cancel()
-	delete(m.instances, name)
+	m.deleteInstance(name)
 }
 
 // startInstance configures a plugin instance per the given spec,
@@ -321,6 +405,11 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 
 	staticCreds, err := m.getStaticCredentials(ctx, plugin)
 	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	credPointers, err := cloneCredentials(staticCreds)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -387,19 +476,40 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		}
 	}()
 
-	m.instances[plugin.GetName()] = &instance{
-		cancel: cancel,
-		spec:   &plugin.Spec,
-	}
+	m.recordInstance(&instance{
+		cancel:            cancel,
+		plugin:            plugin,
+		staticCredentials: credPointers,
+	})
+
 	return nil
 }
 
-func (m *Manager) instanceUpToDate(name string, spec *types.PluginSpecV1) bool {
-	instance, ok := m.instances[name]
+func (m *Manager) instanceUpToDate(name string, updated *types.PluginV1) bool {
+	instance, ok := m.instancesByName[name]
 	if !ok {
 		return false
 	}
-	return instance.spec.Equal(spec)
+	return instance.isUpToDate(updated)
+}
+
+// cloneCredentials clones a slice of [types.PluginStaticCredentials]s, returning
+// them as a slice of concrete [*types.PluginStaticCredentialsV1] values
+func cloneCredentials(s []types.PluginStaticCredentials) ([]*types.PluginStaticCredentialsV1, error) {
+	result := make([]*types.PluginStaticCredentialsV1, len(s))
+	for i, src := range s {
+		dst, ok := src.(*types.PluginStaticCredentialsV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected credential type %T", src)
+		}
+		result[i] = apiutils.CloneProtoMsg(dst)
+	}
+	return result, nil
+}
+
+// credentialUpToDate checks if the live credential has been updated
+func (m *Manager) credentialUpToDate(liveCred, updatedCred *types.PluginStaticCredentialsV1) bool {
+	return liveCred.Spec.Equal(updatedCred.Spec)
 }
 
 // getStaticCredentials will return static credentials for a plugin if they are needed.
@@ -427,4 +537,22 @@ func NeedsOAuth(plugin types.Plugin) bool {
 		return true
 	}
 	return false
+}
+
+func (m *Manager) restartInstance(ctx context.Context, name string) error {
+	m.log.InfoContext(ctx, "Restarting instance", "instance_name", name)
+
+	m.shutdownInstance(name)
+
+	m.log.InfoContext(ctx, "Looking up plugin resource", "instance_name", name)
+	plugin, err := m.plugins.GetPlugin(ctx, name, true /* with secrets */)
+	if err != nil {
+		m.log.InfoContext(ctx, "Failed plugin resource lookup", "error", err)
+		return trace.Wrap(err)
+	}
+	pluginPtr, ok := plugin.(*types.PluginV1)
+	if !ok {
+		return trace.BadParameter("unexpected plugin type %T", plugin)
+	}
+	return trace.Wrap(m.startInstance(ctx, pluginPtr))
 }

@@ -788,6 +788,89 @@ func (s *Service) SetPluginCredentials(ctx context.Context, req *pluginspb.SetPl
 	return &emptypb.Empty{}, nil
 }
 
+func (s *Service) findStaticCredentialUpdateTarget(ctx context.Context, req *pluginspb.UpdatePluginStaticCredentialsRequest) (*types.PluginStaticCredentialsV1, error) {
+	var targetCred types.PluginStaticCredentials
+	var err error
+
+	switch targetSpec := req.Target.(type) {
+	case *pluginspb.UpdatePluginStaticCredentialsRequest_Name:
+		targetCred, err = s.pluginStaticCredentialsService.GetPluginStaticCredentials(ctx, targetSpec.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case *pluginspb.UpdatePluginStaticCredentialsRequest_Query:
+		labels := targetSpec.Query.GetLabels()
+		if len(labels) == 0 {
+			return nil, trace.BadParameter("caller must supply labels to match")
+		}
+
+		candidateCreds, err := s.pluginStaticCredentialsService.GetPluginStaticCredentialsByLabels(ctx, labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		switch len(candidateCreds) {
+		case 0:
+			return nil, trace.NotFound("no credentials match the supplied labels")
+		case 1:
+			targetCred = candidateCreds[0]
+		default:
+			return nil, trace.BadParameter("multiple candidate credentials found")
+		}
+
+	default:
+		return nil, trace.BadParameter("unexpected credential target type: %T", req.Target)
+	}
+
+	result, ok := targetCred.(*types.PluginStaticCredentialsV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected plugin static credential type %T", targetCred)
+	}
+
+	return result, nil
+}
+
+// UpdatePluginStaticCredentials updates a PluginStaticCredentuils record. The
+// credential to update can be specified either by name, or by matching labels
+// in the supplied request.
+func (s *Service) UpdatePluginStaticCredentials(ctx context.Context, req *pluginspb.UpdatePluginStaticCredentialsRequest) (*pluginspb.UpdatePluginStaticCredentialsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindPlugin, types.VerbRead, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.Credential.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	targetCred, err := s.findStaticCredentialUpdateTarget(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	targetCred.Spec = req.Credential
+
+	updated, err := s.pluginStaticCredentialsService.UpdatePluginStaticCredentials(ctx, targetCred)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	unwrapped, ok := updated.(*types.PluginStaticCredentialsV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected static credential type %T", updated)
+	}
+
+	response := &pluginspb.UpdatePluginStaticCredentialsResponse{
+		Credential: unwrapped,
+	}
+	return response, nil
+}
+
 // SetPluginStatus sets the status for the given plugin.
 func (s *Service) SetPluginStatus(ctx context.Context, req *pluginspb.SetPluginStatusRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)

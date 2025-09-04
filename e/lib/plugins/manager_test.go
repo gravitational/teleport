@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	intunetestenv "github.com/gravitational/teleport/e/lib/intune/testenv"
 	jamftestenv "github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/services"
@@ -154,6 +156,9 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 	pluginService := local.NewPluginsService(mem)
 	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(mem)
 	require.NoError(t, err)
+
+	require.NoError(t, pluginService.CreatePlugin(context.Background(), plugin))
+
 	events := &fakeEvents{}
 
 	managerCtx, managerCancel := context.WithCancel(context.Background())
@@ -173,23 +178,38 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 			return nil
 		}
 	}
-	assertStartStop := func(started, stopped int64) {
-		require.Eventually(t, func() bool {
-			return atomic.LoadInt64(&instanceStarted) == started &&
-				atomic.LoadInt64(&instanceStopped) == stopped
-		}, time.Second, time.Second/100)
+
+	assertStartStop := func(started, stopped int64, msgAndArgs ...any) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			assert.Equal(collect, started, atomic.LoadInt64(&instanceStarted), "Start count")
+			assert.Equal(collect, stopped, atomic.LoadInt64(&instanceStopped), "Stop count")
+		}, time.Second, time.Second/100, msgAndArgs...)
 	}
 
-	staticRefs := staticRefLookup{}
+	resetStartStopCounts := func() {
+		atomic.StoreInt64(&instanceStarted, 0)
+		atomic.StoreInt64(&instanceStopped, 0)
+	}
+
+	simulateCredentialUpdate := func(c types.PluginStaticCredentials) types.PluginStaticCredentials {
+		updated, err := pluginStaticCredentialsService.UpdatePluginStaticCredentials(context.Background(), c)
+		require.NoError(t, err)
+
+		clone := apiutils.CloneProtoMsg(updated.(*types.PluginStaticCredentialsV1))
+		events.send(types.Event{Type: types.OpPut, Resource: clone})
+		return updated
+	}
+
+	staticCredentialsSuppliedToPlugin := staticRefLookup{}
 	cfg := ManagerConfig{
 		Authorizers:             authorizers,
 		Plugins:                 pluginService,
 		PluginStaticCredentials: pluginStaticCredentialsService,
 		Events:                  events,
 		Factories: map[types.PluginType]instanceFactory{
-			plugin.GetType(): func(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+			plugin.GetType(): func(_ context.Context, _ *types.PluginV1, deps instanceDependencies) (func() error, error) {
 				for _, cred := range deps.staticCredentials {
-					staticRefs[cred.GetName()] = cred.GetStaticLabels()
+					staticCredentialsSuppliedToPlugin[cred.GetName()] = cred.GetStaticLabels()
 				}
 				return makeInstanceDelegate(deps), nil
 			},
@@ -219,12 +239,13 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 	})
 	assertStartStop(1, 0)
 
-	// Verify the static credentials
+	// EXPECT that the static credentials presented to the plugin are the ones
+	// we expect
 	for _, cred := range staticCreds {
-		require.Equal(t, cred.GetStaticLabels(), staticRefs[cred.GetName()])
+		require.Equal(t, cred.GetStaticLabels(), staticCredentialsSuppliedToPlugin[cred.GetName()])
 	}
 	// Clear out the static refs
-	staticRefs = staticRefLookup{}
+	staticCredentialsSuppliedToPlugin = staticRefLookup{}
 
 	// 2) Modify metadata, but not spec: do not restart
 	plugin = plugin.Clone().(*types.PluginV1)
@@ -247,27 +268,63 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 
 	// Verify the static credentials again
 	for _, cred := range staticCreds {
-		require.Equal(t, cred.GetStaticLabels(), staticRefs[cred.GetName()])
+		require.Equal(t, cred.GetStaticLabels(), staticCredentialsSuppliedToPlugin[cred.GetName()])
 	}
 
-	// 4) Close existing watcher: loop should stop all instances,
-	// and then re-subscribe
-	events.close()
-	assertStartStop(2, 2)
+	if len(staticCreds) > 0 {
+		staticCredentialsSuppliedToPlugin = staticRefLookup{}
+		resetStartStopCounts()
 
+		// WHEN I simulate a credential update that does not change the credential spec
+		testLog.InfoContext(managerCtx, "Simulating non-restarting credential update")
+		staticCreds[0].GetMetadata().Labels["test"] = t.Name()
+		staticCreds[0] = simulateCredentialUpdate(staticCreds[0])
+
+		// EXPECT that the plugin service does *not* restart. We can't reliably
+		// assert this here, but we will check the total restart count below
+
+		// WHEN I simulate a credential update that changes the credential spec
+		testLog.InfoContext(managerCtx, "Simulating restarting credential update")
+		staticCreds[0].(*types.PluginStaticCredentialsV1).Spec.Credentials =
+			&types.PluginStaticCredentialsSpecV1_APIToken{
+				APIToken: "updated-test-credential",
+			}
+		staticCreds[0] = simulateCredentialUpdate(staticCreds[0])
+
+		// EXPECT that the plugin gets shut down and restarted exactly once
+		assertStartStop(1, 1, "Expected full plugin restart")
+
+		// EXPECT that the updated static credentials were presented to the
+		// plugin
+		for _, cred := range staticCreds {
+			require.Equal(t, cred.GetStaticLabels(), staticCredentialsSuppliedToPlugin[cred.GetName()])
+		}
+	}
+
+	// 4) Close existing watcher: loop should stop all plugin instances,
+	// and then re-subscribe
+	resetStartStopCounts()
+	testLog.InfoContext(managerCtx, "Closing watcher")
+	events.close()
+
+	testLog.InfoContext(managerCtx, "Waiting for plugin monitor to restart...")
 	// Wait for manager to re-subscribe to events
 	require.Eventually(t, func() bool {
 		return events.numWatchers() == 1
-	}, time.Second, time.Second/100)
+	}, time.Second, 10*time.Millisecond)
+	testLog.InfoContext(managerCtx, "Plugin monitor has restarted")
+
+	assertStartStop(1, 1, "Expected the recovered plugin manager to restart plugins")
 
 	// Re-create plugin via an event.
 	// We must do this because we do not mock the backend service itself
+	resetStartStopCounts()
+	testLog.InfoContext(managerCtx, "Forcing recreation with an event")
 	events.send(types.Event{
 		Type:     types.OpPut,
 		Resource: plugin,
 	})
-
-	assertStartStop(3, 2)
+	assertStartStop(1, 1, "Expected Put event to trigger full plugin restart")
 
 	// 5) Delete: stop
 	events.send(types.Event{
@@ -279,7 +336,7 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 			},
 		},
 	})
-	assertStartStop(3, 3)
+	assertStartStop(1, 2)
 }
 
 // TestInstanceFactory runs registered plugins instance factory to test start and stop events
