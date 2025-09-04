@@ -273,20 +273,14 @@ function GuidedTile({
     });
   };
 
-  let renderBadge = undefined;
-
-  if (!hasCreateBotPermission) {
-    renderBadge = () => {
-      return (
-        <ToolTipNoPermBadge>
-          <div>
-            You don’t have sufficient permissions to create bots. Reach out to
-            your Teleport administrator to request additional permissions.
-          </div>
-        </ToolTipNoPermBadge>
-      );
-    };
-  }
+  const Badge = hasCreateBotPermission ? (
+    <ToolTipNoPermBadge>
+      <div>
+        You don’t have sufficient permissions to create bots. Reach out to your
+        Teleport administrator to request additional permissions.
+      </div>
+    </ToolTipNoPermBadge>
+  ) : undefined;
 
   return (
     <Tile
@@ -296,7 +290,7 @@ function GuidedTile({
       hasAccess={true}
       icon={integration.icon}
       link={{ url: integration.link, onClick: onBotClick }}
-      renderBadge={renderBadge}
+      Badge={Badge}
     />
   );
 }
