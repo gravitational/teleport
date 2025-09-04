@@ -50,7 +50,7 @@ export abstract class Player<
    *
    * @returns true if the event was handled (and therefore should not be added to the stream buffer), false otherwise.
    */
-  abstract handleHandle(event: TEvent): boolean;
+  abstract handleEvent(event: TEvent): boolean;
 
   // fit is called to resize the player to fit its container. This is typically player specific.
   fit(): void {}
