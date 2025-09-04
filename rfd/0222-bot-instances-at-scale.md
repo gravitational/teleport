@@ -66,8 +66,6 @@ This mock-up shows the bot instance page as it would be when first arriving at t
 
 The right-hand half of the page displays the dashboard, which is a summary over all instances. The visualizations use aggregate data prepared and updated by the auth server. An indication of when the data current is provided, as well as a refresh button which retrieves the most recently available data. A selection of timeframes is also available.
 
-The Activity visualization shows the number of events (joins, authentications, and heartbeats) that occurred over time. This can be used to identify trends and patterns in activity. It is non-interactive.
-
 The Upgrade Status visualization show a summary of all instances grouped by upgrade status; up-to-date, upgrade available, patch available, or incompatible. Status labels are selectable, and will populate the advanced search with the appropriate filter. For example, if the auth server is running v18 the filter will be populated with `older_than(version, "16.0.0")` when a user selects "not supported".
 
 The Notices visualization shows a summary of all notices across all instances. They're conveniently grouped by notice title and a count is included. Each item is selectable, and will apply an advanced filter (e.g. `contains(notices, "Proxy URL not set")`). This visualization will be hidden if there is no data to display.
