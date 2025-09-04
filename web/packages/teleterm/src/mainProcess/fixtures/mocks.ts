@@ -197,7 +197,7 @@ export class MockMainProcessClient implements MainProcessClient {
   } {
     return { cleanup: () => undefined };
   }
-  subscribeToWindowVisibility(): {
+  subscribeToIsInBackgroundMode(): {
     cleanup: () => void;
   } {
     return { cleanup: () => undefined };

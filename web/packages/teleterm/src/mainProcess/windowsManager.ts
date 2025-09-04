@@ -67,7 +67,7 @@ export class WindowsManager {
    * Tracks if the window was hidden via `hideWindow()` rather than by the OS
    * (e.g. Command+H).
    */
-  private hiddenByApp: boolean;
+  private isInBackgroundMode: boolean;
 
   constructor(
     private fileStorage: FileStorage,
@@ -158,7 +158,7 @@ export class WindowsManager {
 
       const shouldRun = await this.confirmIfShouldRunInTrayOnce();
       if (shouldRun) {
-        this.hideWindow();
+        this.enterBackgroundMode();
         return;
       }
 
@@ -245,24 +245,27 @@ export class WindowsManager {
     }
 
     this.window.show();
-    if (this.hiddenByApp) {
-      this.window.webContents.send(RendererIpc.WindowVisibility, {
-        visible: true,
+    if (this.isInBackgroundMode) {
+      this.window.webContents.send(RendererIpc.IsInBackgroundMode, {
+        isInBackgroundMode: false,
       });
       void app.dock?.show();
-      this.hiddenByApp = false;
+      this.isInBackgroundMode = false;
     }
   }
 
-  /** Hides the window. */
-  hideWindow(): void {
+  /**
+   * Hides the window it's visible.
+   * On macOS, it also hides the dock icon.
+   */
+  enterBackgroundMode(): void {
     if (!this.window.isVisible()) {
       return;
     }
 
     this.window.hide();
-    this.window.webContents.send(RendererIpc.WindowVisibility, {
-      visible: false,
+    this.window.webContents.send(RendererIpc.IsInBackgroundMode, {
+      isInBackgroundMode: true,
     });
     // One side effect to be aware of:
     // If you close the app window in one macOS space, switch to another space,
@@ -271,7 +274,7 @@ export class WindowsManager {
     // to the space where you requested showing the window.
     // This behavior can feel a bit awkward.
     app.dock?.hide();
-    this.hiddenByApp = true;
+    this.isInBackgroundMode = true;
   }
 
   /**

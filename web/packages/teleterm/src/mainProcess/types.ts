@@ -224,7 +224,9 @@ export type MainProcessClient = {
   subscribeToOpenAppUpdateDialog(listener: () => void): {
     cleanup: () => void;
   };
-  subscribeToWindowVisibility(listener: (opts: { visible: boolean }) => void): {
+  subscribeToIsInBackgroundMode(
+    listener: (opts: { isInBackgroundMode: boolean }) => void
+  ): {
     cleanup: () => void;
   };
 };
@@ -334,7 +336,7 @@ export enum RendererIpc {
   DeepLinkLaunch = 'renderer-deep-link-launch',
   OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
   AppUpdateEvent = 'renderer-app-update-event',
-  WindowVisibility = 'renderer-window-visibility',
+  IsInBackgroundMode = 'renderer-window-is-in-background',
 }
 
 export enum MainProcessIpc {

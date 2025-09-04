@@ -20,22 +20,22 @@ import { useEffect, useState } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-/** Returns whether the window is visible. */
-export function useIsWindowVisibile() {
+/** Returns whether the window is in the background. */
+export function useIsInBackgroundMode() {
   const ctx = useAppContext();
   // We assume that the window is visible when the app starts.
   // This may change in the future.
-  const [visible, setVisible] = useState(true);
+  const [setIsInBackground, setSetIsInBackground] = useState(false);
 
   useEffect(() => {
-    const { cleanup } = ctx.mainProcessClient.subscribeToWindowVisibility(
-      ({ visible }) => {
-        setVisible(visible);
+    const { cleanup } = ctx.mainProcessClient.subscribeToIsInBackgroundMode(
+      ({ isInBackgroundMode }) => {
+        setSetIsInBackground(isInBackgroundMode);
       }
     );
 
     return cleanup;
   }, [ctx.mainProcessClient]);
 
-  return visible;
+  return setIsInBackground;
 }
