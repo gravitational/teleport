@@ -35,8 +35,8 @@ import {
   FilmStrip,
   Layout,
   Refresh,
-  Spinner,
 } from 'design/Icon';
+import { Indicator } from 'design/Indicator';
 import { HoverTooltip } from 'design/Tooltip';
 
 import { PlayerState } from 'teleport/SessionRecordings/view/stream/SessionStream';
@@ -262,7 +262,7 @@ function PlayButton({
 
   const button = (
     <PlayerButton disabled={disabled} onClick={onClick}>
-      <Icon size="small" />
+      <Icon size="small" color="text.main" />
     </PlayerButton>
   );
 
@@ -277,6 +277,11 @@ function PlayButton({
   return button;
 }
 
+const AdjustedIndicator = styled(Indicator)`
+  position: relative;
+  top: 1px; // the indicator is just so slightly off center vertically with the rest of the icons
+`;
+
 function getIconAndText(state: PlayerState) {
   switch (state) {
     case PlayerState.Playing:
@@ -286,7 +291,7 @@ function getIconAndText(state: PlayerState) {
     case PlayerState.Stopped:
       return { icon: Refresh, text: 'Replay' };
     case PlayerState.Loading:
-      return { icon: SpinningSpinner };
+      return { icon: AdjustedIndicator };
   }
 }
 
@@ -347,19 +352,6 @@ const PlayerButton = styled.button<{ disabled?: boolean }>`
   &:hover {
     background-color: ${p =>
       p.disabled ? 'none' : p.theme.colors.spotBackground[1]};
-  }
-`;
-
-const SpinningSpinner = styled(Spinner)`
-  animation: spin 1s linear infinite;
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
   }
 `;
 
