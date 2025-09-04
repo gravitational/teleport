@@ -19,7 +19,6 @@
 import {
   useCallback,
   useImperativeHandle,
-  useMemo,
   useRef,
   type MouseEvent,
   type RefObject,
@@ -259,18 +258,7 @@ function PlayButton({
   state,
   containerRef,
 }: PlayButtonProps) {
-  const { icon: Icon, text } = useMemo(() => {
-    switch (state) {
-      case PlayerState.Playing:
-        return { icon: CirclePause, text: 'Pause' };
-      case PlayerState.Paused:
-        return { icon: CirclePlay, text: 'Play' };
-      case PlayerState.Stopped:
-        return { icon: Refresh, text: 'Replay' };
-      case PlayerState.Loading:
-        return { icon: SpinningSpinner };
-    }
-  }, [state]);
+  const { icon: Icon, text } = getIconAndText(state);
 
   const button = (
     <PlayerButton disabled={disabled} onClick={onClick}>
@@ -287,6 +275,19 @@ function PlayButton({
   }
 
   return button;
+}
+
+function getIconAndText(state: PlayerState) {
+  switch (state) {
+    case PlayerState.Playing:
+      return { icon: CirclePause, text: 'Pause' };
+    case PlayerState.Paused:
+      return { icon: CirclePlay, text: 'Play' };
+    case PlayerState.Stopped:
+      return { icon: Refresh, text: 'Replay' };
+    case PlayerState.Loading:
+      return { icon: SpinningSpinner };
+  }
 }
 
 const SeekingBar = styled.div`
