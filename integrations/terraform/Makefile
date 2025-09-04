@@ -166,6 +166,7 @@ endif
 .PHONY: windows-release
 windows-release: build
 	cp $(BUILDDIR)/$(BINARY_NAME) $(WINDOWS_RELEASE)
+	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz $(BINARY_NAME)
 
 .PHONY: release
 ifeq ($(OS),windows)
