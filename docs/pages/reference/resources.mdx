@@ -115,6 +115,11 @@ Roles govern access to databases, SSH servers, Kubernetes clusters, web services
 
 ### Role versions
 
+There are currently six supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, and `v8`.
+
+Different role versions may have varying RBAC applied to resources.
+
+#### `kubernetes_resource`
 Versions 5, 6, 7 and 8 of the Teleport role resource have different behaviors when
 accessing Kubernetes resources.
 {/*lint ignore messaging*/}
@@ -148,6 +153,10 @@ are required.*/}
 | <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - kind: "&ast;"<br/>    namespace: "&ast;"<br/>    name: "&ast;"</pre>                                                                                                  | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                     | ✅ full access to `dev` clusters                                                                                                                                                                           | ⚠️ invalid, v8 requires api_group for '*' kind |
 | <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - name: "&ast;" <br/>    kind: pods <br/>    namespace: "foo" <br/>  - name: "&ast;" <br/>    kind: deployments <br/>    api_group: apps<br/>    namespace: "foo"</pre> | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                                                                                                           | ✅ can exec in pods in `foo` <br/>✅ can access `deployments` in `foo` <br/>❌ cannot exec in other namespaces <br/>❌ cannot access `deployments` in other namespaces <br/>❌ cannot access `configmaps` in `foo`  |
 
+#### `saml_idp_service_provider`
+SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
+See [SAML IdP reference](./access-controls/saml-idp.mdx#RBAC) to learn how the RBAC is applied to 
+the `saml_idp_service_provider` resource starting role version 8.
 
 ## Windows desktops
 

@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/lib/auth"
 	debugclient "github.com/gravitational/teleport/lib/client/debug"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -259,8 +260,14 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("aws-rds-instance-id", "(Only for RDS) RDS instance identifier.").StringVar(&ccf.DatabaseAWSRDSInstanceID)
 	dbStartCmd.Flag("aws-rds-cluster-id", "(Only for Aurora) Aurora cluster identifier.").StringVar(&ccf.DatabaseAWSRDSClusterID)
 	dbStartCmd.Flag("aws-session-tags", "(Only for DynamoDB) List of STS tags.").StringVar(&ccf.DatabaseAWSSessionTags)
-	dbStartCmd.Flag("gcp-project-id", "(Only for Cloud SQL) GCP Cloud SQL project identifier.").StringVar(&ccf.DatabaseGCPProjectID)
-	dbStartCmd.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&ccf.DatabaseGCPInstanceID)
+	dbStartCmd.Flag("gcp-project-id", "(Only for Cloud SQL) Project identifier.").StringVar(&ccf.DatabaseGCPProjectID)
+	dbStartCmd.Flag("gcp-instance-id", "(Only for Cloud SQL) Instance identifier.").StringVar(&ccf.DatabaseGCPInstanceID)
+
+	var alloyDBEndpointTypes []string
+	for _, endpointType := range gcp.AlloyDBEndpointTypes {
+		alloyDBEndpointTypes = append(alloyDBEndpointTypes, string(endpointType))
+	}
+	dbStartCmd.Flag("gcp-alloydb-endpoint-type", fmt.Sprintf("(Only for AlloyDB) Endpoint type. One of: %v", alloyDBEndpointTypes)).EnumVar(&ccf.DatabaseGCPAlloyDBEndpointType, alloyDBEndpointTypes...)
 	dbStartCmd.Flag("ad-keytab-file", "(Only for SQL Server) Kerberos keytab file.").StringVar(&ccf.DatabaseADKeytabFile)
 	dbStartCmd.Flag("ad-krb5-file", "(Only for SQL Server) Kerberos krb5.conf file.").Default(defaults.Krb5FilePath).StringVar(&ccf.DatabaseADKrb5File)
 	dbStartCmd.Flag("ad-domain", "(Only for SQL Server) Active Directory domain.").StringVar(&ccf.DatabaseADDomain)
@@ -614,13 +621,27 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	fileContextsCmd := selinuxCmd.Command("file-contexts", "Export SSH SELinux file contexts to stdout.").Hidden()
 	selinuxDirsCmd := selinuxCmd.Command("dirs", "Export directories that may need to be labeled for SSH SELinux module to work correctly.").Hidden()
 
-	backendCmd := app.Command("backend", "Commands for managing backend data.")
-	backendCmd.Hidden()
-	backendCloneCmd := backendCmd.Command("clone", "Clones data from a source to a destination backend.")
-	backendCloneCmd.Flag("config", "Path to the clone config file.").
-		Required().
+	backendCmd := app.Command("backend", "Commands for managing cluster state backend data.").Hidden()
+	backendCmd.Flag("config", "Path to the config file.").
 		Short('c').
 		StringVar(&ccf.ConfigFile)
+	backendGetCmd := backendCmd.Command("get", "Retrieves a single item from the cluster state backend.")
+	backendGetCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
+		Short('f').
+		Default(teleport.Text).
+		EnumVar(&ccf.Format, defaults.DefaultFormats...)
+	backendGetCmd.Arg("key", "The backend key to retrieve.").Required().StringVar(&ccf.BackendKey)
+	backendDeleteCmd := backendCmd.Command("rm", "Removes a single item from the cluster state backend.")
+	backendDeleteCmd.Arg("key", "The backend key to remove.").Required().StringVar(&ccf.BackendKey)
+	backendListCmd := backendCmd.Command("ls", "Lists the keys in the cluster state backend.")
+	backendListCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
+		Short('f').
+		Default(teleport.Text).
+		EnumVar(&ccf.Format, defaults.DefaultFormats...)
+	backendListCmd.Arg("prefix", "An optional key prefix to limit listing to.").StringVar(&ccf.BackendPrefix)
+	backendEditCmd := backendCmd.Command("edit", "Modify a single item from the cluster state backend.")
+	backendEditCmd.Arg("key", "The backend key to retrieve.").Required().StringVar(&ccf.BackendKey)
+	backendCloneCmd := backendCmd.Command("clone", "Clones data from a source to a destination backend.")
 	backendCloneCmd.Alias(`
 Examples:
 
@@ -775,7 +796,7 @@ Examples:
 		err = onIntegrationConfAWSRATrustAnchor(ctx, ccf)
 	case tpmIdentifyCmd.FullCommand():
 		var query *tpm.QueryRes
-		query, err = tpm.Query(context.Background(), slog.Default())
+		query, err = tpm.Query(ctx, slog.Default())
 		if err != nil {
 			break
 		}
@@ -803,7 +824,35 @@ Examples:
 		}
 		err = onSELinuxDirs(ccf.ConfigFile)
 	case backendCloneCmd.FullCommand():
-		err = onClone(context.Background(), ccf.ConfigFile)
+		err = onBackendClone(ctx, ccf.ConfigFile)
+	case backendGetCmd.FullCommand():
+		// configuration merge: defaults -> file-based conf -> CLI conf
+		if err = config.Configure(&ccf, conf, true); err != nil {
+			utils.FatalError(err)
+		}
+
+		err = onBackendGet(ctx, conf.Auth.StorageConfig, ccf.BackendKey, ccf.Format)
+	case backendDeleteCmd.FullCommand():
+		// configuration merge: defaults -> file-based conf -> CLI conf
+		if err = config.Configure(&ccf, conf, true); err != nil {
+			utils.FatalError(err)
+		}
+
+		err = onBackendDelete(ctx, conf.Auth.StorageConfig, ccf.BackendKey)
+	case backendListCmd.FullCommand():
+		// configuration merge: defaults -> file-based conf -> CLI conf
+		if err = config.Configure(&ccf, conf, true); err != nil {
+			utils.FatalError(err)
+		}
+
+		err = onBackendList(ctx, conf.Auth.StorageConfig, ccf.BackendPrefix, ccf.Format)
+	case backendEditCmd.FullCommand():
+		// configuration merge: defaults -> file-based conf -> CLI conf
+		if err = config.Configure(&ccf, conf, true); err != nil {
+			utils.FatalError(err)
+		}
+
+		err = onBackendEdit(ctx, conf.Auth.StorageConfig, ccf.BackendKey)
 	}
 	if err != nil {
 		utils.FatalError(err)

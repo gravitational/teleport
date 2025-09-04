@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"math"
 	"time"
 
@@ -51,12 +52,14 @@ const (
 	// EventProtocol specifies protocol that was captured
 	EventProtocol = "proto"
 	// EventProtocolsSSH specifies SSH as a type of captured protocol
-	EventProtocolSSH = "ssh"
+	EventProtocolSSH = apievents.EventProtocolSSH
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
-	EventProtocolKube = "kube"
+	EventProtocolKube = apievents.EventProtocolKube
 	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
 	// as a type of captured protocol
-	EventProtocolTDP = "tdp"
+	EventProtocolTDP = apievents.EventProtocolTDP
+	// EventProtocolDB specifies database as a type of captured protocol
+	EventProtocolDB = apievents.EventProtocolDB
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
@@ -1116,6 +1119,7 @@ type StreamEmitter interface {
 type AuditLogSessionStreamer interface {
 	AuditLogger
 	SessionStreamer
+	EncryptedRecordingUploader
 }
 
 // SessionStreamer supports streaming session chunks or events.
@@ -1128,6 +1132,12 @@ type SessionStreamer interface {
 	// is exhausted or the error channel reports an error, or until the context
 	// is canceled.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
+}
+
+// EncryptedRecordingUploader takes a session ID and a sequence of encrypted
+// recording parts and uploads an encrypted session recording.
+type EncryptedRecordingUploader interface {
+	UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error
 }
 
 type SearchEventsRequest struct {
@@ -1161,7 +1171,7 @@ type SearchSessionEventsRequest struct {
 	// set to its value. Otherwise leave empty.
 	StartKey string
 	// Cond can be used to pass additional expression to query, can be empty.
-	Cond *types.WhereExpr
+	Cond *utils.ToFieldsConditionConfig
 	// SessionID is optional parameter to return session events only to given session.
 	SessionID string
 }

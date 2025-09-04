@@ -410,7 +410,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 func (l *Log) searchEvents(
 	ctx context.Context,
 	fromTime, toTime time.Time,
-	eventTypes []string, cond *types.WhereExpr, sessionID string,
+	eventTypes []string, cond *utils.ToFieldsConditionConfig, sessionID string,
 	limit int, order types.EventOrder, startKey string,
 ) ([]apievents.AuditEvent, string, error) {
 	if limit <= 0 {
@@ -433,7 +433,7 @@ func (l *Log) searchEvents(
 	var condFn utils.FieldsCondition
 	if cond != nil {
 		var err error
-		condFn, err = utils.ToFieldsCondition(cond)
+		condFn, err = utils.ToFieldsCondition(*cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -572,7 +572,7 @@ func (l *Log) searchEvents(
 
 // SearchEvents implements [events.AuditLogger].
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	var emptyCond *types.WhereExpr
+	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
 	return l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
 }

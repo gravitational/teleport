@@ -23,6 +23,7 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -39,9 +40,15 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
 
 type testYAMLCase[T any] struct {
 	name string

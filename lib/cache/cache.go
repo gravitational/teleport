@@ -211,6 +211,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
 		{Kind: types.KindBotInstance},
+		{Kind: types.KindRecordingEncryption},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -745,6 +746,8 @@ type Config struct {
 	// BotInstanceService is the upstream service that we're caching
 	BotInstanceService services.BotInstance
 	Plugin             services.Plugins
+	// RecordingEncryption manages state surrounding session recording encryption
+	RecordingEncryption services.RecordingEncryption
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

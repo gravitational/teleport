@@ -67,17 +67,17 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "18",
-      "version": "18.1.6",
+      "version": "18.1.8",
       "url": "teleport.example.com",
       "golang": "1.24.6",
       "plugin": {
-        "version": "18.1.6"
+        "version": "18.1.8"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:18.1.6",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:18.1.6",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:18.1.6",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:18.1.6",
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:18.1.8",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:18.1.8",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:18.1.8",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:18.1.8",
       "teleport_install_script_url": "https://cdn.teleport.dev/install.sh"
     },
     "terraform": {
@@ -248,6 +248,11 @@
     {
       "source": "/upgrading/automatic-agent-updates/",
       "destination": "/upgrading/agent-managed-updates-v1/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/upgrading-reference/",
+      "destination": "/upgrading/upgrading-manual/",
       "permanent": true
     },
     {
@@ -744,6 +749,16 @@
       "destination": "/linux-demo/",
       "permanent": true
     },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/",
+      "destination": "/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/mwi-ci-cd/",
+      "destination": "/machine-workload-identity/mwi-ci-cd/",
+      "permanent": true
+    },
     {
       "source": "/admin-guides/deploy-a-cluster/access-graph/",
       "destination": "/identity-security/access-graph/",
@@ -821,7 +836,12 @@
     },
     {
       "source": "/admin-guides/teleport-policy/policy-how-to-use/",
-      "destination": "/identity-security/policy-how-to-use/",
+      "destination": "/identity-security/how-to-use/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/policy-how-to-use/",
+      "destination": "/identity-security/how-to-use/",
       "permanent": true
     },
     {
@@ -856,7 +876,7 @@
     },
     {
       "source": "/admin-guides/access-controls/sso/azuread/",
-      "destination": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     },
     {
@@ -1647,6 +1667,11 @@
     {
       "source": "/zero-trust-access/management/guides/aws-iam-identity-center/using-aws-cli/",
       "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     }
   ]

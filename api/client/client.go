@@ -89,6 +89,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
@@ -130,6 +131,7 @@ type AuthServiceClient struct {
 	auditlogpb.AuditLogServiceClient
 	userpreferencespb.UserPreferencesServiceClient
 	notificationsv1pb.NotificationServiceClient
+	recordingencryptionv1pb.RecordingEncryptionServiceClient
 }
 
 // Client is a gRPC Client that connects to a Teleport Auth server either
@@ -539,10 +541,11 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	c.conn = conn
 	c.grpc = AuthServiceClient{
-		AuthServiceClient:            proto.NewAuthServiceClient(c.conn),
-		AuditLogServiceClient:        auditlogpb.NewAuditLogServiceClient(c.conn),
-		UserPreferencesServiceClient: userpreferencespb.NewUserPreferencesServiceClient(c.conn),
-		NotificationServiceClient:    notificationsv1pb.NewNotificationServiceClient(c.conn),
+		AuthServiceClient:                proto.NewAuthServiceClient(c.conn),
+		AuditLogServiceClient:            auditlogpb.NewAuditLogServiceClient(c.conn),
+		UserPreferencesServiceClient:     userpreferencespb.NewUserPreferencesServiceClient(c.conn),
+		NotificationServiceClient:        notificationsv1pb.NewNotificationServiceClient(c.conn),
+		RecordingEncryptionServiceClient: recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -949,6 +952,12 @@ func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient 
 // recording metadata service.
 func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient {
 	return recordingmetadatav1.NewRecordingMetadataServiceClient(c.conn)
+}
+
+// RecordingEncryptionServiceClient returns an unadorned client for the session
+// recording encryption service.
+func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
+	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -2554,6 +2563,45 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 	return ch, e
 }
 
+// UploadEncryptedRecording streams encrypted recording parts to the auth
+// server to be saved in long term storage.
+func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	createRes, err := c.grpc.CreateUpload(ctx, &recordingencryptionv1pb.CreateUploadRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var uploadedParts []*recordingencryptionv1pb.Part
+	var partNumber int64
+	for part, err := range parts {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		uploadRes, err := c.grpc.UploadPart(ctx, &recordingencryptionv1pb.UploadPartRequest{
+			Upload:     createRes.Upload,
+			PartNumber: partNumber,
+			Part:       part,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		uploadedParts = append(uploadedParts, uploadRes.Part)
+		partNumber++
+	}
+
+	if _, err := c.grpc.CompleteUpload(ctx, &recordingencryptionv1pb.CompleteUploadRequest{
+		Upload: createRes.Upload,
+		Parts:  uploadedParts,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // SearchEvents allows searching for events with a full pagination support.
 func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetEventsRequest{
@@ -3517,6 +3565,58 @@ func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
 		databases[i] = items.Databases[i]
 	}
 	return databases, nil
+}
+
+// ListDatabases returns a page of database resources.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]types.Database, string, error) {
+	resp, err := c.grpc.ListDatabases(ctx, &proto.ListDatabasesRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	databases := make([]types.Database, len(resp.Databases))
+	for i := range resp.Databases {
+		databases[i] = resp.Databases[i]
+	}
+	return databases, resp.NextPageToken, nil
+}
+
+// RangeDatabases returns database resources within the range [start, end).
+func (c *Client) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+	return func(yield func(types.Database, error) bool) {
+		for {
+			databases, next, err := c.ListDatabases(ctx, 0, start)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			for _, db := range databases {
+				if end != "" && db.GetName() >= end {
+					return
+				}
+
+				if !yield(db, nil) {
+					return
+				}
+			}
+
+			if next == "" {
+				return
+			}
+
+			start = next
+		}
+	}
 }
 
 // DeleteDatabase deletes specified database resource.
