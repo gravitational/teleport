@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getPlatform } from '@floating-ui/react/utils';
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { ITerminalAddon, Terminal } from '@xterm/xterm';
+import type { DefaultTheme } from 'styled-components';
 
-import { Platform } from 'design/platform';
-import { ThemeColors } from 'design/theme';
-import { getMonoFont } from 'design/theme/fonts';
+import { getPlatform, Platform } from 'design/platform';
 
 import { Player } from '../Player';
 import { AspectFitAddon } from './AspectFitRatio';
@@ -46,7 +44,7 @@ export class TtyPlayer extends Player<TtyEvent> {
   private playing = false;
 
   constructor(
-    private theme: ThemeColors['terminal'],
+    private theme: DefaultTheme,
     private size: TerminalSize
   ) {
     super();
@@ -55,10 +53,10 @@ export class TtyPlayer extends Player<TtyEvent> {
   override init(element: HTMLElement) {
     this.terminal = new Terminal({
       fontSize: getPlatform() === Platform.macOS ? 12 : 14,
-      fontFamily: getMonoFont(),
+      fontFamily: this.theme.fonts.mono,
       cols: this.size.cols,
       rows: this.size.rows,
-      theme: this.theme,
+      theme: this.theme.colors.terminal,
     });
 
     const linksAddon = new WebLinksAddon();
