@@ -48,6 +48,12 @@ const integrations: IntegrationTileSpec[] = [
     icon: 'aws',
     name: 'AWS OIDC Identity Provider',
   },
+  {
+    type: 'integration',
+    kind: IntegrationKind.AwsRa,
+    icon: 'aws',
+    name: 'AWS IAM Roles Anywhere',
+  },
 ];
 
 export function installableIntegrations() {
