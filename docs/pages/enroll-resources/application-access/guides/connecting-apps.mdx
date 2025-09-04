@@ -195,7 +195,7 @@ address. To override the public address, specify the `public_addr` field:
 ```yaml
 - name: "jira"
   uri: "https://localhost:8001"
-  # The public address must be a unique DNS name and not conflict with any Teleport Proxy public addresses.
+  # The public address must be a unique DNS name and not conflict with the Teleport cluster's public addresses.
   public_addr: "jira.example.com"
 ```
 
