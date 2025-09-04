@@ -183,37 +183,44 @@ To do this, follow these steps:
 1. Create an IAM role with a trust policy that allows EC2 to assume it:
 
    ```code
+   $ cat > trust-policy.json <<EOF
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": { "Service": "ec2.amazonaws.com" },
+         "Action": "sts:AssumeRole"
+       }
+     ]
+   }
+   EOF
    $ aws iam create-role \
      --role-name EC2TeleportRole \
-     --assume-role-policy-document '{
-       "Version": "2012-10-17",
-       "Statement": [
-         {
-           "Effect": "Allow",
-           "Principal": { "Service": "ec2.amazonaws.com" },
-           "Action": "sts:AssumeRole"
-         }
-       ]
-     }'
+     --assume-role-policy-document file://trust-policy.json
    ```
 
 1. Attach a permissions policy that allows reading only your secret (least privilege):
 
    ```code
    $ ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+   $ cat > policy.json <<EOF
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "secretsmanager:GetSecretValue",
+         "Resource": "arn:aws:secretsmanager:<Var name="us-west-2" />:${ACCOUNT_ID}:``secret``:<Var name="teleport/join-token" />-*"
+       }
+     ]
+   }
+   EOF
+
    $ aws iam put-role-policy \
      --role-name EC2TeleportRole \
      --policy-name TeleportSecretPolicy \
-     --policy-document "{
-       \"Version\": \"2012-10-17\",
-       \"Statement\": [
-         {
-           \"Effect\": \"Allow\",
-           \"Action\": \"secretsmanager:GetSecretValue\",
-           \"Resource\": \"arn:aws:secretsmanager:<Var name="us-west-2" />:${ACCOUNT_ID}\:secret\:<Var name="teleport/join-token" />-*\"
-         }
-       ]
-     }"
+     --policy-document file://policy.json
    ```
 
 1. Create an EC2 instance profile to use the role:
