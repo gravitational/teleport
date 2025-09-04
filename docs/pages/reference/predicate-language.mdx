@@ -40,25 +40,6 @@ The language also supports the following functions:
 | `equals(<field>, <field2>)`    | checks if the value from `<field2>` is equal to the value from `<field>`              |
 | `equals(<field>, "<value>")`   | checks if `<value>` is equal to the value from `<field>`                              |
 
-## Matching session summary inference policies
-
-Teleport allows matching session recordings to summarization inference models
-using `inference_policy` resources. In this case, the predicate language
-supports the same functions and operators as in the [allow/deny rules in role
-resources](#scoping-allowdeny-rules-in-role-resources). The following objects
-are always available:
-
-| Field    | Meaning                                                     | Example                                           |
-|----------|-------------------------------------------------------------|---------------------------------------------------|
-| user     | User that created the session                               | `contains(user.spec.traits["teams"], "alpha")`    |
-| resource | Resource that this session connects to (server or database) | `equals(resource.metadata.labels["env"], "prod")` |
-| session  | The session that is being matched                           | `contains(session.participants, "admin")`         |
-
-For more information, see:
-
-- [Selecting sessions to summarize](../identity-security/session-summaries.mdx#selecting-sessions-to-summarize)
-- [`inference_model` reference](./resources.mdx#inference-policy)
-
 ## Resource filtering
 
 Both the [`tsh`](cli/tsh.mdx) and [`tctl`](cli/tctl.mdx) CLI tools allow you to filter nodes,

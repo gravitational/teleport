@@ -1,9 +1,10 @@
 ---
 title: Session Recording Summaries
-description: Describes how to generate and view session recording summaries using a language model.
+description: Describes how to use Teleport Identity security to summarize session recordings with a language model.
 labels:
   - conceptual
   - identity-security
+  - AI
 ---
 
 Teleport Identity Security allows you to generate and view session recording
@@ -120,6 +121,9 @@ using inference policies:
 - Only summarize sessions to your production resources using resource labels.
 - Use different models for summarizing shell and database sessions.
 
+See [Session matching examples](#session-matching-examples) for details on how
+to configure Teleport to achieve these goals.
+
 To create the required configuration resources:
 
 1. Create an `inference-config.yaml` file with the following content:
@@ -182,7 +186,7 @@ sections of [Teleport Resources Reference](../reference/resources.mdx):
 - [`inference_secret`](../reference/resources.mdx#inference-secret)
 - [`inference_policy`](../reference/resources.mdx#inference-policy)
 
-## Step 3/4: Configure access to session summaries.
+## Step 3/4: Configure access to session summaries
 
 Every user who has access to
 [given session recording](../reference/access-controls/roles.mdx#rbac-for-session-recordings)
@@ -223,11 +227,12 @@ access to all recordings. To create a new role:
 ## Step 4/4: Conduct a session and view its summary
 
 That's it! We are ready to conduct a test session. Connect to any of your
-cluster resources using `tsh ssh`, `kubectl`, `tsh db connect`, or a web
-terminal. Start an interactive session and execute any command, quit the session, and go to **Audit -> Session
-Recordings**. You should see the corresponding recording tile with a summary
-button ![summary button](../../img/identity-security/summary-button.png).
-Clicking the summary button will show the summary.
+cluster resources using `tsh ssh`, `kubectl exec`, `tsh db connect`, or a web
+terminal. Start an interactive session and execute any command, quit the
+session, and go to **Audit -> Session Recordings**. You should see the
+corresponding recording tile with a summary button
+![summary button](../../img/identity-security/summary-button.png). Clicking the
+summary button will show the summary.
 
 ![Session recording list screen with a summary visible](../../img/identity-security/rec-list-with-summary.png)
 
@@ -252,19 +257,22 @@ the model and input.
 ## Selecting sessions to summarize
 
 Indiscriminately summarizing all sessions in your cluster can increase
-costs, so it's possible to be specific about which sessions will be
+costs, so it's recommended to be specific about which sessions will be
 summarized and which model will be used for inference. One of these mechanisms
 — selecting sessions by kind — was mentioned already in the above example. In
 addition to matching by kind, it's also possible to add a custom filter to each
-inference policy.
+inference policy, which can be used to summarize only sessions that target
+production resources, are attended by certain users, etc.
 
-Filters are expressed using the
-[Teleport predicate language](../reference/predicate-language.mdx#matching-session-summary-inference-policies).
+Filters are expressed using the [Teleport predicate language](#predicate-language).
 If an inference policy contains a filter, it will match only sessions that
-match one of the indicated kinds *and* the specified filter. A typical case
-would be to pick only production resources for summarizing. The following
-example policy only matches Kubernetes sessions in any of the production
-clusters, picked by matching cluster labels:
+match one of the indicated kinds *and* the specified filter.
+
+### Session matching examples
+
+A typical case would be to pick only production resources for summarizing. The
+following example policy only matches Kubernetes sessions in any of the
+production clusters, picked by matching cluster labels:
 
 ```yaml
 kind: inference_policy
@@ -279,9 +287,83 @@ spec:
   model: shell-summary-model
 ```
 
+The following example uses two policies to route shell and database sessions to
+two different models. It assumes that there are two `inference_model` resources
+created: `database-summary-model` and `shell-summary-model`.
+
+```yaml
+kind: inference_policy
+version: v1
+metadata:
+  name: shell-policy
+spec:
+  kinds: ['ssh', 'k8s']
+  model: shell-summary-model
+
+---
+
+kind: inference_policy
+version: v1
+metadata:
+  name: db-policy
+spec:
+  kinds: ['db']
+  model: db-summary-model
+```
+
+### Predicate Language
+
+Inference policy filters are expressed using Teleport predicate language. In
+this case, the language supports the following operators:
+
+| Operator | Meaning                              | Example                                                  |
+|----------|--------------------------------------|----------------------------------------------------------|
+| &&       | and (all conditions must match)      | `contains(field1, field2) && equals(field2, "val")`      |
+| \|\|     | or  (any one condition should match) | `contains(field1, field2) \|\| contains(field1, "val2")` |
+| !        | not (used with functions)            | `!equals(field1, field2)`                                |
+| ==       | equal to                             | `resource.metadata.labels["env"] == "prod"`              |
+| !=       | not equal to                         | `resource.metadata.labels["env"] != "prod"`              |
+
+The language also supports the following functions:
+
+| Functions                       | Return type | Description                                                                                 |
+|---------------------------------|-------------|---------------------------------------------------------------------------------------------|
+| `contains(list, item)`   | `Boolean`   | Returns true if `item` is included in the `list` |
+| `equals(a, b)`     | `Boolean`   | Returns true if value `a` is equal to `b` |
+| `contains_all(list, items)` | `Boolean`   | Returns true if all `items` are included in the `list`                                  |
+| `contains_any(list, items)` | `Boolean`   | Returns true if any of `items` is included in the `list`                                |
+| `set(value1, value2, ...)`      | `[]string`  | Returns a list of strings                                                                   |
+| `all_end_with(a, suffix)` | `Boolean`  | If `a` is a list, returns true if all strings in the `a` end with `suffix`. If `a` is a string, returns true if `a` ends with `suffix`. | 
+| `all_equal(a, b)` | `Boolean` | If `a` is a list, returns true if all items in `a` are equal to `b`. If `a` is a string, returns true if it's equal to `b`. |
+| `is_subset(a, item1, item2, ...)` | `Boolean` | If `a` is a list, returns true if `list(item1, item2, ...)` is a subset of `a`. If `a` is a string, returns true if the list contains `a`. |
+| `has_prefix(s, prefix) | `Boolean` | Returns true if string `s` starts with `prefix` |
+
 It's possible to build predicates using information about target resource,
-session, and user. The full list of supported properties can be found in the
-[Predicate Language Reference](../reference/predicate-language.mdx#matching-session-summary-inference-policies).
+session, and user.
+
+| Field    | Meaning                                                     | Example                                           |
+|----------|-------------------------------------------------------------|---------------------------------------------------|
+| user     | User that created the session. |     |
+| user.metadata.name     | User's name | `is_subset(user.metadata.name, "alice", "bob")`    |
+| user.spec.roles     | User's roles | `contains(user.spec.roles, "intern")`    |
+| user.spec.traits     | User's traits | `contains(user.spec.traits["teams"], "alpha")`    |
+| resource | Resource that this session connects to (server, Kubernetes cluster, or database) | |
+| resource.kind | Resource kind | `resource.kind == "node` |
+| resource.metadata.name | Resource name. In case of SSH servers, it's the server ID. | `resource.name == "production-cluster"` |
+| resource.metadata.labels | Resource labels | `equals(resource.metadata.labels["env"], "prod")` |
+| resource.spec.hostname | Server hostname (SSH sessions only) | `resource.spec.hostname == "host1"` |
+| resource.spec.protocol | Database protocol (DB sessions only) | `resource.spec.protocol == "postgres" |
+| resource.spec.uri | Database URI (DB sessions only) | `resource.spec.uri == "db-host:5432" |
+| session  | The session that is being matched. This object supports all the fields of `session.end` and `db.session.end` events, so we only name the most useful ones here. |
+| session.participants | Users that participated in the session (SSH and Kubernetes sessions only) | `contains(session.participants, "alice")`         |
+| session.cluster_name | Name of the Teleport cluster | `cluster_name == "teleport.example.com"` |
+| session.db_name | Name of database (the underlying one, not the Teleport resource; database sessions only) | `session.db_name == "orders"` |
+| session.db_service | Database service name (database sessions only) | `session.db_service == "prod-db-service"` |
+| session.kubernetes_users | List of Kubernetes usernames (Kubernetes sessions only) | `contains(session.kubernetes_users, "admin")` |
+| session.kubernetes_groups | List of Kubernetes groups (Kubernetes sessions only) | `contains(session.kubernetes_groups, "viewers")` |
+| session.kubernetes_node_name | Name of node that runs the pod (Kubernetes sessions only) | `session.kubernetes_node_name == "node1"` |
+| session.kubernetes_pod_name | Name of the pod (Kubernetes sessions only) | `session.kubernetes_pod_name == "some-pod"` |
+| session.kubernetes_pod_namespace | Namespace that contains the pod (Kubernetes sessions only) | `session.kubernetes_pod_namespace == "default"` |
 
 ## Using LiteLLM and other OpenAI-compatible proxies
 
