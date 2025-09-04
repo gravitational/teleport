@@ -702,7 +702,7 @@ func (s *ForwardServer) UseTunnel() bool {
 func (s *ForwardServer) GetBPF() bpf.BPF {
 	return nil
 }
-func (s *ForwardServer) GetUserAccountingPaths() (utmp, wtmp, btmp string) {
+func (s *ForwardServer) GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string) {
 	return
 }
 func (s *ForwardServer) GetLockWatcher() *services.LockWatcher {
