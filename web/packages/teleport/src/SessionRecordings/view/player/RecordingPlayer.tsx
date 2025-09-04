@@ -320,7 +320,7 @@ const AnimatedState = styled.div`
 `;
 
 const PlayerBox = styled.div`
-  background: ${p => p.theme.colors.sessionRecording.player.background};
+  background: black; // black bars on the sides of the terminal
   flex: 1;
   position: relative;
 
