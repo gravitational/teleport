@@ -46,6 +46,7 @@ const (
 type AccessListAndMembersGetter interface {
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 }
 
 // GetMembersFor returns a flattened list of Members for an Access List, including inherited Members.
@@ -398,6 +399,11 @@ func IsAccessListMember(
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
 func UserMeetsRequirements(identity types.User, requires accesslist.Requires) bool {
+	if requires.IsEmpty() {
+		// No requirements to meet return early to avoid unnecessary work
+		return true
+	}
+
 	// Assemble the user's roles for easy look up.
 	userRolesMap := map[string]struct{}{}
 	for _, role := range identity.GetRoles() {
@@ -440,54 +446,230 @@ func UserMeetsRequirements(identity types.User, requires accesslist.Requires) bo
 	return true
 }
 
+type ancestorOptions struct {
+	validateUserRequirement bool
+	clock                   clockwork.Clock
+	user                    types.User
+}
+
+func (o *ancestorOptions) validate() error {
+	if o.validateUserRequirement {
+		if o.user == nil {
+			return trace.BadParameter("user is required when validateUserRequirement is true")
+		}
+		if o.clock == nil {
+			o.clock = clockwork.NewRealClock()
+		}
+	}
+	return nil
+}
+
+// ancestorOption is a functional option for configuring the behavior of GetAncestorsFor.
+type ancestorOption func(*ancestorOptions)
+
+func withUserRequirementsCheck(user types.User, clock clockwork.Clock) ancestorOption {
+	return func(opts *ancestorOptions) {
+		opts.validateUserRequirement = true
+		opts.user = user
+		opts.clock = clock
+	}
+}
+
+// HierarchyConfig holds dependencies for building access list hierarchies.
+type HierarchyConfig struct {
+	// AccessListService is used to fetch Access Lists and their members.
+	AccessListsService AccessListAndMembersGetter
+	// Getter is used to fetch Access Lists and their members.
+	Clock clockwork.Clock
+}
+
+// CheckAndSetDefaults validates the config and sets default values.
+func (c *HierarchyConfig) CheckAndSetDefaults() error {
+	if c.AccessListsService == nil {
+		return trace.BadParameter("AccessListsService is required")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
+// Hierarchy provides methods to compute access list hierarchies.
+type Hierarchy struct {
+	HierarchyConfig
+}
+
+// NewHierarchy constructs a HierarchyService with the given config.
+func NewHierarchy(cfg HierarchyConfig) (*Hierarchy, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &Hierarchy{
+		HierarchyConfig: cfg,
+	}, nil
+}
+
+// GetHierarchyForUser builds the hierarchy of Access Lists for a given user,
+// starting from the provided list and traversing upward through its ancestors
+// using MemberOf/OwnerOf relationships. The returned hierarchy includes the
+// starting list (if the user meets the requirements) and may include ancestor
+// lists where the user satisfies membership or ownership requirements.
+// If the user fails to meet the requirements at any point, that branch is excluded.
+func (s *Hierarchy) GetHierarchyForUser(ctx context.Context, accessList *accesslist.AccessList, user types.User) (memberHierarchy, ownerHierarchy []*accesslist.AccessList, err error) {
+	if s.validDirectOwner(user, accessList) {
+		// User Is direct owner and meet the ownership requirements
+		// Include access list from the owner hierarchy
+		// and check if there is more ownership via nested ownership
+		// or via chained membership -> ownership relationships
+		// e.g. A has nested ownership B, B has nested membership C, C has direct members like alice
+		ownerHierarchy = append(ownerHierarchy, accessList)
+	}
+	ok, err := s.validMembership(ctx, accessList, user)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if !ok {
+		// User is not a valid member of the starting access list
+		// return current owner hierarchy (not empty if user has a direct ownership)
+		// and empty member hierarchy
+		return memberHierarchy, ownerHierarchy, nil
+	}
+	// User is a valid member of the starting access list
+	// Include access list in the member hierarchy
+	memberHierarchy = append(memberHierarchy, accessList)
+
+	// Fetch ancestors via MemberOf edges while checking user requirements
+	ancestors, err := getAncestors(ctx, accessList, RelationshipKindMember, s.AccessListsService, withUserRequirementsCheck(user, s.Clock))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	owners, err := s.expandOwnerOf(ctx, ancestors, user)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return append(memberHierarchy, ancestors...), append(ownerHierarchy, owners...), nil
+}
+
+func (s *Hierarchy) validMembership(ctx context.Context, list *accesslist.AccessList, user types.User) (bool, error) {
+	m, err := s.AccessListsService.GetAccessListMember(ctx, list.GetName(), user.GetName())
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return false, nil
+		}
+		return false, trace.Wrap(err)
+	}
+	if m.IsExpired(s.Clock.Now()) || !UserMeetsRequirements(user, list.GetMembershipRequires()) {
+		return false, nil
+	}
+	return true, nil
+}
+
+// Expand ancestors via OwnerOf edges while checking user requirements
+func (s *Hierarchy) expandOwnerOf(ctx context.Context, ancestors []*accesslist.AccessList, user types.User) ([]*accesslist.AccessList, error) {
+	var out []*accesslist.AccessList
+	for _, v := range ancestors {
+		for _, name := range v.Status.OwnerOf {
+			lst, err := s.AccessListsService.GetAccessList(ctx, name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if UserMeetsRequirements(user, lst.GetOwnershipRequires()) {
+				out = append(out, lst)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (s *Hierarchy) validDirectOwner(user types.User, acl *accesslist.AccessList) bool {
+	if !UserMeetsRequirements(user, acl.GetOwnershipRequires()) {
+		return false
+	}
+	for _, v := range acl.Spec.Owners {
+		if v.Name == user.GetName() {
+			return true
+		}
+	}
+	return false
+}
+
 // GetAncestorsFor calculates and returns the set of Ancestor ACLs depending on
 // the supplied relationship criteria. Order of the ancestor list is undefined.
 func GetAncestorsFor(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter) ([]*accesslist.AccessList, error) {
+	return getAncestors(ctx, accessList, kind, g)
+}
+
+func getAncestors(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter, opts ...ancestorOption) ([]*accesslist.AccessList, trace.Error) {
 	ancestorsMap := make(map[string]*accesslist.AccessList)
-	if err := collectAncestors(ctx, accessList, kind, g, make(map[string]struct{}), ancestorsMap); err != nil {
+	if err := collectAncestors(ctx, accessList, kind, g, make(map[string]struct{}), ancestorsMap, opts...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ancestors := slices.Collect(maps.Values(ancestorsMap))
 	return ancestors, nil
 }
 
-func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter, visited map[string]struct{}, ancestors map[string]*accesslist.AccessList) error {
+func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter, visited map[string]struct{}, ancestors map[string]*accesslist.AccessList, opts ...ancestorOption) error {
+	options := &ancestorOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+	if err := options.validate(); err != nil {
+		return trace.Wrap(err)
+	}
 	if _, ok := visited[accessList.GetName()]; ok {
 		return nil
 	}
 	visited[accessList.GetName()] = struct{}{}
 
-	switch kind {
-	case RelationshipKindOwner:
+	isDirectMembershipExpired := func(acl, member string) (bool, error) {
+		if !options.validateUserRequirement {
+			return false, nil
+		}
+		m, err := g.GetAccessListMember(ctx, acl, member)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		return m.IsExpired(options.clock.Now()), nil
+	}
+
+	userMeetsRequirements := func(r accesslist.Requires) bool {
+		if options.user == nil {
+			return true
+		}
+		return UserMeetsRequirements(options.user, r)
+	}
+
+	if kind == RelationshipKindOwner {
 		// Add parents where this list is an owner to ancestors
 		for _, ownerParent := range accessList.Status.OwnerOf {
 			ownerParentAcl, err := g.GetAccessList(ctx, ownerParent)
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			if !userMeetsRequirements(ownerParentAcl.Spec.OwnershipRequires) {
+				continue
+			}
 			ancestors[ownerParent] = ownerParentAcl
 		}
-		// Recursively traverse parents where this list is a member
-		for _, memberParent := range accessList.Status.MemberOf {
-			memberParentAcl, err := g.GetAccessList(ctx, memberParent)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := collectAncestors(ctx, memberParentAcl, kind, g, visited, ancestors); err != nil {
-				return trace.Wrap(err)
-			}
+	}
+	for _, memberParent := range accessList.Status.MemberOf {
+		memberParentAcl, err := g.GetAccessList(ctx, memberParent)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-	default:
-		// Only collect parents where this list is a member
-		for _, memberParent := range accessList.Status.MemberOf {
-			memberParentAcl, err := g.GetAccessList(ctx, memberParent)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		expired, err := isDirectMembershipExpired(memberParent, accessList.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if expired || !userMeetsRequirements(memberParentAcl.Spec.MembershipRequires) {
+			continue
+		}
+
+		if kind == RelationshipKindMember {
 			ancestors[memberParent] = memberParentAcl
-			if err := collectAncestors(ctx, memberParentAcl, kind, g, visited, ancestors); err != nil {
-				return trace.Wrap(err)
-			}
+		}
+		if err := collectAncestors(ctx, memberParentAcl, kind, g, visited, ancestors, opts...); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

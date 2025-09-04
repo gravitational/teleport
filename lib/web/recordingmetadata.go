@@ -20,6 +20,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -88,12 +89,16 @@ func (h *Handler) getSessionRecordingMetadata(
 
 	metadata, err := stream.Recv()
 	if err != nil {
-		if !trace.IsNotFound(err) {
+		if trace.IsNotFound(err) {
+			sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
+				Error: fmt.Sprintf("metadata for session %q not found", sessionID),
+			})
+		} else {
 			h.logger.ErrorContext(ctx, "failed to receive metadata", "session_id", sessionID, "error", err)
+			sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
+				Error: err.Error(),
+			})
 		}
-		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
-			Error: err.Error(),
-		})
 		return nil, nil
 	}
 
@@ -164,6 +169,9 @@ func (h *Handler) getSessionRecordingThumbnail(
 		SessionId: sessionId,
 	})
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("thumbnail not found for session %q", sessionId)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -186,36 +194,63 @@ type resizeEvent struct {
 	Rows int32 `json:"rows"`
 }
 
+func (resizeEvent) isSessionRecordingEvent() {}
+
 type joinEvent struct {
 	baseEvent
 	User string `json:"user"`
 }
 
+func (joinEvent) isSessionRecordingEvent() {}
+
 type inactivityEvent struct {
 	baseEvent
 }
 
+func (inactivityEvent) isSessionRecordingEvent() {}
+
+type sessionRecordingEvent interface {
+	isSessionRecordingEvent()
+}
+
 type sessionRecordingMetadata struct {
-	Duration    int64         `json:"duration"`
-	Events      []interface{} `json:"events"`
-	StartCols   int32         `json:"startCols"`
-	StartRows   int32         `json:"startRows"`
-	StartTime   int64         `json:"startTime"`
-	EndTime     int64         `json:"endTime"`
-	ClusterName string        `json:"clusterName"`
+	Duration     int64                   `json:"duration"`
+	Events       []sessionRecordingEvent `json:"events"`
+	StartCols    int32                   `json:"startCols"`
+	StartRows    int32                   `json:"startRows"`
+	StartTime    int64                   `json:"startTime"`
+	EndTime      int64                   `json:"endTime"`
+	ClusterName  string                  `json:"clusterName"`
+	ResourceName string                  `json:"resourceName,omitempty"`
+	User         string                  `json:"user,omitempty"`
+	Type         string                  `json:"type,omitempty"`
+}
+
+func pbTypeToString(t recordingmetadatav1.SessionRecordingType) string {
+	switch t {
+	case recordingmetadatav1.SessionRecordingType_SESSION_RECORDING_TYPE_SSH:
+		return "ssh"
+	case recordingmetadatav1.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES:
+		return "k8s"
+	default:
+		return "unknown"
+	}
 }
 
 // encodeSessionRecordingMetadata converts the session recording metadata to a format more suitable for the frontend
 // to use.
 func encodeSessionRecordingMetadata(metadata *recordingmetadatav1.SessionRecordingMetadata) sessionRecordingMetadata {
 	result := sessionRecordingMetadata{
-		Duration:    convertDurationToMs(metadata.Duration),
-		StartCols:   metadata.StartCols,
-		StartRows:   metadata.StartRows,
-		Events:      make([]interface{}, 0, len(metadata.Events)),
-		StartTime:   metadata.StartTime.AsTime().Unix(),
-		EndTime:     metadata.EndTime.AsTime().Unix(),
-		ClusterName: metadata.ClusterName,
+		Duration:     convertDurationToMs(metadata.Duration),
+		StartCols:    metadata.StartCols,
+		StartRows:    metadata.StartRows,
+		Events:       make([]sessionRecordingEvent, 0, len(metadata.Events)),
+		StartTime:    metadata.StartTime.AsTime().Unix(),
+		EndTime:      metadata.EndTime.AsTime().Unix(),
+		ClusterName:  metadata.ClusterName,
+		ResourceName: metadata.ResourceName,
+		User:         metadata.User,
+		Type:         pbTypeToString(metadata.Type),
 	}
 
 	for _, event := range metadata.Events {
@@ -253,8 +288,9 @@ type sessionRecordingThumbnailResponse struct {
 	Rows          int32  `json:"rows"`
 	CursorX       int32  `json:"cursorX"`
 	CursorY       int32  `json:"cursorY"`
-	StartOffsetMs int64  `json:"startOffsetMs"`
-	EndOffsetMs   int64  `json:"endOffsetMs"`
+	CursorVisible bool   `json:"cursorVisible"`
+	StartOffset   int64  `json:"startOffset"`
+	EndOffset     int64  `json:"endOffset"`
 }
 
 // encodeSessionRecordingThumbnail converts the session recording thumbnail to a format more suitable for the frontend.
@@ -265,8 +301,9 @@ func encodeSessionRecordingThumbnail(thumbnail *recordingmetadatav1.SessionRecor
 		Rows:          thumbnail.Rows,
 		CursorX:       thumbnail.CursorX,
 		CursorY:       thumbnail.CursorY,
-		StartOffsetMs: convertDurationToMs(thumbnail.StartOffset),
-		EndOffsetMs:   convertDurationToMs(thumbnail.EndOffset),
+		CursorVisible: thumbnail.CursorVisible,
+		StartOffset:   convertDurationToMs(thumbnail.StartOffset),
+		EndOffset:     convertDurationToMs(thumbnail.EndOffset),
 	}
 }
 

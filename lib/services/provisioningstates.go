@@ -20,7 +20,6 @@ import (
 	"context"
 
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // DownstreamID holds the configured ID of a downstream identity "receiver". For
@@ -46,7 +45,7 @@ type DownstreamProvisioningStates interface {
 
 	// ListProvisioningStates lists all provisioning state records for a given
 	// downstream receiver.
-	ListProvisioningStates(context.Context, DownstreamID, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
+	ListProvisioningStates(context.Context, DownstreamID, int, string) ([]*provisioningv1.PrincipalState, string, error)
 	ListProvisioningStates2(context.Context, DownstreamID, int, string) ([]*provisioningv1.PrincipalState, string, error)
 
 	// Creates a new backend PrincipalState record. The target DownstreamID is
@@ -82,7 +81,7 @@ type ProvisioningStates interface {
 	// records for all downstream receivers. Note that the returned record names
 	// may not be unique across all downstream receivers. Check the records'
 	// `DownstreamID` field to disambiguate.
-	ListProvisioningStatesForAllDownstreams(context.Context, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
+	ListProvisioningStatesForAllDownstreams(context.Context, int, string) ([]*provisioningv1.PrincipalState, string, error)
 	ListProvisioningStatesForAllDownstreams2(context.Context, int, string) ([]*provisioningv1.PrincipalState, string, error)
 
 	// DeleteAllProvisioningStates deletes all provisioning state records for
