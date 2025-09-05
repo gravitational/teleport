@@ -26,7 +26,7 @@ Teleport roles.
 When a user signs in to Teleport by authenticating with their Microsoft Entra ID
 account, Teleport first creates a temporary user account with Teleport roles mapped
 from `groups` claim and traits. Traits are user attributes (key-value format). 
-Any claims that is present in the OIDC ID Token is preserved as user traits. 
+Any claim that is present in the OIDC ID Token is preserved as user traits. 
 Teleport then starts a new session for the user by issuing a pair of short-lived 
 TLS and SSH certificates. These certificates encodes user's identity, 
 roles and traits, which are evaluated to grant access in Teleport. 
@@ -189,7 +189,7 @@ Should the user's group membership exceed 200 groups, Teleport will follow throu
 the groups overage claim issued by Entra ID and fetch user's groups detail using the 
 Microsoft Graph API. 
 
-## Step 4/5 Create OIDC connector 
+## Step 5/5. Create OIDC connector 
 
 Before creating the Auth Connector resource, its useful to first generate the 
 configuration spec and test the configuration.
@@ -222,7 +222,7 @@ $ tctl sso configure oidc --name "entra-id" \
   As such, you will need to map groups by using groups object ID.
 
 <details>
-<summary>Example Auth Connector resource file created by the `tctl sso configure` command</summary>
+<summary>Example YAML Auth Connector resource file created by the `tctl sso configure` command</summary>
 
 ```yaml
 kind: oidc
