@@ -337,22 +337,20 @@ This kind of workflow can be used with Helm to deploy apps, or any other kind of
 </TabItem>
 </Tabs>
 
-## Optional: View Audit Logs
-TODO
-
 ## Summary
-TODO
-You've successfully set up a workflow in GitHub Actions that can access your resources securely.
+
+You've successfully set up a workflow in GitHub Actions that can access your resources securely through the Teleport proxy,
+without distributing long-lived credentials, making the process more secure and more efficient for development teams.
 
 ## Next Steps
 
-- Read the [architecture overview](../../reference/architecture/machine-id-architecture.mdx) to learn about how
-  Machine ID works in more detail.
 - Check out the [deployment guides](deployment/deployment.mdx) to learn about
   configuring `tbot` in a production-ready way for your platform.
 - Check out the [access guides](access-guides/access-guides.mdx) to learn about configuring
-  `tbot` for different use cases than SSH.
+  `tbot` for other use cases than SSH and Kubernetes.
 - Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
+- Learn how [Workload Identities](../workload-identity/introduction.mdx) enable the same capabilities
+  for resources like cloud APIs that can't be protected with the Teleport proxy.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-id/telemetry.mdx)
 
