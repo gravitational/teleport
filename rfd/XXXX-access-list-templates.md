@@ -3,7 +3,7 @@ author: Lisa Kim (lisa@goteleport.com)
 state: draft
 ---
 
-# RFD 222 - Templated Access Lists
+# RFD XXXX - Templated Access Lists
 
 # Required Approvers
 
@@ -76,17 +76,33 @@ message AccessListTemplateConfig {
 // TemplateLongTerm describes fields required to create
 // an access list with long term access grant.
 message TemplateLongTerm {
-  // access_condition defines access to resources
-  // and its principals.
+    // access_condition defines access to resources
+    // and its principals.
     AccessConditions allow = 1;
+    // role_access_revision is a read-only field to store
+    // the last revision made by Teleport on the access related role
+    // Only Teleport can set and modify this field and is used as a
+    // way to determine if re-syncing of roles is required (eg: user
+    // modified the role when they shouldn't have).
+    string role_access_revision = 2;
 }
 
 // TemplateShortTerm describes fields required to create
 // an access list with short term access grant.
 message TemplateShortTerm {
-  // access_condition defines access to resources
-  // and its principals.
+    // access_condition defines access to resources
+    // and its principals.
     AccessConditions allow = 1;
+
+    // The following fields are read-only fields to store
+    // the last revision made by Teleport on the access, requester,
+    // and reviewer related roles.
+    // Only Teleport can set and modify this field and is used as a
+    // way to determine if re-syncing of roles is required (eg: user
+    // modified the role when they shouldn't have).
+    string role_access_revision = 2;
+    string role_requester_revision = 3;
+    string role_reviewer_revision = 4;
 }
 ```
 
@@ -147,9 +163,9 @@ message WindowsDesktopAccess {
 }
 ```
 
-### CLI UX
+### UX
 
-For all CLI examples, feature is added to the existing access list field `spec`. For `spec.title` new value `template` is introduced. And a new field `spec.template_config` is added:
+For all CLI examples, the template feature is added to the existing access list field `spec`. For `spec.title` new value `template` is used. And a new field `spec.template_config` is introduced:
 
 #### tctl example
 
@@ -227,25 +243,31 @@ resource "teleport_access_list" "example-long-term-template" {
 }
 ```
 
+#### Web application
+
+The web UI/UX has already gone through POC iterations and has been approved by sasha and roman. Designs are getting finalized in [figma](https://www.figma.com/design/CzxaBHF8hirrYv2bTVa4Rw/Identity-Governance?node-id=5590-174098&p=f&t=mCDqqdU2YrUhaBkW-0).
+
 ### Implementation
 
 #### Create
 
 A templated access list can only be created if access list fields `type: template` and `template_config` defines at least one resource field with its labels set. Resource principals will not be required.
 
-Once these fields are validated, Teleport will take the template specifications and create system roles and then assign them to member and owner.
+Once these fields are validated, Teleport will take the template specifications and create appropriate roles and then assign them to member and owner.
 
-##### System roles for short-term template
+All roles created by Teleport will be labeled with `teleport.internal/resource-type: system` and will be referred to system-managed roles.
+
+##### System-managed roles for short-term template
 
 - access: a role that defines the access to resources - this role is not assigned directly to anyone
 - reviewer: a role assigned to owner grants that allow them to review requests to resources defined in `access` role
 - requester: a role assigned to member grants that allow them to search and request for resources defined in `access` role
 
-##### System roles for long-term template
+##### System-managed roles for long-term template
 
 - access: a role that defines the access to resources and is assigned to member grants
 
-##### Naming system roles
+##### Naming format for the system-managed roles
 
 In order to ensure uniqueness and help identifying which roles belong to access lists, the naming convention takes the following format:
 
@@ -254,32 +276,51 @@ In order to ensure uniqueness and help identifying which roles belong to access 
 | Parts                             |                      Explanation                      |              Example Values |
 | :-------------------------------- | :---------------------------------------------------: | --------------------------: |
 | \<purpose\>                       |     short word that describes the purpose of role     | requester, reviewer, access |
-| acl-role                          |             stands for "access list role"             |                         n/a |
+| acl-template                      |           stands for "access list template"           |                         n/a |
 | <access list metadata name (UID)> | helps identify which access list this role belongs to |                         n/a |
 
-Example names of system roles, if an access list with metadata.name is set to `abcd1234`
+Example names of system-managed roles, if an access list with metadata.name is set to `abcd1234`
 
-- requester-acl-role-abcd1234
-- reviewer-acl-role-abcd1234
-- access-acl-role-abcd1234
+- requester-acl-template-abcd1234
+- reviewer-acl-template-abcd1234
+- access-acl-template-abcd1234
+
+#### Role reconciler for the system-managed roles
+
+Teleport does not prevent users from modifying system-managed roles. A user is able to `tctl create existing-role.yaml -f`. This poses a problem where the `access` definition defined on an access list might not be in sync with the actual role resource (and its other related roles). To keep roles in sync with access lists, a reconciler will be created that will periodically (or on watched role event) will read roles related to access list and query for its matching access list and match the `role.metadata.revision` with `accesslist.spec.template_config.short_term|long_term.role_XXX_revision`. On mismatch, the role will essentially be re-created and upserted, and once successful the `revision` field on the access list will also be updated.
+
+The reconciler will attempt to immediately reconcile on startup to handle the edge case of modifying roles while offline.
+
+The reconciler will also clean up stale roles by deleting them if querying for its related access list fails with a `Not Found` error.
 
 #### Update
 
 The `type: template`, member grant, and owner grant will not be modifiable.
 
-Minus the fields that are already modifiable, `template_config` field is partly modifiable. The field that defines access to resources can be modified. The `oneof type` will not be modifiable eg: if an access list template was originally `short-term`, a user cannot change the template to `long-term`.
+`template_config` field is partly modifiable. The field that defines the access to resources can be modified. The `oneof type` will not be modifiable eg: if an access list template was originally `short-term`, a user cannot change the template to `long-term`.
 
-For both templates, since only the `access` part of the `template_config` can be modified, the system role related to `access` will be updated.
-
-##### Update quirk
-
-There is a quirk where the `access` definition set on an access list might not be in sync with the actual role resource because we don't prevent users from editing system roles with `tctl`. If such a case happens, ultimately the role resource is the source of truth. Any updates made to `template_config` will overwrite any previous edits directly made to the system roles.
+For both templates, since only the `access` part of the `template_config` can be modified, the system-managed role related to `access` will be updated.
 
 #### Delete
 
-In the backend, after an access list is successfully deleted, all system roles tied to that deleted access list will also be deleted.
+In the backend, after an access list is successfully deleted, all system-managed roles tied to that deleted access list will also be deleted. Note that the access list must be deleted first as roles assigned to access list cannot be deleted.
 
-In the case deleting roles fail for some reason, we can offer a retry if we detect the failure was due to clean up. An API endpoint will be created that is specific to cleaning up templated access list (which is to just delete roles at this moment).
+In the case deleting roles fail for some reason, the errors can be ignored as the reconciler will eventually clean up stale roles.
+
+### Backwards compatibility
+
+#### Web application
+
+A v2 endpoint for creating and updating access lists will be introduced so the web app can reject requests going to older proxies and help notify user that all proxies must be upgraded to the version that this feature will be released in.
+
+#### Downgrading cluster
+
+If a templated access list is created in a cluster that supports this feature, and cluster is downgraded to a version not supporting this feature, the access list will essentially behave like a regular access list. Users will lose the ability to modify access through access list. And upon delete, the system-managed roles will remain behind.
+
+Upon upgrading again to a cluster that supports this feature:
+
+- if the access list still exists, the reconciler will resync the roles with the access defined in the access list
+- if the access list does not exist, the reconciler will delete the stale roles
 
 ### Feature extension
 
