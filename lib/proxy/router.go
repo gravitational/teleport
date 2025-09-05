@@ -247,28 +247,16 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 	span.AddEvent("retrieved target server")
 
+	serverID := fmt.Sprintf("%v.%v", target.GetName(), clusterName)
 	principals := []string{
 		host,
 		// Add in principal for when nodes are on leaf clusters.
 		host + "." + clusterName,
+		// add hostUUID.cluster to the principals
+		serverID,
 	}
 
-	var (
-		serverID   string
-		serverAddr string
-		proxyIDs   []string
-		sshSigner  ssh.Signer
-	)
-
-	proxyIDs = target.GetProxyIDs()
-	serverID = fmt.Sprintf("%v.%v", target.GetName(), clusterName)
-
-	// add hostUUID.cluster to the principals
-	principals = append(principals, serverID)
-
-	// add ip if it exists to the principals
-	serverAddr = target.GetAddr()
-
+	serverAddr := target.GetAddr()
 	switch {
 	case serverAddr != "":
 		h, _, err := net.SplitHostPort(serverAddr)
@@ -280,8 +268,10 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	case serverAddr == "" && target.GetUseTunnel():
 		serverAddr = reversetunnelclient.LocalNode
 	}
+
 	// If the node is a registered openssh node don't set agentGetter
 	// so a SSH user agent will not be created when connecting to the remote node.
+	var sshSigner ssh.Signer
 	if target.IsOpenSSHNode() {
 		agentGetter = nil
 
@@ -307,7 +297,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		Address:               host,
 		Principals:            apiutils.Deduplicate(principals),
 		ServerID:              serverID,
-		ProxyIDs:              proxyIDs,
+		ProxyIDs:              target.GetProxyIDs(),
 		ConnType:              types.NodeTunnel,
 		TargetServer:          target,
 	})
