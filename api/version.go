@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-dev.removewasmpack.6"
+const Version = "19.0.0-dev.removewasmpack.7"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.removewasmpack.6"
+const VersionPreRelease = "dev.removewasmpack.7"
 const VersionMetadata = ""
