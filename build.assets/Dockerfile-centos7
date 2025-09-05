@@ -61,8 +61,8 @@ RUN yum groupinstall -y 'Development Tools' && \
       perl-CPAN \
       perl-devel \
       scl-utils \
-      wget && \
-      binaryen \
+      wget \
+      binaryen && \
     yum clean all && \
     /tmp/fix-yum-repo-list.sh
 
