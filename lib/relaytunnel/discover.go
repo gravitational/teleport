@@ -119,6 +119,3 @@ func discover(ctx context.Context, params DiscoverParams) (*relaytunnelv1alpha.D
 	clt := relaytunnelv1alpha.NewDiscoveryServiceClient(cc)
 	return clt.Discover(ctx, &relaytunnelv1alpha.DiscoverRequest{})
 }
-
-// TODO(espadolini): remove once the function is actually used
-var _ = discover
