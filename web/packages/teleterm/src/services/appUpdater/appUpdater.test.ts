@@ -136,8 +136,8 @@ test('auto-downloads update when all clusters are reachable', async () => {
         {
           clusterUri: '/clusters/foo',
           toolsAutoUpdate: true,
-          toolsVersion: '18.0.0',
-          minToolsVersion: '17.0.0-aa',
+          toolsVersion: '19.0.0',
+          minToolsVersion: '18.0.0-aa',
         },
       ],
       unreachableClusters: [],
@@ -168,8 +168,8 @@ test('does not auto-download update when there are unreachable clusters', async 
         {
           clusterUri: '/clusters/foo',
           toolsAutoUpdate: true,
-          toolsVersion: '18.0.0',
-          minToolsVersion: '17.0.0-aa',
+          toolsVersion: '19.0.0',
+          minToolsVersion: '18.0.0-aa',
         },
       ],
       unreachableClusters: [
@@ -198,8 +198,8 @@ test('does not auto-download update when all clusters are reachable and noAutoDo
         {
           clusterUri: '/clusters/foo',
           toolsAutoUpdate: true,
-          toolsVersion: '18.0.0',
-          minToolsVersion: '17.0.0-aa',
+          toolsVersion: '19.0.0',
+          minToolsVersion: '18.0.0-aa',
         },
       ],
       unreachableClusters: [],
@@ -222,8 +222,8 @@ test('discards previous update if a new one is found that should not auto-downlo
       {
         clusterUri: '/clusters/foo',
         toolsAutoUpdate: true,
-        toolsVersion: '18.0.0',
-        minToolsVersion: '17.0.0-aa',
+        toolsVersion: '19.0.0',
+        minToolsVersion: '18.0.0-aa',
       },
     ],
     unreachableClusters: [],
@@ -240,7 +240,7 @@ test('discards previous update if a new one is found that should not auto-downlo
     expect.objectContaining({
       kind: 'update-downloaded',
       update: expect.objectContaining({
-        version: '18.0.0',
+        version: '19.0.0',
       }),
     })
   );
@@ -249,16 +249,16 @@ test('discards previous update if a new one is found that should not auto-downlo
     {
       clusterUri: '/clusters/foo',
       toolsAutoUpdate: true,
-      toolsVersion: '18.0.0',
-      minToolsVersion: '17.0.0-aa',
+      toolsVersion: '19.0.0',
+      minToolsVersion: '18.0.0-aa',
     },
 
     // This cluster is on newer version, so it will be providing updates.
     {
       clusterUri: '/clusters/bar',
       toolsAutoUpdate: true,
-      toolsVersion: '18.0.1',
-      minToolsVersion: '17.0.0-aa',
+      toolsVersion: '19.0.1',
+      minToolsVersion: '18.0.0-aa',
     },
   ];
   await setup.appUpdater.checkForUpdates({ noAutoDownload: true });
@@ -268,7 +268,7 @@ test('discards previous update if a new one is found that should not auto-downlo
       autoDownload: false,
       kind: 'update-available',
       update: expect.objectContaining({
-        version: '18.0.1',
+        version: '19.0.1',
       }),
     })
   );
@@ -283,8 +283,8 @@ test('discards previous update if the latest check returns no update', async () 
       {
         clusterUri: '/clusters/foo',
         toolsAutoUpdate: true,
-        toolsVersion: '18.0.0',
-        minToolsVersion: '17.0.0-aa',
+        toolsVersion: '19.0.0',
+        minToolsVersion: '18.0.0-aa',
       },
     ],
     unreachableClusters: [],
@@ -301,7 +301,7 @@ test('discards previous update if the latest check returns no update', async () 
     expect.objectContaining({
       kind: 'update-downloaded',
       update: expect.objectContaining({
-        version: '18.0.0',
+        version: '19.0.0',
       }),
     })
   );
