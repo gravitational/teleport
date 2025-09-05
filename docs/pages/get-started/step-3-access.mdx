@@ -1,0 +1,61 @@
+---
+title: "Step 3: Set Up Access Controls"
+description: "Configure identity-based access controls in your Enterprise Cloud cluster."
+tocDepth: 2
+labels:
+  - get-started
+---
+
+import Button from '@site/src/components/Button';
+import Icon from '@site/src/components/Icon';
+
+Teleport uses **Role-Based Access Control (RBAC)** to determine who can access what across your infrastructure.
+
+Every Teleport user is assigned one or more roles. These roles define the user's permissions, such as:
+
+- What infrastructure resources they can access
+- Whether they can request temporary access
+- Whether they can edit cluster settings or view session recordings
+
+You can assign roles when creating users or modify them later via YAML files or the Teleport Web UI.
+
+## Built-in roles
+
+If you take a look in your Teleport cluster at `Zero Trust Access` > `Roles`, you will see that there are already a number of preset roles to help you get started.
+
+Here are a few of the roles you will see:
+
+| **Role**                      | **Description**                                                                 |
+|------------------------------|---------------------------------------------------------------------------------|
+| `access`                     | Grants access to infrastructure resources.                                     |
+| `editor`                     | Allows editing cluster configuration (e.g., roles, connectors).                |
+| `auditor`                    | Grants read-only access to audit logs, events, and session recordings.         |
+
+To view the full list of preset roles, including additional roles that come in the Enterprise version, refer to the [Getting Started with Access Controls](../zero-trust-access/rbac-get-started/rbac-get-started.mdx) guide.
+
+Go ahead and choose `Options` > `Edit` on any one of these roles to get familiar with how roles are configured. 
+
+You can also visit the Users page at `Zero Trust Access` > `Users` to see the roles assigned to each user. 
+
+## Custom roles
+
+For instructions on creating custom roles, assigning roles to users, and mapping SSO users to roles, have a look at our [Getting Started with Access Controls](../zero-trust-access/rbac-get-started/rbac-get-started.mdx) guide.
+
+## Access Lists (Enterprise)
+
+Once you're comfortable with basic RBAC, you can explore Access Lists, a Teleport feature designed for more advanced, long-lived access delegation. 
+
+Access Lists let administrators define and manage groups of users, automatically grant roles and traits to those users upon login, and enforce regular audit reviews of membership.
+
+This builds on your RBAC foundation by introducing centralized, long-term access workflows. 
+
+You can learn how to create and assign Access Lists in the [Getting Started with Access Lists guide](../identity-governance/access-lists/guide.mdx).
+
+## Next steps
+After assigning roles to your users, they'll receive permissions based on the roles' definitions.
+
+In the next step, we'll cover how to monitor activity and use audit logs to strengthen security and ensure compliance.
+
+<div style={{ marginTop: '40px' }}>
+  <Button as="link" href="./step-4-audit" variant="primary" shape="lg">Step 4 - Monitor Audit Logs <Icon name="arrowRight" inline size="md"/> </Button>
+</div>
