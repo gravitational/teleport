@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 )
 
@@ -101,41 +103,100 @@ type Summarizer interface {
 	AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv1.InferencePolicy, error]
 }
 
-// InferencePolicyMatchingContext is a special kind of [RuleContext] that
-// allows validating inference policy filters by attempting to resolve
-// identifiers against other supported resource types.
+// InferencePolicyMatchingContext is a special kind of [RuleContext] that is
+// used for matching inference policies to sessions using predicates. It also
+// allows validating inference policy filter expressions, since it matches
+// identifiers for any supported resource and session event types, regardless
+// which one is being used (or if none is).
 type InferencePolicyMatchingContext struct {
-	Context
+	// User is the user who initiated the session.
+	User UserState
+	// Resource is the resource being accessed.
+	Resource types.Resource
+	// Session is a session.end or windows.desktop.session.end event. These
+	// events hold information about session recordings.
+	Session events.AuditEvent
 }
 
 func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, error) {
-	// // First, try to get the identifier from the underlying context.
-	// val, err := ctx.Context.GetIdentifier(fields)
-	// if err == nil {
-	// 	return val, err
-	// }
-	// if !trace.IsNotFound(err) {
-	// 	return nil, err
-	// }
+	switch fields[0] {
+	case UserIdentifier:
+		var user UserState
+		if ctx.User == nil {
+			user = emptyUser
+		} else {
+			user = ctx.User
+		}
+		val, err := predicate.GetFieldByTag(user, teleport.JSON, fields[1:])
+		return val, trace.Wrap(err)
 
-	// Use custom logic for resolving resource fields.
-	if fields[0] == ResourceIdentifier {
-		for _, dummyResource := range []any{
-			types.ServerV2{}, types.KubernetesClusterV3{}, types.DatabaseV3{},
-		} {
-			val, err := predicate.GetFieldByTag(dummyResource, teleport.JSON, fields[1:])
-			if err != nil {
-				if trace.IsNotFound(err) {
-					continue
-				}
-				return nil, err
-			}
+	case ResourceIdentifier:
+		// First, try to fetch field value from the resource in the context.
+		val, origErr := predicate.GetFieldByTag(ctx.Resource, teleport.JSON, fields[1:])
+		if origErr == nil {
 			return val, nil
 		}
-	}
+		if !trace.IsNotFound(origErr) {
+			return nil, trace.Wrap(origErr)
+		}
 
-	// For other cases, use the standard procedure.
-	return ctx.Context.GetIdentifier(fields)
+		// Otherwise, try to fetch field value from dummy resources of all
+		// supported types to figure out if it exists in any of the supported
+		// types. If it does, a zero value is returned; otherwise, an error is
+		// returned.
+		for _, dummyResource := range []types.Resource{
+			&types.ServerV2{}, &types.KubernetesClusterV3{}, &types.DatabaseV3{},
+		} {
+			zeroVal, err := predicate.GetFieldByTag(dummyResource, teleport.JSON, fields[1:])
+			if err == nil {
+				return zeroVal, nil
+			}
+			if trace.IsNotFound(err) {
+				continue
+			}
+			return zeroVal, trace.Wrap(err)
+		}
+		return val, trace.Wrap(origErr)
+
+	case SessionIdentifier:
+		// First, try to fetch field value from the session in the context.
+		var session events.AuditEvent = &events.SessionEnd{}
+		switch ctx.Session.(type) {
+		case *events.SessionEnd, *events.DatabaseSessionEnd:
+			session = ctx.Session
+		}
+		val, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
+		if origErr == nil {
+			return val, nil
+		}
+		if !trace.IsNotFound(origErr) {
+			return nil, trace.Wrap(origErr)
+		}
+
+		// Otherwise, try to fetch field value from dummy events of all supported
+		// types to figure out if it exists in any of the supported types. If it
+		// does, a zero value is returned; otherwise, an error is returned.
+		if zeroVal, err := getMissingEmptyFieldForSessionEnd(fields); err == nil {
+			return zeroVal, nil
+		}
+		return val, trace.Wrap(origErr)
+
+	default:
+		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+	}
+}
+
+func (ctx *InferencePolicyMatchingContext) GetAccessChecker() (AccessChecker, error) {
+	return nil, trace.NotFound(
+		"access checker is not supported by InferencePolicyMatchingContext",
+	)
+}
+
+func (ctx *InferencePolicyMatchingContext) GetResource() (types.Resource, error) {
+	if ctx.Resource == nil {
+		return nil, trace.NotFound("resource is not set in the context")
+	}
+	return ctx.Resource, nil
 }
 
 // ValidateInferencePolicy validates an inference policy, including checking
