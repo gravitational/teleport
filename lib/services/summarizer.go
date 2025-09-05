@@ -155,7 +155,7 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 			if trace.IsNotFound(err) {
 				continue
 			}
-			return zeroVal, trace.Wrap(err)
+			return val, trace.Wrap(origErr)
 		}
 		return val, trace.Wrap(origErr)
 
