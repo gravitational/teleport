@@ -302,6 +302,26 @@ for decryption. What this means varies per key storage backend, but generally mu
 defined when the key is first provisioned.
 </Admonition>
 
+## Recording summaries
+
+With Teleport Identity Security, you can run language models against session
+recordings to generate session summaries. This feature supports SSH,
+Kubernetes, and database sessions and is only available if the Teleport cluster
+is licensed for Identity Security.
+
+After each recording is uploaded, Teleport Auth Service matches session metadata
+against all `inference_policy` resources. If a match is found, it will then use
+configuration from a corresponding `inference_model` resource to generate
+session recording. The inference model specifies, among other options, which
+inference provider and provider-specific model is used to generate a summary.
+
+No more than 150 concurrent summary jobs will be executed per Auth Service. If
+more sessions arrive, the auth server will wait until the previous ones are
+summarized.
+
+Session recording summaries are stored along with session recordings and can be
+viewed using the Teleport web app.
+
 ## Related reading
 
 - [RBAC for session recordings](../access-controls/roles.mdx#rbac-for-session-recordings)
@@ -309,3 +329,4 @@ defined when the key is first provisioned.
 - [SSH recording modes](../monitoring/audit.mdx)
 - [Session recording for desktops](../agent-services/desktop-access-reference/sessions.mdx)
 - [Encrypted Session Recordings](../../enroll-resources/server-access/guides/encrypted-session-recordings/encrypted-session-recordings.mdx)
+- [Session recording summaries](../../identity-security/session-summaries.mdx) 
