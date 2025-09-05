@@ -28,6 +28,7 @@ import (
 	"embed"
 	"encoding/binary"
 	"net"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -413,6 +414,8 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 				User:            ctx.User,
 				Login:           ctx.Login,
 				UserClusterName: ctx.UserOriginClusterName,
+				UserRoles:       slices.Clone(ctx.UserRoles),
+				UserTraits:      ctx.UserTraits.Clone(),
 			},
 			BPFMetadata: apievents.BPFMetadata{
 				CgroupID: event.CgroupID,
@@ -473,6 +476,8 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			User:            ctx.User,
 			Login:           ctx.Login,
 			UserClusterName: ctx.UserOriginClusterName,
+			UserRoles:       slices.Clone(ctx.UserRoles),
+			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
@@ -529,6 +534,8 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			User:            ctx.User,
 			Login:           ctx.Login,
 			UserClusterName: ctx.UserOriginClusterName,
+			UserRoles:       slices.Clone(ctx.UserRoles),
+			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
@@ -587,6 +594,8 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			User:            ctx.User,
 			Login:           ctx.Login,
 			UserClusterName: ctx.UserOriginClusterName,
+			UserRoles:       slices.Clone(ctx.UserRoles),
+			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
