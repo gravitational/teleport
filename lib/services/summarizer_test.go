@@ -36,14 +36,16 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 	user, err := types.NewUser("alice")
 	require.NoError(t, err)
 
-	// server, err := types.NewServer("server-1", types.KindNode, types.ServerSpecV2{Hostname: "host-1"})
-	// require.NoError(t, err)
+	server, err := types.NewServer("server-1", types.KindNode, types.ServerSpecV2{Hostname: "host-1"})
+	require.NoError(t, err)
 
-	// kubeCluster, err := types.NewKubernetesClusterV3(
-	// 	types.Metadata{Name: "kube-1"},
-	// 	types.KubernetesClusterSpecV3{AWS: types.KubeAWS{Name: "aws-name"}},
-	// )
-	// require.NoError(t, err)
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{Name: "kube-1"},
+		types.KubernetesClusterSpecV3{
+			Kubeconfig: []byte("dummy-kubeconfig"),
+		},
+	)
+	require.NoError(t, err)
 
 	database, err := types.NewDatabaseV3(
 		types.Metadata{Name: "db-1"},
@@ -51,8 +53,12 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	sessionEnd := &events.SessionEnd{
+	kubeSessionEnd := &events.SessionEnd{
 		KubernetesPodMetadata: events.KubernetesPodMetadata{KubernetesPodName: "pod-1"},
+	}
+
+	dbSessionEnd := &events.DatabaseSessionEnd{
+		DatabaseMetadata: events.DatabaseMetadata{DatabaseProtocol: types.DatabaseProtocolPostgreSQL},
 	}
 
 	cases := []struct {
@@ -76,27 +82,63 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 			expression: "user.spec.unknown",
 			notFound:   true,
 		},
-		// {
-		// 	name:       "known server field",
-		// 	resource:   server,
-		// 	expression: "resource.spec.hostname",
-		// 	expected:   "host-1",
-		// },
-		// {
-		// 	name:       "unknown server field",
-		// 	resource:   server,
-		// 	expression: "resource.spec.unknown",
-		// 	notFound:   true,
-		// },
 		{
-			name:       "known session field",
-			session:    sessionEnd,
+			name:       "known server field",
+			resource:   server,
+			expression: "resource.spec.hostname",
+			expected:   "host-1",
+		},
+		{
+			name:       "unknown server field",
+			resource:   server,
+			expression: "resource.spec.unknown",
+			notFound:   true,
+		},
+		{
+			name:       "known database field",
+			resource:   database,
+			expression: "resource.spec.protocol",
+			expected:   types.DatabaseProtocolPostgreSQL,
+		},
+		{
+			name:       "unknown database field",
+			resource:   database,
+			expression: "resource.spec.unknown",
+			notFound:   true,
+		},
+		{
+			name:       "known Kubernetes cluster field",
+			resource:   kubeCluster,
+			expression: "resource.spec.kubeconfig",
+			expected:   []byte("dummy-kubeconfig"),
+		},
+		{
+			name:       "unknown Kubernetes cluster field",
+			resource:   kubeCluster,
+			expression: "resource.spec.unknown",
+			notFound:   true,
+		},
+		{
+			name:       "known shell session field",
+			session:    kubeSessionEnd,
 			expression: "session.kubernetes_pod_name",
 			expected:   "pod-1",
 		},
 		{
-			name:       "unknown session field",
-			session:    sessionEnd,
+			name:       "unknown shell session field",
+			session:    kubeSessionEnd,
+			expression: "session.unknown",
+			notFound:   true,
+		},
+		{
+			name:       "known database session field",
+			session:    dbSessionEnd,
+			expression: "session.db_protocol",
+			expected:   types.DatabaseProtocolPostgreSQL,
+		},
+		{
+			name:       "unknown database session field",
+			session:    dbSessionEnd,
 			expression: "session.unknown",
 			notFound:   true,
 		},
@@ -105,11 +147,9 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &InferencePolicyMatchingContext{
-				Context: Context{
-					User:     tc.user,
-					Resource: tc.resource,
-					Session:  tc.session,
-				},
+				User:     tc.user,
+				Resource: tc.resource,
+				Session:  tc.session,
 			}
 			parser, err := NewWhereParser(ctx)
 			require.NoError(t, err)
@@ -126,29 +166,46 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 	}
 }
 
-func TestInferencePolicyMatchingContext_MixedResourceBooleanExpression(t *testing.T) {
+func TestInferencePolicyMatchingContext_MixedTypeBooleanExpressions(t *testing.T) {
 	t.Parallel()
 
 	server, err := types.NewServer("server-1", types.KindNode, types.ServerSpecV2{Hostname: "host-1"})
 	require.NoError(t, err)
 
-	require.NoError(t, err)
+	kubeSessionEnd := &events.SessionEnd{
+		KubernetesPodMetadata: events.KubernetesPodMetadata{KubernetesPodName: "pod-1"},
+	}
 
-	ctx := &InferencePolicyMatchingContext{
-		Context: Context{
-			Resource: server,
+	cases := []struct {
+		name      string
+		predicate string
+	}{
+		{
+			name:      "mixing server and database predicates",
+			predicate: `resource.spec.protocol == "postgres" || resource.spec.hostname == "host-1"`,
+		},
+		{
+			name:      "mixing Kubernetes and database session predicates",
+			predicate: `session.db_protocol == "postgres" || session.kubernetes_pod_name == "pod-1"`,
 		},
 	}
-	parser, err := NewWhereParser(ctx)
-	require.NoError(t, err)
 
-	// Deliberately crafted expression that requires falling back from an unknown
-	// `protocol` field to the second condition.
-	parseResult, err := parser.Parse(`resource.spec.protocol == "postgres" || resource.spec.hostname == "host-1"`)
-	require.NoError(t, err)
-	pred, ok := parseResult.(predicate.BoolPredicate)
-	require.True(t, ok, "expected BoolPredicate, got %T", parseResult)
-	assert.True(t, pred())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := &InferencePolicyMatchingContext{
+				Resource: server,
+				Session:  kubeSessionEnd,
+			}
+			parser, err := NewWhereParser(ctx)
+			require.NoError(t, err)
+
+			parseResult, err := parser.Parse(tc.predicate)
+			require.NoError(t, err)
+			pred, ok := parseResult.(predicate.BoolPredicate)
+			require.True(t, ok, "expected BoolPredicate, got %T", parseResult)
+			assert.True(t, pred())
+		})
+	}
 }
 
 func TestValidateInferencePolicy(t *testing.T) {
