@@ -30,7 +30,7 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -129,11 +129,11 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AutoUpdateAgentReport{
 			AutoUpdateAgentReport: r.UnwrapT(),
 		}
-	case types.Resource153UnwrapperT[*accessv1.ScopedRole]:
+	case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
 		out.Resource = &proto.Event_ScopedRole{
 			ScopedRole: r.UnwrapT(),
 		}
-	case types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]:
+	case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]:
 		out.Resource = &proto.Event_ScopedRoleAssignment{
 			ScopedRoleAssignment: r.UnwrapT(),
 		}
