@@ -61,7 +61,6 @@ test('in case of invalid value a default one is returned', () => {
       {
         code: 'invalid_type',
         expected: 'boolean',
-        received: 'string',
         message: 'Expected boolean, received string',
         path: ['usageReporting.enabled'],
       },
