@@ -27,8 +27,10 @@ export function setTray(
 ): void {
   const tray = new Tray(
     getIcon(runtimeSettings),
-    // A random GUID that allows the icon to retain its position between relaunches.
-    'acf0cb59-0f9e-412a-8973-9ee803bc39f6'
+    // Random GUIDs that allows the icon to retain its position between relaunches.
+    runtimeSettings.dev
+      ? 'b3f163ae-bba3-4513-9593-ce186a3c3eb7'
+      : 'acf0cb59-0f9e-412a-8973-9ee803bc39f6'
   );
 
   // On Windows, the app tray menu is displayed on the right mouse click.
