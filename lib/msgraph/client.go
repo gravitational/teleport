@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // graphVersion is the default version of the MS Graph API endpoint.
@@ -217,7 +216,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 	}
 
 	var lastErr error
-	for retryCount := range maxRetries {
+	for range maxRetries {
 		if retryAfter > 0 {
 			select {
 			case <-c.clock.After(retryAfter):
@@ -229,25 +228,6 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		requestID := uuid.NewString()
 		// https://learn.microsoft.com/en-us/graph/best-practices-concept#reliability-and-support
 		req.Header.Set("client-request-id", requestID)
-
-		{
-			authz := req.Header.Get("Authorization")
-			req.Header.Set("Authorization", "redacted")
-
-			// Unescape the query for clearer logs.
-			u := uri
-			if val, err := url.QueryUnescape(uri); err == nil {
-				u = val
-			}
-
-			c.logger.Log(req.Context(), log.TraceLevel, "Executing HTTP request",
-				"url", u,
-				"header", req.Header,
-				"retry_count", retryCount,
-				"clock_time", c.clock.Now(),
-			)
-			req.Header.Set("Authorization", authz)
-		}
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
