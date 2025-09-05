@@ -633,6 +633,15 @@ Below is the list of the supported config properties.
   It should not be modified.
 </Admonition>
 
+### tsh Environment Variables
+
+Under the hood, Teleport Connect uses `tsh` for several of its features. As a result, Teleport Connect
+will respect [tsh Environment Variables](../reference/cli/tsh.mdx#tsh-environment-variables) in many cases.
+This can make it easier to share common settings between `tsh` into your Teleport Connect App.
+
+For example, instead of settings `ssh.addKeysToAgent=no`, you could set `TELEPORT_ADD_KEYS_TO_AGENT=no` in
+your shell startup file to configure both `tsh` and Teleport Connect.
+
 ### Configuring keyboard shortcuts
 
 A valid shortcut contains at least one modifier and a single key code, for example `Shift+Tab`.
