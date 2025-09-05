@@ -235,6 +235,10 @@ export class WindowsManager {
 
   /** Shows the window when it's hidden or minimized. */
   showWindow(): void {
+    if (!this.isWindowUsable()) {
+      return;
+    }
+
     if (this.window.isMinimized()) {
       this.window.restore();
     }
@@ -259,6 +263,10 @@ export class WindowsManager {
    * On macOS, it also hides the dock icon.
    */
   enterBackgroundMode(): void {
+    if (!this.isWindowUsable()) {
+      return;
+    }
+
     if (!this.window.isVisible()) {
       return;
     }
@@ -283,7 +291,7 @@ export class WindowsManager {
    * interacted with asks for its window to receive focus.
    */
   focusWindow(): void {
-    if (!this.window) {
+    if (!this.isWindowUsable()) {
       return;
     }
 
@@ -299,7 +307,7 @@ export class WindowsManager {
    * expired, Connect should receive focus and show an appropriate message to the user.
    */
   forceFocusWindow(): void {
-    if (!this.window) {
+    if (!this.isWindowUsable()) {
       return;
     }
 
@@ -483,6 +491,10 @@ export class WindowsManager {
     const state: RunInBackgroundState = { notified: true };
     this.fileStorage.put('runInBackground', state);
     return response !== 0; // true if 'OK'
+  }
+
+  private isWindowUsable(): boolean {
+    return this.window && !this.window.isDestroyed();
   }
 }
 
