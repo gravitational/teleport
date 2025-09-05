@@ -84,7 +84,7 @@ export function FilterPanel({
           placeholder="Search for integrations..."
         />
       </Box>
-      <Flex justifyContent="space-between" minWidth="419px">
+      <Flex justifyContent="space-between">
         <Flex justifyContent="flex-start">
           <MultiselectMenu
             options={integrationTagOptions}
