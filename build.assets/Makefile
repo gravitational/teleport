@@ -177,6 +177,7 @@ buildbox:
 		--build-arg GOLANGCI_LINT_VERSION=$(GOLANGCI_LINT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
+		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
@@ -220,6 +221,7 @@ buildbox-centos7:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
+		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
@@ -249,6 +251,7 @@ buildbox-centos7-fips:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
+		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
@@ -298,6 +301,7 @@ buildbox-node:
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
+		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_NODE) \
 		$(if $(PUSH),--push,--load) \
@@ -743,6 +747,13 @@ print-rust-version:
 .PHONY:print-wasm-opt-version
 print-wasm-opt-version:
 	@echo $(WASM_OPT_VERSION)
+
+#
+# Print the wasm-bindgen version used to build Teleport.
+#
+.PHONY:print-wasm-bindgen-version
+print-wasm-bindgen-version:
+	@echo $(WASM_BINDGEN_VERSION)
 
 #
 # Print the Node version used to build Teleport Connect.

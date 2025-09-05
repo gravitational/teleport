@@ -12,6 +12,7 @@ NODE_VERSION ?= 22.14.0
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.81.0
 WASM_OPT_VERSION ?= 0.116.1
+WASM_BINDGEN_VERSION ?= $(shell $(MAKE) -s -C .. print-wasm-bindgen-version)
 LIBBPF_VERSION ?= 1.2.2
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 

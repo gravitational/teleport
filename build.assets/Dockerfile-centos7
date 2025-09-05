@@ -280,8 +280,11 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustup target add wasm32-unknown-unknown
 
 ARG WASM_OPT_VERSION
-# Install wasm-opt for reducing the size of our webassembly module(s).
-RUN cargo install wasm-opt --locked --version ${WASM_OPT_VERSION}
+ARG WASM_BINDGEN_VERSION
+# Install wasm-opt and wasm-bindgen-cli to reduce webassembly module size
+# and generate js/ts bindings.
+RUN cargo install wasm-opt --locked --version ${WASM_OPT_VERSION} && \
+    cargo install wasm-bindgen-cli --locked --version $(WASM_BINDGEN_VERSION)
 
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.
