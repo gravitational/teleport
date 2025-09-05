@@ -165,7 +165,9 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		return nil, trace.Wrap(err)
 	}
 	for key := range header {
-		req.Header.Set(key, header.Get(key))
+		for _, value := range header.Values(key) {
+			req.Header.Add(key, value)
+		}
 	}
 
 	if body != nil {
