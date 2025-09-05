@@ -114,7 +114,7 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 }
 
 // RangeAccessLists returns access list resources within the range [start, end).
-func (c *Cache) RangeAccessLists(ctx context.Context, start string, end string, filter *accesslistv1.AccessListsFilter, sort *types.SortBy) iter.Seq2[*accesslist.AccessList, error] {
+func (c *Cache) RangeAccessLists(ctx context.Context, start string, end string, sort *types.SortBy) iter.Seq2[*accesslist.AccessList, error] {
 	return func(yield func(*accesslist.AccessList, error) bool) {
 		ctx, span := c.Tracer.Start(ctx, "cache/RangeAccessLists")
 		defer span.End()
@@ -152,7 +152,7 @@ func (c *Cache) RangeAccessLists(ctx context.Context, start string, end string, 
 
 		rg.Release()
 
-		for accessList, err := range c.Config.AccessLists.RangeAccessLists(ctx, start, end, filter, sort) {
+		for accessList, err := range c.Config.AccessLists.RangeAccessLists(ctx, start, end, sort) {
 			if err != nil {
 				yield(nil, err)
 				return

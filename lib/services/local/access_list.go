@@ -174,7 +174,7 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 }
 
 // RangeAccessLists returns access list resources within the range [start, end).
-func (a *AccessListService) RangeAccessLists(ctx context.Context, start string, end string, req *accesslistv1.AccessListsFilter, sort *types.SortBy) iter.Seq2[*accesslist.AccessList, error] {
+func (a *AccessListService) RangeAccessLists(ctx context.Context, start string, end string, sort *types.SortBy) iter.Seq2[*accesslist.AccessList, error] {
 	// Currently, the backend only sorts on lexicographical keys and not
 	// based on fields within a resource
 	if sort != nil && (sort.Field != "name" || sort.IsDesc != false) {
