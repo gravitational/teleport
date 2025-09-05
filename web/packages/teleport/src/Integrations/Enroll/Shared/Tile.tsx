@@ -21,8 +21,7 @@ import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Link as ExternalLink, Flex, Label, Text } from 'design';
-import { NewTab } from 'design/Icon';
-import * as Icons from 'design/Icon';
+import * as Icon from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon/resourceIconSpecs';
 
 import cfg from 'teleport/config';
@@ -154,7 +153,7 @@ export function Tile({
         ) : (
           <BadgeSelfHosted>
             Self-Hosted
-            <NewTab size={14} ml={1} color="text.slightlyMuted" />
+            <StyledNewTab size={14} color="text.slightlyMuted" />
           </BadgeSelfHosted>
         ))}
       <Flex flexDirection="row" width={'100%'}>
@@ -262,9 +261,9 @@ const BadgeSelfHosted = styled.div`
   position: absolute;
   background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
   color: ${props => props.theme.colors.text.slightlyMuted};
-  padding: 2px 8px;
-  border-top-right-radius: 8px;
-  border-bottom-left-radius: 8px;
+  padding: 2px 24px 2px 8px;
+  border-top-right-radius: ${({ theme }) => theme.space[2]}px;
+  border-bottom-left-radius: ${({ theme }) => theme.space[2]}px;
   top: 0px;
   right: 0px;
   font-size: 10px;
@@ -284,8 +283,14 @@ const BadgeGuided = styled.div`
   line-height: 18px;
 `;
 
-const StyledIconCheck = styled(Icons.Check)`
+const StyledIconCheck = styled(Icon.Check)`
   position: absolute;
   bottom: ${({ theme }) => theme.space[2]}px;
+  right: ${({ theme }) => theme.space[2]}px;
+`;
+
+const StyledNewTab = styled(Icon.NewTab)`
+  position: absolute;
+  top: ${({ theme }) => theme.space[1]}px;
   right: ${({ theme }) => theme.space[2]}px;
 `;
