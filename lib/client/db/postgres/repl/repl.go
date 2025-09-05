@@ -37,11 +37,12 @@ import (
 )
 
 type REPL struct {
+	*term.Terminal
+
 	connConfig *pgconn.Config
 	client     io.ReadWriteCloser
 	serverConn net.Conn
 	route      clientproto.RouteToDatabase
-	term       *term.Terminal
 	commands   map[string]*command
 }
 
@@ -73,11 +74,11 @@ func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, err
 	}
 
 	return &REPL{
+		Terminal:   term.NewTerminal(cfg.Client, ""),
 		connConfig: config,
 		client:     cfg.Client,
 		serverConn: cfg.ServerConn,
 		route:      cfg.Route,
-		term:       term.NewTerminal(cfg.Client, ""),
 		commands:   initCommands(),
 	}, nil
 }
@@ -121,10 +122,10 @@ func (r *REPL) Run(ctx context.Context) error {
 
 	lead := lineLeading(r.route)
 	leadSpacing := strings.Repeat(" ", len(lead))
-	r.term.SetPrompt(lineBreak + lead)
+	r.Terminal.SetPrompt(lineBreak + lead)
 
 	for {
-		line, err := r.term.ReadLine()
+		line, err := r.Terminal.ReadLine()
 		if err != nil {
 			return trace.Wrap(formatTermError(ctx, err))
 		}
@@ -153,7 +154,7 @@ func (r *REPL) Run(ctx context.Context) error {
 			// Reset multiline state.
 			multilineAcc.Reset()
 			readingMultiline = false
-			r.term.SetPrompt(lineBreak + lead)
+			r.Terminal.SetPrompt(lineBreak + lead)
 
 			reply = formatResult(pgConn.Exec(ctx, query).ReadAll()) + lineBreak
 		default:
@@ -168,14 +169,14 @@ func (r *REPL) Run(ctx context.Context) error {
 
 			readingMultiline = true
 			multilineAcc.WriteString(line)
-			r.term.SetPrompt(leadSpacing)
+			r.Terminal.SetPrompt(leadSpacing)
 		}
 
 		if reply == "" {
 			continue
 		}
 
-		if _, err := r.term.Write([]byte(reply)); err != nil {
+		if _, err := r.Terminal.Write([]byte(reply)); err != nil {
 			return trace.Wrap(formatTermError(ctx, err))
 		}
 	}
@@ -194,7 +195,7 @@ func formatTermError(ctx context.Context, err error) error {
 
 func (r *REPL) presentBanner() error {
 	_, err := fmt.Fprintf(
-		r.term,
+		r.Terminal,
 		`Teleport PostgreSQL interactive shell (v%s)
 Connected to %q instance as %q user.
 Type \? for help.`,

@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // WSConn is a gorilla/websocket minimal interface used by our web implementation.
@@ -497,31 +496,12 @@ func (t *Stream) handleWindowResize(ctx context.Context, envelope Envelope) {
 		return
 	}
 
-	var e map[string]any
-	if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
-		t.log.WarnContext(ctx, "Failed to parse resize payload", "error", err)
-		return
-	}
-
-	size, ok := e["size"].(string)
-	if !ok {
-		t.log.ErrorContext(ctx, "got unexpected size type, expected type string", "size_type", logutils.TypeAttr(size))
-		return
-	}
-
-	params, err := session.UnmarshalTerminalParams(size)
-	if err != nil {
-		t.log.WarnContext(ctx, "Failed to retrieve terminal size", "error", err)
-		return
-	}
-
-	// nil params indicates the channel was closed
-	if params == nil {
-		return
-	}
-
-	if err := sshSession.WindowChange(ctx, params.H, params.W); err != nil {
-		t.log.ErrorContext(ctx, "failed to send window change request", "error", err)
+	if params, err := ParseWindowResizeMsg(envelope); err != nil {
+		t.log.WarnContext(ctx, "Failed to handle terminal window resize",
+			"error", err,
+		)
+	} else if err := sshSession.WindowChange(ctx, params.H, params.W); err != nil {
+		t.log.ErrorContext(ctx, "Failed to send window change request", "error", err)
 	}
 }
 
@@ -614,4 +594,26 @@ func (t *Stream) Close() error {
 	} else {
 		return trace.Wrap(t.WSStream.Close())
 	}
+}
+
+// ParseWindowResizeMsg parses a terminal [Envelope] as a resize message.
+func ParseWindowResizeMsg(envelope Envelope) (*session.TerminalParams, error) {
+	if envelope.Type != defaults.WebsocketResize {
+		return nil, trace.BadParameter("expected resize message but got %q", envelope.Type)
+	}
+	var e map[string]any
+	if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
+		return nil, trace.Wrap(err, "failed to parse resize payload")
+	}
+
+	size, ok := e["size"].(string)
+	if !ok {
+		return nil, trace.BadParameter("unexpected window resize parameter type %T", size)
+	}
+
+	params, err := session.UnmarshalTerminalParams(size)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse terminal size")
+	}
+	return params, nil
 }
