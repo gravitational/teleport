@@ -279,9 +279,6 @@ func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName strin
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member list.
 func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
 	defer span.End()
@@ -336,9 +333,6 @@ func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, page
 }
 
 // GetAccessListMember returns the specified access list member resource.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member record.
 func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
 	defer span.End()

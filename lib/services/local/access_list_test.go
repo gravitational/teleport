@@ -1788,34 +1788,85 @@ func TestAccessListService_Status_OwnerOf(t *testing.T) {
 
 	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
-	ownersAccessList := createAccessList(t, service, "test-owners-acl-"+uuid.NewString(), clock)
-	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), nil)
+	ownerAccessList1 := createAccessList(t, service, "test-owners-acl-"+uuid.NewString(), clock)
+	requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), nil)
+	ownerAccessList2 := createAccessList(t, service, "test-owners-acl-"+uuid.NewString(), clock)
+	requireStatusOwnerOf(t, service, ownerAccessList2.GetName(), nil)
 
 	accessList := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock,
 		withOwners([]accesslist.Owner{
 			{
-				Name:           ownersAccessList.GetName(),
+				Name:           ownerAccessList1.GetName(),
 				MembershipKind: accesslist.MembershipKindList,
 			},
 		}),
 	)
-	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), []string{accessList.GetName()})
+	requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), []string{accessList.GetName()})
 
-	ownersAccessList, _, err = service.UpsertAccessListWithMembers(ctx, ownersAccessList, nil)
+	ownerAccessList1, _, err = service.UpsertAccessListWithMembers(ctx, ownerAccessList1, nil)
 	require.NoError(t, err)
-	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), []string{accessList.GetName()})
+	requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), []string{accessList.GetName()})
 
-	ownersAccessList, err = service.UpsertAccessList(ctx, ownersAccessList)
+	ownerAccessList1, err = service.UpsertAccessList(ctx, ownerAccessList1)
 	require.NoError(t, err)
-	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), []string{accessList.GetName()})
+	requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), []string{accessList.GetName()})
 
-	ownersAccessList, err = service.UpdateAccessList(ctx, ownersAccessList)
+	ownerAccessList1, err = service.UpdateAccessList(ctx, ownerAccessList1)
 	require.NoError(t, err)
-	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), []string{accessList.GetName()})
+	requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), []string{accessList.GetName()})
+
+	t.Run("origin access list updates and upserts fix status.owner_of of existing list owners", func(t *testing.T) {
+		requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), []string{accessList.GetName()})
+
+		err = service.updateAccessListOwnerOf(ctx, accessList.GetName(), ownerAccessList1.GetName(), false /* new - this will delete */)
+		require.NoError(t, err)
+		requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), []string{})
+
+		accessList, err = service.UpsertAccessList(ctx, accessList)
+		require.NoError(t, err)
+		requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), []string{accessList.GetName()})
+
+		err = service.updateAccessListOwnerOf(ctx, accessList.GetName(), ownerAccessList1.GetName(), false /* new - this will delete */)
+		require.NoError(t, err)
+		requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), []string{})
+
+		accessList, err = service.UpdateAccessList(ctx, accessList)
+		require.NoError(t, err)
+		requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), []string{accessList.GetName()})
+	})
+
+	t.Run("when list owner is deleted during update or upsert former owners list status.owner_of is updated", func(t *testing.T) {
+		requireStatusOwnerOf(t, service, ownerAccessList2.GetName(), nil)
+
+		owner2 := accesslist.Owner{
+			Name:           ownerAccessList2.GetName(),
+			MembershipKind: accesslist.MembershipKindList,
+		}
+
+		accessList.Spec.Owners = append(accessList.Spec.Owners, owner2)
+		accessList, err = service.UpsertAccessList(ctx, accessList)
+		requireStatusOwnerOf(t, service, ownerAccessList2.GetName(), []string{accessList.GetName()})
+
+		accessList.Spec.Owners = slices.DeleteFunc(accessList.Spec.Owners, func(o accesslist.Owner) bool {
+			return o.Name == owner2.Name
+		})
+		accessList, err = service.UpsertAccessList(ctx, accessList)
+		requireStatusOwnerOf(t, service, ownerAccessList2.GetName(), nil)
+
+		accessList.Spec.Owners = append(accessList.Spec.Owners, owner2)
+		accessList, err = service.UpdateAccessList(ctx, accessList)
+		requireStatusOwnerOf(t, service, ownerAccessList2.GetName(), []string{accessList.GetName()})
+
+		accessList.Spec.Owners = slices.DeleteFunc(accessList.Spec.Owners, func(o accesslist.Owner) bool {
+			return o.Name == owner2.Name
+		})
+		accessList, err = service.UpdateAccessList(ctx, accessList)
+		requireStatusOwnerOf(t, service, ownerAccessList2.GetName(), nil)
+	})
 
 	err = service.DeleteAccessList(ctx, accessList.GetName())
 	require.NoError(t, err)
-	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), nil)
+	requireStatusOwnerOf(t, service, ownerAccessList1.GetName(), nil)
 }
 
 func TestAccessListService_Status_MemberOf(t *testing.T) {
@@ -1924,6 +1975,36 @@ func TestAccessListService_Status_MemberOf(t *testing.T) {
 		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
 
 		nestedAccessList, err = service.UpsertAccessList(ctx, nestedAccessList)
+		require.NoError(t, err)
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+	})
+
+	t.Run("member updates and upserts fix status.member_of of existing members", func(t *testing.T) {
+		accessList := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock)
+		nestedAccessList := createAccessList(t, service, "test-nested-acl-"+uuid.NewString(), clock)
+
+		member, err := service.UpsertAccessListMember(ctx, newAccessListMember(t,
+			accessList.GetName(),
+			nestedAccessList.GetName(),
+			withMembershipKind(accesslist.MembershipKindList),
+		))
+		require.NoError(t, err)
+
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+
+		err = service.updateAccessListMemberOf(ctx, accessList.GetName(), nestedAccessList.GetName(), false /* new - this will delete */)
+		require.NoError(t, err)
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{})
+
+		updatedMember, err := service.UpdateAccessListMember(ctx, member)
+		require.NoError(t, err)
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+
+		err = service.updateAccessListMemberOf(ctx, accessList.GetName(), nestedAccessList.GetName(), false /* new - this will delete */)
+		require.NoError(t, err)
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{})
+
+		_, err = service.UpsertAccessListMember(ctx, updatedMember)
 		require.NoError(t, err)
 		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
 	})
