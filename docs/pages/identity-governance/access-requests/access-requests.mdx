@@ -8,10 +8,11 @@ tags:
  - identity-governance
 ---
 
-Just-in-time Access Requests allow Teleport users to request access to a
-resource or role depending on need. The request can then be approved or denied
-based on a configurable number of approvers. Access Requests enable your
-organization to implement security best practices, including:
+Just-in-time Access Requests allow Teleport users to request **temporary**
+access to a role or resource, or to request **permanent** access to
+specific resources. The request can then be approved or denied based on
+a configurable number of approvers. Access Requests enable your organization
+to implement security best practices, including:
 
 - **Dual authorization:** Two reviewers must grant access before a user can
   receive elevated permissions. This satisfies the FedRAMP AC-3 dual
@@ -21,10 +22,15 @@ organization to implement security best practices, including:
   for a limited period of time. Request approvers can be configured with limited
   cluster access so they are not high value targets.
 
-Access Requests are designed to provide temporary permissions to users. If you
-want to grant longstanding permissions to a group of users, with the option to
-renew these permissions after a recurring interval (such as three months),
-consider [Access Lists](../access-lists/access-lists.mdx). 
+Access Requests support both **temporary** and (for resource requests via web UI)
+**permanent** access:
+
+- Use **temporary** for time-boxed elevation.
+- Use **permanent** for ongoing access to specific resources;
+the request is fulfilled via an Access List covering those resources.
+
+If you want to grant long-standing access directly (outside a request flow),
+see [Access Lists](../access-lists/access-lists.mdx).
 
 ## See how Access Requests work
 
@@ -63,7 +69,7 @@ requesting a role via the Teleport CLI. Full Access Request functionality,
 including Resource Access Requests managing Access Requests via the Web UI are
 available in Teleport Enterprise.
 
-For information on how to use Just-in-time Access Requests with Teleport Community 
+For information on how to use Just-in-time Access Requests with Teleport Community
 Edition, see [Teleport Community Access Requests](oss-role-requests.mdx).
 
 
