@@ -25,11 +25,146 @@ import (
 )
 
 func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
-	switch msg := req.GetPayload().(type) {
+	switch payload := req.GetPayload().(type) {
 	case *joinv1.JoinRequest_ClientInit:
-		return clientInitToMessage(msg.ClientInit), nil
+		return clientInitToMessage(payload.ClientInit), nil
+	case *joinv1.JoinRequest_BoundKeypairInit:
+		return boundKeypairInitToMessage(payload.BoundKeypairInit), nil
+	case *joinv1.JoinRequest_Solution:
+		return challengeSolutionToMessage(payload.Solution)
+	default:
+		return nil, trace.BadParameter("unrecognized join request payload type %T", payload)
+	}
+}
+
+func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
+	switch typedMsg := msg.(type) {
+	case *messages.ClientInit:
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_ClientInit{
+				ClientInit: clientInitFromMessage(typedMsg),
+			},
+		}, nil
+	case *messages.BoundKeypairInit:
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_BoundKeypairInit{
+				BoundKeypairInit: boundKeypairInitFromMessage(typedMsg),
+			},
+		}, nil
+	case *messages.BoundKeypairChallengeSolution, *messages.BoundKeypairRotationResponse:
+		solution, err := challengeSolutionFromMessage(msg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_Solution{
+				Solution: solution,
+			},
+		}, nil
 	default:
 		return nil, trace.BadParameter("unrecognized join request message type %T", msg)
+	}
+}
+
+func challengeSolutionToMessage(req *joinv1.ChallengeSolution) (messages.Request, error) {
+	switch payload := req.GetPayload().(type) {
+	case *joinv1.ChallengeSolution_BoundKeypairChallengeSolution:
+		return boundKeypairChallengeSolutionToMessage(payload.BoundKeypairChallengeSolution), nil
+	case *joinv1.ChallengeSolution_BoundKeypairRotationResponse:
+		return boundKeypairRotationResponseToMessage(payload.BoundKeypairRotationResponse), nil
+	default:
+		return nil, trace.BadParameter("unrecognized challenge solution message type %T", payload)
+	}
+}
+
+func challengeSolutionFromMessage(msg messages.Request) (*joinv1.ChallengeSolution, error) {
+	switch typedMsg := msg.(type) {
+	case *messages.BoundKeypairChallengeSolution:
+		return &joinv1.ChallengeSolution{
+			Payload: &joinv1.ChallengeSolution_BoundKeypairChallengeSolution{
+				BoundKeypairChallengeSolution: boundKeypairChallengeSolutionFromMessage(typedMsg),
+			},
+		}, nil
+	case *messages.BoundKeypairRotationResponse:
+		return &joinv1.ChallengeSolution{
+			Payload: &joinv1.ChallengeSolution_BoundKeypairRotationResponse{
+				BoundKeypairRotationResponse: boundKeypairRotationResponseFromMessage(typedMsg),
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter("unrecognized challenge solution message type %T", msg)
+	}
+}
+
+func responseToMessage(resp *joinv1.JoinResponse) (messages.Response, error) {
+	switch typedResp := resp.Payload.(type) {
+	case *joinv1.JoinResponse_Init:
+		return serverInitToMessage(typedResp.Init), nil
+	case *joinv1.JoinResponse_Challenge:
+		return challengeToMessage(typedResp.Challenge)
+	case *joinv1.JoinResponse_Result:
+		return resultToMessage(typedResp.Result), nil
+	default:
+		return nil, trace.BadParameter("unrecognized join response message type %T", typedResp)
+	}
+}
+
+func responseFromMessage(resp messages.Response) (*joinv1.JoinResponse, error) {
+	switch msg := resp.(type) {
+	case *messages.ServerInit:
+		return &joinv1.JoinResponse{
+			Payload: &joinv1.JoinResponse_Init{
+				Init: serverInitFromMessage(msg),
+			},
+		}, nil
+	case *messages.BoundKeypairChallenge, *messages.BoundKeypairRotationRequest:
+		challenge, err := challengeFromMessage(msg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinResponse{
+			Payload: &joinv1.JoinResponse_Challenge{
+				Challenge: challenge,
+			},
+		}, nil
+	case *messages.Result:
+		return &joinv1.JoinResponse{
+			Payload: &joinv1.JoinResponse_Result{
+				Result: resultFromMessage(msg),
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter("unrecognized join response message type %T", msg)
+	}
+}
+
+func challengeToMessage(resp *joinv1.Challenge) (messages.Response, error) {
+	switch payload := resp.Payload.(type) {
+	case *joinv1.Challenge_BoundKeypairChallenge:
+		return boundKeypairChallengeToMessage(payload.BoundKeypairChallenge), nil
+	case *joinv1.Challenge_BoundKeypairRotationRequest:
+		return boundKeypairRotationRequestToMessage(payload.BoundKeypairRotationRequest), nil
+	default:
+		return nil, trace.BadParameter("unrecognized challenge payload type %T", payload)
+	}
+}
+
+func challengeFromMessage(resp messages.Response) (*joinv1.Challenge, error) {
+	switch msg := resp.(type) {
+	case *messages.BoundKeypairChallenge:
+		return &joinv1.Challenge{
+			Payload: &joinv1.Challenge_BoundKeypairChallenge{
+				BoundKeypairChallenge: boundKeypairChallengeFromMessage(msg),
+			},
+		}, nil
+	case *messages.BoundKeypairRotationRequest:
+		return &joinv1.Challenge{
+			Payload: &joinv1.Challenge_BoundKeypairRotationRequest{
+				BoundKeypairRotationRequest: boundKeypairRotationRequestFromMessage(msg),
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter("unrecognized challenge message type %T", msg)
 	}
 }
 
@@ -66,19 +201,6 @@ func clientInitToMessage(req *joinv1.ClientInit) *messages.ClientInit {
 	return msg
 }
 
-func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
-	switch typedMsg := msg.(type) {
-	case *messages.ClientInit:
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_ClientInit{
-				ClientInit: clientInitFromMessage(typedMsg),
-			},
-		}, nil
-	default:
-		return nil, trace.BadParameter("unrecognized join request message type %T", msg)
-	}
-}
-
 func clientInitFromMessage(msg *messages.ClientInit) *joinv1.ClientInit {
 	req := &joinv1.ClientInit{
 		JoinMethod:       msg.JoinMethod,
@@ -110,44 +232,120 @@ func clientInitFromMessage(msg *messages.ClientInit) *joinv1.ClientInit {
 	return req
 }
 
-func responseFromMessage(resp messages.Response) (*joinv1.JoinResponse, error) {
-	switch msg := resp.(type) {
-	case *messages.Result:
-		return &joinv1.JoinResponse{
-			Payload: &joinv1.JoinResponse_Result{
-				Result: resultFromMessage(msg),
-			},
-		}, nil
-	default:
-		return nil, trace.BadParameter("unrecognized join response message type %T", msg)
+func boundKeypairInitToMessage(req *joinv1.BoundKeypairInit) *messages.BoundKeypairInit {
+	return &messages.BoundKeypairInit{
+		InitialJoinSecret: req.InitialJoinSecret,
+		PreviousJoinState: req.PreviousJoinState,
 	}
 }
 
-func resultFromMessage(msg *messages.Result) *joinv1.Result {
-	return &joinv1.Result{
-		TlsCert:    msg.TLSCert,
-		TlsCaCerts: msg.TLSCACerts,
-		SshCert:    msg.SSHCert,
-		SshCaKeys:  msg.SSHCAKeys,
-		HostId:     msg.HostID,
+func boundKeypairInitFromMessage(msg *messages.BoundKeypairInit) *joinv1.BoundKeypairInit {
+	return &joinv1.BoundKeypairInit{
+		InitialJoinSecret: msg.InitialJoinSecret,
+		PreviousJoinState: msg.PreviousJoinState,
 	}
 }
 
-func responseToMessage(resp *joinv1.JoinResponse) (messages.Response, error) {
-	switch typedResp := resp.Payload.(type) {
-	case *joinv1.JoinResponse_Result:
-		return resultToMessage(typedResp.Result), nil
-	default:
-		return nil, trace.BadParameter("unrecognized join responsed message type %T", typedResp)
+func boundKeypairChallengeToMessage(resp *joinv1.BoundKeypairChallenge) *messages.BoundKeypairChallenge {
+	return &messages.BoundKeypairChallenge{
+		PublicKey: resp.PublicKey,
+		Challenge: resp.Challenge,
+	}
+}
+
+func boundKeypairChallengeFromMessage(msg *messages.BoundKeypairChallenge) *joinv1.BoundKeypairChallenge {
+	return &joinv1.BoundKeypairChallenge{
+		PublicKey: msg.PublicKey,
+		Challenge: msg.Challenge,
+	}
+}
+
+func boundKeypairChallengeSolutionToMessage(req *joinv1.BoundKeypairChallengeSolution) *messages.BoundKeypairChallengeSolution {
+	return &messages.BoundKeypairChallengeSolution{
+		Solution: req.Solution,
+	}
+}
+
+func boundKeypairRotationRequestToMessage(resp *joinv1.BoundKeypairRotationRequest) *messages.BoundKeypairRotationRequest {
+	return &messages.BoundKeypairRotationRequest{
+		SignatureAlgorithmSuite: resp.SignatureAlgorithmSuite,
+	}
+}
+
+func boundKeypairRotationRequestFromMessage(resp *messages.BoundKeypairRotationRequest) *joinv1.BoundKeypairRotationRequest {
+	return &joinv1.BoundKeypairRotationRequest{
+		SignatureAlgorithmSuite: resp.SignatureAlgorithmSuite,
+	}
+}
+
+func boundKeypairChallengeSolutionFromMessage(msg *messages.BoundKeypairChallengeSolution) *joinv1.BoundKeypairChallengeSolution {
+	return &joinv1.BoundKeypairChallengeSolution{
+		Solution: msg.Solution,
+	}
+}
+
+func boundKeypairRotationResponseToMessage(req *joinv1.BoundKeypairRotationResponse) *messages.BoundKeypairRotationResponse {
+	return &messages.BoundKeypairRotationResponse{
+		PublicKey: req.PublicKey,
+	}
+}
+
+func boundKeypairRotationResponseFromMessage(msg *messages.BoundKeypairRotationResponse) *joinv1.BoundKeypairRotationResponse {
+	return &joinv1.BoundKeypairRotationResponse{
+		PublicKey: msg.PublicKey,
+	}
+}
+
+func boundKeypairResultToMessage(req *joinv1.BoundKeypairResult) *messages.BoundKeypairResult {
+	if req == nil {
+		return nil
+	}
+	return &messages.BoundKeypairResult{
+		JoinState: req.JoinState,
+		PublicKey: req.PublicKey,
+	}
+}
+
+func boundKeypairResultFromMessage(msg *messages.BoundKeypairResult) *joinv1.BoundKeypairResult {
+	if msg == nil {
+		return nil
+	}
+	return &joinv1.BoundKeypairResult{
+		JoinState: msg.JoinState,
+		PublicKey: msg.PublicKey,
+	}
+}
+
+func serverInitToMessage(resp *joinv1.ServerInit) *messages.ServerInit {
+	return &messages.ServerInit{
+		JoinMethod: resp.JoinMethod,
+	}
+}
+
+func serverInitFromMessage(resp *messages.ServerInit) *joinv1.ServerInit {
+	return &joinv1.ServerInit{
+		JoinMethod: resp.JoinMethod,
 	}
 }
 
 func resultToMessage(resp *joinv1.Result) *messages.Result {
 	return &messages.Result{
-		TLSCert:    resp.TlsCert,
-		TLSCACerts: resp.TlsCaCerts,
-		SSHCert:    resp.SshCert,
-		SSHCAKeys:  resp.SshCaKeys,
-		HostID:     resp.HostId,
+		TLSCert:            resp.TlsCert,
+		TLSCACerts:         resp.TlsCaCerts,
+		SSHCert:            resp.SshCert,
+		SSHCAKeys:          resp.SshCaKeys,
+		HostID:             resp.HostId,
+		BoundKeypairResult: boundKeypairResultToMessage(resp.BoundKeypairResult),
+	}
+}
+
+func resultFromMessage(msg *messages.Result) *joinv1.Result {
+	return &joinv1.Result{
+		TlsCert:            msg.TLSCert,
+		TlsCaCerts:         msg.TLSCACerts,
+		SshCert:            msg.SSHCert,
+		SshCaKeys:          msg.SSHCAKeys,
+		HostId:             msg.HostID,
+		BoundKeypairResult: boundKeypairResultFromMessage(msg.BoundKeypairResult),
 	}
 }
