@@ -156,13 +156,11 @@ export class WindowsManager {
 
       e.preventDefault();
 
-      const shouldRun = await this.confirmIfShouldRunInTrayOnce();
+      const shouldRun = await this.confirmIfShouldRunInBackgroundOnce();
       if (shouldRun) {
         this.enterBackgroundMode();
         return;
       }
-
-      this.configService.set('runInBackground', false);
       // Retry closing.
       window.close();
     });
@@ -468,7 +466,7 @@ export class WindowsManager {
     };
   }
 
-  private async confirmIfShouldRunInTrayOnce(): Promise<boolean> {
+  private async confirmIfShouldRunInBackgroundOnce(): Promise<boolean> {
     const runInBackgroundState = this.fileStorage.get(
       'runInBackground'
     ) as RunInBackgroundState;
@@ -493,9 +491,15 @@ export class WindowsManager {
       noLink: true,
       defaultId: 0,
     });
+
     const state: RunInBackgroundState = { notified: true };
     this.fileStorage.put('runInBackground', state);
-    return response === 0; // true if 'Keep Running'
+
+    const keepRunning = response === 0;
+    if (!keepRunning) {
+      this.configService.set('runInBackground', false);
+    }
+    return keepRunning;
   }
 
   private isWindowUsable(): boolean {
