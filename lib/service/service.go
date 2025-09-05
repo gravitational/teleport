@@ -3490,6 +3490,8 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), "Service is configured for relay tunnel mode but the agent is running in direct connection mode, so the configured relay will be ignored.")
 		}
 		if conn.UseTunnel() && cfg.RelayServer != "" {
+			// TODO(espadolini): replace this with the relay tunnel client
+			// implementation, which will make use of SetRelayInfo
 			_ = relayInfoHolder.SetRelayInfo
 			panic("relay tunnel mode is not implemented")
 		}
