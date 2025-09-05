@@ -86,6 +86,7 @@ const makeWindowsManager = () => {
     }),
     isFocused: jest.fn().mockImplementation(() => isFocused),
     isMinimized: jest.fn().mockReturnValue(false),
+    isVisible: jest.fn().mockReturnValue(true),
   } as Partial<BrowserWindow>;
 
   windowsManager['window'] = mockWindow as BrowserWindow;

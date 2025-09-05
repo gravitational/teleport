@@ -472,25 +472,30 @@ export class WindowsManager {
     const runInBackgroundState = this.fileStorage.get(
       'runInBackground'
     ) as RunInBackgroundState;
-    if (runInBackgroundState?.notified) {
+    if (
+      runInBackgroundState?.notified ||
+      // If the value is set in the config file, do not notify too.
+      this.configService.get('runInBackground').metadata.isStored
+    ) {
       return true;
     }
 
     const isMac = this.settings.platform === 'darwin';
 
     const { response } = await dialog.showMessageBox(this.window, {
-      type: 'info',
+      type: 'question',
       message: isMac
-        ? 'Teleport Connect will continue running in the menu bar'
-        : 'Teleport Connect will continue running in the system tray',
+        ? 'Keep Teleport Connect running in the menu bar?'
+        : 'Keep Teleport Connect running in the system tray?',
       detail:
         'VNet and connections to database, kube clusters and apps will remain active.',
-      buttons: ["Don't run in background and quit", 'OK'],
-      defaultId: 1,
+      buttons: ['Keep Running', 'Quit'],
+      noLink: true,
+      defaultId: 0,
     });
     const state: RunInBackgroundState = { notified: true };
     this.fileStorage.put('runInBackground', state);
-    return response !== 0; // true if 'OK'
+    return response === 0; // true if 'Keep Running'
   }
 
   private isWindowUsable(): boolean {
