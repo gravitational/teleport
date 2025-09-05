@@ -1,0 +1,311 @@
+---
+title: Bootstrapping EC2 Agents
+description: Describes how to set up EC2 instance by cloud-init script and install Teleport with "teleport-update enable"
+labels:
+ - get-started
+ - how-to
+---
+
+This guide shows two cloud-init patterns for bringing Linux EC2 instances under Managed Updates v2
+and assigning them to an update group using `teleport-update` by defining the group and proxy address.
+
+It assumes you'll join the agent to your cluster during first boot (token or delegated join method)
+and that your cluster has Managed Updates v2 enabled.
+
+Delegated joins avoid shipping any secret token in user data. You create a named token resource that
+encodes context rules (your AWS account, role ARNs, regions, etc.), then the agent proves its identity
+to the Auth Service using cloud-issued credentials. Your agent can fetch IAM credentials
+(e.g., EC2 instance profile, IRSA, or env vars).
+
+In this guide, we use the `teleport-update` binary for installation.
+The `teleport-update enable` command installs Teleport at the version advertised by the cluster and enables
+Managed Updates v2 on the host. It also creates the necessary systemd units for Teleport, along with a
+`teleport-update` timer that periodically runs `teleport-update update`. In addition, it saves most of the
+flags you pass in (such as -g, -p, or -b), so that running the command again will update the stored settings
+rather than requiring you to re-enter them.
+
+For full Managed Updates v2 instructions, see [Managed Updates forAgents (v2)](./agent-managed-updates.mdx).
+
+Every agent belongs to an update group (e.g., development, staging, prod), unless the `default` group is used.
+The cluster-side `autoupdate_config` resource defines when each group may update.
+Cloud or self-hosted clusters use the same schedule model. Self-hosted clusters also set the desired
+version via `autoupdate_version` resource.
+
+## Define groups and schedules
+
+Pick simple, meaningful groups like `development`, `staging`, `production`. Then model your rollout windows
+and sequencing in `autoupdate_config`:
+
+```yaml
+# autoupdate_config.yaml
+kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+spec:
+  agents:
+    mode: enabled
+    strategy: halt-on-error
+    schedules:
+      regular:
+        - name: <Var name="development" />
+          days: ["Mon","Tue","Wed","Thu"]
+          start_hour: 4   # UTC
+        - name: staging
+          days: ["Mon","Tue","Wed","Thu"]
+          start_hour: 5
+          wait_hours: 24  # run a day later than development
+```
+
+This resource is used to controls the update schedule by defining different groups, sequence and upgrade window.
+
+In the example, we define two update groups: `development` and `staging`. Upgrades are allowed on Monday, Tuesday,
+Wednesday, and Thursday.
+
+The first group, `development`, must start the upgrade process at 04:00 UTC. Once it is completed and all
+agents in the `development` group are upgraded, the next group, `staging`, begins the upgrade process with
+a 24-hour delay at 05:00 UTC.
+
+If any agent in the `development` group fails, the upgrade process must stop. This behavior is controlled by
+the `halt-on-error` strategy value.
+
+Run the following command to create or update the resource:
+
+```code
+$ tctl create -f autoupdate_config.yaml
+```
+
+## Creating join tokens
+
+Joining a Teleport cluster is the act of establishing trust between a new Teleport instance and all
+the existing instances already part of the Teleport cluster. At the end of the joining process,
+the Auth Service signs certificates for the joining instance. Those certificates represent the
+trust that was established.
+
+For bootstrapping EC2, the most appropriate methods are creating short-lived or long-lived tokens,
+or using delegated join with the IAM join method.
+
+Create a join token with an explicit TTL and the right service type.
+By default, `tctl tokens add` issues short-lived tokens (expiry is 30 minutes if you omit `--ttl` parameter).
+
+```code
+$ tctl tokens add --type=node --ttl=1h --format=text
+```
+
+As a result, we obtain a join token, which will be used as <Var name="TELEPORT_TOKEN" /> in example.
+
+Long-lived option: a token resource with an explicit expiry. If you need something that lasts longer than
+a few hours, prefer a token resource with a concrete `metadata.expires` timestamp instead of cranking
+`--ttl` to very large values. Example (set an appropriate, bounded expiry):
+
+```yaml
+# token-long-lived.yaml
+kind: token
+version: v2
+metadata:
+  name: node-join-24h
+  expires: 2025-12-31T23:59:00Z
+spec:
+  join_method: token
+  roles: [Node]
+```
+
+```code
+$ tctl create -f token-long-lived.yaml
+```
+
+<Admonition type="note">
+    To create a delegated token that allows a cluster to be joined via IAM, read the full guide and examples here:
+    [Joining Services via AWS IAM Role](../../enroll-resources/agents/aws-iam.mdx).
+</Admonition>
+
+## Create an EC2 Instance
+
+### Via the AWS web console
+
+Follow the procedure for [launching an instance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-launch-instance-wizard.html)
+and [providing user data](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
+which allows you to supply cloud-init directives at launch - whether by entering them in the User data field of the
+AWS Management Console's Advanced details section.
+
+In the example below, the directives create and configure a Teleport node on Amazon Linux 2.
+The script installs Teleport and the v2 updater and enables SSH service only.
+The `#cloud-config` line at the top is required in order to identify the commands as cloud-init directives.
+
+User-data example with a previously created join token:
+
+```yaml
+#cloud-config
+packages:
+- curl
+
+runcmd:
+  # Install Teleport using your cluster's script and define the group by query parameter.
+  # Script persists your updater flags (group, proxy, etc.)
+  - curl "https://<Var name="example.teleport.sh:443" />/scripts/install.sh?group=<Var name="development" />" | sudo bash
+
+  # Write agent config (join token) before starting the service
+  - |
+    cat >/etc/teleport.yaml <<EOF
+    version: v3
+    teleport:
+      join_params:
+        method: token
+        token_name: <Var name="TELEPORT_TOKEN" />
+      proxy_server: <Var name="example.teleport.sh:443" />
+    ssh_service:
+      enabled: true
+    auth_service:
+      enabled: false
+    proxy_service:
+      enabled: false
+    EOF
+
+  # Enable and start Teleport service.
+  - systemctl enable --now teleport
+```
+
+### Via AWS CLI
+
+Another option is to add the token to secret storage and use a single general template for the cloud-init
+script instead of hardcoding it. Using secret storage provides rotation, versioning, and audit features.
+
+To do this, follow these steps:
+
+1. Save the previously created join token in secret storage:
+
+   ```code
+   $ aws secretsmanager create-secret \
+       --name <Var name="teleport/join-token" /> \
+       --secret-string "<Var name="TELEPORT_TOKEN" />" \
+       --region <Var name="us-west-2" />
+   ```
+
+1. Create an IAM role with a trust policy that allows EC2 to assume it:
+
+   ```code
+   $ cat > trust-policy.json <<EOF
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": { "Service": "ec2.amazonaws.com" },
+         "Action": "sts:AssumeRole"
+       }
+     ]
+   }
+   EOF
+   $ aws iam create-role \
+     --role-name EC2TeleportRole \
+     --assume-role-policy-document file://trust-policy.json
+   ```
+
+1. Attach a permissions policy that allows reading only your secret (least privilege):
+
+   ```code
+   $ ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+   $ cat > policy.json <<EOF
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "secretsmanager:GetSecretValue",
+         "Resource": "arn:aws:secretsmanager:<Var name="us-west-2" />:${ACCOUNT_ID}:``secret``:<Var name="teleport/join-token" />-*"
+       }
+     ]
+   }
+   EOF
+
+   $ aws iam put-role-policy \
+     --role-name EC2TeleportRole \
+     --policy-name TeleportSecretPolicy \
+     --policy-document file://policy.json
+   ```
+
+1. Create an EC2 instance profile to use the role:
+
+   ```code
+   $ aws iam create-instance-profile --instance-profile-name EC2TeleportInstanceProfile
+   $ aws iam add-role-to-instance-profile \
+     --instance-profile-name EC2TeleportInstanceProfile \
+     --role-name EC2TeleportRole
+   ```
+
+1. Create `cloud-init.yaml` configuration file with cloud init data.
+
+   ```yaml
+   #cloud-config
+   packages:
+   - curl
+   - awscli
+
+   runcmd:
+     # Install Teleport using your cluster's script and define the group by query parameter.
+     # Script persists your updater flags (group, proxy, etc.)
+     - curl "https://<Var name="example.teleport.sh:443" />/scripts/install.sh?group=<Var name="development" />" | sudo bash
+
+     # Write agent config (join token) before starting the service
+     - |
+       TOKEN=$(aws secretsmanager get-secret-value --secret-id <Var name="teleport/join-token" /> --query SecretString --output text --region <Var name="us-west-2" />)
+       cat >/etc/teleport.yaml <<EOF
+       version: v3
+       teleport:
+         join_params:
+           method: token
+           token_name: $TOKEN
+         proxy_server: <Var name="example.teleport.sh:443" />
+       ssh_service:
+         enabled: true
+       auth_service:
+         enabled: false
+       proxy_service:
+         enabled: false
+       EOF
+
+     # Enable and start Teleport service.
+     - systemctl enable --now teleport
+   ```
+
+1. Launch the EC2 instance with the instance profile:
+
+   ```code
+   # Specify the AMI image for the instance and a security group that allows at least outbound traffic.
+   $ aws ec2 run-instances \
+     --image-id <Var name="ami-xxxx" /> \
+     --instance-type t3.micro \
+     --iam-instance-profile Name=EC2TeleportInstanceProfile \
+     --security-group-ids <Var name="sg-xxxx" /> \
+     --region <Var name="us-west-2" /> \
+     --user-data file://cloud-init.yaml
+   ```
+
+## Verifying on the instance
+Check updater status and persisted flags:
+
+```code
+$ teleport-update status
+```
+
+Shows proxy, group, active/target versions, and whether you're in an update window.
+
+Check services:
+
+```code
+$ systemctl status teleport
+$ journalctl -u teleport -n100 -f
+$ journalctl -u teleport-update -n100 -f
+```
+
+From an admin workstation:
+
+```code
+# Login to the remote cluster.
+$ tsh login --proxy <Var name="example.teleport.sh:443" /> --user <Var name="user" />
+
+# Confirm that the node is joined.
+$ tctl inventory ls
+
+# Check the Managed Update v2 status.
+$ tctl autoupdate agents status
+```
