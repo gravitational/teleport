@@ -231,7 +231,7 @@ ARG WASM_BINDGEN_VERSION
 # Install wasm-opt and wasm-bindgen-cli to reduce webassembly module size
 # and generate js/ts bindings.
 RUN cargo install wasm-opt --locked --version ${WASM_OPT_VERSION} && \
-    cargo install wasm-bindgen-cli --locked --version $(WASM_BINDGEN_VERSION)
+    cargo install wasm-bindgen-cli --locked --version ${WASM_BINDGEN_VERSION}
 
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
