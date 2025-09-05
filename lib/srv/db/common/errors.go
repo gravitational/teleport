@@ -153,7 +153,7 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 
 	if trace.IsAccessDenied(err) {
 		switch sessionCtx.Database.GetType() {
-		case types.DatabaseTypeElastiCache:
+		case types.DatabaseTypeElastiCache, types.DatabaseTypeElastiCacheServerless:
 			return createElastiCacheRedisAccessDeniedError(err, sessionCtx)
 		case types.DatabaseTypeMemoryDB:
 			return createMemoryDBAccessDeniedError(err, sessionCtx)
