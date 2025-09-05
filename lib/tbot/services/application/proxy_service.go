@@ -276,8 +276,9 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		Method: req.Method,
 		Body:   req.Body,
 
-		Host: s.proxyAddr,
-		URL:  s.proxyUrl,
+		Host:   s.proxyAddr,
+		URL:    s.proxyUrl,
+		Header: http.Header{},
 	}
 
 	// Transfer all request headers
@@ -286,8 +287,6 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 			continue // Skip excluded headers
 		}
 		for _, value := range values {
-			// TODO: REMOVE THIS
-			fmt.Printf("Transferring request header: %s -> %s\n", header, value)
 			upstreamRequest.Header.Add(header, value)
 		}
 	}
@@ -298,19 +297,19 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		return err
 	}
 
-	// Write the StatusCode
-	w.WriteHeader(result.StatusCode)
-
-	//// Transfer all response headers
-	//for key, values := range result.Header {
-	//	for _, value := range values {
-	//		w.Header().Set(key, value)
-	//	}
-	//}
+	// Transfer all response headers
+	for key, values := range result.Header {
+		for _, value := range values {
+			w.Header().Set(key, value)
+		}
+	}
 
 	// Add extra Teleport header
-	w.Header().Add("X-Teleport-Application", appName)
-	w.Header().Add("X-Teleport-Application-Cached", strconv.FormatBool(cached))
+	w.Header().Set("X-Teleport-Application", appName)
+	w.Header().Set("X-Teleport-Application-Cached", strconv.FormatBool(cached))
+
+	// Write the StatusCode
+	w.WriteHeader(result.StatusCode)
 
 	// Write the Body
 	_, bodyCopyError := io.Copy(w, result.Body)
