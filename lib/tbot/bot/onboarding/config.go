@@ -41,6 +41,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 	string(types.JoinMethodTPM),
 	string(types.JoinMethodTerraformCloud),
+	string(types.JoinMethodEnv0),
 	string(types.JoinMethodBoundKeypair),
 }
 
@@ -56,6 +57,11 @@ type TerraformOnboardingConfig struct {
 	// TokenTag is the name of the tag configured via the environment variable
 	// `TERRAFORM_WORKLOAD_IDENTITY_AUDIENCE(_$TAG)`. If unset, the untagged
 	// variant is used.
+	AudienceTag string `yaml:"audience_tag,omitempty"`
+}
+
+// Env0 contains parameters for the "env0" join method
+type Env0OnboardingConfig struct {
 	AudienceTag string `yaml:"audience_tag,omitempty"`
 }
 
@@ -102,6 +108,9 @@ type Config struct {
 
 	// Terraform holds configuration relevant to the `terraform` join method.
 	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
+
+	// Env0 holds configuration relevant to the `env0` join method.
+	Env0 Env0OnboardingConfig `yaml:"env0,omitempty"`
 
 	// Gitlab holds configuration relevant to the `gitlab` join method.
 	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
