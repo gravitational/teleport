@@ -5,13 +5,14 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"go.opentelemetry.io/otel"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
+
+	"go.opentelemetry.io/otel"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -270,6 +271,12 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		},
 	}
 
+	requestUrl, err := url.Parse(s.proxyUrl.String() + req.URL.Path)
+
+	if err != nil {
+		return err
+	}
+
 	// Build the Application Request
 	upstreamRequest := http.Request{
 		Proto:  "https",
@@ -277,7 +284,7 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		Body:   req.Body,
 
 		Host:   s.proxyAddr,
-		URL:    s.proxyUrl,
+		URL:    requestUrl,
 		Header: http.Header{},
 	}
 
