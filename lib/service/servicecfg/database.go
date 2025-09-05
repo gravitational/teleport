@@ -156,6 +156,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID: d.AWS.ElastiCache.ReplicationGroupID,
 			},
+			ElastiCacheServerless: types.ElastiCacheServerless{
+				CacheName: d.AWS.ElastiCacheServerless.CacheName,
+			},
 			MemoryDB: types.MemoryDB{
 				ClusterName: d.AWS.MemoryDB.ClusterName,
 			},
@@ -226,6 +229,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
+	// ElastiCacheServerless contains ElastiCacheServerless specific settings.
+	ElastiCacheServerless DatabaseAWSElastiCacheServerless
 	// MemoryDB contains MemoryDB specific settings.
 	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
@@ -268,6 +273,12 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string
+}
+
+// DatabaseAWSElastiCacheServerless contains settings for ElastiCache Serverless databases.
+type DatabaseAWSElastiCacheServerless struct {
+	// CacheName is the ElastiCache Serverless cache name.
+	CacheName string
 }
 
 // DatabaseAWSMemoryDB contains settings for MemoryDB databases.
