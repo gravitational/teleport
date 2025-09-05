@@ -125,6 +125,27 @@ func (s *store[T, I]) resources(index I, start, stop string) iter.Seq[T] {
 	}
 }
 
+// resourcesDescend returns an iterator over all items in the provided range
+// for the given index in descending order.
+//
+// It is the responsibility of the caller to clone the resource
+// before propagating it further.
+func (s *store[T, I]) resourcesDescend(index I, start, stop string) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		defer func() {
+			backendmetrics.StreamingRequests.WithLabelValues("cache").Inc()
+			backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
+		}()
+
+		for t := range s.cache.Descend(index, start, stop) {
+			backendmetrics.ReadRequests.WithLabelValues("cache").Inc()
+			if !yield(t) {
+				return
+			}
+		}
+	}
+}
+
 // count returns the number of items that exist in the provided range.
 func (s *store[T, I]) count(index I, start, stop string) int {
 	var n int

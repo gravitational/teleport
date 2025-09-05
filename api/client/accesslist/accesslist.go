@@ -16,11 +16,13 @@ package accesslist
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
@@ -102,6 +104,35 @@ func (c *Client) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAc
 	}
 
 	return accessLists, resp.GetNextPageToken(), nil
+}
+
+// RangeAccessLists returns access list resources within the range [start, end).
+func (c *Client) RangeAccessLists(ctx context.Context, start string, end string, sort *types.SortBy) iter.Seq2[*accesslist.AccessList, error] {
+	return func(yield func(*accesslist.AccessList, error) bool) {
+		for {
+			req := &accesslistv1.ListAccessListsV2Request{
+				PageToken: start,
+				SortBy:    sort,
+			}
+			accessLists, next, err := c.ListAccessListsV2(ctx, req)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			for _, al := range accessLists {
+				if !yield(al, nil) {
+					return
+				}
+			}
+
+			if next == "" {
+				return
+			}
+
+			start = next
+		}
+	}
 }
 
 // GetAccessList returns the specified access list resource.

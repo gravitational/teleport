@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 	"slices"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ import (
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -45,6 +47,8 @@ type AccessListsGetter interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
 	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
+	// RangeAccessLists returns a range of access list resources.
+	RangeAccessLists(context.Context, string, string, *types.SortBy) iter.Seq2[*accesslist.AccessList, error]
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 	// GetAccessListsToReview returns access lists that the user needs to review.
@@ -280,6 +284,44 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 		review.SetExpiry(cfg.Expires)
 	}
 	return &review, nil
+}
+
+// ParseAccessListNextKey creates a pagination key for access list queries based on the provided
+// next token string and index name.
+//
+// The nextTokenString is expected to be a slash-separated string with the following format:
+//   - Field 0: accessList.GetName()
+//   - Field 1: accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly)
+//
+// Supported index names:
+//   - "name": Returns the access list name (field 0)
+//   - "auditNextDate": Returns the audit date followed by the name (field 1 + "/" + field 0)
+//
+// Returns an error if the nextTokenString has fewer than 2 fields or if an unsupported
+// index name is provided. An empty nextTokenString will return an empty string and no error.
+func ParseAccessListNextKey(nextTokenString string, indexName string) (string, error) {
+	if nextTokenString == "" {
+		return "", nil
+	}
+	fields := strings.Split(nextTokenString, "/")
+	if len(fields) < 2 {
+		return "", trace.BadParameter("invalid nextToken supplied")
+	}
+
+	switch indexName {
+	case "name":
+		return fields[0], nil
+	case "auditNextDate":
+		return fields[1] + "/" + fields[0], nil
+	default:
+		return "", trace.BadParameter("unsupported sort %s but expected name or auditNextDate", indexName)
+	}
+}
+
+// CreateAccessListNextKey creates a pagination token by combining the access list name
+// and next audit date in the format "name/YYYY-MM-DD".
+func CreateAccessListNextKey(al *accesslist.AccessList) string {
+	return al.GetName() + "/" + al.Spec.Audit.NextAuditDate.Format(time.DateOnly)
 }
 
 // MatchAccessList returns true if the access list matches the given filter criteria.

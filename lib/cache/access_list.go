@@ -19,6 +19,7 @@ package cache
 import (
 	"cmp"
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -112,13 +113,64 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 	return out, nil
 }
 
+// RangeAccessLists returns access list resources within the range [start, end).
+func (c *Cache) RangeAccessLists(ctx context.Context, start string, end string, sort *types.SortBy) iter.Seq2[*accesslist.AccessList, error] {
+	return func(yield func(*accesslist.AccessList, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeAccessLists")
+		defer span.End()
+
+		rg, err := acquireReadGuard(c, c.collections.accessLists)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		defer rg.Release()
+
+		indexKey := ""
+		isDesc := false
+		if sort != nil {
+			indexKey = sort.Field
+			isDesc = sort.IsDesc
+		}
+		nextKey, err := services.ParseAccessListNextKey(start, indexKey)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		if rg.ReadCache() {
+			storeFn := rg.store.resources
+			if isDesc {
+				storeFn = rg.store.resourcesDescend
+			}
+			for accessList := range storeFn(accessListIndex(indexKey), nextKey, "") {
+				if !yield(accessList.Clone(), nil) {
+					return
+				}
+			}
+			return
+		}
+
+		rg.Release()
+
+		for accessList, err := range c.Config.AccessLists.RangeAccessLists(ctx, start, end, sort) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(accessList, nil) {
+				return
+			}
+		}
+	}
+}
+
 // ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
 func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListsV2")
 	defer span.End()
 
 	index := accessListNameIndex
-	keyFn := accessListNameIndexFn
 
 	var isDesc bool
 	sortBy := req.GetSortBy()
@@ -128,10 +180,8 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 		switch sortBy.Field {
 		case "name", "":
 			index = accessListNameIndex
-			keyFn = accessListNameIndexFn
 		case "auditNextDate":
 			index = accessListAuditNextDateIndex
-			keyFn = accessListAuditNextDateIndexFn
 		default:
 			return nil, "", trace.BadParameter("unsupported sort %q but expected name or auditNextDate", sortBy.Field)
 		}
@@ -149,10 +199,14 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 			return services.MatchAccessList(al, req.GetFilter())
 		},
 		nextToken: func(al *accesslist.AccessList) string {
-			return keyFn(al)
+			return services.CreateAccessListNextKey(al)
 		},
 	}
-	out, next, err := lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
+	nextKey, err := services.ParseAccessListNextKey(req.PageToken, string(index))
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	out, next, err := lister.list(ctx, int(req.GetPageSize()), nextKey)
 	return out, next, trace.Wrap(err)
 }
 

@@ -535,3 +535,71 @@ spec:
     review_frequency_changed: 3 months
     review_day_of_month_changed: "15"
 `
+
+func TestParseAccessListNextKey(t *testing.T) {
+	tests := []struct {
+		name            string
+		nextTokenString string
+		indexName       string
+		expectedResult  string
+		expectedError   string
+	}{
+		{
+			name:            "valid name index",
+			nextTokenString: "my-access-list/2023-12-01",
+			indexName:       "name",
+			expectedResult:  "my-access-list",
+		},
+		{
+			name:            "valid auditNextDate index",
+			nextTokenString: "my-access-list/2023-12-01",
+			indexName:       "auditNextDate",
+			expectedResult:  "2023-12-01/my-access-list",
+		},
+		{
+			name:            "valid token with multiple slashes",
+			nextTokenString: "my-access-list/2023-12-01/extra-field",
+			indexName:       "name",
+			expectedResult:  "my-access-list",
+		},
+		{
+			name:            "valid token with multiple slashes for auditNextDate",
+			nextTokenString: "my-access-list/2023-12-01/extra-field",
+			indexName:       "auditNextDate",
+			expectedResult:  "2023-12-01/my-access-list",
+		},
+		{
+			name:            "invalid token - single field",
+			nextTokenString: "my-access-list",
+			indexName:       "name",
+			expectedError:   "invalid nextToken supplied",
+		},
+		{
+			name:            "empty string",
+			nextTokenString: "",
+			indexName:       "name",
+			expectedResult:  "",
+		},
+		{
+			name:            "unsupported index name",
+			nextTokenString: "my-access-list/2023-12-01",
+			indexName:       "unsupported",
+			expectedError:   "unsupported sort unsupported but expected name or auditNextDate",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseAccessListNextKey(tt.nextTokenString, tt.indexName)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectedError)
+				require.Empty(t, result)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedResult, result)
+			}
+		})
+	}
+}
