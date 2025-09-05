@@ -8930,6 +8930,11 @@ message AWSSSM {
   // DocumentName is the name of the document to use when executing an
   // SSM command
   string DocumentName = 1 [(gogoproto.jsontag) = "document_name,omitempty"];
+  // ExtraParameters are key value pairs to pass to the SSM Document as parameters.
+  // Each key must match a parameter entry defined in the SSM Document.
+  //
+  // Parameter keys and values can only contain alphanumeric characters, underscores, and hyphens.
+  map<string, string> ExtraParameters = 2 [(gogoproto.jsontag) = "extra_parameters,omitempty"];
 }
 
 // AzureInstallerParams is the set of Azure-specific installation parameters.
