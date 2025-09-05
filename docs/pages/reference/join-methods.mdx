@@ -476,6 +476,11 @@ from the upstream provider dynamically and does not need to be reconfigured if
 keys are rotated, which providers like EKS do frequently. However, not all
 Kubernetes implementations have accessible OIDC endpoints.
 
+<Admonition type="tip" title="Supported Teleport Version">
+To use Kubernetes OIDC joining, your Teleport cluster must be running at least
+version 18.1.5.
+</Admonition>
+
 (!docs/pages/includes/provision-token/kubernetes-oidc-spec.mdx!)
 
 <Admonition type="note" title="See Also">
