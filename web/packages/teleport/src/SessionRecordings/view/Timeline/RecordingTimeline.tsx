@@ -281,7 +281,7 @@ export function RecordingTimeline({
         event.clientX - canvasRef.current.getBoundingClientRect().left
       );
 
-      onTimeChange(time);
+      onTimeChange(Math.round(time)); // round to avoid sending a float for the current time
     },
     [onTimeChange]
   );
