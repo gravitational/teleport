@@ -26,10 +26,11 @@ import (
 	portablepath "path"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
 )
 
 // RemoteFS provides API for accessing the files on
