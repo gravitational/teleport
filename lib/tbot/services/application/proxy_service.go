@@ -215,7 +215,8 @@ func (s *ProxyService) startProxy(ctx context.Context) error {
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 	}
 	proxyHttpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		err := s.handleProxyRequest(w, req)
+		reqWithContext := req.WithContext(ctx)
+		err := s.handleProxyRequest(w, reqWithContext)
 		if err != nil {
 			s.handleProxyError(w, err)
 			ctx.Done()
