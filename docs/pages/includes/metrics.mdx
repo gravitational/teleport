@@ -59,7 +59,7 @@
 | `teleport_audit_parquetlog_last_processed_timestamp`     | gauge     | Teleport Audit Log  | Number of last processing time in Parquet-format audit log.                                        |
 | `teleport_audit_parquetlog_age_oldest_processed_message` | gauge     | Teleport Audit Log  | Number of age of oldest event in Parquet-format audit log.                                         |
 | `teleport_audit_parquetlog_errors_from_collect_count`    | counter   | Teleport Audit Log  | Number of collect failures in Parquet-format audit log.                                            |
-| `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                            x |
+| `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                             |
 | `teleport_postgres_events_backend_write_requests`        | counter   | Postgres (Events)   | Number of write requests to postgres events, labeled with the request `status` (success or failure). |
 | `teleport_postgres_events_backend_batch_read_requests`   | counter   | Postgres (Events)   | Number of batch read requests to postgres events, labeled with the request `status` (success or failure). |
 | `teleport_postgres_events_backend_batch_delete_requests` | counter   | Postgres (Events)   | Number of batch delete requests to postgres events, labeled with the request `status` (success or failure). |
@@ -73,6 +73,34 @@
 | `user_login_total`                                       | counter   | Teleport Auth       | Number of user logins.                                                                             |
 | `watcher_event_sizes`                                    | histogram | cache               | Overall size of events emitted.                                                                    |
 | `watcher_events`                                         | histogram | cache               | Per resource size of events emitted.                                                               |
+
+## Session recording summarizer
+
+These metrics are exported by the Auth Service. They are all labeled with an
+`inference_model_name` label, which is the `metadata.name` field of
+corresponding `inference_model` resource.
+
+### General metrics 
+
+These metrics apply to all inference providers.
+
+| Name                                             | Type    | Component     | Description                                               |
+| ------------------------------------------------ | ------- | ------------- | --------------------------------------------------------- |
+| `teleport_summarizer_summarizations_total`       | counter | Teleport Auth | Total number of summarization jobs started                |
+| `teleport_summarizer_summarization_errors`       | counter | Teleport Auth | Number of failed summarization jobs                       |
+| `teleport_summarizer_summarization_jobs_pending` | gauge   | Teleport Auth | Number of summarization jobs currently awaiting execution |
+| `teleport_summarizer_summarization_jobs_running` | gauge   | Teleport Auth | Number of summarization jobs currently being executed     |
+
+### OpenAI-specific metrics
+
+These metrics apply to jobs executed using OpenAI inference provider, including
+OpenAI-compatible proxies.
+
+| Name | Type | Component | Description |
+| --------------------------------------------------- | ------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `teleport_summarizer_openai_api_requests`           | counter | Teleport Auth | Total number of OpenAI API requests                                                                                              |
+| `teleport_summarizer_openai_api_errors`             | counter | Teleport Auth | Number of errors returned by the OpenAI API. Additionally labeled with `api_error_code` which denotes the OpenAI API error code. |
+| `teleport_summarizer_openai_api_requests_in_flight` | gauge   | Teleport Auth | Number of OpenAI requests currently awaiting response                                                                            |
 
 ## Enhanced Session Recording / BPF
 
