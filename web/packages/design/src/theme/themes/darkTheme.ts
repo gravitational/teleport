@@ -502,6 +502,13 @@ const colors: ThemeColors = {
   sessionRecording: {
     resource: '#66C5FF',
     user: '#C5B6FF',
+    player: {
+      progressBar: {
+        background: 'rgba(255, 255, 255, 0.2)',
+        seeking: 'rgba(255, 255, 255, 0.17)',
+        progress: '#9F85FF',
+      },
+    },
   },
 
   sessionRecordingTimeline: {
