@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"regexp"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -218,6 +219,24 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		if m.Params.InstallTeleport {
 			m.SSM.DocumentName = AWSInstallerDocument
 		}
+
+		for paramKey, paramValue := range m.SSM.ExtraParameters {
+			if len(paramKey) > 100 {
+				return trace.BadParameter("invalid SSM document extra parameter key %q (max length is 100)", paramKey)
+			}
+			if len(paramValue) > 100 {
+				return trace.BadParameter("invalid SSM document extra parameter value %q (max length is 100)", paramValue)
+			}
+
+			if !matchSSMDocumentExtraParam(paramKey) {
+				return trace.BadParameter("invalid SSM document extra parameter key %q (only alphanumeric characters, underscores, and hyphens are allowed)", paramKey)
+			}
+			if !matchSSMDocumentExtraParam(paramValue) {
+				return trace.BadParameter("invalid SSM document extra parameter value %q (only alphanumeric characters, underscores, and hyphens are allowed)", paramValue)
+			}
+		}
 	}
 	return nil
 }
+
+var matchSSMDocumentExtraParam = regexp.MustCompile(`^[a-zA-Z0-9_\-]+$`).MatchString

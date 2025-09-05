@@ -21,6 +21,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"sync"
 	"time"
 
@@ -226,6 +227,7 @@ func matchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 				Matcher:             matcher,
 				Region:              region,
 				Document:            matcher.SSM.DocumentName,
+				ExtraParameters:     matcher.SSM.ExtraParameters,
 				EC2Client:           ec2Client,
 				Labels:              matcher.Tags,
 				Integration:         matcher.Integration,
@@ -242,6 +244,7 @@ type ec2FetcherConfig struct {
 	Matcher             types.AWSMatcher
 	Region              string
 	Document            string
+	ExtraParameters     map[string]string
 	EC2Client           ec2.DescribeInstancesAPIClient
 	Labels              types.Labels
 	Integration         string
@@ -327,21 +330,17 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	} else {
 		slog.DebugContext(context.Background(), "Not setting any tag filters as there is a '*:...' tag present and AWS doesnt allow globbing on keys")
 	}
-	var parameters map[string]string
+	parameters := make(map[string]string)
+	maps.Copy(parameters, cfg.ExtraParameters)
+
 	if cfg.Matcher.Params == nil {
 		cfg.Matcher.Params = &types.InstallerParams{}
 	}
-	if cfg.Matcher.Params.InstallTeleport {
-		parameters = map[string]string{
-			ParamToken:      cfg.Matcher.Params.JoinToken,
-			ParamScriptName: cfg.Matcher.Params.ScriptName,
-		}
-	} else {
-		parameters = map[string]string{
-			ParamToken:          cfg.Matcher.Params.JoinToken,
-			ParamScriptName:     cfg.Matcher.Params.ScriptName,
-			ParamSSHDConfigPath: cfg.Matcher.Params.SSHDConfig,
-		}
+	parameters[ParamToken] = cfg.Matcher.Params.JoinToken
+	parameters[ParamScriptName] = cfg.Matcher.Params.ScriptName
+
+	if !cfg.Matcher.Params.InstallTeleport {
+		parameters[ParamSSHDConfigPath] = cfg.Matcher.Params.SSHDConfig
 	}
 
 	fetcher := ec2InstanceFetcher{
