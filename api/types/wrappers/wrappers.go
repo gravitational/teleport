@@ -66,6 +66,9 @@ func (l Traits) Clone() Traits {
 	}
 	clone := make(Traits, len(l))
 	for key, vals := range l {
+		if len(vals) == 0 || len(vals) == 1 && vals[0] == "" {
+			continue
+		}
 		clone[key] = slices.Clone(vals)
 	}
 	return clone

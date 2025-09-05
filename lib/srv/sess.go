@@ -1413,6 +1413,8 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Login:                 scx.Identity.Login,
 		User:                  scx.Identity.TeleportUser,
 		UserOriginClusterName: scx.Identity.OriginClusterName,
+		UserRoles:             scx.Identity.MappedRoles,
+		UserTraits:            scx.Identity.Traits,
 		Events:                eventsMap,
 	}
 

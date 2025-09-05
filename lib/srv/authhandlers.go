@@ -257,6 +257,8 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		JoinToken:                           unmappedIdentity.JoinToken,
 		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
 		OriginClusterName:                   certAuthority.GetClusterName(),
+		MappedRoles:                         accessInfo.Roles,
+		Traits:                              accessInfo.Traits,
 	}, nil
 }
 
