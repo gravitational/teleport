@@ -220,6 +220,8 @@ func WebSessionController(controller *SessionController) func(ctx context.Contex
 			UnmappedRoles:                       unmappedIdentity.Roles,
 			ActiveRequests:                      unmappedIdentity.ActiveRequests,
 			Impersonator:                        unmappedIdentity.Impersonator,
+			// Web sessions are always local to the cluster they authenticated to.
+			OriginClusterName: clusterName.GetClusterName(),
 		}
 		ctx, err = controller.AcquireSessionContext(ctx, identity, localAddr, remoteAddr)
 		return ctx, trace.Wrap(err)

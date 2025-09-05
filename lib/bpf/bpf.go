@@ -410,8 +410,9 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 				SessionID: ctx.SessionID,
 			},
 			UserMetadata: apievents.UserMetadata{
-				User:  ctx.User,
-				Login: ctx.Login,
+				User:            ctx.User,
+				Login:           ctx.Login,
+				UserClusterName: ctx.UserOriginClusterName,
 			},
 			BPFMetadata: apievents.BPFMetadata{
 				CgroupID: event.CgroupID,
@@ -469,8 +470,9 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			SessionID: ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  ctx.User,
-			Login: ctx.Login,
+			User:            ctx.User,
+			Login:           ctx.Login,
+			UserClusterName: ctx.UserOriginClusterName,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
@@ -524,8 +526,9 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			SessionID: ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  ctx.User,
-			Login: ctx.Login,
+			User:            ctx.User,
+			Login:           ctx.Login,
+			UserClusterName: ctx.UserOriginClusterName,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
@@ -581,8 +584,9 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			SessionID: ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  ctx.User,
-			Login: ctx.Login,
+			User:            ctx.User,
+			Login:           ctx.Login,
+			UserClusterName: ctx.UserOriginClusterName,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
