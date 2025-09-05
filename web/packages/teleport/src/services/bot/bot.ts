@@ -178,10 +178,11 @@ export async function listBotInstances(
     searchTerm?: string;
     sort?: string;
     botName?: string;
+    query?: string;
   },
   signal?: AbortSignal
 ) {
-  const { pageToken, pageSize, searchTerm, sort, botName } = variables;
+  const { pageToken, pageSize, searchTerm, sort, botName, query } = variables;
 
   const path = cfg.getBotInstanceUrl({ action: 'list' });
   const qs = new URLSearchParams();
@@ -196,6 +197,9 @@ export async function listBotInstances(
   }
   if (botName) {
     qs.set('bot_name', botName);
+  }
+  if (query) {
+    qs.set('query', query);
   }
 
   const data = await api.get(`${path}?${qs.toString()}`, signal);

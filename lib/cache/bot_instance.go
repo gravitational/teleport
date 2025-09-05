@@ -18,8 +18,6 @@ package cache
 
 import (
 	"context"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 type botInstanceIndex string
@@ -85,7 +85,7 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
 				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-					return upstream.ListBotInstances(ctx, "", limit, start, "", nil)
+					return upstream.ListBotInstances(ctx, "", limit, start, "", nil, "")
 				},
 			))
 			return out, trace.Wrap(err)
@@ -113,7 +113,7 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 }
 
 // ListBotInstances returns a page of BotInstance resources.
-func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error) {
+func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy, query string) ([]*machineidv1.BotInstance, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBotInstances")
 	defer span.End()
 
@@ -135,6 +135,18 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 		}
 	}
 
+	var exp typical.Expression[*local.Environment, bool]
+	if query != "" {
+		parser, err := local.NewBotInstanceExpressionParser()
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		exp, err = parser.Parse(query)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
 	lister := genericLister[*machineidv1.BotInstance, botInstanceIndex]{
 		cache:           c,
 		collection:      c.collections.botInstances,
@@ -142,10 +154,10 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 		isDesc:          isDesc,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, sort)
+			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, sort, query)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
-			return matchBotInstance(b, botName, search)
+			return local.MatchBotInstance(b, botName, search, exp)
 		},
 		nextToken: func(b *machineidv1.BotInstance) string {
 			return keyFn(b)
@@ -156,35 +168,4 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 		lastToken,
 	)
 	return out, next, trace.Wrap(err)
-}
-
-func matchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
-	// If updating this, ensure it's consistent with the upstream search logic in `lib/services/local/bot_instance.go`.
-
-	if botName != "" && b.Spec.BotName != botName {
-		return false
-	}
-
-	if search == "" {
-		return true
-	}
-
-	latestHeartbeats := b.GetStatus().GetLatestHeartbeats()
-	heartbeat := b.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-	if len(latestHeartbeats) > 0 {
-		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
-	}
-
-	values := []string{
-		b.Spec.BotName,
-		b.Spec.InstanceId,
-	}
-
-	if heartbeat != nil {
-		values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
-	}
-
-	return slices.ContainsFunc(values, func(val string) bool {
-		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
-	})
 }
