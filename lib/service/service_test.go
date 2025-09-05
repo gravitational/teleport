@@ -1028,6 +1028,7 @@ func TestInstanceSelfRepair(t *testing.T) {
 		cfg.Proxy.DisableWebInterface = true
 		cfg.Proxy.WebAddr = utils.NetAddr{Addr: "127.0.0.1:0", AddrNetwork: "tcp"}
 		cfg.SSH.Enabled = sshEnabled
+		cfg.SSH.Addr = utils.NetAddr{Addr: "127.0.0.1:0", AddrNetwork: "tcp"}
 		cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 		cfg.Logger = logger
