@@ -336,7 +336,7 @@ export enum RendererIpc {
   DeepLinkLaunch = 'renderer-deep-link-launch',
   OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
   AppUpdateEvent = 'renderer-app-update-event',
-  IsInBackgroundMode = 'renderer-window-is-in-background',
+  IsInBackgroundMode = 'renderer-is-in-background-mode',
 }
 
 export enum MainProcessIpc {
