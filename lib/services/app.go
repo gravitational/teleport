@@ -227,9 +227,16 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 		return nil, trace.Wrap(err, "could not get labels for the service")
 	}
 
+	description := fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName)
+	if desc, ok := service.GetAnnotations()[types.DiscoveryAppDescriptionLabelKey]; ok {
+		if d := strings.TrimSpace(desc); d != "" {
+			description = d
+		}
+	}
+
 	app, err := types.NewAppV3(types.Metadata{
 		Name:        appName,
-		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
+		Description: description,
 		Labels:      labels,
 	}, types.AppSpecV3{
 		URI:                appURI,
