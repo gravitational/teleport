@@ -155,6 +155,7 @@ create-tbot-resources:
 	kubectl --namespace teleport exec -i deploy/teleport-auth -- tctl create -f < tbot.rendered.yaml
 
 .PHONY: deploy-app-service
+deploy-app-service: COUNT ?= 1
 deploy-app-service:
 	helm upgrade --install teleport-kube-agent ../../examples/chart/teleport-kube-agent \
 	--create-namespace \
@@ -164,6 +165,7 @@ deploy-app-service:
 	--set authToken=${TOKEN} \
 	--set "appResources[0].labels.*=*" \
 	--set teleportVersionOverride="${TELEPORT_VERSION}" \
+	--set highAvailability.replicaCount=${COUNT} \
 	--values ./helm/values/app-service-agent.yaml
 
 .PHONY: delete-app-service
