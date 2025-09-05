@@ -64,8 +64,8 @@ export class WindowsManager {
   };
   private readonly windowUrl: string;
   /**
-   * Tracks if the window was hidden via `hideWindow()` rather than by the OS
-   * (e.g. Command+H).
+   * Tracks if the window was hidden via `enterBackgroundMode()` rather than
+   * by the OS (e.g. Command+H).
    */
   private isInBackgroundMode: boolean;
 
