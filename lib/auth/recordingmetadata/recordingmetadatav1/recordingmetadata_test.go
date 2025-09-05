@@ -69,6 +69,25 @@ func TestProcessSessionRecording(t *testing.T) {
 			},
 		},
 		{
+			name:   "basic session with print events with immediate resize after start",
+			events: generateBasicSessionWithImmediateResize(startTime),
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.NotNil(t, metadata)
+				require.NotNil(t, metadata.Duration)
+				require.Equal(t, int32(100), metadata.StartCols)
+				require.Equal(t, int32(30), metadata.StartRows)
+			},
+			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
+				require.NotEmpty(t, frames)
+			},
+			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
+				var thumbnail pb.SessionRecordingThumbnail
+				err := proto.Unmarshal(thumbnailData, &thumbnail)
+				require.NoError(t, err)
+				require.NotEmpty(t, thumbnail.Svg)
+			},
+		},
+		{
 			name:   "session with resize events",
 			events: generateSessionWithResize(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
@@ -303,6 +322,23 @@ func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
 			require.Empty(t, uploadHandler.thumbnails)
 		})
 	}
+}
+
+func generateBasicSessionWithImmediateResize(startTime time.Time) []apievents.AuditEvent {
+	events := generateBasicSession(startTime)
+
+	// Insert a resize event immediately after session start
+	resizeEvent := &apievents.Resize{
+		Metadata: apievents.Metadata{
+			Type: "resize",
+			Time: startTime.Add(500 * time.Millisecond),
+		},
+		TerminalSize: "100:30",
+	}
+
+	events = append([]apievents.AuditEvent{events[0], resizeEvent}, events[1:]...)
+
+	return events
 }
 
 func generateBasicSession(startTime time.Time) []apievents.AuditEvent {
