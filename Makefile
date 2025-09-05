@@ -132,9 +132,9 @@ CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
-CARGO_TARGET_wasm := wasm32-unknown-unknown
 
 CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
+CARGO_WASM_TARGET := wasm32-unknown-unknown
 
 # If set to 1, Windows RDP client is not built.
 RDPCLIENT_SKIP_BUILD ?= 0
@@ -489,21 +489,25 @@ ifeq ("$(with_rdpclient)", "yes")
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
 
+define ironrdp_package_json
+{
+  "name": "ironrdp",
+  "version": "0.1.0",
+  "module": "ironrdp.js",
+  "types": "ironrdp.d.ts",
+  "files": ["ironrdp_bg.wasm","ironrdp.js","ironrdp.d.ts"],
+  "sideEffects": ["./snippets/*"]
+}
+endef
+export ironrdp_package_json
+
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
 build-ironrdp-wasm: ensure-wasm-deps
-	cargo build --package ironrdp --lib --target $(CARGO_TARGET_wasm) --release
-	wasm-opt target/$(CARGO_TARGET_wasm)/release/ironrdp.wasm -o target/$(CARGO_TARGET_wasm)/release/ironrdp.wasm -O
-	wasm-bindgen target/$(CARGO_TARGET_wasm)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
-	@echo "*" > $(ironrdp)/pkg/.gitignore
-	@printf '%s\n' '{' \
-	' "name": "ironrdp",' \
-	' "version": "0.1.0",' \
-	' "module": "ironrdp.js",' \
-	' "types": "ironrdp.d.ts",' \
-	' "files": ["ironrdp_bg.wasm","ironrdp.js","ironrdp.d.ts"],' \
-	' "sideEffects": ["./snippets/*"]' \
-	'}' > $(ironrdp)/pkg/package.json
+	cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
+	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
+	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
 .PHONY: build-fido2
@@ -1899,13 +1903,14 @@ ensure-wasm-deps:
 else
 ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt rustup-install-wasm-toolchain
 
-# Get the version of wasm-bindgen from cargo
-WASM_BINDGEN_VERSION = $(shell cargo pkgid --package ironrdp wasm-bindgen 2>/dev/null | cut -d '@' -f 2)
+WASM_BINDGEN_VERSION = $(shell awk ' \
+  $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
+  in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
+' Cargo.lock)
 
 .PHONY: print-wasm-bindgen-version
-print-wasm-bindgen-version: NEED_VERSION = $(WASM_BINDGEN_VERSION)
 print-wasm-bindgen-version:
-	@echo $(NEED_VERSION)
+	@echo $(WASM_BINDGEN_VERSION)
 
 ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
@@ -1956,7 +1961,7 @@ rustup-install-target-toolchain: rustup-set-version
 
 .PHONY: rustup-install-wasm-toolchain
 rustup-install-wasm-toolchain: rustup-set-version
-	rustup target add $(CARGO_TARGET_wasm)
+	rustup target add $(CARGO_WASM_TARGET)
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
