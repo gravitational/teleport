@@ -31,12 +31,12 @@ import (
 
 // newAzureMySQLFetcher creates a fetcher for Azure MySQL.
 func newAzureMySQLFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
+	return newAzureFetcher(config, &azureDBServerPlugin{})
 }
 
 // newAzureMySQLFetcher creates a fetcher for Azure PostgreSQL.
 func newAzurePostgresFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
+	return newAzureFetcher(config, &azureDBServerPlugin{})
 }
 
 // azureDBServerPlugin implements azureFetcherPlugin for MySQL and PostgreSQL.

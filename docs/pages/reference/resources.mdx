@@ -68,6 +68,9 @@ Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
 | [autoupdate_version](#auto-update-version) | Client tools auto-update target version configuration |
 | [access_monitoring_rule](#access-monitoring-rule) | Access monitoring rules. |
 | [health_check_config](#health-check-config) | Configuration for resource endpoint health checks |
+| [inference_model](#inference-model) | Session summarization AI model configuration |
+| [inference_secret](#inference-secret) | Session summarization AI provider secret (API key) |
+| [inference_policy](#inference-policy) | Matches sessions to inference models using session kind and other metadata |
 
 ## User
 
@@ -534,3 +537,94 @@ spec:
 
 See [predicate language label expressions](./predicate-language.mdx#label-expressions) for more info about using predicate language to match resource labels.
 
+## Inference model
+
+Configuration of a language model that specifies which third-party inference
+provider should be accessed and contains both general and provider-specific
+options that control session recording summarization. Multiple models can be
+configured.
+
+```yaml
+kind: inference_model
+version: v1
+metadata:
+  name: example-model
+spec:
+
+  # openai tells Teleport to use OpenAI for summarizing session recordings
+  # using this model. Currently this is the only option.
+  openai:
+
+    # openai_model_id is the provider-specific model name. If this model
+    # connects to a real OpenAI API, this needs to be a valid OpenAI model
+    # name. If it connects to an OpenAI-compatible proxy, this ID is whatever
+    # the public model name is used by that particular proxy. Required.
+    openai_model_id: gpt-4o
+    
+    # temperature is an optional temperature of the model. Defaults to whatever
+    # is the model's default.
+    temperature: 0.4
+    
+    # api_key_secret_ref is a name of an inference_secret resource containing
+    # the OpenAI API key (in case of direct connection to OpenAI) or other
+    # secret required to authenticate against an LLM proxy. Required.
+    api_key_secret_ref: example-openai-key
+    
+    # base_url allows changing the base URL to point Teleport to an alternate
+    # OpenAI-compatible API, e.g. a proxy. Optional, defaults to the public
+    # OpenAI API endpoint.
+    base_url: "http://my-llm-proxy:4000/"
+  
+  # max_session_length_bytes is the maximum length of a session recording to be
+  # processed using this model configuration. Setting it protects from
+  # incurring additional cost from summarization attempts that fail because of
+  # the model's context window limit. Optional, defaults to 200kB.
+  max_session_length_bytes: 235000
+```
+
+## Inference secret
+
+A secret, such as OpenAI API key or LiteLLM master key, that is used along with
+an `inference_model`. Multiple inference models can use the same secret.
+Inference secret resources can be listed and retrieved, but their values will
+be stripped from the payload to protect them from leaking outside.
+
+```yaml
+kind: inference_secret
+version: v1
+metadata:
+  name: example-openai-key
+spec:
+  # value is the secret value, e.g. an OpenAI key.
+  value: "************************************"
+```
+
+## Inference policy
+
+Controls which sessions are going to be summarized and which model will be used
+to summarize them. There can be multiple policies defined; multiple policies
+can also share the same model.
+
+```yaml
+kind: inference_policy
+version: v1
+metadata:
+  name: example-policy
+spec:
+
+  # kinds indicate which kinds of sessions will match this policy. Required.
+  # Supported values: 'ssh', 'k8s', 'db'.
+  kinds: ['ssh', 'db']
+
+  # model is the name of the inference_model resource containing provider and
+  # model configuration. Required.
+  model: example-model
+  
+  # filter is an additional filter that the sessions need to match to be
+  # matched by this policy. Optional, defaults to matching all sessions of
+  # given kind.
+  filter: 'equals(resource.metadata.labels["env"], "prod")'
+```
+
+See [Predicate Language](./predicate-language.mdx) for more details on the
+filter expressions.

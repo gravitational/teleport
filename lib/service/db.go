@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func (process *TeleportProcess) shouldInitDatabases() bool {
@@ -227,7 +228,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	})
 
 	process.BroadcastEvent(Event{Name: DatabasesReady, Payload: nil})
-	logger.InfoContext(process.ExitContext(), "Database service has successfully started.", "database", databases)
+	logger.InfoContext(process.ExitContext(), "Database service has successfully started",
+		"databases", logutils.StringerSliceAttr(databases),
+	)
 
 	// Block and wait while the server and agent pool are running.
 	if err := dbService.Wait(); err != nil {
