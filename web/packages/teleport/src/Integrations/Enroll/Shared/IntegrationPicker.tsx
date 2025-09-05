@@ -25,7 +25,7 @@ import * as Icons from 'design/Icon';
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { TextIcon } from 'teleport/Discover/Shared';
 
-import { type BaseIntegration } from './common';
+import { integrationTagOptions, type BaseIntegration } from './common';
 import { FilterPanel } from './FilterPanel';
 import { filterIntegrations } from './filters';
 import { useIntegrationPickerState } from './state';
@@ -68,6 +68,10 @@ export function IntegrationPicker<T extends BaseIntegration>({
   ErrorMessage,
 }: IntegrationPickerProps<T>) {
   const [state, setState] = useIntegrationPickerState();
+
+  const activeTagOptions = integrationTagOptions.filter(tagOption =>
+    integrations.some(integration => integration.tags.includes(tagOption.value))
+  );
 
   const sortedIntegrations = useMemo(() => {
     const sorted = integrations.toSorted((a, b) => {
@@ -116,7 +120,11 @@ export function IntegrationPicker<T extends BaseIntegration>({
     } else {
       return (
         <>
-          <FilterPanel state={state} setState={setState} />
+          <FilterPanel
+            state={state}
+            setState={setState}
+            tagOptions={activeTagOptions}
+          />
           {!filteredIntegrations.length && (
             <TextIcon>
               <Icons.Magnifier size="small" /> No results found

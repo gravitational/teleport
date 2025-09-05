@@ -38,9 +38,11 @@ import {
 export function FilterPanel({
   state,
   setState,
+  tagOptions = integrationTagOptions,
 }: {
   state: IntegrationPickerState;
   setState: Dispatch<SetStateAction<IntegrationPickerState>>;
+  tagOptions: { value: string; label: string }[];
 }) {
   const sortFieldOptions = [{ label: 'Name', value: 'name' }];
 
@@ -87,7 +89,7 @@ export function FilterPanel({
       <Flex justifyContent="space-between">
         <Flex justifyContent="flex-start">
           <MultiselectMenu
-            options={integrationTagOptions}
+            options={tagOptions}
             onChange={tags =>
               handleFilterChange('tags', tags.filter(isIntegrationTag))
             }
