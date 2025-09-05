@@ -259,7 +259,7 @@ export class WindowsManager {
   }
 
   /**
-   * Hides the window it's visible.
+   * Hides the window if it's visible.
    * On macOS, it also hides the dock icon.
    */
   enterBackgroundMode(): void {

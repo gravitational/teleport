@@ -25,17 +25,17 @@ export function useIsInBackgroundMode() {
   const ctx = useAppContext();
   // We assume that the window is visible when the app starts.
   // This may change in the future.
-  const [setIsInBackground, setSetIsInBackground] = useState(false);
+  const [isInBackground, setIsInBackground] = useState(false);
 
   useEffect(() => {
     const { cleanup } = ctx.mainProcessClient.subscribeToIsInBackgroundMode(
       ({ isInBackgroundMode }) => {
-        setSetIsInBackground(isInBackgroundMode);
+        setIsInBackground(isInBackgroundMode);
       }
     );
 
     return cleanup;
   }, [ctx.mainProcessClient]);
 
-  return setIsInBackground;
+  return isInBackground;
 }
