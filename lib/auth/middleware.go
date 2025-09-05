@@ -601,12 +601,7 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 
 // UnaryInterceptors returns the gRPC unary interceptor chain.
 func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
-	is := []grpc.UnaryServerInterceptor{
-		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-		otelgrpc.UnaryServerInterceptor(),
-	}
-
+	var is []grpc.UnaryServerInterceptor
 	if a.GRPCMetrics != nil {
 		is = append(is, a.GRPCMetrics.UnaryServerInterceptor())
 	}
