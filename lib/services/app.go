@@ -19,6 +19,7 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -228,9 +229,12 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 	}
 
 	app, err := types.NewAppV3(types.Metadata{
-		Name:        appName,
-		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
-		Labels:      labels,
+		Name: appName,
+		Description: cmp.Or(
+			getDescription(service.GetAnnotations()),
+			fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
+		),
+		Labels: labels,
 	}, types.AppSpecV3{
 		URI:                appURI,
 		Rewrite:            rewriteConfig,
@@ -278,6 +282,10 @@ func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) 
 	}
 
 	return &rw, nil
+}
+
+func getDescription(annotations map[string]string) string {
+	return annotations[types.DiscoveryDescription]
 }
 
 func getPublicAddr(annotations map[string]string) string {
