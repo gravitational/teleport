@@ -270,4 +270,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getGitServersAccess() {
     return this.state.acl.gitServers;
   }
+
+  getWorkloadIdentityAccess() {
+    return this.state.acl.workloadIdentity;
+  }
 }
