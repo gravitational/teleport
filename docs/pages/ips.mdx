@@ -7,7 +7,7 @@ labels:
  - platform-wide
 ---
 
-Teleport Cloud maintains a list of IP addresses it uses. If your environment restricts outbound traffic,
+Teleport Cloud maintains a list of IP addresses it uses for ingress. If your environment restricts outbound traffic,
 you can allowlist these IPs in your firewall or proxy configuration to ensure that Teleport Agents can connect to your cluster.
 While not required for most deployments, this configuration can be useful in environments where outbound
 connections are blocked by default, for example, when firewalls deny all internet access unless explicitly allowed.
