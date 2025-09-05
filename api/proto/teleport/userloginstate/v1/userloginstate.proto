@@ -32,32 +32,54 @@ message UserLoginState {
 
 // Spec is the specification for a user login state.
 message Spec {
-  // roles are the user roles attached to the user.
+  // roles are the user roles attached to the user. It's basically original_roles +
+  // access_list_roles.
   repeated string roles = 1;
 
-  // traits are the traits attached to the user.
+  // traits are the traits attached to the user. It's basically original_traits +
+  // access_list_traits.
   repeated teleport.trait.v1.Trait traits = 2;
 
   // user_type is the type of user this state represents.
   string user_type = 3;
 
-  // original_roles are the user roles that are part of the user's static definition. These roles are
-  // not affected by access granted by access lists and are obtained prior to granting access list access.
+  // original_roles are the user roles that are part of the user's static definition. These roles
+  // are not affected by access granted by access lists and are obtained prior to granting access
+  // list access. This is basically roles - access_list_roles.
   repeated string original_roles = 4;
 
-  // original_traits are the user traits that are part of the user's static definition. These traits are
-  // not affected by access granted by access lists and are obtained prior to granting access list access.
+  // original_traits are the user traits that are part of the user's static definition. These
+  // traits are not affected by access granted by access lists and are obtained prior to granting
+  // access list access. It's basically traits - access_list_traits.
   repeated teleport.trait.v1.Trait original_traits = 5;
 
   // GitHubIdentity is the external identity attached to this user state.
   ExternalIdentity git_hub_identity = 6;
+
+  // saml_identities are the identities created from the SAML connectors used to log in by this
+  // user name.
+  repeated ExternalIdentity saml_identities = 7;
+
+  // access_list_roles are roles granted to this user by the Access Lists membership/ownership.
+  // This is basically roles - original_roles.
+  repeated string access_list_roles = 8;
+
+  // access_list_traits are traits granted to this user by the Access Lists membership/ownership.
+  // This is basically traits - original_traits.
+  repeated teleport.trait.v1.Trait access_list_traits = 9;
 }
 
 // ExternalIdentity defines an external identity attached to this user state.
 message ExternalIdentity {
-  // UserId is the unique identifier of the external identity such as GitHub user
+  // UserID is the unique identifier of the external identity such as GitHub user
   // ID.
   string user_id = 1;
   // Username is the username of the external identity.
   string username = 2;
+  // ConnectorID is the connector this identity was created with. It's empty for the local user.
+  string connector_id = 3;
+  // GrantedRoles specific for this identity. E.g.: from connector attributes mapping.
+  repeated string granted_roles = 4;
+  // GrantedTraits specific for this identity. E.g.: from connector roles attributes mapping.
+  repeated teleport.trait.v1.Trait granted_traits = 5;
 }
