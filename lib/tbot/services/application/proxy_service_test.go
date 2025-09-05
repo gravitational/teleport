@@ -217,9 +217,10 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 			"X-From-Client": []string{"client-header-value"},
 		},
 		URL: &url.URL{
-			Scheme: "http",
-			Host:   appNameA,
-			Path:   "/some/path",
+			Scheme:   "http",
+			Host:     appNameA,
+			Path:     "/some/path",
+			RawQuery: "queryParam=value-a",
 		},
 	}
 
@@ -238,6 +239,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 
 	// Assert client receives the response the server sent
 	require.Equal(t, http.StatusTeapot, resp.StatusCode)
+	require.Equal(t, "value-a", serverGotReqA.URL.Query().Get("queryParam"))
 	require.Equal(t, "server-a-header-value", resp.Header.Get("X-From-Server"))
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -251,9 +253,10 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 			"X-From-Client": []string{"client-header-value"},
 		},
 		URL: &url.URL{
-			Scheme: "http",
-			Host:   appNameB,
-			Path:   "/some/path",
+			Scheme:   "http",
+			Host:     appNameB,
+			Path:     "/some/path",
+			RawQuery: "queryParam=value-b",
 		},
 	}
 
@@ -273,6 +276,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 
 	// Assert client receives the response the server sent
 	require.Equal(t, http.StatusTeapot, resp.StatusCode)
+	require.Equal(t, "value-b", serverGotReqB.URL.Query().Get("queryParam"))
 	require.Equal(t, "server-b-header-value", resp.Header.Get("X-From-Server"))
 	respBody, err = io.ReadAll(resp.Body)
 	require.NoError(t, err)
