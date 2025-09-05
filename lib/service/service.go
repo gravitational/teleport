@@ -6348,6 +6348,10 @@ func (process *TeleportProcess) initApps() {
 				return trace.Wrap(err)
 			}
 
+			if err := services.ValidateApp(a, accessPoint); err != nil {
+				return trace.Wrap(err)
+			}
+
 			applications = append(applications, a)
 		}
 
