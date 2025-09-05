@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -62,6 +61,7 @@ func TestMain(m *testing.M) {
 type dynamoContext struct {
 	log   *Log
 	suite test.EventsSuite
+	clock *clockwork.FakeClock
 }
 
 func setupDynamoContext(t *testing.T) *dynamoContext {
@@ -91,6 +91,7 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 			Clock:      fakeClock,
 			QueryDelay: time.Second * 5,
 		},
+		clock: fakeClock,
 	}
 
 	t.Cleanup(func() {
@@ -825,5 +826,89 @@ func TestStartKeyBackCompat(t *testing.T) {
 	newCP, err := getCheckpointFromStartKey(newStartKey)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(oldCP, newCP))
+	// we must check the iterator field equality separately because it's a string
+	// containing a JSON-encoded event and field ordering might not be consistent.
+	require.Equal(t, oldCP.EventKey, newCP.EventKey)
+	require.Equal(t, oldCP.Date, newCP.Date)
+
+	var oldIterator, newIterator event
+	require.NoError(t, json.Unmarshal([]byte(oldCP.Iterator), &oldIterator))
+	require.NoError(t, json.Unmarshal([]byte(newCP.Iterator), &newIterator))
+	require.Equal(t, oldIterator, newIterator)
+}
+
+// TestCursorIteratorPrecision exists because cursors are sensitive to data-loss
+// and we had a bug where we would unmarshall a cursor into `map[string]any`,
+// causing all int64 to do a round-trip through float64 and losing precision.
+// The precision loss would cause the cursor hash to be in te past.
+// If the cursor shifts by more events than the page size, this creates a
+// livelock and the query cannot proceed.
+// This test creates events with very close EventIndex (1 nanosecond diff),
+// reads the events 1 by one, and makes sure the reader is not stuck reading the
+// same event over and over.
+func TestCursorIteratorPrecision(t *testing.T) {
+	tt := setupDynamoContext(t)
+	baseTime := tt.clock.Now().UTC()
+
+	// Test Setup: creating fixtures really close in the dynamo index.
+
+	// For this test to work, we need the same session ID for all events
+	sessionId := uuid.NewString()
+	numEvents := 5
+	testEvents := make(map[string]struct{}, numEvents)
+
+	for range numEvents {
+		id := uuid.NewString()
+		// For the first event, EventIndex will be zero, for the next ones it
+		// will be the unix nanosecond timestamp.
+		tt.clock.Advance(time.Nanosecond)
+		err := tt.log.EmitAuditEvent(context.Background(), &apievents.Exec{
+			UserMetadata: apievents.UserMetadata{User: "test-user"},
+			Metadata: apievents.Metadata{
+				ID:   id,
+				Type: events.UserLoginEvent,
+				Time: tt.clock.Now().UTC(),
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: sessionId,
+			},
+		})
+		testEvents[id] = struct{}{}
+		require.NoError(t, err)
+	}
+
+	// Test execution: do paginated queries to read all the fixtures.
+	eventsSeen := make(map[string]apievents.AuditEvent, numEvents)
+	toTime := baseTime.Add(time.Hour)
+	var arr []apievents.AuditEvent
+	var err error
+	var checkpoint string
+
+	for range testEvents {
+		arr, checkpoint, err = tt.log.SearchEvents(t.Context(), events.SearchEventsRequest{
+			From:     baseTime,
+			To:       toTime,
+			Limit:    1,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
+		})
+		require.NoError(t, err)
+		require.Len(t, arr, 1)
+
+		id := arr[0].GetID()
+		var c checkpointKey
+		require.NoError(t, json.Unmarshal([]byte(checkpoint), &c), "event %s", id)
+		require.NotEmpty(t, c.Iterator, "event %s", id)
+
+		var e event
+		require.NoError(t, json.Unmarshal([]byte(c.Iterator), &e), "event %s", id)
+		eventsSeen[id] = arr[0]
+	}
+
+	// Test validation: make sure that all fixtures were read (as opposed to
+	// some event being returned several times because of a cursor issue).
+	for id := range testEvents {
+		require.Contains(t, eventsSeen, id, "eventsSeen should contain %q", id)
+	}
+
 }

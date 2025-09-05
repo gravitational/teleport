@@ -226,14 +226,32 @@ type Log struct {
 }
 
 type event struct {
-	SessionID      string
+	// SessionID and EventIndex must always be set.
+	// If the event is not linked to a session, we generate a random UUID.
+	SessionID string
+	// EventIndex represent the relative order of an event in the sesssion.
+	// Its value can be 0 if the event does not belong to a session or if it is
+	// the first event of a session.
+	// Next session events increase this counter. In case of conflict
+	// (two events with the same SessionID and EventIndex), EventIndex is set to
+	// the Unix nanosecond timestamp. This seems to break the "EventIndex
+	// monotonically increases" property and might cause events to be
+	// backfilled/skipped by ongoing queries.
+	// This behavior was introduced in https://github.com/gravitational/teleport/pull/40854.
+	// Since then, EventIndex is a large int64 and might not survive a round-trip
+	// through float64. When its JSON representation is unmarshalled into
+	// `map[string]any`, the event will lose EventIndex precision this will
+	// cause data-loss. For critical usage, like DynamoDB ExclusiveStartKey,
+	// one must always marshall/unmarshall using the typed event struct.
+	// FieldsMap["ei"] suffers from this data loss, so its value and EventIndex
+	// might be different.
 	EventIndex     int64
-	EventType      string
-	CreatedAt      int64
-	Expires        *int64 `json:"Expires,omitempty" dynamodbav:",omitempty"`
-	FieldsMap      events.EventFields
-	EventNamespace string
-	CreatedAtDate  string
+	EventType      string             `json:",omitempty" dynamodbav:",omitempty"`
+	CreatedAt      int64              `json:",omitempty" dynamodbav:",omitempty"`
+	Expires        *int64             `json:"Expires,omitempty" dynamodbav:",omitempty"`
+	FieldsMap      events.EventFields `json:",omitempty" dynamodbav:",omitempty"`
+	EventNamespace string             `json:",omitempty" dynamodbav:",omitempty"`
+	CreatedAtDate  string             `json:",omitempty" dynamodbav:",omitempty"`
 }
 
 const (
@@ -1010,13 +1028,13 @@ func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
 	}
 
 	// decode the dynamo attrs into the go map repr common to the old and new formats.
-	m := make(map[string]any)
-	if err := attributevalue.UnmarshalMap(convertedAttrMap, &m); err != nil {
+	var e event
+	if err := attributevalue.UnmarshalMap(convertedAttrMap, &e); err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}
 
 	// encode the map into json, making it equivalent to the new format.
-	iterator, err := json.Marshal(m)
+	iterator, err := json.Marshal(e)
 	if err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}
@@ -1566,12 +1584,12 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 	l.checkpoint.Iterator = ""
 
 	if output.LastEvaluatedKey != nil {
-		m := make(map[string]any)
-		if err := attributevalue.UnmarshalMap(output.LastEvaluatedKey, &m); err != nil {
+		var e event
+		if err := attributevalue.UnmarshalMap(output.LastEvaluatedKey, &e); err != nil {
 			return nil, false, trace.Wrap(err)
 		}
 
-		iter, err := json.Marshal(&m)
+		iter, err := json.Marshal(&e)
 		if err != nil {
 			return nil, false, err
 		}
@@ -1673,13 +1691,13 @@ dateLoop:
 			}
 
 			if l.checkpoint.Iterator != "" {
-				m := make(map[string]any)
-				err = json.Unmarshal([]byte(l.checkpoint.Iterator), &m)
+				var e event
+				err = json.Unmarshal([]byte(l.checkpoint.Iterator), &e)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
-				input.ExclusiveStartKey, err = attributevalue.MarshalMap(&m)
+				input.ExclusiveStartKey, err = attributevalue.MarshalMap(&e)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -1756,12 +1774,12 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	}
 
 	if l.checkpoint.Iterator != "" {
-		m := make(map[string]string)
-		if err = json.Unmarshal([]byte(l.checkpoint.Iterator), &m); err != nil {
+		var e event
+		if err = json.Unmarshal([]byte(l.checkpoint.Iterator), &e); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		input.ExclusiveStartKey, err = attributevalue.MarshalMap(&m)
+		input.ExclusiveStartKey, err = attributevalue.MarshalMap(&e)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
