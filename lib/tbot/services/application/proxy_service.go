@@ -271,20 +271,19 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		},
 	}
 
-	requestUrl, err := url.Parse(s.proxyUrl.String() + req.URL.Path)
-
-	if err != nil {
-		return err
-	}
-
 	// Build the Application Request
 	upstreamRequest := http.Request{
 		Proto:  "https",
 		Method: req.Method,
 		Body:   req.Body,
-
 		Host:   s.proxyAddr,
-		URL:    requestUrl,
+		URL: &url.URL{
+			Scheme:      "https",
+			Host:        s.proxyAddr,
+			Path:        req.URL.Path,
+			RawQuery:    req.URL.RawQuery,
+			RawFragment: req.URL.RawFragment,
+		},
 		Header: http.Header{},
 	}
 
