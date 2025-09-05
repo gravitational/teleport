@@ -31,17 +31,17 @@ import {
 
 const logger = new Logger('ConfigService');
 
-type FileLoadingError = {
+export type FileLoadingError = {
   source: 'file-loading';
   error: Error;
 };
 
-type ValidationError = {
+export type ValidationError = {
   source: 'validation';
   errors: ZodIssue[];
 };
 
-type ConfigError = FileLoadingError | ValidationError;
+export type ConfigError = FileLoadingError | ValidationError;
 
 export interface ConfigService {
   get<K extends keyof AppConfig>(

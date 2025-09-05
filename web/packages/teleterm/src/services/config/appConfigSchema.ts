@@ -103,9 +103,10 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
           availableShellIdsWithCustom.some(
             shellId => shellId === configuredShell
           ),
-        configuredShell => ({
-          message: `Cannot find the shell "${configuredShell}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
-        })
+        {
+          error: iss =>
+            `Cannot find the shell "${iss.input}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
+        }
       ),
     'terminal.customShell': z
       .string()
@@ -344,3 +345,14 @@ function getDefaultTerminalFont(platform: Platform) {
 function getShortcutDesc(actionDesc: string): string {
   return `Shortcut to ${actionDesc}. A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab". Function keys do not require a modifier.`;
 }
+
+z.config({
+  customError: iss => {
+    switch (iss.code) {
+      case 'invalid_type':
+        return `Expected ${iss.expected}, received ${typeof iss.input}`;
+      default:
+        return undefined;
+    }
+  },
+});
