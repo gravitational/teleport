@@ -26,16 +26,16 @@ with an allow/deny rule targeting the `saml_idp_service_provider` resource and l
 matching role `app_labels` with the `saml_idp_service_provider` resource labels. 
 
 
-## RBAC behaviour between different Teleport role versions
+## RBAC behavior between different Teleport role versions
 
-SAML IdP service provider resource have a different RBAC behavior applied to them in 
+The Teleport SAML IdP applies different RBAC logic to the service provider resource in
 role version 8 versus role version 7 and below. 
 
 In role version 7 and below, the following access controls are applied to the `saml_idp_service_provider`
 resource access: 
 
-- Role option that enables idp: `spec.options.idp.saml.enabled: true/false`.
-- Cluster auth preference that enables idp: `spec.idp.saml.enabled: true/false`.
+- Role option that enables the IdP: `spec.options.idp.saml.enabled: true/false`.
+- Cluster auth preference that enables the IdP: `spec.idp.saml.enabled: true/false`.
 - Resource rule `spec.allow/deny.rules.resources.saml_idp_service_provider`. Applicable only
   to admin actions. 
   - Allow rules with `read,list` verbs are applied implicitly. 
