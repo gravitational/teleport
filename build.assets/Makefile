@@ -220,7 +220,6 @@ buildbox-centos7:
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
 		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -250,7 +249,6 @@ buildbox-centos7-fips:
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
 		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -300,7 +298,6 @@ buildbox-node:
 		--build-arg GID=$(GID) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
 		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_NODE) \

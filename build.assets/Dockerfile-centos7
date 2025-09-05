@@ -62,6 +62,7 @@ RUN yum groupinstall -y 'Development Tools' && \
       perl-devel \
       scl-utils \
       wget && \
+      binaryen \
     yum clean all && \
     /tmp/fix-yum-repo-list.sh
 
@@ -279,6 +280,11 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup target add wasm32-unknown-unknown
 
+ARG WASM_BINDGEN_VERSION
+# Install wasm-opt and wasm-bindgen-cli to reduce webassembly module size
+# and generate js/ts bindings.
+RUN scl enable ${DEVTOOLSET} "cargo install wasm-bindgen-cli --locked --version ${WASM_BINDGEN_VERSION}"
+
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.
 USER root
@@ -363,13 +369,6 @@ ENV GOEXPERIMENT=boringcrypto \
 COPY fips-files/openssh.cnf /usr/local/ssl/openssl.cnf
 
 USER ci
-
-ARG WASM_OPT_VERSION
-ARG WASM_BINDGEN_VERSION
-# Install wasm-opt and wasm-bindgen-cli to reduce webassembly module size
-# and generate js/ts bindings.
-RUN scl enable ${DEVTOOLSET} "cargo install wasm-opt --locked --version ${WASM_OPT_VERSION} && \
-    cargo install wasm-bindgen-cli --locked --version ${WASM_BINDGEN_VERSION}"
 
 # Validate that environment variables were set
 RUN echo "Ensure environment variables are set" && \
