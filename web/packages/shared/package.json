@@ -10,7 +10,7 @@
     "directory": "packages/shared"
   },
   "scripts": {
-    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && RUST_MIN_STACK=16777216 wasm-pack build ./libs/ironrdp --target web"
+    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && make -C ../../../ build-ironrdp-wasm"
   },
   "dependencies": {
     "@gravitational/design": "workspace:*",
