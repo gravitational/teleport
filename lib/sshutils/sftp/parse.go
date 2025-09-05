@@ -185,7 +185,7 @@ func (s Sources) GetAddr() string {
 // download into a structured form (same format as [ParseTarget]).
 func ParseSources(rawSources []string, port int) (Sources, error) {
 	if len(rawSources) == 0 {
-		return Sources{}, trace.BadParameter("at least one source requred")
+		return Sources{}, trace.BadParameter("at least one source required")
 	}
 	firstSource, err := ParseTarget(rawSources[0], port)
 	if err != nil {
