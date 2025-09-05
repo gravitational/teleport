@@ -126,6 +126,3 @@ func discover(ctx context.Context, params DiscoverParams) (*relaytunnelv1alpha.D
 
 	return resp, nil
 }
-
-// TODO(espadolini): remove once the function is actually used
-var _ = discover
