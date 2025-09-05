@@ -3,10 +3,10 @@ title: "Secure and Simplify RedHat Rancher RBAC with Teleport"
 description: "Comprehensive guide to integrating Teleport with Rancher for centralized, secure access control and audit logging"
 ---
 
-Teleport can be configured to interoperate with Rancher's RBAC system allowing you to centrally manage and audit access to Rancher-managed clusters.
+Teleport can be configured to interoperate with [Rancher's RBAC](https://ranchermanager.docs.rancher.com/how-to-guides/new-user-guides/authentication-permissions-and-global-configuration/manage-role-based-access-control-rbac) system allowing you to centrally manage and audit access to Rancher-managed clusters.
  
-This guide demonstrates how to configure Teleport's Kubernetes RBAC to grant access using Rancher's built-in roles — such as the Cluster Member role. 
-This approach enables you to manage Kubernetes access through Teleport’s unified access control system while aligning with Rancher’s existing RBAC structure.
+This guide demonstrates how to configure Teleport's Kubernetes RBAC to grant access using Rancher's built-in or custom roles — such as the Cluster Member role. 
+This approach enables you to manage Kubernetes access through Teleport while aligning with Rancher’s existing RBAC structure.
 
 ## Prerequisites
 
@@ -26,12 +26,20 @@ Therefore, enforcement of permissions and roles is performed by Kubernetes.
 This guide assumes you already have Rancher RBAC configured with users/groups assigned appropriate roles (such as Cluster Member). 
 In this step, we'll discover your existing Rancher RBAC configuration to align Teleport with your current access patterns.
 
+ ![Kubernetes access architecture](../../../img/k8s/rancher-cluster-member.png)
+
 To proceed, you'll need to:
 
 1. Authenticate to your cluster with administrative privileges. See guide to [Access a Rancher cluster with kubectl](https://ranchermanager.docs.rancher.com/how-to-guides/new-user-guides/manage-clusters/access-clusters/use-kubectl-and-kubeconfig)
 
 2. Discover Rancher RBAC bindings and identifiers:
- Run the command below to list Kubernetes RoleBindings and extract the group information that Teleport will use to match your existing Rancher access patterns:
+- Navigate to **Cluster** in left sidebar
+- Select **More Resources**, Navigate to the **RBAC** tab
+- On the Rbac Tab, select Rolebindings, you'll be presented witha list of Role/Rolebindings with the Kubernetes Rbac subject identifiers.
+
+ ![Kubernetes access architecture](../../../img/k8s/rancher-rbac.png)
+
+Alternatively, you can run the command below to list Kubernetes RoleBindings and extract the group information that Teleport will use to match your existing Rancher access patterns:
 
    ```code
    # List all rolebindings with their names and associated groups
