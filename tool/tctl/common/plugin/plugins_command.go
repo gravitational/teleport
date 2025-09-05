@@ -49,7 +49,7 @@ type pluginInstallArgs struct {
 	scim    scimArgs
 	entraID entraArgs
 	netIQ   netIQArgs
-	awsIC   awsICArgs
+	awsIC   awsICInstallArgs
 	github  githubArgs
 }
 
@@ -70,15 +70,21 @@ type pluginDeleteArgs struct {
 	name string
 }
 
+type pluginRotateCredsArgs struct {
+	cmd   *kingpin.CmdClause
+	awsic awsICRotateCredsArgs
+}
+
 // PluginsCommand allows for management of plugins.
 type PluginsCommand struct {
-	config     *servicecfg.Config
-	cleanupCmd *kingpin.CmdClause
-	pluginType string
-	dryRun     bool
-	install    pluginInstallArgs
-	delete     pluginDeleteArgs
-	edit       pluginEditArgs
+	config      *servicecfg.Config
+	cleanupCmd  *kingpin.CmdClause
+	pluginType  string
+	dryRun      bool
+	install     pluginInstallArgs
+	delete      pluginDeleteArgs
+	edit        pluginEditArgs
+	rotateCreds pluginRotateCredsArgs
 }
 
 // Initialize creates the plugins command and subcommands
@@ -95,6 +101,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 	p.initInstall(pluginsCommand, config)
 	p.initDelete(pluginsCommand)
 	p.initEdit(pluginsCommand)
+	p.initRotateCreds(pluginsCommand)
 }
 
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
@@ -181,6 +188,12 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, args installPluginArgs) er
 	return nil
 }
 
+func (p *PluginsCommand) initRotateCreds(parent *kingpin.CmdClause) {
+	p.rotateCreds.cmd = parent.Command("rotate", "Rotates a plugin's credentials.")
+
+	p.initRotateCredsAWSIC(p.rotateCreds.cmd)
+}
+
 type authClient interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
@@ -200,6 +213,7 @@ type pluginsClient interface {
 	NeedsCleanup(ctx context.Context, in *pluginsv1.NeedsCleanupRequest, opts ...grpc.CallOption) (*pluginsv1.NeedsCleanupResponse, error)
 	Cleanup(ctx context.Context, in *pluginsv1.CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeletePlugin(ctx context.Context, in *pluginsv1.DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdatePluginStaticCredentials(ctx context.Context, in *pluginsv1.UpdatePluginStaticCredentialsRequest, opts ...grpc.CallOption) (*pluginsv1.UpdatePluginStaticCredentialsResponse, error)
 }
 
 type installPluginArgs struct {
@@ -229,6 +243,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.Delete
 	case p.edit.awsIC.cmd.FullCommand():
 		commandFunc = p.EditAWSIC
+	case p.rotateCreds.awsic.cmd.FullCommand():
+		commandFunc = p.RotateAWSICCreds
 	default:
 		return false, nil
 	}
@@ -236,7 +252,11 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	err = commandFunc(ctx, installPluginArgs{authClient: client, plugins: client.PluginsClient()})
+	args := installPluginArgs{
+		authClient: client,
+		plugins:    client.PluginsClient(),
+	}
+	err = commandFunc(ctx, args)
 	closeFn(ctx)
 
 	return true, trace.Wrap(err)

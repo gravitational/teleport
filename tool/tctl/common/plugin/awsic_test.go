@@ -22,9 +22,14 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
+	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 )
 
 func TestAWSICUserFilters(t *testing.T) {
@@ -92,7 +97,7 @@ func TestAWSICUserFilters(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				userLabels:  test.labelValues,
 				userOrigins: test.originValues,
 			}
@@ -134,7 +139,7 @@ func TestAWSICGroupFilters(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				groupNameFilters: test.nameValues,
 			}
 
@@ -198,7 +203,7 @@ func TestAWSICAccountFilters(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				accountNameFilters: test.nameValues,
 				accountIDFilters:   test.idValues,
 			}
@@ -256,7 +261,7 @@ func TestSCIMBaseURLValidation(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				scimURL:      mustParseURL(test.suppliedURL),
 				forceSCIMURL: test.forceURL,
 			}
@@ -305,13 +310,212 @@ func TestUseSystemCredentialsInput(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cliArgs := awsICArgs{
+			cliArgs := awsICInstallArgs{
 				useSystemCredentials: tc.useSystemCredential,
 				assumeRoleARN:        tc.assumeRoleARN,
 			}
 
 			err := cliArgs.validateSystemCredentialInput()
 			tc.expectError(t, err)
+		})
+	}
+}
+
+type mockSCIMClient struct {
+	scimsdk.Client
+	pingCalled   bool
+	pingResponse error
+}
+
+func (mock *mockSCIMClient) Ping(ctx context.Context) error {
+	mock.pingCalled = true
+	return mock.pingResponse
+}
+
+func TestRotateAWSICSCIMToken(t *testing.T) {
+	const (
+		scimURL = "https://scim.example.com"
+	)
+	validAWSICPlugin := func() *types.PluginV1 {
+		return &types.PluginV1{
+			Kind:    types.KindPlugin,
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Name:   types.PluginTypeAWSIdentityCenter,
+				Labels: map[string]string{types.HostedPluginLabel: "true"},
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_AwsIc{
+					AwsIc: &types.PluginAWSICSettings{
+						ProvisioningSpec: &types.AWSICProvisioningSpec{
+							BaseUrl: scimURL,
+						},
+					},
+				},
+			},
+			Credentials: &types.PluginCredentialsV1{
+				Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+					StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"plugin-id": "some-aws-ic-integration",
+						},
+					},
+				},
+			},
+		}
+	}
+
+	testCases := []struct {
+		name                string
+		cliArgs             awsICRotateCredsArgs
+		pluginValueProvider func() *types.PluginV1
+		pluginFetchError    error
+		expectValidation    bool
+		validationError     error
+		expectUpdate        bool
+		updateError         error
+		assertError         require.ErrorAssertionFunc
+	}{
+		{
+			name: "default",
+			cliArgs: awsICRotateCredsArgs{
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
+			},
+			pluginValueProvider: validAWSICPlugin,
+			expectValidation:    true,
+			expectUpdate:        true,
+			assertError:         require.NoError,
+		},
+		{
+			name: "no such plugin",
+			cliArgs: awsICRotateCredsArgs{
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
+			},
+			pluginValueProvider: func() *types.PluginV1 { return nil },
+			pluginFetchError:    trace.NotFound("no such plugin"),
+			assertError:         require.Error,
+		},
+		{
+			name: "wrong plugin type",
+			cliArgs: awsICRotateCredsArgs{
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
+			},
+			pluginValueProvider: func() *types.PluginV1 {
+				return &types.PluginV1{
+					Kind:    types.KindPlugin,
+					SubKind: types.PluginSubkindAccess,
+					Metadata: types.Metadata{
+						Name:   "okta",
+						Labels: map[string]string{types.HostedPluginLabel: "true"},
+					},
+					Spec: types.PluginSpecV1{
+						Settings: &types.PluginSpecV1_Okta{
+							Okta: &types.PluginOktaSettings{},
+						},
+					},
+				}
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "no such credential",
+			cliArgs: awsICRotateCredsArgs{
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
+			},
+			pluginValueProvider: validAWSICPlugin,
+			expectValidation:    true,
+			expectUpdate:        true,
+			updateError:         trace.NotFound("no such credential"),
+			assertError:         require.Error,
+		},
+		{
+			name: "validation failure",
+			cliArgs: awsICRotateCredsArgs{
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
+			},
+			expectValidation:    true,
+			validationError:     trace.AccessDenied("Validation failed"),
+			pluginValueProvider: validAWSICPlugin,
+			expectUpdate:        false,
+			assertError:         require.Error,
+		},
+		{
+			name: "bypass validation",
+			cliArgs: awsICRotateCredsArgs{
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: false,
+				payload:       "some-token",
+			},
+			expectValidation:    false,
+			validationError:     trace.AccessDenied("Validation failed"),
+			pluginValueProvider: validAWSICPlugin,
+			expectUpdate:        true,
+			assertError:         require.NoError,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			cliArgs := PluginsCommand{
+				rotateCreds: pluginRotateCredsArgs{
+					awsic: test.cliArgs,
+				},
+			}
+
+			pluginsClient := &mockPluginsClient{}
+			pluginsClient.
+				On("GetPlugin", anyContext, mock.Anything, mock.Anything).
+				Run(func(args mock.Arguments) {
+					req, ok := args.Get(1).(*pluginsv1.GetPluginRequest)
+					require.True(t, ok, "expecting a *pluginsv1.GetPluginRequest, got %T", args.Get(1))
+					require.Equal(t, test.cliArgs.pluginName, req.Name)
+					require.True(t, req.WithSecrets)
+				}).
+				Return(test.pluginValueProvider(), test.pluginFetchError)
+
+			if test.expectUpdate {
+				pluginsClient.
+					On("UpdatePluginStaticCredentials", anyContext, mock.Anything, mock.Anything).
+					Return(func(ctx context.Context, in *pluginsv1.UpdatePluginStaticCredentialsRequest, _ ...grpc.CallOption) (*pluginsv1.UpdatePluginStaticCredentialsResponse, error) {
+						q := in.GetQuery()
+						require.NotNil(t, q, "Update request must specify target labels")
+						require.NotEmpty(t, q.Labels, "Update request must specify non-empty labels")
+
+						return &pluginsv1.UpdatePluginStaticCredentialsResponse{
+							Credential: &types.PluginStaticCredentialsV1{Spec: in.GetCredential()},
+						}, test.updateError
+					})
+			}
+
+			scimClient := mockSCIMClient{
+				Client:       scimsdk.NewSCIMClientMock(),
+				pingResponse: test.validationError,
+			}
+
+			args := installPluginArgs{
+				plugins: pluginsClient,
+				scimProvider: func(_, _, token string) (scimsdk.Client, error) {
+					require.Equal(t, test.cliArgs.payload, token)
+					return &scimClient, nil
+				},
+			}
+
+			err := cliArgs.RotateAWSICCreds(context.Background(), args)
+			test.assertError(t, err)
+
+			pluginsClient.AssertExpectations(t)
+			require.Equal(t, test.expectValidation, scimClient.pingCalled,
+				"SCIM validation Ping expected: %t, Ping called %t", test.expectValidation, scimClient.pingCalled)
 		})
 	}
 }
