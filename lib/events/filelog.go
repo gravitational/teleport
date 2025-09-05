@@ -222,12 +222,101 @@ func (l *FileLog) SearchUnstructuredEvents(ctx context.Context, req SearchEvents
 	return evts, next, nil
 }
 
+// checkpointKey is a pointer to an event in the log. This is used to keep track
+// of the last processed event so the caller can resume querying from this event.
+type checkpointKey struct {
+	id        string
+	timestamp time.Time
+}
+
+// MarshalText marshals a checkpointKey into plain text.
+func (c checkpointKey) MarshalText() ([]byte, error) {
+	if c.id == "" {
+		return []byte{}, nil
+	}
+	if c.timestamp.IsZero() {
+		return []byte(c.id), nil
+	}
+	return []byte(c.id + "/" + c.timestamp.Format(time.RFC3339)), nil
+}
+
+// UnmarshalText unmarshals a checkpointKey from its text representation.
+func (c *checkpointKey) UnmarshalText(b []byte) error {
+	parts := strings.Split(string(b), "/")
+	switch len(parts) {
+	case 0:
+		// no checkpoint
+	case 1:
+		c.id = parts[0]
+	case 2:
+		c.id = parts[0]
+		ts, err := time.Parse(time.RFC3339, parts[1])
+		if err != nil {
+			return trace.BadParameter("failed to parse checkpoint timestamp: %v", err)
+		}
+		c.timestamp = ts.UTC()
+	default:
+		return trace.BadParameter("failed to parse checkpoint: more than 2 parts found: %s", string(b))
+	}
+	return nil
+}
+
+// String returns a sting representation of the checkpointKey.
+// Its result can be sent to the caller, or loaded back into a checkpointKey
+// using UnmarshalText.
+func (c checkpointKey) String() string {
+	// MarshalText cannot fail.
+	out, _ := c.MarshalText()
+	return string(out)
+}
+
+// IsZero returns true if the checkpoint is not pointing to any event.
+func (c *checkpointKey) IsZero() bool {
+	return c.id == "" && c.timestamp.IsZero()
+}
+
+// matches returns true if two checkpoints are pointing to the same event.
+func (c checkpointKey) matches(d checkpointKey) bool {
+	return c.id == d.id
+}
+
+// shouldBeIgnored returns if the checkpoint should be ignored to answer the query.
+func (c checkpointKey) shouldBeIgnored(from, to time.Time, order types.EventOrder) bool {
+	// If the checkpointKey doesn't specify any timeframe, it was created by the
+	// old format. We can't know if the checkpoint is before or not, so we act
+	// like it is not and hope we match events.
+	if c.timestamp.IsZero() {
+		return false
+	}
+	if order == types.EventOrderAscending {
+		// The order is ascending and the checkpoint is before the timeframe.
+		// We can ignore the cursor because we know that all event we're going
+		// to read are older and should be returned.
+		return c.timestamp.Before(from)
+	}
+	// The order is descending and the checkpoint is after the timeframe.
+	// We can ignore the cursor because we know that all event we're going
+	// to read are older and should be returned.
+	return c.timestamp.After(to)
+}
+
 func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]EventFields, string, error) {
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
 		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+	}
+
+	var checkpoint checkpointKey
+	if err := checkpoint.UnmarshalText([]byte(startAfter)); err != nil {
+		return nil, "", trace.Wrap(err, "parsing startAfter")
+	}
+
+	// If the checkpoint is before the requested timeframe, we knoe that every
+	// event we'll read is valid. We must unset the checkpoint to avoid returning no event.
+	if checkpoint.shouldBeIgnored(fromUTC, toUTC, order) {
+		checkpoint = checkpointKey{}
 	}
 
 	// how many days of logs to search?
@@ -270,7 +359,7 @@ func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, or
 	events := make([]EventFields, 0, len(dynamicEvents))
 
 	// This is used as a flag to check if we have found the startAfter checkpoint or not.
-	foundStart := startAfter == ""
+	foundStart := checkpoint.IsZero()
 
 	totalSize := 0
 
@@ -284,11 +373,11 @@ outer:
 		// Skip until we've found the start checkpoint and once more
 		// since it was the last key of the previous set.
 		if !foundStart {
-			checkpoint, err := getCheckpointFromEvent(dynamicEvent)
+			c, err := getCheckpointFromEvent(dynamicEvent)
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			if startAfter == checkpoint {
+			if checkpoint.matches(c) {
 				foundStart = true
 			}
 
@@ -322,11 +411,11 @@ outer:
 		}
 
 		if totalSize+size >= MaxEventBytesInResponse {
-			checkpoint, err := getCheckpointFromEvent(events[len(events)-1])
+			c, err := getCheckpointFromEvent(events[len(events)-1])
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			return events, checkpoint, nil
+			return events, c.String(), nil
 		}
 
 		events = append(events, dynamicEvent)
@@ -335,12 +424,12 @@ outer:
 		// Check if there is a limit and if so, check if we've hit it.
 		// In the event that we've hit the limit, we consider the query partially complete
 		// and return a checkpoint to continue it.
-		if len(events) >= limit && limit > 0 {
-			checkpoint, err := getCheckpointFromEvent(events[len(events)-1])
+		if len(events) >= limit {
+			c, err := getCheckpointFromEvent(events[len(events)-1])
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			return events, checkpoint, nil
+			return events, c.String(), nil
 		}
 	}
 
@@ -348,18 +437,18 @@ outer:
 	return events, "", nil
 }
 
-func getCheckpointFromEvent(event EventFields) (string, error) {
-	if event.GetID() == "" {
-		data, err := utils.FastMarshal(event)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		hash := sha256.Sum256(data)
-		return hex.EncodeToString(hash[:]), nil
+func getCheckpointFromEvent(event EventFields) (checkpointKey, error) {
+	if id := event.GetID(); id != "" {
+		return checkpointKey{id: id, timestamp: event.GetTimestamp()}, nil
 	}
 
-	return event.GetID(), nil
+	data, err := utils.FastMarshal(event)
+	if err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	hash := sha256.Sum256(data)
+	return checkpointKey{id: hex.EncodeToString(hash[:]), timestamp: event.GetTimestamp()}, nil
 }
 
 func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
