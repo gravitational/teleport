@@ -268,6 +268,13 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
+					&application.ProxyServiceConfig{
+						Listen: "tcp://127.0.0.1:8080",
+						CredentialLifetime: bot.CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
+					},
 					&workloadidentity.X509OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
