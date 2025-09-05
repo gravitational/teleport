@@ -31,10 +31,93 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+type iterateConfig struct {
+	// filter is the $filter query param.
+	// https://learn.microsoft.com/en-us/graph/filter-query-parameter?tabs=http
+	filter string
+	// top is the $top query param.
+	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#top
+	top int
+	// selector is the $select query param.
+	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#select
+	selector string
+	// header includes headers that are going to be set during iteration.
+	header http.Header
+	// count is the $count query param.
+	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#count
+	count bool
+}
+
+func (ic *iterateConfig) query() url.Values {
+	q := make(url.Values)
+	if ic.filter != "" {
+		q.Set("$filter", ic.filter)
+	}
+	if ic.top > 0 {
+		q.Set("$top", strconv.Itoa(ic.top))
+	}
+	if ic.selector != "" {
+		q.Set("$select", ic.selector)
+	}
+	if ic.count {
+		q.Set("$count", "true")
+	}
+	return q
+}
+
+func (c *Client) newIterateConfig() *iterateConfig {
+	return &iterateConfig{
+		top:    c.pageSize,
+		header: make(http.Header),
+	}
+}
+
+// IterateOpt is a function that can be passed to [Client] methods that iterate over API results.
+type IterateOpt func(*iterateConfig)
+
+// WithFilter sets the $filter query param.
+// https://learn.microsoft.com/en-us/graph/filter-query-parameter?tabs=http
+func WithFilter(filter string) IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.filter = filter
+	}
+}
+
+// WithTop sets the $top query param. It overrides the default page size set in [Config].
+// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#top
+func WithTop(top int) IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.top = top
+	}
+}
+
+// WithSelect sets the $select query param.
+// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#select
+func WithSelect(s string) IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.selector = s
+	}
+}
+
+// WithCount sets the $count query param.
+// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#count
+func WithCount() IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.count = true
+	}
+}
+
+// WithHeader sets the value of a specific header.
+func WithHeader(key, value string) IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.header.Set(key, value)
+	}
+}
+
 // iterateSimple implements pagination for "simple" object lists, where additional logic isn't needed
-func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f func(*T) bool) error {
+func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f func(*T) bool, iterateOpts ...IterateOpt) error {
 	var err error
-	itErr := c.iterate(ctx, endpoint, nil /* query */, nil /* optional header */, func(msg json.RawMessage) bool {
+	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
 		var page []T
 		if err = json.Unmarshal(msg, &page); err != nil {
 			return false
@@ -45,7 +128,25 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 			}
 		}
 		return true
-	})
+	}, iterateOpts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(itErr)
+}
+
+func iteratePage[T any](c *Client, ctx context.Context, endpoint string, f func([]T) bool, iterateOpts ...IterateOpt) error {
+	var err error
+	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
+		var page []T
+		if err = json.Unmarshal(msg, &page); err != nil {
+			return false
+		}
+		if !f(page) {
+			return false
+		}
+		return true
+	}, iterateOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -53,18 +154,20 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 }
 
 // iterate implements pagination for "list" endpoints.
-func (c *Client) iterate(ctx context.Context, endpoint string, query url.Values, header map[string]string, f func(json.RawMessage) bool) error {
+func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool, iterateOpts ...IterateOpt) error {
+	ic := c.newIterateConfig()
+	for _, opt := range iterateOpts {
+		opt(ic)
+	}
+
 	uri := *c.baseURL
 	uri.Path = path.Join(uri.Path, endpoint)
-	pageSize := strconv.Itoa(c.pageSize)
-	if query == nil {
-		query = make(url.Values)
-	}
-	query.Add("$top", pageSize)
-	uri.RawQuery = query.Encode()
+
+	uri.RawQuery = ic.query().Encode()
+
 	uriString := uri.String()
 	for uriString != "" {
-		resp, err := c.request(ctx, http.MethodGet, uriString, header, nil /* payload */)
+		resp, err := c.request(ctx, http.MethodGet, uriString, ic.header, nil /* payload */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -122,7 +225,7 @@ func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal 
 // Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-members].
 func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func(GroupMember) bool) error {
 	var err error
-	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), nil /* query */, nil /* optional header */, func(msg json.RawMessage) bool {
+	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), func(msg json.RawMessage) bool {
 		var page []json.RawMessage
 		if err = json.Unmarshal(msg, &page); err != nil {
 			return false
@@ -175,12 +278,10 @@ func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, gro
 	// "ConsistencyLevel: eventual" header set when using
 	// advanced query parameter such as $filter.
 	// https://learn.microsoft.com/en-us/graph/aad-advanced-queries?tabs=http#legend
-	query := url.Values{
-		"$select": {"id"},
-		"$count":  {"true"},
-	}
-	header := map[string]string{
-		"ConsistencyLevel": "eventual",
+	iterateOpts := []IterateOpt{
+		WithSelect("id"),
+		WithCount(),
+		WithHeader("ConsistencyLevel", "eventual"),
 	}
 
 	endpoint := path.Join("users", userID, "transitiveMemberOf")
@@ -191,13 +292,13 @@ func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, gro
 		endpoint = path.Join(endpoint, graphNamespaceDirectoryRoles)
 	case types.EntraIDSecurityGroups:
 		endpoint = path.Join(endpoint, graphNamespaceGroups)
-		query.Add("$filter", securityGroupsFilter)
+		iterateOpts = append(iterateOpts, WithFilter(securityGroupsFilter))
 	default:
 		return trace.BadParameter("unexpected group type %q received, expected types are %q", groupType, types.EntraIDGroupsTypes)
 	}
 
 	var err error
-	itErr := c.iterate(ctx, endpoint, query, header, func(msg json.RawMessage) bool {
+	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
 		var page []Group
 		if err = json.Unmarshal(msg, &page); err != nil {
 			return false
@@ -208,7 +309,7 @@ func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, gro
 			}
 		}
 		return true
-	})
+	}, iterateOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
