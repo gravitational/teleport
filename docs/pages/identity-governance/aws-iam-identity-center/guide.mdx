@@ -27,7 +27,10 @@ Teleport to push user and group changes.
 - Teleport Enterprise or Teleport Enterprise Cloud cluster version 17.0 or higher.
 - Administrative access to AWS IAM Identity Center.
 - Teleport preset `editor` role or equivalent to configure plugin resource, integration 
-  resource and SAML IdP service provider resource.
+  resource and SAML IdP service provider resource. If you are using [role version 8](../../reference/access-controls/roles.mdx#role-versions) 
+  to manage access (which is the default role version since Teleport version 18.0), 
+  ensure that your role allows `app_labels` for the AWS IAM Identity Center 
+  resource `'teleport.dev/origin': 'aws-identity-center'`.
 
 Note that Identity Center integration requires using Teleport as an external
 identity source.
@@ -117,20 +120,11 @@ the same [IdP](../../zero-trust-access/sso/sso.mdx) as your current Identity Cen
 external identity source.
 </Admonition>
 
-<Admonition type="info" title="SAML IdP RBAC">
-In this step, Teleport creates a `saml_idp_service_provider` resource for the 
-AWS IAM Identity Center. 
+In this step, you will configure Teleport as an SAML IdP for the AWS IAM Identity 
+Center. 
 
-Starting with Teleport version 18 and role version 8, the SAML IdP service provider 
-resources are gated behind `app_labels` label matchers. If you are using Teleport 
-role version 8 to manage access, you must update the role to grant access to this 
-service provider resource with `app_labels` matching `teleport.dev/origin: aws-identity-center` label.
-```yaml
-  allow:
-    app_labels:
-      'teleport.dev/origin': 'aws-identity-center'
-```
-</Admonition>
+You will also configure AWS IAM Identity Center as an SAML service provider in 
+Teleport.
 
 Follow the instructions to change your Identity Center's identity source to
 Teleport.
@@ -276,11 +270,14 @@ sets, for example:
 
 ```yaml
 kind: role
-version: v7
+version: v8
 metadata:
   name: aws-dev-access
 spec:
   allow:
+  allow:
+    app_labels:
+      'teleport.dev/origin': 'aws-identity-center'
     account_assignments:
     - account: "<account_id>" # AWS identity center account ID
       # permission set ARN of AdministratorAccess
@@ -370,10 +367,10 @@ Example of a failed login audit log due to missing permission:
 }
 ```
 
-To resolve RBAC error, first, identify what roles are assigned to the user. 
+To resolve RBAC errors, first, identify what roles are assigned to the user. 
 
 If the user has been assigned with a Teleport role of version 8, 
-the role must define `app_labels` matching `teleport.dev/origin: aws-identity-center`
+the role must define `app_labels` matching the `teleport.dev/origin: aws-identity-center`
 label.
 
 ```yaml
@@ -392,8 +389,8 @@ Teleport web session.
 
 If the role requires a session MFA, the user must authorize the login flow with MFA.
 
-If the user is assigned with Teleport role version 7 or below, 
-check if the IDP role option is not disabled. 
+If the user is assigned with a Teleport role version 7 or below, 
+check if the IdP role option is not disabled: 
 ```yaml
 kind: role
 version: v7
