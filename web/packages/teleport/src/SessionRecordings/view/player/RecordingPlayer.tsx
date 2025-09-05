@@ -237,15 +237,17 @@ function PlayPauseKeyboardShortcuts({
   const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (visibleState) {
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
-
-      timeoutRef.current = window.setTimeout(() => {
-        setVisibleState(null);
-      }, 1000);
+    if (!visibleState) {
+      return;
     }
+
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = window.setTimeout(() => {
+      setVisibleState(null);
+    }, 1000);
 
     return () => {
       if (timeoutRef.current) {
@@ -255,26 +257,26 @@ function PlayPauseKeyboardShortcuts({
   }, [visibleState]);
 
   useEventListener('keydown', e => {
-    if (e.code === 'Space') {
-      e.preventDefault();
-
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
-
-      const next =
-        state === PlayerState.Playing
-          ? PlayerState.Paused
-          : PlayerState.Playing;
-
-      if (next === PlayerState.Playing) {
-        onPlay();
-      } else {
-        onPause();
-      }
-
-      setVisibleState(next);
+    if (e.code !== 'Space') {
+      return;
     }
+
+    e.preventDefault();
+
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+
+    const next =
+      state === PlayerState.Playing ? PlayerState.Paused : PlayerState.Playing;
+
+    if (next === PlayerState.Playing) {
+      onPlay();
+    } else {
+      onPause();
+    }
+
+    setVisibleState(next);
   });
 
   if (!visibleState) {

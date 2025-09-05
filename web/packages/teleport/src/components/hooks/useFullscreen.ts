@@ -38,8 +38,6 @@ export function useFullScreen(
   const enter = useCallback(async () => {
     if (document.fullscreenElement) {
       await document.exitFullscreen();
-
-      return ref.current?.requestFullscreen();
     }
 
     if (ref.current) {
