@@ -260,6 +260,12 @@ func (s *Service) cleanupHierarchy() error {
 		}
 	}
 
+	err = s.Remove("")
+	if err != nil {
+		logger.ErrorContext(context.TODO(), "Failed to remove root cgroup.", "error", err)
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
