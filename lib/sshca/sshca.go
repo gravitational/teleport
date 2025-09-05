@@ -107,6 +107,11 @@ func (r *UserCertificateRequest) CheckAndSetDefaults() error {
 	if len(r.Identity.Principals) == 0 {
 		return trace.BadParameter("ssh user identity missing allowed logins")
 	}
+
+	if r.Identity.ScopePin != nil && len(r.Identity.Roles) != 0 {
+		return trace.BadParameter("ssh user identity cannot have both scope pin and roles set")
+	}
+
 	if r.Identity.ValidBefore != 0 {
 		return trace.BadParameter("ValidBefore should not be set in user cert requests (derived from TTL)")
 	}
