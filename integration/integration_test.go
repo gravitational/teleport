@@ -184,7 +184,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
 	t.Run("RecordingModesSessionTrackers", suite.bind(testRecordingModesSessionTrackers))
-
 	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
@@ -1080,6 +1079,9 @@ func testRecordingModesSessionTrackers(t *testing.T, suite *integrationTestSuite
 		return term, errCh
 	}
 
+	err := teleport.WaitForNodeCount(ctx, helpers.Site, 1)
+	require.NoError(t, err)
+
 	auth := teleport.Process.GetAuthServer()
 	for _, mode := range []string{types.RecordAtNode, types.RecordAtProxy} {
 		t.Run(mode, func(t *testing.T) {
@@ -1097,11 +1099,9 @@ func testRecordingModesSessionTrackers(t *testing.T, suite *integrationTestSuite
 			var sessionID string
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				trackers, err := auth.GetActiveSessionTrackers(ctx)
-				assert.NoError(t, err)
-				if !assert.Len(t, trackers, 1) {
-					return
-				}
-				assert.Equal(t, helpers.HostID, trackers[0].GetAddress())
+				require.NoError(t, err)
+				require.Len(t, trackers, 1)
+				require.Equal(t, helpers.HostID, trackers[0].GetAddress())
 				sessionID = trackers[0].GetSessionID()
 			}, 30*time.Second, 100*time.Millisecond)
 
