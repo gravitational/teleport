@@ -170,9 +170,6 @@ type Server struct {
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
 
-	// TODO(Joerger): Remove in favor of targetServer, which has more accurate values.
-	targetID, targetAddr, targetHostname string
-
 	// targetServer is the host that the connection is being established for.
 	targetServer types.Server
 
@@ -248,9 +245,6 @@ type ServerConfig struct {
 	// TracerProvider is used to create tracers capable
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
-
-	// TODO(Joerger): Remove in favor of TargetServer, which has more accurate values.
-	TargetID, TargetAddr, TargetHostname string
 
 	// TargetServer is the host that the connection is being established for.
 	TargetServer types.Server
@@ -356,9 +350,6 @@ func New(c ServerConfig) (*Server, error) {
 		parentContext:   c.ParentContext,
 		lockWatcher:     c.LockWatcher,
 		tracerProvider:  c.TracerProvider,
-		targetID:        c.TargetID,
-		targetAddr:      c.TargetAddr,
-		targetHostname:  c.TargetHostname,
 		targetServer:    c.TargetServer,
 		eiceSigner:      c.EICESigner,
 	}
