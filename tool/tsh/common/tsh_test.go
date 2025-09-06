@@ -5739,7 +5739,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 		"direct connection": {
 			database:            "postgres://direct_user@test:5432/direct_database",
 			expectedErrContains: "hostname resolving error",
-			expectedHost:        "test",
+			expectedHost:        "test:0",
 			expectedUser:        "direct_user",
 			expectedDatabase:    "direct_database",
 		},
@@ -7035,10 +7035,11 @@ func TestSCP(t *testing.T) {
 	})
 
 	// Create a second server to test ambiguous matching.
+	secondServerHostname := "second-node"
 	server, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SetAuthServerAddresses(rootServer.Config.AuthServerAddresses())
-			cfg.Hostname = "second-node"
+			cfg.Hostname = secondServerHostname
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 			cfg.SSH.Enabled = true
@@ -7233,6 +7234,30 @@ func TestSCP(t *testing.T) {
 			expected: map[string][]byte{
 				filepath.Base(sourceFile1): expectedFile1,
 				filepath.Base(sourceFile2): expectedFile2,
+			},
+		},
+		{
+			name:   "two hosts without templates",
+			source: []string{sshHostname + ":" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return secondServerHostname + ":" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "two hosts with templates",
+			source: []string{"shark.example.com:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "2.3.4.5:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
 			},
 		},
 	}
@@ -7682,6 +7707,89 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 			if tc.assertCommandEffect != nil {
 				tc.assertCommandEffect(t, testFile)
 			}
+		})
+	}
+}
+
+func TestParseCopySpec(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		copySpec          []string
+		assertErr         assert.ErrorAssertionFunc
+		expectedSrcHost   string
+		expectedSrcLogin  string
+		expectedDestHost  string
+		expectedDestLogin string
+	}{
+		{
+			name:             "one source, one dest",
+			copySpec:         []string{"foo:/path", "bar:/path"},
+			assertErr:        assert.NoError,
+			expectedSrcHost:  "foo:0",
+			expectedDestHost: "bar:0",
+		},
+		{
+			name:              "source and dest with login",
+			copySpec:          []string{"foo@bar:/path", "baz@quux:/other/path"},
+			assertErr:         assert.NoError,
+			expectedSrcHost:   "bar:0",
+			expectedSrcLogin:  "foo",
+			expectedDestHost:  "quux:0",
+			expectedDestLogin: "baz",
+		},
+		{
+			name:             "multiple sources",
+			copySpec:         []string{"foo@bar:/path/one", "foo@bar:/path/two", "baz:/dest"},
+			assertErr:        assert.NoError,
+			expectedSrcHost:  "bar:0",
+			expectedSrcLogin: "foo",
+			expectedDestHost: "baz:0",
+		},
+		{
+			name:             "local target",
+			copySpec:         []string{"/local/path", "foo:/remote"},
+			assertErr:        assert.NoError,
+			expectedDestHost: "foo:0",
+		},
+		{
+			name:      "empty spec",
+			assertErr: assert.Error,
+		},
+		{
+			name:      "one target",
+			copySpec:  []string{"foo@bar:/path"},
+			assertErr: assert.Error,
+		},
+		{
+			name:      "multiple source hosts",
+			copySpec:  []string{"foo:/path", "bar:/path", "/out"},
+			assertErr: assert.Error,
+		},
+		{
+			name:      "distinct logins",
+			copySpec:  []string{"alice@foo:/path", "bob@foo:/path", "/out"},
+			assertErr: assert.Error,
+		},
+		{
+			name:             "same source and destination host",
+			copySpec:         []string{"foo:/path", "foo:/other/path"},
+			assertErr:        assert.NoError,
+			expectedSrcHost:  "foo:0",
+			expectedDestHost: "foo:0",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var config client.Config
+			err := parseCopySpec(&CLIConf{
+				CopySpec: tc.copySpec,
+			}, &config)
+			tc.assertErr(t, err)
+			assert.Equal(t, tc.expectedSrcHost, config.SFTPSrcHost)
+			assert.Equal(t, tc.expectedSrcLogin, config.SFTPSrcLogin)
+			assert.Equal(t, tc.expectedDestHost, config.SFTPDestHost)
+			assert.Equal(t, tc.expectedDestLogin, config.SFTPDestLogin)
 		})
 	}
 }
