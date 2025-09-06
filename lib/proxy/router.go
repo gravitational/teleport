@@ -248,12 +248,16 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	span.AddEvent("retrieved target server")
 
 	serverID := fmt.Sprintf("%v.%v", target.GetName(), clusterName)
+	hostClusterPrincipal := host + "." + clusterName
 	principals := []string{
 		host,
-		// Add in principal for when nodes are on leaf clusters.
-		host + "." + clusterName,
-		// add hostUUID.cluster to the principals
-		serverID,
+		// Add in hostClusterPrincipal for when nodes are on leaf clusters.
+		hostClusterPrincipal,
+	}
+
+	// add hostUUID.cluster to the principals if it's different from hostClusterPrincipal.
+	if serverID != hostClusterPrincipal {
+		principals = append(principals, serverID)
 	}
 
 	serverAddr := target.GetAddr()
