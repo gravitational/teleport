@@ -173,9 +173,10 @@ type Server struct {
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
 
+	// TODO(Joerger): Remove in favor of targetServer, which has more accurate values.
+	targetID, targetAddr, targetHostname string
+
 	// targetServer is the host that the connection is being established for.
-	// It **MUST** only be populated when the target is a teleport ssh server
-	// or an agentless server.
 	targetServer types.Server
 
 	eiceSigner EICESignerFunc
@@ -251,9 +252,10 @@ type ServerConfig struct {
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
 
+	// TODO(Joerger): Remove in favor of TargetServer, which has more accurate values.
+	TargetID, TargetAddr, TargetHostname string
+
 	// TargetServer is the host that the connection is being established for.
-	// It **MUST** only be populated when the target is a teleport ssh server
-	// or an agentless server.
 	TargetServer types.Server
 
 	// EICESigner is used to upload credentials and get a signer to use for the client connection
@@ -358,6 +360,9 @@ func New(c ServerConfig) (*Server, error) {
 		parentContext:   c.ParentContext,
 		lockWatcher:     c.LockWatcher,
 		tracerProvider:  c.TracerProvider,
+		targetID:        c.TargetID,
+		targetAddr:      c.TargetAddr,
+		targetHostname:  c.TargetHostname,
 		targetServer:    c.TargetServer,
 		eiceSigner:      c.EICESigner,
 	}
@@ -409,9 +414,9 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
-		ServerID:        s.targetServer.GetName(),
-		ServerAddr:      s.targetServer.GetName(),
-		ServerHostname:  s.targetServer.GetHostname(),
+		ServerID:        s.targetID,
+		ServerAddr:      s.targetAddr,
+		ServerHostname:  s.targetHostname,
 		ForwardedBy:     s.hostUUID,
 		ServerSubKind:   s.targetServer.GetSubKind(),
 	}
