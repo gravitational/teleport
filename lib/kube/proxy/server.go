@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -109,6 +111,8 @@ type TLSServerConfig struct {
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 	// InventoryHandle is used to send kube server heartbeats via the inventory control stream.
 	InventoryHandle inventory.DownstreamHandle
+	// healthCheckManager manages registered health checks for databases.
+	healthCheckManager healthcheck.Manager
 }
 
 type awsClientsGetter struct{}
@@ -167,6 +171,18 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.awsClients == nil {
 		c.awsClients = &awsClientsGetter{}
+	}
+
+	if c.healthCheckManager == nil {
+		manager, err := healthcheck.NewManager(c.Context, healthcheck.ManagerConfig{
+			Component:               teleport.ComponentKube,
+			Events:                  c.AccessPoint,
+			HealthCheckConfigReader: c.AccessPoint,
+		})
+		if err != nil {
+			return trace.Wrap(err, "failed to start kube health check manager")
+		}
+		c.healthCheckManager = manager
 	}
 
 	return nil
@@ -350,6 +366,11 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 		return trace.Wrap(err)
 	}
 
+	// Start the health check manager which monitors kube cluster health.
+	if err := t.healthCheckManager.Start(t.Context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// startStaticClusterHeartbeats starts the heartbeat process for static clusters.
 	// static clusters can be specified via kubeconfig or clusterName for Teleport agent
 	// running in Kubernetes.
@@ -412,6 +433,15 @@ func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
 		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster.GetName()))
+
+		// Stop the kube health checker.
+		if err := t.stopHealthCheck(kubeCluster); err != nil {
+			t.log.WarnContext(ctx, "Failed to stop kube health checker",
+				"kube", log.StringerAttr(kubeCluster),
+				"error", err,
+			)
+			errs = append(errs, err)
+		}
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 
@@ -490,7 +520,73 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 		return nil, trace.Wrap(err)
 	}
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+
+	// Set and get kube cluster health check.
+	// t.log.DebugContext(t.Context, "kube GetServerInfo: cluster: %+v", cluster)
+	srv.SetTargetHealth(t.getTargetHealth(t.Context, cluster))
+
 	return srv, nil
+}
+
+// startHealthCheck starts checking health for a Kubernetes cluster.
+func (t *TLSServer) startHealthCheck(kube types.KubeCluster) error {
+	kubeDetails, err := t.fwd.findKubeDetailsByClusterName(kube.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = t.healthCheckManager.AddTarget(healthcheck.Target{
+		GetResource: func() types.ResourceWithLabels { return kube },
+		ResolverFn: func(ctx context.Context) ([]string, error) {
+			return []string{"TODO:REMOVE"}, nil
+		},
+		CheckHealth: kubeDetails.checkHealth,
+	})
+	return trace.Wrap(err)
+}
+
+// stopHealthCheck stops health checks for the kube cluster.
+//
+// DB uses param types.Database (analgous to types.KubeCluster)
+func (t *TLSServer) stopHealthCheck(kube types.KubeCluster) error {
+	t.log.DebugContext(t.Context, "kube health check", "stop", kube.GetName())
+
+	err := t.healthCheckManager.RemoveTarget(kube)
+	if err != nil && !trace.IsNotFound(err) {
+		// not found shouldn't happen, but we can ignore it in any case
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// getTargetHealth returns the target health for the cluster.
+//
+// DB uses param types.Database (analgous to types.KubeCluster)
+func (t *TLSServer) getTargetHealth(ctx context.Context, kube types.KubeCluster) types.TargetHealth {
+	// t.log.DebugContext(ctx, "kube health check: getTargetHealth")
+
+	health, err := t.healthCheckManager.GetTargetHealth(kube)
+	t.log.DebugContext(ctx, "kube health check: getTargetHealth", "target_health", health.String())
+	if err == nil {
+		return *health
+	}
+	if trace.IsNotFound(err) {
+		return types.TargetHealth{
+			Status:           string(types.TargetHealthStatusUnknown),
+			TransitionReason: string(types.TargetHealthTransitionReasonDisabled),
+			Message:          "The target health checker was not found",
+		}
+	}
+
+	t.log.WarnContext(ctx, "Failed to get kube target endpoint health",
+		"db", kube.String(),
+		"error", err,
+	)
+	return types.TargetHealth{
+		Status:           string(types.TargetHealthStatusUnknown),
+		TransitionReason: string(types.TargetHealthTransitionReasonInternalError),
+		TransitionError:  err.Error(),
+		Message:          "The kube service failed to get the kube target endpoint health status (this is a bug)",
+	}
 }
 
 // getKubeClusterWithServiceLabels finds the kube cluster by name, strips the credentials,
@@ -559,9 +655,12 @@ func (t *TLSServer) startStaticClustersHeartbeat() error {
 	// proxy_service will pretend to also be kube_server.
 	if t.KubeServiceType == KubeService ||
 		t.KubeServiceType == LegacyProxyService {
-		t.log.DebugContext(t.closeContext, "Starting kubernetes_service heartbeats")
-		for _, cluster := range t.fwd.kubeClusters() {
-			if err := t.startHeartbeat(cluster.GetName()); err != nil {
+		t.log.DebugContext(t.closeContext, "Starting kubernetes_service heartbeats and health checks")
+		for _, kc := range t.fwd.kubeClusters() {
+			if err := t.startHealthCheck(kc); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := t.startHeartbeat(kc.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
