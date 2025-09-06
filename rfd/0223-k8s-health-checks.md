@@ -260,56 +260,55 @@ Details for configuring `HealthCheckConfig` with interval, timeout, and healthy/
 
 ##### Core Kubernetes Agent
 
-The Kubernetes agent registers one or more Kubernetes clusters, checks the health of proxied Kubernetes clusters, and communicates the health state to the auth server. The agent adds a `healthcheck.Manager` which performs the registration and health check operations. The Kubernetes agent is named `TLSServer`, and is located in [lib/kube/proxy/server.go](https://github.com/gravitational/teleport/blob/590c85a765a6d8d16d5f34503179f27a97a4625c/lib/kube/proxy/server.go#L187).
-
-Change points include:
-
-Modifying methods:
-- `(*TLSServerConfig).CheckAndSetDefaults()` - Initializes the `healthcheck.Manager`
-- `(*TLSServer).Serve()` - Starts `healthcheck.Manager` 
-- `(*TLSServer).startStaticClustersHeartbeat()` - Registers all Kubernetes clusters for health monitoring
-- `(*TLSServer).close()` - Unregisters all Kubernetes clusters from health monitoring
-
-Adding methods:
-- `(*TLSServer).startTargetHealth()` - Registers a single Kubernetes cluster for health monitoring
-- `(*TLSServer).stopTargetHealth()` - Unregisters a single Kubernetes cluster from health monitoring
-- `(*TLSServer).getTargetHealth()` - Gets health for a single Kubernetes cluster
+The Kubernetes agent registers one or more Kubernetes clusters, checks the health of proxied Kubernetes clusters, and communicates a health state back to the auth server. The agent adds a `healthcheck.Manager` which registers Kubernetes clusters and checks their health. 
 
 
 ##### Core `healthcheck` Package
 
-The `healthcheck` package performs recurring health checks on one or more Teleport resources: databases, Kubernetes clusters, etc. It's a general library that currently supports TCP checks. Adding TLS checks is a focus for Kubernetes. 
+The `healthcheck` package performs recurring health checks on one or more Teleport resources: databases, Kubernetes clusters, etc. It's a general library that currently supports TCP checks. Extending support to Kubernetes API calls is a focus. 
 
-Main change points are:
-- [lib/healthcheck/worker.go](https://github.com/gravitational/teleport/blob/590c85a765a6d8d16d5f34503179f27a97a4625c/lib/healthcheck/worker.go#L343)
-  - Modifying the `dialEndpoint()` function to make TLS requests.
+The [healthcheck.Target](https://github.com/gravitational/teleport/blob/dcd4a9b1f88d76bc7d6617083e539cc6c324dc3a/lib/healthcheck/target.go#L37) will add a `HealthCheck` function field, or something similar.
 
-[manager.go](https://github.com/gravitational/teleport/blob/590c85a765a6d8d16d5f34503179f27a97a4625c/lib/healthcheck/manager.go) and [target.go](https://github.com/gravitational/teleport/blob/590c85a765a6d8d16d5f34503179f27a97a4625c/lib/healthcheck/target.go) have minor changes.
+```diff
+// Target is a health check target.
+type Target struct {
+	// GetResource gets a copy of the target resource with updated labels.
+	GetResource func() types.ResourceWithLabels
+	// ResolverFn resolves the target endpoint(s).
+	ResolverFn EndpointsResolverFunc
++	// Checks the health of a target resource.
++	CheckHealth func(ctx context.Context) error
+}
+```
 
-Prometheus gauge metrics are added to the `healthcheck` package, and described in the [Prometheus Implementation](#prometheus-implementation).
+A `healthcheck` [worker](https://github.com/gravitational/teleport/blob/dcd4a9b1f88d76bc7d6617083e539cc6c324dc3a/lib/healthcheck/worker.go#L278) will call the new `CheckHealth` field.
+
+Prometheus gauge metrics are also added to the `healthcheck` package, and described in the [Prometheus Implementation](#prometheus-implementation).
 
 
-#### Health States
+#### Health Checks
 
-A Kubernetes cluster may be in a health state of `unknown`, `healthy` or `unhealthy`.
-- `unknown` indicates a Kubernetes cluster cannot be contacted
-- `healthy` indicates a Kubernetes cluster is accepting requests
-- `unhealthy` indicates an error state, and includes an error message with verbose debugging information, if available
+Kubernetes cluster health is detected by calling Kubernetes API [SelfSubjectAccessReview](https://kubernetes.io/docs/reference/access-authn-authz/authorization/#checking-api-access) endpoints which exercise Kubernetes RBAC. 
 
-See the database health check RFD for [more details](https://github.com/gravitational/teleport/blob/master/rfd/0203-database-healthchecks.md#health-status).
+Four API calls are made per health check:
+`/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`
+- verb: impersonate, resource: users
+- verb: impersonate, resource: groups
+- verb: impersonate, resource: serviceaccounts
+- verb: get, resource: pods
+
+Positive responses indicate the Kubernetes cluster is properly configured with a [Teleport ClusterRole](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-kube-agent/templates/clusterrole.yaml) and responding to requests. 
+
+The definition of health is whether the customer can use the Kubernetes cluster. Including Kubernetes RBAC addresses health from the customer viewpoint.
+
+TCP checks and health endpoints `readyz` / `livez` / `healthz` were explored. Each indicates a level of Kubernetes cluster health, none ensures that a customer can actually use the cluster.
+
+At the end of RFD discussions, a general consensus formed around RBAC being most beneficial for customers.
 
 
-##### Health Check Endpoint
+##### Health Check Alternatives
 
-> [!NOTE]
-> Kubernetes health checked at `https://<address>/readyz`
-
-> [!IMPORTANT]
-> Requires Kubernetes v1.16 or higher
-
-The Kubernetes API `/readyz` endpoint is selected for health checking, and indicates that a Kubernetes API server is ready to accept requests. Kubernetes serves the endpoint through [TLS by default](https://kubernetes.io/docs/concepts/security/controlling-access/#transport-security).
-
-The Kubernetes API offers [several health check endpoints](https://kubernetes.io/docs/reference/using-api/health-checks), as well as TCP checks being available.
+Kubernetes offers an API with [several health check endpoints](https://kubernetes.io/docs/reference/using-api/health-checks), as well as TCP checks being available.
 
 | Approach        | Description                                              |
 |-----------------|----------------------------------------------------------|
@@ -320,7 +319,7 @@ The Kubernetes API offers [several health check endpoints](https://kubernetes.io
 | /healthz        | Ambiguously alive or ready. Deprecated in 2019 at v1.16  |
 | TCP             | Can establish TCP connection to API server port          |
 
-Let's explore the options and reasoning for selecting `/readyz`.
+Let's explore the options.
 
 `/readyz` means that the cluster is accepting API requests, and can be used.
 
@@ -336,7 +335,7 @@ Let's look at the `verbose` query parameter.
 
 `/readyz?verbose` provides a list of Kubernetes modules with `ok / not ok` states. The verbose information is not critical in the common case of a healthy cluster returning a `200` HTTP status code. The verbose information may be helpful to an administrator diagnosing an unhealthy cluster.
 
-For efficiency in the common case of a healthy cluster, the `/readyz` endpoint is called and checked for a `200` status code. In nearly all cases we only need to check `200`. The `verbose` body message is not sent, reducing unneeded network, memory, and processor consumption. Also, the Kubernetes authors recommend [relying on the status code](https://kubernetes.io/docs/reference/using-api/health-checks/) for checking state.
+For efficiency in the common case of a healthy cluster, the `/readyz` endpoint could be called and checked for a `200` status code. In nearly all cases we only need to check `200`. The `verbose` body message is not sent, reducing unneeded network, memory, and processor consumption. Also, the Kubernetes authors recommend [relying on the status code](https://kubernetes.io/docs/reference/using-api/health-checks/) for checking state.
 
 In the case of non-`200` response codes, a follow-up call to `/readyz?verbose` is made. The follow-up verbose message is appended to a Go error, and eventually forwarded to the Web UI for a Teleport administrator to view.
 
@@ -352,7 +351,7 @@ An example `/readyz?verbose` response body for a `503 Service Unavailable` HTTP 
 readyz check failed
 ```
 
-Alternatives not chosen:
+Further alternatives:
 - Providing a blend of fallback health checks with `/readyz` -> `/readyz?verbose` -> `/livez?verbose` -> `TCP`. If each call returned a non-`200` error, a fallback approach could be selected. The scenario would capture as much information as is available for the Teleport administrator. The approach is not selected, as it's seen as over-engineering for minimal return.
 - Monitoring node and pod health starts to walk into a large universe of Kubernetes observability, which is solved with multiple observability products. It's also worth noting that cluster health is distinct from individual node and pod health. The Kubernetes API server can be healthy and accept requests while individual nodes or pods within the cluster are unhealthy. A cluster may also be in a reduced capacity state where there are a mixture of healthy and unhealthy nodes. These all appear beyond the scope of the RFD. Kubernetes cluster checks provide visibility into resources managed by Teleport, and compliment observability solutions. Various in-depth node and pod metrics are available in observability solutions. The [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics?tab=readme-ov-file#overview) project can be added in [Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/metrics-server.html), [Google GKE](https://cloud.google.com/kubernetes-engine/docs/how-to/kube-state-metrics), and [Azure AKS](https://learn.microsoft.com/en-us/azure/azure-monitor/containers/prometheus-metrics-scrape-default). Detailed Kubernetes metrics may or may not be interesting for a future feature.
 - Checking Kubernetes node health after a cluster is unhealthy may, or may not provide interesting diagnostic information for a Teleport administrator. That could be done via the Kubernetes API. It would add complexity, and may have limited value. Node health could be obtained with an observability solution like kube-state-metrics. Having a downed node doesn't necessarily imply a cluster is unhealthy; perhaps at reduced capacity, or possibly unhealthy. The complexity grows, and may best be addressed by observability solutions.
@@ -364,6 +363,16 @@ Alternatives not chosen:
 > Pod health != Kubernetes cluster health
 
 Calling `/readyz` with a fallback to `/readyz?verbose` achieves the objective of providing the `healthy / unhealthy` state, with diagnostics when needed. Once an unhealthy Kubernetes cluster is detected as unhealthy, a Teleport administrator is expected to follow up with other approaches.
+
+
+#### Health States
+
+A Kubernetes cluster may be in a health state of `unknown`, `healthy` or `unhealthy`.
+- `unknown` indicates a Kubernetes cluster cannot be contacted
+- `healthy` indicates a Kubernetes cluster is accepting requests
+- `unhealthy` indicates an error state, and includes an error message with verbose debugging information, if available
+
+See the database health check RFD for [more details](https://github.com/gravitational/teleport/blob/master/rfd/0203-database-healthchecks.md#health-status).
 
 
 #### `tctl` Implementation
@@ -507,6 +516,7 @@ Changes focus on adding `TargetHealth` and label matchers.
 message KubernetesServerV3 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
+
   // Kind is the Kubernetes server resource kind. Always "kube_server".
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
@@ -518,19 +528,21 @@ message KubernetesServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "metadata"
   ];
-+ // Status is the Kubernetes cluster status.
-+ KubernetesServerStatusV3 Status = 5 [
-+   (gogoproto.nullable) = false,
-+   (gogoproto.jsontag) = "status"
-+ ];
+  // Spec is the Kubernetes server spec.
+  KubernetesServerSpecV3 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
++  // Status is the Kubernetes server status.
++  KubernetesServerStatusV3 status = 6;
 }
 
-+ // KubernetesServerStatusV3 is the Kubernetes cluster status.
-+ message KubernetesServerStatusV3 {
-+   // TargetHealth is the health status of network connectivity between
-+   // the agent and the Kubernetes cluster.
-+   TargetHealth TargetHealth = 1 [(gogoproto.jsontag) = "target_health,omitempty"];
-+ }
++// KubernetesServerStatusV3 is the Kubernetes cluster status.
++message KubernetesServerStatusV3 {
++  // TargetHealth is the health status of network connectivity between
++  // the agent and the Kubernetes cluster.
++  TargetHealth target_health = 1;
++}
 ```
 
 
@@ -578,13 +590,13 @@ The [healthcheck](https://github.com/gravitational/teleport/tree/branch/v18/lib/
 
 #### Adding Kubernetes Label Matchers Verified 
 
-Backward compatibility for adding Kubernetes label matchers was tested and verified to function without issue.
+Backward compatibility for adding Kubernetes label matchers was tested and verified to function properly.
 
-Testing was performed in a proof-concept environment.
+Testing was performed on a development machine.
 
-Teleport `v19` was run with auth+proxy+kube. The health check config was edited to Kubernetes-only label matchers (no db matchers). Writing of the health check config to the backend `events` table was double checked by viewing `/health_check_config/default` key data with [DB Browser for SQLite](https://sqlitebrowser.org/).
+Teleport `v19` proof-of-concept was run with auth+proxy+kube. The health check config was edited to Kubernetes-only label matchers (no db matchers). Storage of the health check config to the backend `events` table was double checked by viewing `/health_check_config/default` key data with [DB Browser for SQLite](https://sqlitebrowser.org/).
 
-Then Teleport `v18` auth+proxy+kube was run with identical config and backend. `v18` runs without issue. Kubernetes health checks are simply omitted on a `v18` without backporting.
+Teleport `v18` auth+proxy+kube was run with identical config and backend. `v18` runs without issue. Kubernetes health checks are simply omitted on a `v18` without backporting.
 
 Validation of health check config is performed only on writes to the backend database with [ValidateHealthCheckConfig](https://github.com/gravitational/teleport/blob/447cb50d24b763b9a3a6c78558560ba05c89ef18/lib/services/health_check_config.go#L58), and not during reads of the config.
 
