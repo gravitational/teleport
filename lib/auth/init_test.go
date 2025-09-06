@@ -958,6 +958,7 @@ func TestPresets(t *testing.T) {
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 		teleport.PresetAccessPluginRoleName,
 		teleport.PresetListAccessRequestResourcesRoleName,
+		teleport.PresetMCPUserRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
