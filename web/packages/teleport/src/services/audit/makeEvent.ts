@@ -1245,36 +1245,32 @@ export const formatters: Formatters = {
     type: 'desktop.clipboard.receive',
     desc: 'Clipboard Data Received',
     format: ({ user, desktop_addr, length, desktop_name }) => {
-      let desktopName = desktop_name ? desktop_name : desktop_addr;
-      let message = `User [${user}] received ${length} bytes of clipboard data from desktop [${desktopName}]`;
-      return message;
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] received ${length} bytes of clipboard data from desktop [${desktop}]`;
     },
   },
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: {
     type: 'desktop.clipboard.send',
     desc: 'Clipboard Data Sent',
     format: ({ user, desktop_addr, length, desktop_name }) => {
-      let desktopName = desktop_name ? desktop_name : desktop_addr;
-      let message = `User [${user}] sent ${length} bytes of clipboard data to desktop [${desktopName}]`;
-      return message;
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] sent ${length} bytes of clipboard data to desktop [${desktop}]`;
     },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: {
     type: 'desktop.directory.share',
     desc: 'Directory Sharing Started',
     format: ({ user, desktop_addr, directory_name, desktop_name }) => {
-      let desktopName = desktop_name ? desktop_name : desktop_addr;
-      let message = `User [${user}] started sharing directory [${directory_name}] to desktop [${desktopName}]`;
-      return message;
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] started sharing directory [${directory_name}] to desktop [${desktop}]`;
     },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: {
     type: 'desktop.directory.share',
     desc: 'Directory Sharing Start Failed',
     format: ({ user, desktop_addr, directory_name, desktop_name }) => {
-      let desktopName = desktop_name ? desktop_name : desktop_addr;
-      let message = `User [${user}] failed to start sharing directory [${directory_name}] to desktop [${desktopName}]`;
-      return message;
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] failed to start sharing directory [${directory_name}] to desktop [${desktop}]`;
     },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: {
@@ -1288,9 +1284,8 @@ export const formatters: Formatters = {
       length,
       desktop_name,
     }) => {
-      let desktopName = desktop_name ? desktop_name : desktop_addr;
-      let message = `User [${user}] read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktopName}]`;
-      return message;
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
     },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: {
@@ -1304,9 +1299,8 @@ export const formatters: Formatters = {
       length,
       desktop_name,
     }) => {
-      let desktopName = desktop_name ? desktop_name : desktop_addr;
-      let message = `User [${user}] failed to read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktopName}]`;
-      return message;
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] failed to read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
     },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: {
@@ -1320,9 +1314,8 @@ export const formatters: Formatters = {
       length,
       desktop_name,
     }) => {
-      let desktopName = desktop_name ? desktop_name : desktop_addr;
-      let message = `User [${user}] wrote [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktopName}]`;
-      return message;
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] wrote [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
     },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: {
@@ -1336,9 +1329,8 @@ export const formatters: Formatters = {
       length,
       desktop_name,
     }) => {
-      let desktopName = desktop_name ? desktop_name : desktop_addr;
-      let message = `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktopName}]`;
-      return message;
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
     },
   },
   [eventCodes.DEVICE_CREATE]: {
