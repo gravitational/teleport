@@ -66,6 +66,25 @@ jobs:
         id: prepare
         uses: ./.github/actions/prepare-workspace
 
+      - name: Locate Go caches
+        id: go-env
+        shell: bash
+        run: |
+          echo "gomodcache=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+          echo "gocache=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "goversion=$(go env GOVERSION || go version | awk '{print $3}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Go build & module caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.go-env.outputs.gomodcache }}
+            ${{ steps.go-env.outputs.gocache }}
+          key: go-${{ steps.go-env.outputs.goversion }}-${{ runner.os }}-teleport19-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            go-${{ steps.go-env.outputs.goversion }}-${{ runner.os }}-teleport19-
+            go-${{ runner.os }}-teleport19- 
+
       - name: Mount debugfs
         run: mount -t debugfs none /sys/kernel/debug/
 
