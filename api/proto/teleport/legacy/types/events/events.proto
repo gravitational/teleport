@@ -694,14 +694,14 @@ message DesktopSharedDirectoryRead {
   string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
   // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
   uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
-  // DesktopName is the name of the desktop resource.
-  string DesktopName = 9 [(gogoproto.jsontag) = "desktop_name"];
   // Path is the path within the shared directory where the file is located.
-  string Path = 10 [(gogoproto.jsontag) = "file_path"];
+  string Path = 9 [(gogoproto.jsontag) = "file_path"];
   // Length is the number of bytes read.
-  uint32 Length = 11 [(gogoproto.jsontag) = "length"];
+  uint32 Length = 10 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were read from.
-  uint64 Offset = 12 [(gogoproto.jsontag) = "offset"];
+  uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 12 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DesktopSharedDirectoryWrite is emitted when Teleport
@@ -744,14 +744,14 @@ message DesktopSharedDirectoryWrite {
   string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
   // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
   uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
-  // DesktopName is the name of the desktop resource.
-  string DesktopName = 9 [(gogoproto.jsontag) = "desktop_name"];
   // Path is the path within the shared directory where the file is located.
-  string Path = 10 [(gogoproto.jsontag) = "file_path"];
+  string Path = 9 [(gogoproto.jsontag) = "file_path"];
   // Length is the number of bytes written.
-  uint32 Length = 11 [(gogoproto.jsontag) = "length"];
+  uint32 Length = 10 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were written to.
-  uint64 Offset = 12 [(gogoproto.jsontag) = "offset"];
+  uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 12 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // SessionReject event happens when a user hits a session control restriction.
