@@ -38,6 +38,13 @@ import (
 var cmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	// IneligibleStatus is a dynamic field calculated by the ineligibility reconciler
+	// or in case of empty requirements preset to eligible
+	// Note that IneligibleStatus is FE only consumed field and doesn't have any
+	// impact on access list functionality or RBAC.
+	cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
+	cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "IneligibleStatus"),
 }
 
 // accessListSyncTestContext contains test information for testing the access list synchronizer.

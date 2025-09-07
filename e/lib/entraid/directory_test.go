@@ -119,8 +119,8 @@ func TestEntraIDService(t *testing.T) {
 	subgroupID := uuid.NewString()
 
 	defaultOwners := []accesslist.Owner{
-		{Name: "admin", MembershipKind: accesslist.MembershipKindUser},
-		{Name: "reviewer", MembershipKind: accesslist.MembershipKindUser},
+		{Name: "admin", MembershipKind: accesslist.MembershipKindUser, IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()},
+		{Name: "reviewer", MembershipKind: accesslist.MembershipKindUser, IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()},
 	}
 
 	const ssoConnectorID = "my-sso-connector"
