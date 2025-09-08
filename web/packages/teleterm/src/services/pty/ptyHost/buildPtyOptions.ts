@@ -52,11 +52,15 @@ export async function buildPtyOptions({
   settings,
   options,
   cmd,
+  tshdEventsServiceAddr,
+  tshdCertsDir,
   processEnv = process.env,
 }: {
   settings: RuntimeSettings;
   options: PtyOptions;
   cmd: PtyCommand;
+  tshdEventsServiceAddr: string;
+  tshdCertsDir: string;
   processEnv?: typeof process.env;
 }): Promise<{
   processOptions: PtyProcessOptions;
@@ -134,6 +138,8 @@ export async function buildPtyOptions({
           cmd: cmd,
           env: combinedEnv,
           shellBinPath: shell.binPath,
+          tshdEventsServiceAddr: tshdEventsServiceAddr,
+          tshdCertsDir: tshdCertsDir,
         }),
         shell,
         creationStatus: failedToResolveShell
@@ -149,12 +155,16 @@ export function getPtyProcessOptions({
   cmd,
   env,
   shellBinPath,
+  tshdEventsServiceAddr,
+  tshdCertsDir,
 }: {
   settings: RuntimeSettings;
   options: PtyOptions;
   cmd: PtyCommand;
   env: typeof process.env;
   shellBinPath: string;
+  tshdEventsServiceAddr: string;
+  tshdCertsDir: string;
 }): PtyProcessOptions {
   const useConpty = options.windowsPty?.useConpty;
 
@@ -193,6 +203,8 @@ export function getPtyProcessOptions({
         'ssh',
         ...(options.ssh.noResume ? ['--no-resume'] : []),
         ...(options.ssh.forwardAgent ? ['--forward-agent'] : []),
+        `--tshd-events-server-addr=${tshdEventsServiceAddr}`,
+        `--tshd-certs-dir=${tshdCertsDir}`,
         loginHost,
       ];
 

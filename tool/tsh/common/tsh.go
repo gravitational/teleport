@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -83,6 +84,7 @@ import (
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/client/reexec"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
@@ -95,6 +97,9 @@ import (
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/teleterm"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
@@ -656,6 +661,8 @@ type CLIConf struct {
 
 	// checkManagedUpdates initiates check of managed update after client connects to cluster.
 	checkManagedUpdates bool
+
+	TshdEventsServerAddr string
 }
 
 func (c *CLIConf) isForkAuthChild() bool {
@@ -957,6 +964,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
 	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete.").Short('f').BoolVar(&cf.ForkAfterAuthentication)
+	ssh.Flag("tshd-events-server-addr", "tshd events erver addr").Hidden().StringVar(&cf.TshdEventsServerAddr)
+	ssh.Flag("tshd-certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service.").StringVar(&cf.DaemonCertsDir)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -4216,6 +4225,26 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 	}
 
 	tc.AllowHeadless = true
+
+	if cf.TshdEventsServerAddr != "" {
+		tshdEventsClient, err := teleterm.ConnectToTshdEventsService(cf.Context, cf.DaemonCertsDir, cf.TshdEventsServerAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		proxyHost, err := utils.Host(tc.WebProxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		tc.MFAPromptConstructor = daemon.NewMFAPromptConstructor(
+			uri.NewClusterURI(proxyHost),
+			func(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error) {
+				return tshdEventsClient.PromptMFA(ctx, in)
+			})
+
+		tc.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
+	}
 
 	// Support calling `tsh ssh -- <command>` (with a double dash before the command)
 	if len(cf.RemoteCommand) > 0 && strings.TrimSpace(cf.RemoteCommand[0]) == "--" {

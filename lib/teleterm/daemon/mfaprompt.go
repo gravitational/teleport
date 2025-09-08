@@ -46,6 +46,20 @@ type mfaPrompt struct {
 	promptAppMFA func(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error)
 }
 
+func NewMFAPromptConstructor(resourceURI uri.ResourceURI, promptMFA func(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error)) func(cfg *libmfa.PromptConfig) mfa.Prompt {
+	return func(cfg *libmfa.PromptConfig) mfa.Prompt {
+		return NewMFAPrompt(resourceURI, cfg, promptMFA)
+	}
+}
+
+func NewMFAPrompt(resourceURI uri.ResourceURI, cfg *libmfa.PromptConfig, promptMFA func(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error)) *mfaPrompt {
+	return &mfaPrompt{
+		cfg:          *cfg,
+		resourceURI:  resourceURI,
+		promptAppMFA: promptMFA,
+	}
+}
+
 // NewMFAPromptConstructor returns a new MFA prompt constructor
 // for this service and the given resource URI.
 func (s *Service) NewMFAPromptConstructor(resourceURI uri.ResourceURI) func(cfg *libmfa.PromptConfig) mfa.Prompt {

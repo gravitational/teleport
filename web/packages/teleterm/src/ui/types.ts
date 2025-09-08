@@ -66,6 +66,7 @@ export interface IAppContext {
   vnet: VnetClient;
   /** Exposes Electron's webUtils.getPathForFile. */
   getPathForFile: (file: File) => string;
+  tshdEventsServerAddress: string;
   pullInitialState(): Promise<void>;
 
   /**

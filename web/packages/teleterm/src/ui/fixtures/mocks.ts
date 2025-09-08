@@ -48,6 +48,7 @@ export class MockAppContext extends AppContext {
       ptyServiceClient,
       setupTshdEventContextBridgeService: () => {},
       getPathForFile: () => '',
+      tshdEventsServerAddress: '',
     });
 
     this.mockMainProcessClient = mainProcessClient;

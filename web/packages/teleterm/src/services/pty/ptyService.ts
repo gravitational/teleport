@@ -31,7 +31,9 @@ export function createPtyService(
   address: string,
   credentials: ChannelCredentials,
   runtimeSettings: RuntimeSettings,
-  configService: ConfigService
+  configService: ConfigService,
+  tshdEventsServiceAddr: string,
+  tshdCertsDir: string
 ): PtyServiceClient {
   const ptyHostClient = createPtyHostClient(address, credentials);
 
@@ -51,6 +53,8 @@ export function createPtyService(
           windowsPty,
         },
         cmd: command,
+        tshdEventsServiceAddr: tshdEventsServiceAddr,
+        tshdCertsDir: tshdCertsDir,
       });
       const ptyId = await ptyHostClient.createPtyProcess(processOptions);
 

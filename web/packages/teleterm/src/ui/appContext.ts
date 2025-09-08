@@ -72,6 +72,7 @@ export default class AppContext implements IAppContext {
     service: TshdEventContextBridgeService
   ) => void;
   getPathForFile: (file: File) => string;
+  tshdEventsServerAddress: string;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   headlessAuthenticationService: HeadlessAuthenticationService;
