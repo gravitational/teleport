@@ -28,7 +28,6 @@ import (
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 )
 
@@ -206,7 +205,7 @@ func (ctx *InferencePolicyMatchingContext) GetResource() (types.Resource, error)
 
 // ExtendWithSessionEnd extends the context with a session end event and
 // rebuilds the resource from the event.
-func (ctx *InferencePolicyMatchingContext) ExtendWithSessionEnd(sessionEnd apievents.AuditEvent) {
+func (ctx *InferencePolicyMatchingContext) ExtendWithSessionEnd(sessionEnd events.AuditEvent) {
 	ctx.Session = sessionEnd
 	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
 }
