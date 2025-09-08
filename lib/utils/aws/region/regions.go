@@ -85,6 +85,10 @@ var regions = sync.OnceValue(func() map[string]Region {
 			Name:        "ap-southeast-5",
 			Description: "Asia Pacific (Malaysia)",
 		},
+		"ap-southeast-6": {
+			Name:        "ap-southeast-6",
+			Description: "Asia Pacific (New Zealand)",
+		},
 		"ap-southeast-7": {
 			Name:        "ap-southeast-7",
 			Description: "Asia Pacific (Thailand)",
