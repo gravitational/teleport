@@ -8120,16 +8120,46 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 	return cookie.SessionID
 }
 
+type WebPackOptions struct {
+	// Number of proxies to setup (default: 1)
+	numProxies      int
+	opts            []proxyOption
+	enableAuthCache bool
+}
+
+func (o *WebPackOptions) setDefaultOptions() {
+	if o == nil {
+		return
+	}
+	if o.numProxies <= 0 {
+		o.numProxies = 1
+	}
+}
+
+// Deprecated: use newWebPackWithOptions instead
+//
+// TODO(nicholasmarais1158): Replace uses of this function, then rename `newWebPackWithOptions` to `newWebPack`.
 func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
+	return newWebPackWithOptions(t, &WebPackOptions{
+		numProxies:      numProxies,
+		opts:            opts,
+		enableAuthCache: false,
+	})
+}
+
+func newWebPackWithOptions(t *testing.T, options *WebPackOptions) *webPack {
+	options.setDefaultOptions()
+
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			ClusterName: "localhost",
-			Dir:         t.TempDir(),
-			Clock:       clock,
-			AuditLog:    events.NewDiscardAuditLog(),
+			ClusterName:  "localhost",
+			Dir:          t.TempDir(),
+			Clock:        clock,
+			AuditLog:     events.NewDiscardAuditLog(),
+			CacheEnabled: options.enableAuthCache,
 		},
 	})
 	require.NoError(t, err)
@@ -8240,20 +8270,20 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	})
 
 	var proxies []*testProxy
-	for p := range numProxies {
+	for p := range options.numProxies {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, opts...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.opts...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
 	for start := time.Now(); ; {
 		proxies, err := proxies[0].client.GetProxies()
 		require.NoError(t, err)
-		if len(proxies) == numProxies {
+		if len(proxies) == options.numProxies {
 			break
 		}
 		if time.Since(start) > 5*time.Second {
-			t.Fatalf("Proxies didn't register within 5s after startup; registered: %d, want: %d", len(proxies), numProxies)
+			t.Fatalf("Proxies didn't register within 5s after startup; registered: %d, want: %d", len(proxies), options.numProxies)
 		}
 	}
 
