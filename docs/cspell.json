@@ -201,6 +201,7 @@
     "Rekor",
     "Relogging",
     "Relogin",
+    "replayable",
     "SAMLIDP",
     "SCIM",
     "SECURITYADMIN",
@@ -223,6 +224,7 @@
     "SailPoint",
     "Sailpoint",
     "Secretless",
+    "setx",
     "Shockbyte",
     "Silverfort's",
     "Slackbot",
@@ -305,6 +307,7 @@
     "allkeys",
     "allowdeny",
     "allowedlogins",
+    "alloydb",
     "anonymization",
     "anotheruser",
     "apikey",
@@ -419,6 +422,7 @@
     "connectionupgrade",
     "connectorname",
     "connstring",
+    "contoso",
     "cprops",
     "cqlsh",
     "createkey",
@@ -915,6 +919,7 @@
     "serviceacct",
     "servicecfg",
     "serviceid",
+    "serviceusage",
     "sess",
     "session",
     "sestatus",
@@ -1061,6 +1066,7 @@
     "vnetd",
     "vsts",
     "vtgate",
+    "Vg5R6vpZffg",
     "walkthrough",
     "watcherjob",
     "webapi",
@@ -1100,7 +1106,9 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
+  "flagWords": [
+    "hte"
+  ],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**",

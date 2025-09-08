@@ -223,7 +223,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		Labels:       cfg.WindowsDesktop.Labels,
 		HostLabelsFn: cfg.WindowsDesktop.HostLabels.LabelsForHost,
 		Heartbeat: desktop.HeartbeatConfig{
-			HostUUID:    cfg.HostUUID,
+			HostUUID:    conn.HostUUID(),
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.StaticHosts,
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),

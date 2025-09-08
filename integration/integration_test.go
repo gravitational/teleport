@@ -433,7 +433,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// Start a node.
 			nodeConf := suite.defaultServiceConfig()
-			nodeConf.HostUUID = "node"
 			nodeConf.Hostname = "node"
 			nodeConf.SSH.Enabled = true
 			nodeConf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &nodeConf.FileDescriptors)
@@ -796,7 +795,8 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			return "", trace.Wrap(err)
 		}
 
-		return node.Config.HostUUID, nil
+		uuid, err := node.WaitForHostID(t.Context())
+		return uuid, trace.Wrap(err)
 	}
 
 	// add two nodes with the same hostname.
@@ -1410,7 +1410,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 			conf.SetToken("token")
 			conf.Testing.UploadEventsC = i.UploadEventsC
 			conf.SetAuthServerAddress(*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))))
-			conf.HostUUID = name
 			conf.Hostname = name
 			conf.SSH.Enabled = true
 			conf.CachePolicy = servicecfg.CachePolicy{
@@ -2607,6 +2606,10 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
+	// Wait for nodes to be visible before attempting connections
+	err = b.WaitForNodeCount(ctx, "cluster-a", 2)
+	require.NoError(t, err)
+
 	cmd := []string{"echo", "hello world"}
 	tc, err := b.NewClient(helpers.ClientConfig{
 		Login:   username,
@@ -2616,19 +2619,16 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
+	// Wait for nodes to be visible before attempting connections
+	err = b.WaitForNodeCount(ctx, "cluster-a", 2)
+	require.NoError(t, err)
+
 	output := &bytes.Buffer{}
 	tc.Stdout = output
-	// try to execute an SSH command using the same old client  to helpers.Site-B
+	// try to execute an SSH command using the same old client to helpers.Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(ctx, cmd)
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
+	require.NoError(t, tc.SSH(ctx, cmd))
 	require.Equal(t, "hello world\n", output.String())
 
 	// Stop cluster "a" to force existing tunnels to close.
@@ -2651,17 +2651,14 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
+	// Wait for nodes to be visible before attempting connections
+	err = b.WaitForNodeCount(ctx, "cluster-a", 2)
+	require.NoError(t, err)
+
 	// try to execute an SSH command using the same old client to site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for i := 0; i < 30; i++ {
-		time.Sleep(1 * time.Second)
-		err = tc.SSH(ctx, cmd)
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
+	require.NoError(t, tc.SSH(ctx, cmd))
 
 	// stop cluster and remaining nodes
 	require.NoError(t, a.StopAll())

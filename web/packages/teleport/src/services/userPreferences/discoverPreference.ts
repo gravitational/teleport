@@ -56,6 +56,7 @@ export enum DiscoverGuideId {
   // Databases:
   DatabaseAwsDynamoDb = 'database-aws-dynamo-db',
   DatabaseAwsElastiCacheMemoryDb = 'database-aws-elasticache-memorydb',
+  DatabaseAwsElastiCacheServerless = 'database-aws-elasticache-serverless',
   DatabaseAwsCassandraKeyspaces = 'database-aws-cassandra-keyspaces',
   DatabaseAwsRedshiftServerless = 'database-aws-redshift-serverless',
   DatabaseAwsSqlServerAd = 'database-aws-sql-server-ad',
