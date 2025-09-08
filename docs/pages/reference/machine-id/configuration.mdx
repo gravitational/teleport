@@ -2,7 +2,7 @@
 title: Machine ID Configuration Reference
 description: Configuration reference for Teleport Machine ID.
 tocDepth: 4
-labels:
+tags:
  - reference
  - mwi
 ---
@@ -338,6 +338,14 @@ selectors:
   # name includes an exact match by name. Note that wildcards are not currently
   # supported. Multiple name selectors can be specified if desired.
   - name: foo
+    # default_namespace is the namespace that should be configured for the
+    # context within the kubeconfig. This will be the namespace used by
+    # `kubectl`/SDK if the user has not explicitly provided one.
+    #
+    # If unspecified, no default namespace is set within the kubeconfig and
+    # `kubectl`/SDKs will use default based on their own logic - which is often
+    # to select the `default` namespace.
+    default_namespace: my-namespace
   # labels include all clusters matching all of these labels. Multiple label
   # selectors can be provided if needed.
   - labels:
@@ -1347,7 +1355,7 @@ name: my-secret
 namespace:
 # labels specifies the labels to apply to the Kubernetes Secret. This field is
 # optional.
-labels:
+tags:
   example: "foo"
 ```
 

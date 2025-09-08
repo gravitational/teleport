@@ -29,3 +29,8 @@ tests:
               path: /buzz
     asserts:
       - matchSnapshot: {}
+  - it: should match the snapshot (argocd)
+    values:
+      - ../.lint/argocd.yaml
+    asserts:
+      - matchSnapshot: {}
