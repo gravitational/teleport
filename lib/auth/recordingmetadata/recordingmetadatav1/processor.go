@@ -119,11 +119,11 @@ func (p *sessionProcessor) handleEvent(evt apievents.AuditEvent) error {
 }
 
 func (p *sessionProcessor) handleDatabaseSessionStart(e *apievents.DatabaseSessionStart) {
-	p.setCommonMetadata(e.Time, e.ClusterName, e.DatabaseUser, e.DatabaseName, pb.SessionRecordingType_SESSION_RECORDING_TYPE_DATABASE)
+	p.setCommonMetadata(e.Time, e.ClusterName, e.User, e.DatabaseService, pb.SessionRecordingType_SESSION_RECORDING_TYPE_DATABASE)
 }
 
 func (p *sessionProcessor) handleWindowsDesktopSessionStart(e *apievents.WindowsDesktopSessionStart) {
-	p.setCommonMetadata(e.Time, e.ClusterName, e.WindowsUser, e.DesktopName, pb.SessionRecordingType_SESSION_RECORDING_TYPE_DESKTOP)
+	p.setCommonMetadata(e.Time, e.ClusterName, e.User, e.DesktopName, pb.SessionRecordingType_SESSION_RECORDING_TYPE_DESKTOP)
 }
 
 func (p *sessionProcessor) handleSessionStart(e *apievents.SessionStart) error {
