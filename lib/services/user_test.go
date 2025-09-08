@@ -369,3 +369,53 @@ func claimsToAttributes(claims map[string]any) saml2.AssertionInfo {
 	}
 	return info
 }
+
+func TestUsernameForCluster(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		username         string
+		originCluster    string
+		localClusterName string
+		expected         string
+	}{
+
+		{
+			username:         "alice",
+			originCluster:    "leaf",
+			localClusterName: "root",
+			expected:         "remote-alice-leaf",
+		},
+		{
+			username:         "bob",
+			originCluster:    "",
+			localClusterName: "root",
+			expected:         "bob",
+		},
+		{
+			username:         "carol",
+			originCluster:    "leaf.cluster",
+			localClusterName: "root.cluster",
+			expected:         "remote-carol-leaf.cluster",
+		},
+		{
+			username:         "dave",
+			originCluster:    "leaf-cluster",
+			localClusterName: "leaf-cluster",
+			expected:         "dave",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.username, func(t *testing.T) {
+			result := UsernameForCluster(
+				UsernameForClusterConfig{
+					User:              test.username,
+					OriginClusterName: test.originCluster,
+					LocalClusterName:  test.localClusterName,
+				},
+			)
+			require.Equal(t, test.expected, result)
+		})
+	}
+}

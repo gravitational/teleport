@@ -26,7 +26,7 @@ import {
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import Document from 'teleterm/ui/Document';
+import Document, { ForegroundSession } from 'teleterm/ui/Document';
 import type * as types from 'teleterm/ui/services/workspacesService';
 
 import { Reconnect } from './Reconnect';
@@ -35,6 +35,22 @@ import { useDocumentTerminal } from './useDocumentTerminal';
 import { useTshFileTransferHandlers } from './useTshFileTransferHandlers';
 
 export function DocumentTerminal(props: {
+  doc: types.DocumentTerminal;
+  visible: boolean;
+}) {
+  return (
+    <ForegroundSession
+      visible={props.visible}
+      // Treat the terminal document as connected, so they will always be
+      // unmounted when the window is the background.
+      connected
+    >
+      <TerminalComponent visible={props.visible} doc={props.doc} />
+    </ForegroundSession>
+  );
+}
+
+function TerminalComponent(props: {
   doc: types.DocumentTerminal;
   visible: boolean;
 }) {
