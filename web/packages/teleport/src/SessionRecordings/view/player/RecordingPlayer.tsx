@@ -211,7 +211,7 @@ const PlayButton = styled.button`
   background: rgba(0, 0, 0, 0.6);
   border-radius: 50%;
   padding: ${p => p.theme.space[3]}px;
-  z-index: 1;
+  z-index: 10;
   cursor: pointer;
 
   &:hover {
