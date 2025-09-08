@@ -16,4 +16,7 @@
 
 package relaytunnel
 
+// yamuxTunnelALPN is the ALPN protocol name for the bespoke protocol used by
+// tunnel connections. Future variants of the protocol should use a different
+// ALPN protocol name.
 const yamuxTunnelALPN = "teleport-relaytunnel"
