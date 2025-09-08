@@ -249,5 +249,19 @@ export default function createMainProcessClient(): MainProcessClient {
           ipcRenderer.removeListener(RendererIpc.OpenAppUpdateDialog, listener),
       };
     },
+    subscribeToIsInBackgroundMode: listener => {
+      const ipcListener = (_, { isInBackgroundMode }) => {
+        listener({ isInBackgroundMode });
+      };
+
+      ipcRenderer.addListener(RendererIpc.IsInBackgroundMode, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.IsInBackgroundMode,
+            ipcListener
+          ),
+      };
+    },
   };
 }
