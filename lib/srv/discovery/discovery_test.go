@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -89,6 +90,7 @@ import (
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
+	libstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -1990,6 +1992,10 @@ func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, locatio
 	return clusters, nil
 }
 
+type UserTaskLister interface {
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
+}
+
 func TestDiscoveryDatabase(t *testing.T) {
 	const (
 		mainDiscoveryGroup  = "main"
@@ -2048,9 +2054,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 		azureMatchers                          []types.AzureMatcher
 		expectDatabases                        []types.Database
 		discoveryConfigs                       func(*testing.T) []*discoveryconfig.DiscoveryConfig
-		discoveryConfigStatusCheck             func(*testing.T, discoveryconfig.Status)
+		discoveryConfigStatusCheck             func(*assert.CollectT, discoveryconfig.Status)
 		discoveryConfigStatusExpectedResources int
-		userTasksCheck                         func(*testing.T, []*usertasksv1.UserTask)
+		userTasksCheck                         func(*testing.T, UserTaskLister)
 		wantEvents                             int
 	}{
 		{
@@ -2249,7 +2255,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				return []*discoveryconfig.DiscoveryConfig{dc1}
 			},
 			wantEvents: 1,
-			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+			discoveryConfigStatusCheck: func(t *assert.CollectT, s discoveryconfig.Status) {
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Enrolled)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Found)
 				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsRds.Failed)
@@ -2283,7 +2289,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			},
 			expectDatabases: []types.Database{},
 			wantEvents:      0,
-			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+			discoveryConfigStatusCheck: func(t *assert.CollectT, s discoveryconfig.Status) {
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsEks.Found)
 				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.Enrolled)
 			},
@@ -2305,7 +2311,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			},
 			expectDatabases: []types.Database{},
 			wantEvents:      0,
-			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+			discoveryConfigStatusCheck: func(t *assert.CollectT, s discoveryconfig.Status) {
 				require.Equal(t, "DISCOVERY_CONFIG_STATE_SYNCING", s.State)
 			},
 			discoveryConfigStatusExpectedResources: 0,
@@ -2325,9 +2331,18 @@ func TestDiscoveryDatabase(t *testing.T) {
 			},
 			expectDatabases: []types.Database{awsRDSDBWithIntegration},
 			wantEvents:      1,
-			userTasksCheck: func(t *testing.T, uts []*usertasksv1.UserTask) {
-				require.Len(t, uts, 1)
-				gotUserTask := uts[0]
+			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
+				var gotUserTask *usertasksv1.UserTask
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					uts, err := libstream.Collect(clientutils.Resources(context.Background(), func(ctx context.Context, i int, s string) ([]*usertasksv1.UserTask, string, error) {
+						return lister.ListUserTasks(ctx, int64(i), s, nil)
+					}))
+					require.NoError(t, err)
+					require.Len(t, uts, 1)
+
+					gotUserTask = uts[0]
+				}, 10*time.Second, 100*time.Millisecond)
+
 				require.Equal(t, "3ae76664-b54d-5b74-b59a-bd7bff3be053", gotUserTask.GetMetadata().GetName())
 				require.Equal(t, "OPEN", gotUserTask.GetSpec().GetState())
 				require.Equal(t, "discover-rds", gotUserTask.GetSpec().GetTaskType())
@@ -2480,52 +2495,33 @@ func TestDiscoveryDatabase(t *testing.T) {
 					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
-			case <-time.After(time.Second):
+			case <-time.After(10 * time.Second):
 				require.FailNow(t, "Didn't receive reconcile event after 1s")
 			}
 
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
 					return reporter.ResourceCreateEventCount() == tc.wantEvents
-				}, time.Second, 100*time.Millisecond)
+				}, 10*time.Second, 100*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return reporter.ResourceCreateEventCount() != 0
-				}, time.Second, 100*time.Millisecond)
+				}, 10*time.Second, 100*time.Millisecond)
 			}
 
 			if tc.discoveryConfigStatusCheck != nil {
-				require.Eventually(t, func() bool {
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					fakeClock.Advance(srv.PollInterval * 2)
 					dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
 					require.NoError(t, err)
-					if tc.discoveryConfigStatusExpectedResources != int(dc.Status.DiscoveredResources) {
-						return false
-					}
+					require.Equal(t, tc.discoveryConfigStatusExpectedResources, int(dc.Status.DiscoveredResources))
 
 					tc.discoveryConfigStatusCheck(t, dc.Status)
-					return true
-				}, time.Second, 100*time.Millisecond)
+				}, 10*time.Second, 100*time.Millisecond)
 
 			}
 			if tc.userTasksCheck != nil {
-				var userTasks []*usertasksv1.UserTask
-				var nextPage string
-				for {
-					filters := &usertasksv1.ListUserTasksFilters{
-						Integration: integrationName,
-					}
-					userTasksResp, nextPageResp, err := tlsServer.Auth().ListUserTasks(ctx, 0, nextPage, filters)
-					require.NoError(t, err)
-
-					userTasks = append(userTasks, userTasksResp...)
-
-					if nextPageResp == "" {
-						break
-					}
-					nextPage = nextPageResp
-				}
-				tc.userTasksCheck(t, userTasks)
+				tc.userTasksCheck(t, tlsServer.Auth())
 			}
 		})
 	}
