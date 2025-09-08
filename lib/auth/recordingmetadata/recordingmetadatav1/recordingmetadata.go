@@ -27,16 +27,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/hinshun/vt10x"
 	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/terminal"
@@ -101,173 +97,15 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	processor := newSessionProcessor(sessionID)
+
 	evts, errors := s.streamer.StreamSessionEvents(ctx, sessionID, 0)
 
-	var startTime time.Time
-	var lastEvent apievents.AuditEvent
-	var lastActivityTime time.Time
-
-	thumbnailInterval := 1 * time.Second
-	activeUsers := make(map[string]time.Duration)
-
-	vt := vt10x.New()
-
-	metadata := &pb.SessionRecordingMetadata{}
-
-	addInactivityEvent := func(start, end time.Time) {
-		inactivityStart := durationpb.New(start.Sub(startTime))
-		inactivityEnd := durationpb.New(end.Sub(startTime))
-
-		metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-			StartOffset: inactivityStart,
-			EndOffset:   inactivityEnd,
-			Event: &pb.SessionRecordingEvent_Inactivity{
-				Inactivity: &pb.SessionRecordingInactivityEvent{},
-			},
-		})
+	if err := processor.processEventStream(ctx, evts, errors); err != nil {
+		return trace.Wrap(err)
 	}
 
-	sampler := newThumbnailBucketSampler(maxThumbnails, thumbnailInterval)
-
-	recordThumbnail := func(start time.Time) {
-		state := vt.DumpState()
-
-		sampler.add(&state, start)
-	}
-
-loop:
-	for {
-		select {
-		case evt, ok := <-evts:
-			if !ok {
-				break loop
-			}
-
-			lastEvent = evt
-
-			switch e := evt.(type) {
-			case *apievents.DatabaseSessionStart, *apievents.WindowsDesktopSessionStart:
-				// Unsupported session recording types
-				return nil
-
-			case *apievents.Resize:
-				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
-				if err != nil {
-					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
-				}
-
-				metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-					StartOffset: durationpb.New(e.Time.Sub(startTime)),
-					Event: &pb.SessionRecordingEvent_Resize{
-						Resize: &pb.SessionRecordingResizeEvent{
-							Cols: int32(size.W),
-							Rows: int32(size.H),
-						},
-					},
-				})
-
-				vt.Resize(size.W, size.H)
-
-			case *apievents.SessionEnd:
-				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
-					addInactivityEvent(lastActivityTime, e.Time)
-				}
-
-				recordThumbnail(e.EndTime)
-
-			case *apievents.SessionJoin:
-				activeUsers[e.User] = e.Time.Sub(startTime)
-
-			case *apievents.SessionLeave:
-				if joinTime, ok := activeUsers[e.User]; ok {
-					metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-						StartOffset: durationpb.New(joinTime),
-						EndOffset:   durationpb.New(e.Time.Sub(startTime)),
-						Event: &pb.SessionRecordingEvent_Join{
-							Join: &pb.SessionRecordingJoinEvent{
-								User: e.User,
-							},
-						},
-					})
-
-					delete(activeUsers, e.User)
-				}
-
-			case *apievents.SessionPrint:
-				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
-					addInactivityEvent(lastActivityTime, e.Time)
-				}
-
-				if _, err := vt.Write(e.Data); err != nil {
-					return trace.Errorf("writing data to terminal: %w", err)
-				}
-
-				if sampler.shouldCapture(e.Time) {
-					recordThumbnail(e.Time)
-				}
-
-				lastActivityTime = e.Time
-
-			case *apievents.SessionStart:
-				lastActivityTime = e.Time
-				startTime = e.Time
-
-				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
-				if err != nil {
-					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
-				}
-
-				metadata.ClusterName = e.ClusterName
-				metadata.User = e.User
-
-				switch e.Protocol {
-				case events.EventProtocolSSH:
-					metadata.ResourceName = e.ServerHostname
-					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH
-
-				case events.EventProtocolKube:
-					metadata.ResourceName = e.KubernetesCluster
-					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
-				}
-
-				metadata.StartCols = int32(size.W)
-				metadata.StartRows = int32(size.H)
-
-				vt.Resize(size.W, size.H)
-			}
-
-		case err := <-errors:
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	if lastEvent == nil {
-		return trace.NotFound("no events found for session %v", sessionID)
-	}
-
-	// Finish off any remaining activity events
-	for user, userStartOffset := range activeUsers {
-		metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-			StartOffset: durationpb.New(userStartOffset),
-			EndOffset:   durationpb.New(lastEvent.GetTime().Sub(startTime)),
-			Event: &pb.SessionRecordingEvent_Join{
-				Join: &pb.SessionRecordingJoinEvent{
-					User: user,
-				},
-			},
-		})
-	}
-
-	metadata.Duration = durationpb.New(lastEvent.GetTime().Sub(startTime))
-	metadata.StartTime = timestamppb.New(startTime)
-	metadata.EndTime = timestamppb.New(lastEvent.GetTime())
-
-	thumbnails := sampler.result()
+	metadata, thumbnails := processor.collect()
 
 	return s.upload(ctx, sessionID, metadata, thumbnails)
 }

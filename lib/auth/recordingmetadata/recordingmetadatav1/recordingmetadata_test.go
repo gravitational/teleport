@@ -19,7 +19,6 @@
 package recordingmetadatav1
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -27,9 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -38,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-func TestProcessSessionRecording(t *testing.T) {
+func TestProcessSessionRecording_Upload(t *testing.T) {
 	startTime := time.Now()
 
 	tests := []struct {
@@ -69,53 +66,50 @@ func TestProcessSessionRecording(t *testing.T) {
 			},
 		},
 		{
-			name:   "session with resize events",
-			events: generateSessionWithResize(startTime),
+			name:   "kube session",
+			events: generateKubernetesSession(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
-
-				var hasResize bool
-				for _, event := range metadata.Events {
-					if resize := event.GetResize(); resize != nil {
-						hasResize = true
-						require.Equal(t, int32(120), resize.Cols)
-						require.Equal(t, int32(40), resize.Rows)
-					}
-				}
-				require.True(t, hasResize, "expected resize event")
+				require.NotNil(t, metadata.Duration)
+				require.Equal(t, int32(80), metadata.StartCols)
+				require.Equal(t, int32(24), metadata.StartRows)
+			},
+			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
+				require.NotEmpty(t, frames)
+			},
+			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
+				var thumbnail pb.SessionRecordingThumbnail
+				err := proto.Unmarshal(thumbnailData, &thumbnail)
+				require.NoError(t, err)
+				require.NotEmpty(t, thumbnail.Svg)
 			},
 		},
 		{
-			name:   "session with inactivity periods",
-			events: generateSessionWithInactivity(startTime),
+			name:   "desktop session",
+			events: generateDesktopSession(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
-
-				var hasInactivity bool
-				for _, event := range metadata.Events {
-					if event.GetInactivity() != nil {
-						hasInactivity = true
-						require.NotNil(t, event.StartOffset)
-						require.NotNil(t, event.EndOffset)
-					}
-				}
-				require.True(t, hasInactivity, "expected inactivity event")
+				require.NotNil(t, metadata.Duration)
+			},
+			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
+				require.Empty(t, frames)
+			},
+			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
+				require.Empty(t, thumbnailData)
 			},
 		},
 		{
-			name:   "session with join and leave events",
-			events: generateSessionWithJoinLeave(startTime),
+			name:   "database session",
+			events: generateDatabaseSession(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
-
-				joinUsers := make(map[string]bool)
-				for _, event := range metadata.Events {
-					if join := event.GetJoin(); join != nil {
-						joinUsers[join.User] = true
-					}
-				}
-				require.True(t, joinUsers["alice"], "expected alice join event")
-				require.True(t, joinUsers["bob"], "expected bob join event")
+				require.NotNil(t, metadata.Duration)
+			},
+			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
+				require.Empty(t, frames)
+			},
+			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
+				require.Empty(t, thumbnailData)
 			},
 		},
 	}
@@ -136,8 +130,7 @@ func TestProcessSessionRecording(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			ctx := context.Background()
-			err = service.ProcessSessionRecording(ctx, sessionID)
+			err = service.ProcessSessionRecording(t.Context(), sessionID)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -171,26 +164,6 @@ func TestProcessSessionRecording(t *testing.T) {
 	}
 }
 
-func TestProcessSessionRecording_StreamError(t *testing.T) {
-	sessionID := session.NewID()
-
-	streamer := &mockStreamerErrorOnly{
-		err: errors.New("stream error"),
-	}
-	uploadHandler := newMockUploadHandler()
-
-	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
-		Streamer:      streamer,
-		UploadHandler: uploadHandler,
-	})
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	err = service.ProcessSessionRecording(ctx, sessionID)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "stream error")
-}
-
 func TestProcessSessionRecording_UploadError(t *testing.T) {
 	startTime := time.Now()
 	sessionID := session.NewID()
@@ -199,6 +172,7 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 		events:       generateBasicSession(startTime),
 		errorOnEvent: -1,
 	}
+
 	uploadHandler := newMockUploadHandler()
 	uploadHandler.uploadError = errors.New("upload failed")
 
@@ -208,109 +182,24 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = service.ProcessSessionRecording(ctx, sessionID)
+	err = service.ProcessSessionRecording(t.Context(), sessionID)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "upload failed")
-}
-
-func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
-	sessionID := session.NewID()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	streamer := newMockStreamerNeverSends()
-
-	uploadHandler := newMockUploadHandler()
-
-	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
-		Streamer:      streamer,
-		UploadHandler: uploadHandler,
-	})
-	require.NoError(t, err)
-
-	processDone := make(chan error, 1)
-	go func() {
-		processDone <- service.ProcessSessionRecording(ctx, sessionID)
-	}()
-
-	streamer.WaitUntilBlocking()
-
-	cancel()
-
-	select {
-	case err := <-processDone:
-		require.Error(t, err)
-		require.ErrorIs(t, err, context.Canceled)
-	case <-time.After(5 * time.Second):
-		t.Fatal("test timed out - ProcessSessionRecording did not exit after context cancellation")
-	}
-}
-
-func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
-	startTime := time.Now()
-	sessionID := session.NewID()
-
-	tests := []struct {
-		name   string
-		events []apievents.AuditEvent
-	}{
-		{
-			name: "database session",
-			events: []apievents.AuditEvent{
-				&apievents.DatabaseSessionStart{
-					Metadata: apievents.Metadata{
-						Type: "db.session.start",
-						Time: startTime,
-					},
-				},
-			},
-		},
-		{
-			name: "windows desktop session",
-			events: []apievents.AuditEvent{
-				&apievents.WindowsDesktopSessionStart{
-					Metadata: apievents.Metadata{
-						Type: "windows.desktop.session.start",
-						Time: startTime,
-					},
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			streamer := &mockStreamer{
-				events:       tt.events,
-				errorOnEvent: -1,
-			}
-			uploadHandler := newMockUploadHandler()
-
-			service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
-				Streamer:      streamer,
-				UploadHandler: uploadHandler,
-			})
-			require.NoError(t, err)
-
-			ctx := context.Background()
-			err = service.ProcessSessionRecording(ctx, sessionID)
-
-			require.NoError(t, err)
-
-			require.Empty(t, uploadHandler.metadata)
-			require.Empty(t, uploadHandler.thumbnails)
-		})
-	}
 }
 
 func generateBasicSession(startTime time.Time) []apievents.AuditEvent {
 	events := []apievents.AuditEvent{
 		&apievents.SessionStart{
 			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
+				ClusterName: "test-cluster",
+				Type:        "session.start",
+				Time:        startTime,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				Protocol: "ssh",
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerHostname: "test-server",
 			},
 			TerminalSize: "80:24",
 		},
@@ -338,243 +227,6 @@ func generateBasicSession(startTime time.Time) []apievents.AuditEvent {
 		},
 	}
 	return events
-}
-
-func generateSessionWithResize(startTime time.Time) []apievents.AuditEvent {
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
-			},
-			TerminalSize: "80:24",
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(1 * time.Second),
-			},
-			Data: []byte("Initial output\n"),
-		},
-		&apievents.Resize{
-			Metadata: apievents.Metadata{
-				Type: "resize",
-				Time: startTime.Add(2 * time.Second),
-			},
-			TerminalSize: "120:40",
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(3 * time.Second),
-			},
-			Data: []byte("After resize\n"),
-		},
-		&apievents.SessionEnd{
-			Metadata: apievents.Metadata{
-				Type: "session.end",
-				Time: startTime.Add(10 * time.Second),
-			},
-			StartTime: startTime,
-			EndTime:   startTime.Add(10 * time.Second),
-		},
-	}
-	return events
-}
-
-func generateSessionWithInactivity(startTime time.Time) []apievents.AuditEvent {
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
-			},
-			TerminalSize: "80:24",
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(1 * time.Second),
-			},
-			Data: []byte("Active\n"),
-		},
-		// 20 second gap
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(21 * time.Second),
-			},
-			Data: []byte("After inactivity\n"),
-		},
-		&apievents.SessionEnd{
-			Metadata: apievents.Metadata{
-				Type: "session.end",
-				Time: startTime.Add(20 * time.Second),
-			},
-			StartTime: startTime,
-			EndTime:   startTime.Add(20 * time.Second),
-		},
-	}
-	return events
-}
-
-func generateSessionWithJoinLeave(startTime time.Time) []apievents.AuditEvent {
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
-			},
-			TerminalSize: "80:24",
-		},
-		&apievents.SessionJoin{
-			Metadata: apievents.Metadata{
-				Type: "session.join",
-				Time: startTime.Add(2 * time.Second),
-			},
-			UserMetadata: apievents.UserMetadata{
-				User: "alice",
-			},
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(3 * time.Second),
-			},
-			Data: []byte("Alice joined\n"),
-		},
-		&apievents.SessionJoin{
-			Metadata: apievents.Metadata{
-				Type: "session.join",
-				Time: startTime.Add(4 * time.Second),
-			},
-			UserMetadata: apievents.UserMetadata{
-				User: "bob",
-			},
-		},
-		&apievents.SessionLeave{
-			Metadata: apievents.Metadata{
-				Type: "session.leave",
-				Time: startTime.Add(6 * time.Second),
-			},
-			UserMetadata: apievents.UserMetadata{
-				User: "alice",
-			},
-		},
-		&apievents.SessionEnd{
-			Metadata: apievents.Metadata{
-				Type: "session.end",
-				Time: startTime.Add(10 * time.Second),
-			},
-			StartTime: startTime,
-			EndTime:   startTime.Add(10 * time.Second),
-		},
-	}
-	return events
-}
-
-func unmarshalMetadata(data []byte) (*pb.SessionRecordingMetadata, []*pb.SessionRecordingThumbnail, error) {
-	reader := bytes.NewReader(data)
-
-	metadata := &pb.SessionRecordingMetadata{}
-	err := protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, metadata)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	var frames []*pb.SessionRecordingThumbnail
-
-	for {
-		frame := &pb.SessionRecordingThumbnail{}
-		err := protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, frame)
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		frames = append(frames, frame)
-	}
-
-	return metadata, frames, nil
-}
-
-// mockStreamer implements player.Streamer for testing
-type mockStreamer struct {
-	events       []apievents.AuditEvent
-	errorOnEvent int
-	err          error
-}
-
-func (m *mockStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	errors := make(chan error, 1)
-	events := make(chan apievents.AuditEvent)
-
-	go func() {
-		defer close(events)
-		defer close(errors)
-
-		for i, evt := range m.events {
-			if m.errorOnEvent == i {
-				errors <- m.err
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case events <- evt:
-			}
-		}
-	}()
-
-	return events, errors
-}
-
-// mockStreamerErrorOnly immediately sends an error without any events
-type mockStreamerErrorOnly struct {
-	err error
-}
-
-func (m *mockStreamerErrorOnly) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	errors := make(chan error, 1)
-	events := make(chan apievents.AuditEvent)
-
-	go func() {
-		errors <- m.err
-	}()
-
-	return events, errors
-}
-
-// mockStreamerNeverSends never sends any events - just blocks immediately
-type mockStreamerNeverSends struct {
-	called chan struct{}
-}
-
-func newMockStreamerNeverSends() *mockStreamerNeverSends {
-	return &mockStreamerNeverSends{called: make(chan struct{})}
-}
-
-func (m *mockStreamerNeverSends) StreamSessionEvents(ctx context.Context, _ session.ID, _ int64) (chan apievents.AuditEvent, chan error) {
-	evts := make(chan apievents.AuditEvent)
-	errs := make(chan error, 1)
-
-	close(m.called)
-
-	go func() {
-		<-ctx.Done()
-
-		errs <- ctx.Err()
-
-		close(errs)
-	}()
-
-	return evts, errs
-}
-
-func (m *mockStreamerNeverSends) WaitUntilBlocking() {
-	<-m.called
 }
 
 // mockUploadHandler implements events.UploadHandler for testing
