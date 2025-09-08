@@ -61,6 +61,7 @@ test('in case of invalid value a default one is returned', () => {
       {
         code: 'invalid_type',
         expected: 'boolean',
+        input: 'abcde',
         message: 'Expected boolean, received string',
         path: ['usageReporting.enabled'],
       },
@@ -154,5 +155,25 @@ test('terminal.shell validation', () => {
   expect(zodError).toMatchObject({
     message: `Cannot find the shell "quux". Available options are: foobar, custom. Using platform default.`,
     path: expect.arrayContaining(['terminal.shell']),
+  });
+});
+
+test(`enum validation`, () => {
+  const configFile = createMockFileStorage();
+  configFile.replace({
+    theme: 'foobar',
+  });
+  const configService = createConfigService({
+    configFile,
+    jsonSchemaFile: createMockFileStorage(),
+    settings: makeRuntimeSettings(),
+  });
+  const configError = configService.getConfigError() as ValidationError;
+  expect(configError.source).toEqual('validation');
+  expect(configError.errors).toHaveLength(1);
+  const zodError = configError.errors[0];
+  expect(zodError).toMatchObject({
+    message: `Expected "light", "dark", or "system", received "foobar"`,
+    path: expect.arrayContaining(['theme']),
   });
 });

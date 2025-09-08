@@ -145,7 +145,8 @@ function validateStoredConfig(
   configWithDefaults: AppConfig;
   errors: $ZodIssue[] | undefined;
 } {
-  const parse = (data: Partial<AppConfig>) => schema.safeParse(data);
+  const parse = (data: Partial<AppConfig>) =>
+    schema.safeParse(data, { reportInput: true });
 
   const storedConfig = configFile.get() as Partial<AppConfig>;
   const parsed = parse(storedConfig);

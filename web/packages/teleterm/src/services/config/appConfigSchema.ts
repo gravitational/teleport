@@ -344,11 +344,18 @@ function getShortcutDesc(actionDesc: string): string {
 // https://github.com/colinhacks/zod/issues/4891
 z.config(en());
 
+const optionsFormatter = new Intl.ListFormat('en', {
+  style: 'long',
+  type: 'disjunction',
+});
+
 z.config({
   customError: iss => {
     switch (iss.code) {
       case 'invalid_type':
         return `Expected ${iss.expected}, received ${typeof iss.input}`;
+      case 'invalid_value':
+        return `Expected ${optionsFormatter.format(iss.values.map(v => `"${String(v)}"`))}, received "${iss.input}"`;
       default:
         return undefined;
     }
