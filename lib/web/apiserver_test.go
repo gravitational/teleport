@@ -1774,7 +1774,7 @@ func TestNewTerminalHandler(t *testing.T) {
 			},
 		},
 		{
-			expectedErr: "term: bad dimensions(-1x0)",
+			expectedErr: "term: bad dimensions(-1x25)",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
 					ID:       session.NewID(),
@@ -1784,6 +1784,20 @@ func TestNewTerminalHandler(t *testing.T) {
 				Term: session.TerminalParams{
 					W: -1,
 					H: 0,
+				},
+			},
+		},
+		{
+			expectedErr: "term: bad dimensions(80x-1)",
+			cfg: TerminalHandlerConfig{
+				SessionData: session.Session{
+					ID:       session.NewID(),
+					Login:    "root",
+					ServerID: uuid.New().String(),
+				},
+				Term: session.TerminalParams{
+					W: 0,
+					H: -1,
 				},
 			},
 		},
