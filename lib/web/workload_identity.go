@@ -26,6 +26,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	tslices "github.com/gravitational/teleport/lib/utils/slices"
 )
@@ -46,9 +47,17 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 		}
 	}
 
+	var sort *types.SortBy
+	if r.URL.Query().Has("sort") {
+		sortString := r.URL.Query().Get("sort")
+		s := types.GetSortByFromString(sortString)
+		sort = &s
+	}
+
 	result, err := clt.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(r.Context(), &workloadidentityv1.ListWorkloadIdentitiesRequest{
 		PageSize:  int32(pageSize),
 		PageToken: r.URL.Query().Get("page_token"),
+		Sort:      sort,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

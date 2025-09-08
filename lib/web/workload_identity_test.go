@@ -166,3 +166,54 @@ func TestListWorkloadIdentitiesPaging(t *testing.T) {
 		})
 	}
 }
+
+func TestListWorkloadIdentitiesSorting(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	env := newWebPackWithOptions(t, &WebPackOptions{
+		enableAuthCache: true,
+	})
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"workload-identity",
+	)
+
+	for range 10 {
+		_, err := env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+			Kind:    types.KindWorkloadIdentity,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.New().String(),
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: "/test/spiffe/" + uuid.New().String(),
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{
+		"page_token": []string{""}, // default to the start
+		"page_size":  []string{"0"},
+		"sort":       []string{"spiffe_id:desc"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+
+	var resp ListWorkloadIdentitiesResponse
+	require.NoError(t, json.Unmarshal(response.Bytes(), &resp), "invalid response received")
+
+	prevValue := "~"
+	for _, r := range resp.Items {
+		assert.Less(t, r.SpiffeID, prevValue)
+		prevValue = r.SpiffeID
+	}
+}

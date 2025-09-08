@@ -31,11 +31,12 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type workloadIdentityReader interface {
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
-	ListWorkloadIdentities(ctx context.Context, pageSize int, token string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	ListWorkloadIdentities(ctx context.Context, pageSize int, token string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
 }
 
 type workloadIdentityReadWriter interface {
@@ -142,6 +143,9 @@ func (s *ResourceService) ListWorkloadIdentities(
 		ctx,
 		int(req.PageSize),
 		req.PageToken,
+		&services.ListWorkloadIdentitiesRequestOptions{
+			Sort: req.Sort,
+		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

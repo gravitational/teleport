@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func setupWorkloadIdentityServiceTest(
@@ -157,7 +159,7 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 		createdObjects = append(createdObjects, created)
 	}
 	t.Run("default page size", func(t *testing.T) {
-		page, nextToken, err := service.ListWorkloadIdentities(ctx, 0, "")
+		page, nextToken, err := service.ListWorkloadIdentities(ctx, 0, "", nil)
 		require.NoError(t, err)
 		require.Len(t, page, 49)
 		require.Empty(t, nextToken)
@@ -175,7 +177,7 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 		iterations := 0
 		for {
 			iterations++
-			page, nextToken, err := service.ListWorkloadIdentities(ctx, 10, token)
+			page, nextToken, err := service.ListWorkloadIdentities(ctx, 10, token, nil)
 			require.NoError(t, err)
 			fetched = append(fetched, page...)
 			if nextToken == "" {
@@ -192,6 +194,28 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 				return proto.Equal(created, resource)
 			}))
 		}
+	})
+	t.Run("default sort", func(t *testing.T) {
+		page, nextToken, err := service.ListWorkloadIdentities(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, page, 49)
+		require.Empty(t, nextToken)
+
+		prevName := ""
+		for i := range len(page) {
+			assert.Greater(t, page[i].GetMetadata().GetName(), prevName)
+			prevName = page[i].GetMetadata().GetName()
+		}
+	})
+	t.Run("unsupported sort error", func(t *testing.T) {
+		_, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			Sort: &types.SortBy{
+				Field:  "name",
+				IsDesc: true,
+			},
+		})
+		require.Error(t, err)
+		require.Equal(t, `unsupported sort, only name:asc is supported, but got "name" (desc = true)`, err.Error())
 	})
 }
 
@@ -263,14 +287,14 @@ func TestWorkloadIdentityService_DeleteAllWorkloadIdentities(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	page, _, err := service.ListWorkloadIdentities(ctx, 0, "")
+	page, _, err := service.ListWorkloadIdentities(ctx, 0, "", nil)
 	require.NoError(t, err)
 	require.Len(t, page, 2)
 
 	err = service.DeleteAllWorkloadIdentities(ctx)
 	require.NoError(t, err)
 
-	page, _, err = service.ListWorkloadIdentities(ctx, 0, "")
+	page, _, err = service.ListWorkloadIdentities(ctx, 0, "", nil)
 	require.NoError(t, err)
 	require.Empty(t, page)
 }

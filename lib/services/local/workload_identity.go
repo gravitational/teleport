@@ -78,8 +78,15 @@ func (b *WorkloadIdentityService) GetWorkloadIdentity(
 // ListWorkloadIdentities lists all WorkloadIdentities using a given page size
 // and last key.
 func (b *WorkloadIdentityService) ListWorkloadIdentities(
-	ctx context.Context, pageSize int, currentToken string,
+	ctx context.Context,
+	pageSize int,
+	currentToken string,
+	options *services.ListWorkloadIdentitiesRequestOptions,
 ) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
+	if options.HasSort() && (options.Sort.Field != "name" || options.Sort.IsDesc != false) {
+		return nil, "", trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", options.Sort.Field, options.Sort.IsDesc)
+	}
+
 	r, nextToken, err := b.service.ListResources(ctx, pageSize, currentToken)
 	return r, nextToken, trace.Wrap(err)
 }

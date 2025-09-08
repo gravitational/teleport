@@ -39,7 +39,10 @@ type WorkloadIdentities interface {
 	// ListWorkloadIdentities lists all WorkloadIdentities using Google style
 	// pagination.
 	ListWorkloadIdentities(
-		ctx context.Context, pageSize int, lastToken string,
+		ctx context.Context,
+		pageSize int,
+		lastToken string,
+		options *ListWorkloadIdentitiesRequestOptions,
 	) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
 	// CreateWorkloadIdentity creates a new WorkloadIdentity.
 	CreateWorkloadIdentity(
@@ -132,4 +135,14 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 	}
 
 	return nil
+}
+
+type ListWorkloadIdentitiesRequestOptions struct {
+	// The sort config to use for the results. If empty, the default sort field
+	// and order is used.
+	Sort *types.SortBy
+}
+
+func (o *ListWorkloadIdentitiesRequestOptions) HasSort() bool {
+	return o != nil && o.Sort != nil
 }

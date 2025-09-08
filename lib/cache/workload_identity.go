@@ -33,7 +33,10 @@ import (
 
 type workloadIdentityIndex string
 
-const workloadIdentityNameIndex workloadIdentityIndex = "name"
+const (
+	workloadIdentityNameIndex     workloadIdentityIndex = "name"
+	workloadIdentitySpiffeIDIndex workloadIdentityIndex = "spiffe_id"
+)
 
 func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types.WatchKind) (*collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex], error) {
 	if upstream == nil {
@@ -45,12 +48,14 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 			types.KindWorkloadIdentity,
 			proto.CloneOf[*workloadidentityv1pb.WorkloadIdentity],
 			map[workloadIdentityIndex]func(*workloadidentityv1pb.WorkloadIdentity) string{
-				workloadIdentityNameIndex: func(r *workloadidentityv1pb.WorkloadIdentity) string {
-					return r.GetMetadata().GetName()
-				},
+				workloadIdentityNameIndex:     keyForWorkloadIdentityNameIndex,
+				workloadIdentitySpiffeIDIndex: keyForWorkloadIdentitySpiffeIDIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListWorkloadIdentities))
+			out, err := stream.Collect(clientutils.Resources(ctx,
+				func(ctx context.Context, pageSize int, currentToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
+					return upstream.ListWorkloadIdentities(ctx, pageSize, currentToken, nil)
+				}))
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *workloadidentityv1pb.WorkloadIdentity {
@@ -67,17 +72,43 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 }
 
 // ListWorkloadIdentities returns a paginated list of WorkloadIdentity resources.
-func (c *Cache) ListWorkloadIdentities(ctx context.Context, pageSize int, nextToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
+func (c *Cache) ListWorkloadIdentities(
+	ctx context.Context,
+	pageSize int,
+	nextToken string,
+	options *services.ListWorkloadIdentitiesRequestOptions,
+) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWorkloadIdentities")
 	defer span.End()
 
+	index := workloadIdentityNameIndex
+	keyFn := keyForWorkloadIdentityNameIndex
+	var isDesc bool
+	if options.HasSort() {
+		isDesc = options.Sort.IsDesc
+
+		switch options.Sort.Field {
+		case "name":
+			index = workloadIdentityNameIndex
+			keyFn = keyForWorkloadIdentityNameIndex
+		case "spiffe_id":
+			index = workloadIdentitySpiffeIDIndex
+			keyFn = keyForWorkloadIdentitySpiffeIDIndex
+		default:
+			return nil, "", trace.BadParameter("unsupported sort %q but expected name or spiffe_id", options.Sort.Field)
+		}
+	}
+
 	lister := genericLister[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
-		cache:        c,
-		collection:   c.collections.workloadIdentity,
-		index:        workloadIdentityNameIndex,
-		upstreamList: c.Config.WorkloadIdentity.ListWorkloadIdentities,
+		cache:      c,
+		collection: c.collections.workloadIdentity,
+		index:      index,
+		isDesc:     isDesc,
+		upstreamList: func(ctx context.Context, pageSize int, nextToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
+			return c.Config.WorkloadIdentity.ListWorkloadIdentities(ctx, pageSize, nextToken, options)
+		},
 		nextToken: func(t *workloadidentityv1pb.WorkloadIdentity) string {
-			return t.GetMetadata().GetName()
+			return keyFn(t)
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, nextToken)
@@ -97,4 +128,12 @@ func (c *Cache) GetWorkloadIdentity(ctx context.Context, name string) (*workload
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
+}
+
+func keyForWorkloadIdentityNameIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
+	return r.GetMetadata().GetName()
+}
+
+func keyForWorkloadIdentitySpiffeIDIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
+	return r.GetSpec().GetSpiffe().GetId()
 }
