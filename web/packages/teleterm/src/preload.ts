@@ -73,18 +73,20 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   });
   const tshClient = withoutInsecureTshdMethods(createTshdClient(tshdTransport));
   const vnetClient = createVnetClient(tshdTransport);
-  const ptyServiceClient = createPtyService(
-    addresses.shared,
-    credentials.shared,
-    runtimeSettings,
-    mainProcessClient.configService
-  );
   const {
     setupTshdEventContextBridgeService,
     resolvedAddress: tshdEventsServerAddress,
   } = await createTshdEventsServer(
     runtimeSettings.tshdEvents.requestedNetworkAddress,
     credentials.tshdEvents
+  );
+  const ptyServiceClient = createPtyService(
+    addresses.shared,
+    credentials.shared,
+    runtimeSettings,
+    mainProcessClient.configService,
+    tshdEventsServerAddress,
+    runtimeSettings.certsDir
   );
 
   // Here we send to tshd the address of the tshd events server that we just created. This makes
@@ -111,6 +113,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     // in cannot be constructed in JS (it must be selected in the file picker).
     // So an attacker cannot pass a fake file to probe the file system.
     getPathForFile: file => webUtils.getPathForFile(file),
+    tshdEventsServerAddress,
   };
 }
 

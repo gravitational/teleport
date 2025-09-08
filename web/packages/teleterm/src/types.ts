@@ -113,4 +113,5 @@ export type ElectronGlobals = {
   ) => void;
   /** Exposes Electron's webUtils.getPathForFile. */
   getPathForFile(file: File): string;
+  readonly tshdEventsServerAddress: string;
 };

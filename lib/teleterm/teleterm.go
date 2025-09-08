@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/utils/keys/piv"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
@@ -40,6 +41,21 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 )
+
+func ConnectToTshdEventsService(ctx context.Context, certsDir string, tshdEventsAddr string) (api.TshdEventsServiceClient, error) {
+	grpcCredentials, err := getTshdEventsGRPCCredentials(certsDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conn, err := grpc.NewClient(tshdEventsAddr, grpcCredentials)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Successfully connected set the client and signal to any waiters.
+	return api.NewTshdEventsServiceClient(conn), nil
+}
 
 // Serve starts daemon service
 func Serve(ctx context.Context, cfg Config) error {
@@ -199,4 +215,9 @@ func createGRPCCredentials(tshdServerAddress string, certsDir string) (*grpcCred
 		tshd:       tshdCreds,
 		tshdEvents: createTshdEventsClientCredsFunc,
 	}, nil
+}
+
+func getTshdEventsGRPCCredentials(certsDir string) (grpc.DialOption, error) {
+	// TODO: if found, read client creds from cert dir.
+	return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 }
