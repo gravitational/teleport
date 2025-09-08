@@ -34,7 +34,7 @@ func TestSessionTrackerV1_UpdatePresence(t *testing.T) {
 			{
 				ID:         "1",
 				User:       "llama",
-				Cluster:    "teleportl-local",
+				Cluster:    "teleport-local",
 				Mode:       string(SessionPeerMode),
 				LastActive: now,
 			},
