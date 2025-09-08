@@ -110,7 +110,9 @@ type ListBotInstancesRequest struct {
 	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
 	FilterSearchTerm string `protobuf:"bytes,4,opt,name=filter_search_term,json=filterSearchTerm,proto3" json:"filter_search_term,omitempty"`
 	// The sort config to use for the results. If empty, the default sort field and order is used.
-	Sort          *types.SortBy `protobuf:"bytes,5,opt,name=sort,proto3" json:"sort,omitempty"`
+	Sort *types.SortBy `protobuf:"bytes,5,opt,name=sort,proto3" json:"sort,omitempty"`
+	// A query in Teleport predicate language used to filter the results.
+	Query         string `protobuf:"bytes,6,opt,name=query,proto3" json:"query,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -178,6 +180,13 @@ func (x *ListBotInstancesRequest) GetSort() *types.SortBy {
 		return x.Sort
 	}
 	return nil
+}
+
+func (x *ListBotInstancesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
 }
 
 // Response for ListBotInstances.
@@ -382,14 +391,15 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\x15GetBotInstanceRequest\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
-	"instanceId\"\xce\x01\n" +
+	"instanceId\"\xe4\x01\n" +
 	"\x17ListBotInstancesRequest\x12&\n" +
 	"\x0ffilter_bot_name\x18\x01 \x01(\tR\rfilterBotName\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12,\n" +
 	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\x12!\n" +
-	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\x8b\x01\n" +
+	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\x12\x14\n" +
+	"\x05query\x18\x06 \x01(\tR\x05query\"\x8b\x01\n" +
 	"\x18ListBotInstancesResponse\x12G\n" +
 	"\rbot_instances\x18\x01 \x03(\v2\".teleport.machineid.v1.BotInstanceR\fbotInstances\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"V\n" +

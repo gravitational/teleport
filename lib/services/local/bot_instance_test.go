@@ -168,7 +168,7 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	var err error
 
 	for {
-		bis, nextKey, err = service.ListBotInstances(ctx, botName, 0, nextKey, searchTerm, sort)
+		bis, nextKey, err = service.ListBotInstances(ctx, botName, 0, nextKey, searchTerm, sort, "")
 		require.NoError(t, err)
 
 		resources = append(resources, bis...)
@@ -473,10 +473,10 @@ func TestBotInstanceListWithSort(t *testing.T) {
 	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
 		Field:  "test_field",
 		IsDesc: true,
-	})
+	}, "")
 	require.Error(t, err)
 	require.Equal(t, "unsupported sort, only bot_name:asc is supported, but got \"test_field\" (desc = true)", err.Error())
 
-	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", nil)
+	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", nil, "")
 	require.NoError(t, err)
 }

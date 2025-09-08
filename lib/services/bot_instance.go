@@ -34,7 +34,7 @@ type BotInstance interface {
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances
-	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy, query string) ([]*machineidv1.BotInstance, string, error)
 
 	// DeleteBotInstance
 	DeleteBotInstance(ctx context.Context, botName, instanceID string) error
