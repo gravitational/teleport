@@ -119,6 +119,7 @@ type InferencePolicyMatchingContext struct {
 	Session events.AuditEvent
 }
 
+// GetIdentifier returns the value of an identifier defined in a context.
 func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, error) {
 	switch fields[0] {
 	case UserIdentifier:
@@ -187,12 +188,15 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 	}
 }
 
+// Returns an error, since this context does not support access checks.
 func (ctx *InferencePolicyMatchingContext) GetAccessChecker() (AccessChecker, error) {
 	return nil, trace.NotFound(
 		"access checker is not supported by InferencePolicyMatchingContext",
 	)
 }
 
+// GetResource returns resource specified in the context,
+// returns error if not specified.
 func (ctx *InferencePolicyMatchingContext) GetResource() (types.Resource, error) {
 	if ctx.Resource == nil {
 		return nil, trace.NotFound("resource is not set in the context")
