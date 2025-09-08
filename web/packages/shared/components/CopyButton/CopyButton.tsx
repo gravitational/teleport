@@ -51,6 +51,7 @@ export function CopyButton({
 
   const handleCopy: MouseEventHandler<unknown> = e => {
     e.stopPropagation(); // Prevent parent onClick callbacks from stealing the click
+    e.preventDefault(); // Also prevent clicking links
 
     clearCurrentTimeout();
     setCopiedText(copySuccess);
