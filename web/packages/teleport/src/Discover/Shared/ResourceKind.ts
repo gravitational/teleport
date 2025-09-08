@@ -29,6 +29,7 @@ export enum ResourceKind {
   SamlApplication,
   Discovery,
   ConnectMyComputer,
+  MCP,
 }
 
 export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
@@ -66,5 +67,7 @@ export function resourceKindToPreferredResource(kind: ResourceKind): Resource {
       return Resource.UNSPECIFIED;
     case ResourceKind.ConnectMyComputer:
       return Resource.SERVER_SSH;
+    case ResourceKind.MCP:
+      return Resource.WEB_APPLICATIONS;
   }
 }

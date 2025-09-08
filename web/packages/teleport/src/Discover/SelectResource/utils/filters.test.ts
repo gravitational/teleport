@@ -23,6 +23,7 @@ import {
   e_KubernetesSelfHosted_unguided,
   f_Server,
   l_DesktopAzure,
+  m_MCP,
   t_Application_NoAccess,
 } from '../testUtils';
 import { filterResources, Filters } from './filters';
@@ -34,6 +35,7 @@ const resources: SelectResourceSpec[] = [
   l_DesktopAzure,
   e_KubernetesSelfHosted_unguided,
   f_Server,
+  m_MCP,
 ];
 
 describe('filters by resource types', () => {
@@ -50,7 +52,7 @@ describe('filters by resource types', () => {
     {
       name: 'filter by application',
       filter: { resourceTypes: ['app'], hostingPlatforms: [] },
-      expected: [c_ApplicationGcp, t_Application_NoAccess],
+      expected: [c_ApplicationGcp, t_Application_NoAccess, m_MCP],
     },
     {
       name: 'filter by database',
@@ -75,7 +77,17 @@ describe('filters by resource types', () => {
     {
       name: 'filter by server and app',
       filter: { resourceTypes: ['app', 'server'], hostingPlatforms: [] },
-      expected: [c_ApplicationGcp, t_Application_NoAccess, f_Server],
+      expected: [c_ApplicationGcp, t_Application_NoAccess, f_Server, m_MCP],
+    },
+    {
+      name: 'filter by mcp',
+      filter: { resourceTypes: ['mcp'], hostingPlatforms: [] },
+      expected: [m_MCP],
+    },
+    {
+      name: 'filter by app and mcp',
+      filter: { resourceTypes: ['app', 'mcp'], hostingPlatforms: [] },
+      expected: [c_ApplicationGcp, t_Application_NoAccess, m_MCP],
     },
   ];
   test.each(testCases)('$name', tc => {

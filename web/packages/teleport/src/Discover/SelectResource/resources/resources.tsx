@@ -44,6 +44,7 @@ import {
   awsKeywords,
   baseServerKeywords,
   kubeKeywords,
+  mcpKeywords,
   selfHostedKeywords,
 } from './keywords';
 
@@ -222,8 +223,32 @@ export const KUBERNETES: SelectResourceSpec[] = [
   },
 ];
 
+export const MCP_SERVERS: SelectResourceSpec[] = [
+  {
+    id: DiscoverGuideId.MCPServerDemo,
+    name: 'MCP Server',
+    kind: ResourceKind.MCP,
+    keywords: [...mcpKeywords, 'demo'],
+    icon: 'mcp',
+    event: DiscoverEventResource.MCPDemo,
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/mcp-access/getting-started/',
+  },
+  {
+    id: DiscoverGuideId.MCPServerStdioTransport,
+    name: 'MCP Server',
+    kind: ResourceKind.MCP,
+    keywords: [...mcpKeywords, 'stdio'],
+    icon: 'mcp',
+    event: DiscoverEventResource.MCPStdio,
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/mcp-access/stdio/',
+  },
+];
+
 export const BASE_RESOURCES: SelectResourceSpec[] = [
   ...APPLICATIONS,
+  ...MCP_SERVERS,
   ...KUBERNETES,
   ...WINDOWS_DESKTOPS,
   ...SERVERS,
@@ -306,6 +331,15 @@ export function getResourcePretitle(r: SelectResourceSpec) {
       if (r.id === DiscoverGuideId.ApplicationWebHttpProxy) {
         return 'HTTP Proxy';
       }
+      break;
+    case ResourceKind.MCP:
+      if (r.id === DiscoverGuideId.MCPServerDemo) {
+        return 'Built-in Teleport Demo';
+      }
+      if (r.id === DiscoverGuideId.MCPServerStdioTransport) {
+        return 'With STDIO transport';
+      }
+      break;
   }
 
   return '';
