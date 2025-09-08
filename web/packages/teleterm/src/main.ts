@@ -113,25 +113,6 @@ async function initializeApp(): Promise<void> {
     return;
   }
 
-  //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
-  app.on(
-    'certificate-error',
-    (event, webContents, url, error, certificate, callback) => {
-      // allow certs errors for localhost:8080
-      if (
-        settings.dev &&
-        new URL(url).host === 'localhost:8080' &&
-        error === 'net::ERR_CERT_AUTHORITY_INVALID'
-      ) {
-        event.preventDefault();
-        callback(true);
-      } else {
-        callback(false);
-        console.error(error);
-      }
-    }
-  );
-
   app.on('will-quit', async event => {
     event.preventDefault();
     const disposeMainProcess = async () => {
