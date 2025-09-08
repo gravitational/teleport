@@ -252,9 +252,9 @@ export class TtyPlayer extends Player<TtyEvent> {
           return originalGetCoords.call(mouseService, event, element, colCount, rowCount, isSelection);
         }
 
-        // Calculate column and row
-        const col = Math.floor(adjustedX / cellWidth);
-        const row = Math.floor(adjustedY / cellHeight);
+        // Calculate column and row (0-based indexing)
+        const col = Math.floor(adjustedX / cellWidth) + 1;
+        const row = Math.floor(adjustedY / cellHeight) + 1;
 
         // Clamp to terminal bounds
         const clampedCol = Math.max(0, Math.min(col, colCount - 1));
