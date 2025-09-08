@@ -55,9 +55,10 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 	}
 
 	result, err := clt.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(r.Context(), &workloadidentityv1.ListWorkloadIdentitiesRequest{
-		PageSize:  int32(pageSize),
-		PageToken: r.URL.Query().Get("page_token"),
-		Sort:      sort,
+		PageSize:         int32(pageSize),
+		PageToken:        r.URL.Query().Get("page_token"),
+		Sort:             sort,
+		FilterSearchTerm: r.URL.Query().Get("search"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

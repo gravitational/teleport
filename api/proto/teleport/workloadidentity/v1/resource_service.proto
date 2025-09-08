@@ -86,6 +86,8 @@ message ListWorkloadIdentitiesRequest {
   string page_token = 2;
   // The sort config to use for the results. If empty, the default sort field and order is used.
   types.SortBy sort = 3;
+  // A search term used to filter the results. If non-empty, it's used to match against supported fields.
+  string filter_search_term = 4;
 }
 
 // The response for ListWorkloadIdentities.

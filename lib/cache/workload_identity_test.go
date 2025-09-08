@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -226,4 +227,43 @@ func TestWorkloadIdentityCacheFallback(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, "unsupported sort, only name:asc is supported, but got \"name\" (desc = true)", err.Error())
 	})
+}
+
+// TestWorkloadIdentityCacheSearchFilter tests that cache items are filtered by search query.
+func TestWorkloadIdentityCacheSearchFilter(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	for n := range 10 {
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+			Kind:    types.KindWorkloadIdentity,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "test-workload-identity-" + strconv.Itoa(n),
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: "/test/" + strconv.Itoa(n%2) + "/id" + strconv.Itoa(n),
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// Let the cache catch up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 10)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	results, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+		FilterSearchTerm: "test/1",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 5)
 }

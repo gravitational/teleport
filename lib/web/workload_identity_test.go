@@ -217,3 +217,89 @@ func TestListWorkloadIdentitiesSorting(t *testing.T) {
 		prevValue = r.SpiffeID
 	}
 }
+
+func TestListWorkloadIdentitiesWithSearchTermFilter(t *testing.T) {
+	t.Parallel()
+
+	tcs := []struct {
+		name       string
+		searchTerm string
+		metadata   *headerv1.Metadata
+		spec       *workloadidentityv1pb.WorkloadIdentitySpec
+	}{
+		{
+			name:       "match on name",
+			searchTerm: "nick",
+			metadata: &headerv1.Metadata{
+				Name: "this-is-nicks-workload-identity",
+			},
+			spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: "/spiffe/id/99",
+				},
+			},
+		},
+		{
+			name:       "match on spiffe id",
+			searchTerm: "id/22",
+			metadata: &headerv1.Metadata{
+				Name: "this-is-nicks-workload-identity",
+			},
+			spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: "/spiffe/id/22",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			env := newWebPack(t, 1)
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+			clusterName := env.server.ClusterName()
+			endpoint := pack.clt.Endpoint(
+				"webapi",
+				"sites",
+				clusterName,
+				"workload-identity",
+			)
+
+			_, err := env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+				Kind:     types.KindWorkloadIdentity,
+				Version:  types.V1,
+				Metadata: tc.metadata,
+				Spec:     tc.spec,
+			})
+			require.NoError(t, err)
+
+			_, err = env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "gone",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+						Id: "/test/spiffe/id",
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			response, err := pack.clt.Get(ctx, endpoint, url.Values{
+				"search": []string{tc.searchTerm},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+
+			var resp ListWorkloadIdentitiesResponse
+			require.NoError(t, json.Unmarshal(response.Bytes(), &resp), "invalid response received")
+
+			assert.Len(t, resp.Items, 1)
+			assert.Equal(t, "this-is-nicks-workload-identity", resp.Items[0].Name)
+		})
+	}
+}

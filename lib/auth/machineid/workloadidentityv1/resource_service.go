@@ -144,7 +144,8 @@ func (s *ResourceService) ListWorkloadIdentities(
 		int(req.PageSize),
 		req.PageToken,
 		&services.ListWorkloadIdentitiesRequestOptions{
-			Sort: req.Sort,
+			Sort:             req.GetSort(),
+			FilterSearchTerm: req.GetFilterSearchTerm(),
 		},
 	)
 	if err != nil {

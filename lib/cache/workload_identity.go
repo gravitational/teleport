@@ -84,7 +84,7 @@ func (c *Cache) ListWorkloadIdentities(
 	index := workloadIdentityNameIndex
 	keyFn := keyForWorkloadIdentityNameIndex
 	var isDesc bool
-	if options.HasSort() {
+	if options.GetSort() != nil {
 		isDesc = options.Sort.IsDesc
 
 		switch options.Sort.Field {
@@ -106,6 +106,9 @@ func (c *Cache) ListWorkloadIdentities(
 		isDesc:     isDesc,
 		upstreamList: func(ctx context.Context, pageSize int, nextToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
 			return c.Config.WorkloadIdentity.ListWorkloadIdentities(ctx, pageSize, nextToken, options)
+		},
+		filter: func(b *workloadidentityv1pb.WorkloadIdentity) bool {
+			return services.MatchWorkloadIdentity(b, options.GetFilterSearchTerm())
 		},
 		nextToken: func(t *workloadidentityv1pb.WorkloadIdentity) string {
 			return keyFn(t)

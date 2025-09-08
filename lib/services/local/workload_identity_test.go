@@ -63,7 +63,8 @@ func newValidWorkloadIdentity(name string) *workloadidentityv1pb.WorkloadIdentit
 		},
 		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
 			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-				Id: "/test",
+				Id:   "/test/" + name,
+				Hint: "This is hint " + name,
 			},
 		},
 	}
@@ -216,6 +217,27 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Equal(t, `unsupported sort, only name:asc is supported, but got "name" (desc = true)`, err.Error())
+	})
+	t.Run("search filter match on name", func(t *testing.T) {
+		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			FilterSearchTerm: "9",
+		})
+		require.NoError(t, err)
+		assert.Len(t, page, 4)
+	})
+	t.Run("search filter match on spiffe id", func(t *testing.T) {
+		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			FilterSearchTerm: "test/22",
+		})
+		require.NoError(t, err)
+		assert.Len(t, page, 1)
+	})
+	t.Run("search filter match on spiffe hint", func(t *testing.T) {
+		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			FilterSearchTerm: "hint 13",
+		})
+		require.NoError(t, err)
+		assert.Len(t, page, 1)
 	})
 }
 

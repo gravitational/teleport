@@ -83,11 +83,23 @@ func (b *WorkloadIdentityService) ListWorkloadIdentities(
 	currentToken string,
 	options *services.ListWorkloadIdentitiesRequestOptions,
 ) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-	if options.HasSort() && (options.Sort.Field != "name" || options.Sort.IsDesc != false) {
+	if options.GetSort() != nil && (options.GetSort().Field != "name" || options.GetSort().IsDesc != false) {
 		return nil, "", trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", options.Sort.Field, options.Sort.IsDesc)
 	}
 
-	r, nextToken, err := b.service.ListResources(ctx, pageSize, currentToken)
+	if options.GetFilterSearchTerm() == "" {
+		r, nextToken, err := b.service.ListResources(ctx, pageSize, currentToken)
+		return r, nextToken, trace.Wrap(err)
+	}
+
+	r, nextToken, err := b.service.ListResourcesWithFilter(
+		ctx,
+		pageSize,
+		currentToken,
+		func(item *workloadidentityv1pb.WorkloadIdentity) bool {
+			return services.MatchWorkloadIdentity(item, options.GetFilterSearchTerm())
+		},
+	)
 	return r, nextToken, trace.Wrap(err)
 }
 

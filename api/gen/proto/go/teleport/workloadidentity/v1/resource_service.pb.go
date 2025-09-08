@@ -276,9 +276,11 @@ type ListWorkloadIdentitiesRequest struct {
 	// The page_token value returned from a previous ListWorkloadIdentities request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// The sort config to use for the results. If empty, the default sort field and order is used.
-	Sort          *types.SortBy `protobuf:"bytes,3,opt,name=sort,proto3" json:"sort,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Sort *types.SortBy `protobuf:"bytes,3,opt,name=sort,proto3" json:"sort,omitempty"`
+	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
+	FilterSearchTerm string `protobuf:"bytes,4,opt,name=filter_search_term,json=filterSearchTerm,proto3" json:"filter_search_term,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ListWorkloadIdentitiesRequest) Reset() {
@@ -330,6 +332,13 @@ func (x *ListWorkloadIdentitiesRequest) GetSort() *types.SortBy {
 		return x.Sort
 	}
 	return nil
+}
+
+func (x *ListWorkloadIdentitiesRequest) GetFilterSearchTerm() string {
+	if x != nil {
+		return x.FilterSearchTerm
+	}
+	return ""
 }
 
 // The response for ListWorkloadIdentities.
@@ -402,12 +411,13 @@ const file_teleport_workloadidentity_v1_resource_service_proto_rawDesc = "" +
 	"\x1aGetWorkloadIdentityRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"3\n" +
 	"\x1dDeleteWorkloadIdentityRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"~\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\xac\x01\n" +
 	"\x1dListWorkloadIdentitiesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12!\n" +
-	"\x04sort\x18\x03 \x01(\v2\r.types.SortByR\x04sort\"\xa9\x01\n" +
+	"\x04sort\x18\x03 \x01(\v2\r.types.SortByR\x04sort\x12,\n" +
+	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\"\xa9\x01\n" +
 	"\x1eListWorkloadIdentitiesResponse\x12_\n" +
 	"\x13workload_identities\x18\x01 \x03(\v2..teleport.workloadidentity.v1.WorkloadIdentityR\x12workloadIdentities\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xbf\x06\n" +

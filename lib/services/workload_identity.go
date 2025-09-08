@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -141,8 +142,39 @@ type ListWorkloadIdentitiesRequestOptions struct {
 	// The sort config to use for the results. If empty, the default sort field
 	// and order is used.
 	Sort *types.SortBy
+	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
+	FilterSearchTerm string
 }
 
-func (o *ListWorkloadIdentitiesRequestOptions) HasSort() bool {
-	return o != nil && o.Sort != nil
+func (o *ListWorkloadIdentitiesRequestOptions) GetSort() *types.SortBy {
+	if o == nil {
+		return nil
+	}
+	return o.Sort
+}
+
+func (o *ListWorkloadIdentitiesRequestOptions) GetFilterSearchTerm() string {
+	if o == nil {
+		return ""
+	}
+	return o.FilterSearchTerm
+}
+
+func MatchWorkloadIdentity(item *workloadidentityv1pb.WorkloadIdentity, filterSearchTerm string) bool {
+	if item == nil {
+		return false
+	}
+	if filterSearchTerm == "" {
+		return true
+	}
+
+	values := []string{
+		item.GetMetadata().GetName(),
+		item.GetSpec().GetSpiffe().GetId(),
+		item.GetSpec().GetSpiffe().GetHint(),
+	}
+
+	return slices.ContainsFunc(values, func(val string) bool {
+		return strings.Contains(strings.ToLower(val), strings.ToLower(filterSearchTerm))
+	})
 }
