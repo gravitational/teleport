@@ -21,6 +21,8 @@ package azuresync
 import (
 	"context"
 
+	"github.com/!azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -29,6 +31,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/msgraph"
+	azureutils "github.com/gravitational/teleport/lib/utils/azure"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -92,7 +95,9 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	var err error
 	if cfg.Integration == "" {
 		// Establish the credential from the managed identity
-		cred, err = azidentity.NewDefaultAzureCredential(nil)
+		cred, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+			ClientOptions: azureutils.CoreClientOptions(),
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -118,15 +123,21 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleAssignClient, err := azure.NewRoleAssignmentsClient(cfg.SubscriptionID, cred, nil)
+	roleAssignClient, err := azure.NewRoleAssignmentsClient(cfg.SubscriptionID, cred, &arm.ClientOptions{
+		ClientOptions: azureutils.CoreClientOptions(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleDefClient, err := azure.NewRoleDefinitionsClient(cfg.SubscriptionID, cred, nil)
+	roleDefClient, err := azure.NewRoleDefinitionsClient(cfg.SubscriptionID, cred, &arm.ClientOptions{
+		ClientOptions: azureutils.CoreClientOptions(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	vmClient, err := azure.NewVirtualMachinesClient(cfg.SubscriptionID, cred, nil)
+	vmClient, err := azure.NewVirtualMachinesClient(cfg.SubscriptionID, cred, &arm.ClientOptions{
+		ClientOptions: azureutils.CoreClientOptions(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

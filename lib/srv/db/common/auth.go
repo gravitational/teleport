@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -651,11 +652,14 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	// Access token scope for connecting to Postgres/MySQL database.
+	scope := "https://ossrdbms-aad.database.windows.net/.default"
+	if modules.GetModules().IsBoringBinary() {
+		scope = "https://ossrdbms-aad.database.usgovcloudapi.net/.default"
+	}
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{
-			// Access token scope for connecting to Postgres/MySQL database.
-			"https://ossrdbms-aad.database.windows.net/.default",
-		},
+		Scopes: []string{scope},
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

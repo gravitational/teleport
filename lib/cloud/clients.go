@@ -43,6 +43,7 @@ import (
 	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
+	azureutils "github.com/gravitational/teleport/lib/utils/azure"
 )
 
 // Clients provides interface for obtaining cloud provider clients.
@@ -455,8 +456,9 @@ func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 	if c.azureCredential != nil { // If some other thread already got here first.
 		return c.azureCredential, nil
 	}
-	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
-	options := &azidentity.DefaultAzureCredentialOptions{}
+	options := &azidentity.DefaultAzureCredentialOptions{
+		ClientOptions: azureutils.CoreClientOptions(),
+	}
 	cred, err := azidentity.NewDefaultAzureCredential(options)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -477,8 +479,9 @@ func (c *cloudClients) initAzureMySQLClient(subscription string) (azure.DBServer
 		return client, nil
 	}
 
-	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
-	options := &arm.ClientOptions{}
+	options := &arm.ClientOptions{
+		ClientOptions: azureutils.CoreClientOptions(),		
+	}
 	api, err := armmysql.NewServersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -499,8 +502,9 @@ func (c *cloudClients) initAzurePostgresClient(subscription string) (azure.DBSer
 	if client, ok := c.azurePostgresClients[subscription]; ok { // If some other thread already got here first.
 		return client, nil
 	}
-	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
-	options := &arm.ClientOptions{}
+	options := &arm.ClientOptions{
+		ClientOptions: azureutils.CoreClientOptions(),		
+	}
 	api, err := armpostgresql.NewServersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -521,9 +525,9 @@ func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient
 	if c.azureSubscriptionsClient != nil { // If some other thread already got here first.
 		return c.azureSubscriptionsClient, nil
 	}
-	// TODO(gavin): if/when we support AzureChina/AzureGovernment,
-	// we will need to specify the cloud in these options
-	opts := &arm.ClientOptions{}
+	opts := &arm.ClientOptions{		
+		ClientOptions: azureutils.CoreClientOptions(),		
+	}
 	armClient, err := armsubscription.NewSubscriptionsClient(cred, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -583,8 +587,9 @@ func (c *cloudClients) initAzureKubernetesClient(subscription string) (azure.AKS
 	if client, ok := c.azureKubernetesClient[subscription]; ok { // If some other thread already got here first.
 		return client, nil
 	}
-	// TODO(tigrato): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
-	options := &arm.ClientOptions{}
+	options := &arm.ClientOptions{
+		ClientOptions: azureutils.CoreClientOptions(),		
+	}
 	api, err := armcontainerservice.NewManagedClustersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)

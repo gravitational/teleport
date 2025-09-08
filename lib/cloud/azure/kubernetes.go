@@ -44,6 +44,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/utils/azure"
 )
 
 // AKSAuthMethod defines the authentication method for AKS cluster.
@@ -432,8 +433,11 @@ func (c *aksClient) genAzureToken(ctx context.Context, tentantID string) (string
 		// ref: https://github.com/Azure/kubelogin#exec-plugin-format
 		azureManagedClusterScope = "6dae42f8-4368-4678-94ff-3960e28e3630"
 	)
+
 	cred, err := c.azIdentity(&azidentity.DefaultAzureCredentialOptions{
+		ClientOptions: azure.CoreClientOptions(),
 		TenantID: tentantID,
+
 	})
 	if err != nil {
 		return "", time.Time{}, trace.Wrap(ConvertResponseError(err))

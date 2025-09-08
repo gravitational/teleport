@@ -25,7 +25,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -35,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/utils/azure"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -77,27 +77,25 @@ type azureConfigClient struct {
 // NewAzureConfigClient returns a new config client for granting the managed identity the necessary permissions
 // to fetch Azure resources
 func NewAzureConfigClient(subscriptionID string) (AccessGraphAzureConfigureClient, error) {
-	telemetryOpts := policy.TelemetryOptions{
+	opts := azure.CoreClientOptions()
+	opts.Telemetry = policy.TelemetryOptions{
 		ApplicationID: azureUserAgent,
 	}
-	opts := &armpolicy.ClientOptions{
-		ClientOptions: policy.ClientOptions{
-			Telemetry: telemetryOpts,
-		},
-	}
 	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
-		ClientOptions: azcore.ClientOptions{
-			Telemetry: telemetryOpts,
-		},
+		ClientOptions: opts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleDefCli, err := armauthorization.NewRoleDefinitionsClient(cred, opts)
+	roleDefCli, err := armauthorization.NewRoleDefinitionsClient(cred, &armpolicy.ClientOptions{
+		ClientOptions: opts,
+	})
 	if err != nil {
 		return nil, trace.BadParameter("failed to create role definitions client: %v", err)
 	}
-	roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, opts)
+	roleAssignCli, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, &armpolicy.ClientOptions{
+		ClientOptions: opts,
+	})
 	if err != nil {
 		return nil, trace.BadParameter("failed to create role assignments client: %v", err)
 	}

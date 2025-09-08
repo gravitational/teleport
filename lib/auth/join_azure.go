@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
+	azureutils "github.com/gravitational/teleport/lib/utils/azure"
 )
 
 const (
@@ -166,12 +167,12 @@ func (cfg *azureRegisterConfig) CheckAndSetDefaults(ctx context.Context) error {
 		cfg.getVMClient = func(subscriptionID string, token *azure.StaticCredential) (azure.VirtualMachinesClient, error) {
 			// The User-Agent is added for debugging purposes. It helps identify
 			// and isolate teleport traffic.
+			coreOpts := azureutils.CoreClientOptions()
+			coreOpts.Telemetry = policy.TelemetryOptions{
+				ApplicationID: azureUserAgent,
+			}
 			opts := &armpolicy.ClientOptions{
-				ClientOptions: policy.ClientOptions{
-					Telemetry: policy.TelemetryOptions{
-						ApplicationID: azureUserAgent,
-					},
-				},
+				ClientOptions: coreOpts,
 			}
 			client, err := azure.NewVirtualMachinesClient(subscriptionID, token, opts)
 			return client, trace.Wrap(err)

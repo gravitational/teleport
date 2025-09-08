@@ -30,11 +30,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/utils/azure"
 )
 
 // createGraphClient creates a new graph client from ambient credentials (Azure CLI credentials cache).
 func createGraphClient() (*msgraph.Client, error) {
-	credential, err := azidentity.NewDefaultAzureCredential(nil)
+	credential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		ClientOptions: azure.CoreClientOptions(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

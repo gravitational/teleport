@@ -28,6 +28,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/azure"
 )
 
 const clientExpireTime = time.Hour
@@ -85,8 +86,9 @@ func (m *ClientMap[ClientType]) Get(subscription string, getCredentials func() (
 			return client, trace.Wrap(err)
 		}
 
-		// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
-		options := &arm.ClientOptions{}
+		options := &arm.ClientOptions{
+			ClientOptions: azure.CoreClientOptions(),
+		}
 		client, err = m.newClient(subscription, cred, options)
 		return client, trace.Wrap(err)
 	})

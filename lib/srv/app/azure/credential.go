@@ -32,6 +32,7 @@ import (
 
 	cloudazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/azure"
 )
 
 // credentialProvider defines an interface that manages a particular type of
@@ -86,7 +87,9 @@ func findDefaultCredentialProvider(ctx context.Context, logger *slog.Logger) (cr
 	// Check if default workload identity is available: the clientID/tenantID
 	// for the default workload identity and the token file path are required
 	// from environment variables.
-	defaultWorkloadIdentity, err := azidentity.NewWorkloadIdentityCredential(nil)
+	defaultWorkloadIdentity, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
+		ClientOptions: azure.CoreClientOptions(),
+	})
 	if err != nil {
 		// If no workload identity is found, fall back to regular managed identity.
 		logger.DebugContext(ctx, "Failed to load azure workload identity.", "error", err)
@@ -107,7 +110,8 @@ type managedIdentityCredentialProvider struct {
 
 func (m managedIdentityCredentialProvider) MakeCredential(ctx context.Context, userRequestedIdentity string) (azcore.TokenCredential, error) {
 	credenial, err := azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
-		ID: azidentity.ResourceID(userRequestedIdentity),
+		ClientOptions: azure.CoreClientOptions(),
+		ID:            azidentity.ResourceID(userRequestedIdentity),
 	})
 	return credenial, trace.Wrap(err)
 }
@@ -163,7 +167,8 @@ func newWorloadIdentityCredentialProvider(ctx context.Context, defaultAgentIdent
 
 func newWorkloadIdentityCredentialForClientID(clientID string) (azcore.TokenCredential, error) {
 	cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
-		ClientID: clientID,
+		ClientOptions: azure.CoreClientOptions(),
+		ClientID:      clientID,
 	})
 	return cred, trace.Wrap(err)
 }
