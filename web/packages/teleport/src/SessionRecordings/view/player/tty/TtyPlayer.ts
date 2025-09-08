@@ -23,12 +23,12 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { ITerminalAddon, Terminal } from '@xterm/xterm';
 import type { DefaultTheme } from 'styled-components';
 
+import { Logger } from 'design/logger';
 import { getPlatform, Platform } from 'design/platform';
 
 import { Player } from '../Player';
 import { AspectFitAddon } from './AspectFitRatio';
 import { EventType, type TerminalSize, type TtyEvent } from './types';
-import { Logger } from 'design/logger'
 
 /**
  * TtyPlayer is a player that connects a stream of TtyEvents to an xterm.js terminal.

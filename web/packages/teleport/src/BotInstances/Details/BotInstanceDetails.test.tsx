@@ -219,9 +219,7 @@ function makeWrapper(options?: {
 function MockTextEditor(props: { data?: [{ content: string }] }) {
   return (
     <div data-testid="mock-text-editor">
-      {props.data?.map(d => (
-        <div key={d.content}>{d.content}</div>
-      ))}
+      {props.data?.map(d => <div key={d.content}>{d.content}</div>)}
     </div>
   );
 }
