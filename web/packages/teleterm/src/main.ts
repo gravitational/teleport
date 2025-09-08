@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -66,7 +65,6 @@ if (app.requestSingleInstanceLock()) {
 
 async function initializeApp(): Promise<void> {
   updateSessionDataPath();
-  let devRelaunchScheduled = false;
   const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
@@ -149,18 +147,6 @@ async function initializeApp(): Promise<void> {
     app.exit();
   });
 
-  app.on('quit', () => {
-    if (devRelaunchScheduled) {
-      const [bin, ...args] = process.argv;
-      const child = spawn(bin, args, {
-        env: process.env,
-        detached: true,
-        stdio: 'inherit',
-      });
-      child.unref();
-    }
-  });
-
   // On Windows/Linux: Re-launching the app while it's already running
   // triggers 'second-instance' (because of app.requestSingleInstanceLock()).
   //
@@ -200,14 +186,6 @@ async function initializeApp(): Promise<void> {
   app
     .whenReady()
     .then(() => {
-      if (mainProcess.settings.dev) {
-        // allow restarts on F6
-        globalShortcut.register('F6', () => {
-          devRelaunchScheduled = true;
-          app.quit();
-        });
-      }
-
       enableWebHandlersProtection();
 
       windowsManager.createWindow();
