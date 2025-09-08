@@ -37,7 +37,8 @@ type unimplementedDiscoveryServiceServer = relaytunnelv1alpha.UnimplementedDisco
 // implementation that responds with fixed data to the Discover rpc.
 type StaticDiscoverServiceServer struct {
 	_ struct{} // prevent unkeyed literals
-	unimplementedDiscoveryServiceServer
+
+	unimplementedDiscoveryServiceServer //nolint:unused // required and used by grpc-go
 
 	RelayGroup            string
 	TargetConnectionCount int32
