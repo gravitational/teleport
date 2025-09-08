@@ -41,21 +41,21 @@ roles. The preset `editor` role grants permission to manage resource in Teleport
 The preset `reviewer` grants permission to review access to resources in Teleport.
 
 Instead of creating new groups, you may use an existing Microsoft Entra ID groups 
-to follow through this guide. 
+to follow this guide. 
 
 ## Prerequisites
 
 - Permissions to create an enterprise application, configure and grant Microsoft 
   Graph API permissions and manage groups in the Microsoft Entra ID tenant.
-- Teleport user with a preset `editor` or an equivalent role that allows to 
-read and write Auth Connector, users and roles.
+- Teleport user with a preset `editor` role or an equivalent role that allows 
+  you to read and write Auth Connectors, users and roles.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Create groups
 
 <Admonition type="info" title="New Group">
-  You may skip this step if you are using an existing Microsoft Entra ID 
-  groups to follow through this guide.
+  You may skip this step if you are using existing Microsoft Entra ID 
+  groups to follow this guide.
 </Admonition>
 
 In the Azure portal, select the "Groups" menu which is available under the
@@ -80,7 +80,7 @@ button. Enter a name for your application and create the application.
 ## Step 3/5. Assign groups
 
 In the Azure Portal, in the enterprise application UI, select the "Users and groups" 
-menu which can be located under the "Manage" menu.
+menu, which can be located under the "Manage" menu.
 
 In the "Users and groups" UI, click `+Add user/group` button. 
 
@@ -120,11 +120,11 @@ https://<Var name="example.teleport.sh" />/v1/webapi/oidc/callback
 
 Save the configuration once the redirect URI is configured.
 
-### Setup Client credential 
+### Set up client credentials 
 
-Teleport uses OIDC authorization code flow to exchange OIDC authorization code 
-for the user's ID Token. To exchange the ID Token, a client credential must be 
-set up for Teleport. 
+Teleport uses the OIDC authorization code flow to exchange an OIDC authorization 
+code for the user's ID Token. To exchange the ID Token, a client credential must 
+be set up for Teleport. 
 
 In the "App registrations" UI for the enterprise application, from the "Manage" 
 menu, select "Certificates & secrets". Now select the "Client secrets" tab and 
@@ -133,7 +133,7 @@ click on the `+ New client secret` button. Create a new client secret.
 ![Entra ID OIDC client credential](../../../img/sso/entraid/oidc/entra-id-oidc-client-credential.png)
 
 Once the secret is created, copy the value and save it in your working environment: 
-```bash 
+```code 
 $ echo 'secret value copied from entra id' > /tmp/client-secret
 ``` 
 
@@ -157,14 +157,14 @@ Entra ID are preserved as user's traits in the user resource.
 
 ### (Optional) Groups overage claim
 
-If user's group membership exceeds 200 groups limit, Microsoft Entra ID issues a
+If user's group membership exceeds the 200 group limit, Microsoft Entra ID issues a
 groups overage claim instead of the expected `groups` claim. The groups overage 
 claim contains an Azure AD Graph API link, which indicates that the user's group 
 membership is to be queried from the Microsoft Graph API. 
 
-If your user's group membership do not exceed this 200 max groups claim item limit, 
-you can skip this step. Otherwise, you will need to grant Teleport with a Microsoft
-Graph API permission so it can retrieve user's group membership using the Microsoft 
+If your user's group membership do not exceed the group limit, you can skip this
+step. Otherwise, you will need to grant Teleport with a Microsoft Graph API 
+permission so it can retrieve user's group membership using the Microsoft 
 Graph API. 
 
 To query user's group membership, Teleport requires `User.ReadBasic.All` permission.
@@ -189,7 +189,7 @@ Should the user's group membership exceed 200 groups, Teleport will follow throu
 the groups overage claim issued by Entra ID and fetch user's groups detail using the 
 Microsoft Graph API. 
 
-## Step 5/5. Create OIDC connector 
+## Step 5/5. Create an OIDC connector 
 
 Before creating the Auth Connector resource, its useful to first generate the 
 configuration spec and test the configuration.
@@ -340,7 +340,7 @@ spec:
 
 ### oid claim not found
 
-User may receive this error if a groups overage claim was issued for the user but 
+The user may receive this error if a groups overage claim was issued for the user but 
 Teleport could not find the `oid` claim.
 
 To resolve this, ensure that the `profile` scope is configured in the Auth Connector.
@@ -359,7 +359,7 @@ spec:
 ## Next steps
 
 - Learn more about other [OIDC](oidc.mdx#oidc-connector-configuration) related 
-  configuration that Teleport supports.
-- Learn more about [Role and Resource Access Request](../../identity-governance/access-requests/access-requests.mdx).
+  configurations that Teleport supports.
+- Learn more about [Role and Resource Access Requests](../../identity-governance/access-requests/access-requests.mdx).
 - Learn more about [role templates](../rbac-get-started/role-templates.mdx).
 - [Teleport Configuration Resources Reference](../../reference/resources.mdx)
