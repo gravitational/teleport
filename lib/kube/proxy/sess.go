@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/services"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1322,7 +1323,14 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 func (s *session) allParticipants() []string {
 	var participants []string
 	for _, p := range s.partiesHistorical {
-		participants = append(participants, p.Ctx.User.GetName())
+		username := services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              p.Ctx.Identity.GetIdentity().Username,
+				OriginClusterName: p.Ctx.Identity.GetIdentity().OriginClusterName,
+				LocalClusterName:  p.Ctx.Identity.GetIdentity().TeleportCluster,
+			},
+		)
+		participants = append(participants, username)
 	}
 
 	return participants
