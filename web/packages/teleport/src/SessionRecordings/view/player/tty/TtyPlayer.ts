@@ -28,6 +28,7 @@ import { getPlatform, Platform } from 'design/platform';
 import { Player } from '../Player';
 import { AspectFitAddon } from './AspectFitRatio';
 import { EventType, type TerminalSize, type TtyEvent } from './types';
+import { Logger } from 'design/logger'
 
 /**
  * TtyPlayer is a player that connects a stream of TtyEvents to an xterm.js terminal.
@@ -42,6 +43,7 @@ export class TtyPlayer extends Player<TtyEvent> {
   private aspectFitAddon = new AspectFitAddon();
   private terminal: Terminal | null = null;
   private playing = false;
+  private logger = new Logger('TtyPlayer');
 
   constructor(
     private theme: DefaultTheme,
@@ -156,8 +158,7 @@ export class TtyPlayer extends Player<TtyEvent> {
       try {
         addon.dispose();
       } catch {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to dispose terminal addon', addon);
+        this.logger.warn('Failed to dispose terminal addon', addon);
       }
     }
 
