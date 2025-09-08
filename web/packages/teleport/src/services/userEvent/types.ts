@@ -227,6 +227,9 @@ export enum DiscoverEventResource {
   Ec2Instance = 'DISCOVER_RESOURCE_EC2_INSTANCE',
 
   SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
+
+  MCPDemo = 'DISCOVER_RESOURCE_MCP_DEMO',
+  MCPStdio = 'DISCOVER_RESOURCE_MCP_STDIO',
 }
 
 export enum DiscoverEventStatus {
