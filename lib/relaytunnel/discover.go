@@ -117,7 +117,13 @@ func discover(ctx context.Context, params DiscoverParams) (*relaytunnelv1alpha.D
 	defer cc.Close()
 
 	clt := relaytunnelv1alpha.NewDiscoveryServiceClient(cc)
-	return clt.Discover(ctx, &relaytunnelv1alpha.DiscoverRequest{})
+
+	resp, err := clt.Discover(ctx, &relaytunnelv1alpha.DiscoverRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
 }
 
 // TODO(espadolini): remove once the function is actually used
