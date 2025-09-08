@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, dialog, globalShortcut, nativeTheme, shell } from 'electron';
+import { app, dialog, nativeTheme, shell } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 import { ensureError } from 'shared/utils/error';
@@ -66,7 +65,6 @@ if (app.requestSingleInstanceLock()) {
 
 async function initializeApp(): Promise<void> {
   updateSessionDataPath();
-  let devRelaunchScheduled = false;
   const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
@@ -115,25 +113,6 @@ async function initializeApp(): Promise<void> {
     return;
   }
 
-  //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
-  app.on(
-    'certificate-error',
-    (event, webContents, url, error, certificate, callback) => {
-      // allow certs errors for localhost:8080
-      if (
-        settings.dev &&
-        new URL(url).host === 'localhost:8080' &&
-        error === 'net::ERR_CERT_AUTHORITY_INVALID'
-      ) {
-        event.preventDefault();
-        callback(true);
-      } else {
-        callback(false);
-        console.error(error);
-      }
-    }
-  );
-
   app.on('will-quit', async event => {
     event.preventDefault();
     const disposeMainProcess = async () => {
@@ -144,21 +123,8 @@ async function initializeApp(): Promise<void> {
       }
     };
 
-    globalShortcut.unregisterAll();
     await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
     app.exit();
-  });
-
-  app.on('quit', () => {
-    if (devRelaunchScheduled) {
-      const [bin, ...args] = process.argv;
-      const child = spawn(bin, args, {
-        env: process.env,
-        detached: true,
-        stdio: 'inherit',
-      });
-      child.unref();
-    }
   });
 
   // On Windows/Linux: Re-launching the app while it's already running
@@ -200,14 +166,6 @@ async function initializeApp(): Promise<void> {
   app
     .whenReady()
     .then(() => {
-      if (mainProcess.settings.dev) {
-        // allow restarts on F6
-        globalShortcut.register('F6', () => {
-          devRelaunchScheduled = true;
-          app.quit();
-        });
-      }
-
       enableWebHandlersProtection();
 
       windowsManager.createWindow();
