@@ -905,6 +905,7 @@
     "semodule",
     "sendall",
     "seqno",
+    "serverlesscache",
     "serviceaccount",
     "serviceaccountname",
     "serviceaccounts",
