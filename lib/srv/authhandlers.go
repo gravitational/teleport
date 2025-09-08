@@ -256,6 +256,9 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		BotInstanceID:                       unmappedIdentity.BotInstanceID,
 		JoinToken:                           unmappedIdentity.JoinToken,
 		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
+		OriginClusterName:                   certAuthority.GetClusterName(),
+		MappedRoles:                         accessInfo.Roles,
+		Traits:                              accessInfo.Traits,
 	}, nil
 }
 
@@ -780,6 +783,7 @@ type proxyingPermit struct {
 	MaxConnections        int64
 	DisconnectExpiredCert time.Time
 	MappedRoles           []string
+	SessionRecordingMode  constants.SessionRecordingMode
 }
 
 func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string) (*proxyingPermit, error) {
@@ -824,6 +828,7 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		MaxConnections:        accessChecker.MaxConnections(),
 		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
 		MappedRoles:           accessInfo.Roles,
+		SessionRecordingMode:  accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH),
 	}, nil
 }
 

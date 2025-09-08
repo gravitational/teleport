@@ -1024,7 +1024,11 @@ func TestDiscoveryKubeServices(t *testing.T) {
 	mockKubeServices := []*corev1.Service{
 		newMockKubeService("service1", "ns1", "",
 			map[string]string{"test-label": "testval"},
-			map[string]string{types.DiscoveryPublicAddr: "custom.example.com", types.DiscoveryPathLabel: "foo/bar baz"},
+			map[string]string{
+				types.DiscoveryPublicAddr:  "custom.example.com",
+				types.DiscoveryPathLabel:   "foo/bar baz",
+				types.DiscoveryDescription: "example description",
+			},
 			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
 		newMockKubeService("service2", "ns2", "",
 			map[string]string{
@@ -1867,6 +1871,11 @@ func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, 
 	app, err := services.NewApplicationFromKubeService(*kubeService, discoveryGroup, protocol, port)
 	require.NoError(t, err)
 	require.Equal(t, kubeService.Annotations[types.DiscoveryPublicAddr], app.GetPublicAddr())
+
+	if desc, ok := kubeService.Annotations[types.DiscoveryDescription]; ok {
+		require.Equal(t, desc, app.GetMetadata().Description)
+	}
+
 	if p, ok := kubeService.Annotations[types.DiscoveryPathLabel]; ok {
 		components := strings.Split(p, "/")
 		for i := range components {
@@ -3773,12 +3782,17 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 }
 
 type fakeAWSClients struct {
+	ec2Client        db.EC2Client
 	ecClient         db.ElastiCacheClient
 	mdbClient        db.MemoryDBClient
 	openSearchClient db.OpenSearchClient
 	rdsClient        db.RDSClient
 	redshiftClient   db.RedshiftClient
 	rssClient        db.RSSClient
+}
+
+func (f fakeAWSClients) GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) db.EC2Client {
+	return f.ec2Client
 }
 
 func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {

@@ -316,6 +316,9 @@ const (
 	// KindRecordingEncryption is the collection of active session recording encryption keys.
 	KindRecordingEncryption = "recording_encryption"
 
+	// KindRotatedKey is a previously rotated session recording encryption key kept for future replay.
+	KindRotatedKey = "rotated_key"
+
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
@@ -919,6 +922,8 @@ const (
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
 	// DiscoveryPublicAddr specifies the public address for a discovered app created from a Kubernetes service.
 	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
+	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
+	DiscoveryDescription = TeleportNamespace + "/description"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -934,10 +939,18 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
-	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
-	SchemaMCPStdio = "mcp+stdio://"
+	// SchemeMCPStdio is a URI scheme for MCP servers using stdio transport.
+	SchemeMCPStdio = "mcp+stdio"
 	// MCPTransportStdio indicates the MCP server uses stdio transport.
 	MCPTransportStdio = "stdio"
+	// SchemeMCPSSEHTTP is a URI scheme for MCP servers using HTTP with SSE
+	// transport.
+	SchemeMCPSSEHTTP = "mcp+sse+http"
+	// SchemeMCPSSEHTTPS is a URI scheme for MCP servers using HTTPS with SSE
+	// transport.
+	SchemeMCPSSEHTTPS = "mcp+sse+https"
+	// MCPTransportSSE indicates the MCP server uses SSE transport.
+	MCPTransportSSE = "SSE"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
@@ -1224,6 +1237,9 @@ const (
 
 	// GitHubOrgLabel is the label for GitHub organization.
 	GitHubOrgLabel = TeleportInternalLabelPrefix + "github-org"
+
+	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
+	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
 )
 
 const (

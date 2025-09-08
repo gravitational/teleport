@@ -63,7 +63,6 @@ const LATEST_TELEPORT_VERSIONS_MOCK = [
 beforeAll(() => {
   Logger.init(new NullService());
   // (Cannot spy the fetch property because it is not a function; undefined given instead)
-  // eslint-disable-next-line jest/prefer-spy-on
   global.fetch = jest.fn().mockImplementation(() =>
     Promise.resolve({
       ok: true,

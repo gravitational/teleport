@@ -457,18 +457,18 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 // GetSiteAPI is a helper which returns an API endpoint to a site with
 // a given name. i endpoint implements HTTP-over-SSH access to the
 // site's auth server.
-func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
-	siteTunnel, err := i.Tunnel.GetSite(siteName)
+func (i *TeleInstance) GetSiteAPI(clusterName string) authclient.ClientI {
+	cluster, err := i.Tunnel.Cluster(context.Background(), clusterName)
 	if err != nil {
-		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "site", siteName)
+		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "cluster", clusterName)
 		return nil
 	}
-	siteAPI, err := siteTunnel.GetClient()
+	clusterClient, err := cluster.GetClient()
 	if err != nil {
-		i.Log.WarnContext(context.Background(), "failed to get site client", "error", err, "site", siteName)
+		i.Log.WarnContext(context.Background(), "failed to get site client", "error", err, "cluster", clusterName)
 		return nil
 	}
-	return siteAPI
+	return clusterClient
 }
 
 // Create creates a new instance of Teleport which trusts a list of other clusters (other
@@ -1061,7 +1061,6 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	authServer := utils.MustParseAddr(i.Auth)
 	tconf.SetAuthServerAddress(*authServer)
 	tconf.SetToken("token")
-	tconf.HostUUID = name
 	tconf.Hostname = name
 	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
@@ -1160,7 +1159,6 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.CachePolicy = servicecfg.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
 	tconf.Testing.UploadEventsC = i.UploadEventsC
-	tconf.HostUUID = cfg.Name
 	tconf.Hostname = cfg.Name
 	tconf.SetToken("token")
 
@@ -1882,20 +1880,20 @@ func (i *TeleInstance) StopAll() error {
 // WaitForNodeCount waits for a certain number of nodes in the provided cluster
 // to be visible to the Proxy. This should be called prior to any client dialing
 // of nodes to be sure that the node is registered and routable.
-func (i *TeleInstance) WaitForNodeCount(ctx context.Context, cluster string, count int) error {
+func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string, count int) error {
 	const (
 		deadline     = time.Second * 30
 		iterWaitTime = time.Second
 	)
 
 	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
-		site, err := i.Tunnel.GetSite(cluster)
+		cluster, err := i.Tunnel.Cluster(ctx, clusterName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Validate that the site cache contains the expected count.
-		accessPoint, err := site.CachingAccessPoint()
+		accessPoint, err := cluster.CachingAccessPoint()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1909,7 +1907,7 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, cluster string, cou
 		}
 
 		// Validate that the site watcher contains the expected count.
-		watcher, err := site.NodeWatcher()
+		watcher, err := cluster.NodeWatcher()
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -3,7 +3,7 @@ title: Database Access with Cloud SQL for PostgreSQL
 sidebar_label: Cloud SQL for PostgreSQL
 description: How to configure Teleport database access with Cloud SQL for PostgreSQL.
 videoBanner: br9LZ3ZXqCk
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -154,7 +154,7 @@ assigning <Var name="project-id" /> to your Google Cloud project ID:
 $ tsh db connect --db-user=cloudsql-user@<Var name="project-id"/>.iam --db-name=postgres cloudsql
 ```
 
-(!docs/pages/includes/database-access/pg-access-webui.mdx!)
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
 
 To log out of the database and remove credentials:
 

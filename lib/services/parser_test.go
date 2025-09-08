@@ -19,13 +19,17 @@
 package services
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"github.com/vulcand/predicate"
 
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -33,6 +37,9 @@ func TestParserForIdentifierSubcondition(t *testing.T) {
 	t.Parallel()
 	user, err := types.NewUser("test-user")
 	require.NoError(t, err)
+	user.SetTraits(map[string][]string{
+		"test": {"value1", "value2"},
+	})
 	testCase := func(cond string, expected types.WhereExpr) func(*testing.T) {
 		return func(t *testing.T) {
 			parser, err := newParserForIdentifierSubcondition(&Context{User: user}, SessionIdentifier)
@@ -431,6 +438,7 @@ func TestParserHostCertContext(t *testing.T) {
 				`all_equal(host_cert.principals, "foo.example.com")`,
 				`is_subset(host_cert.principals, "a", "b", "foo.example.com")`,
 				`all_end_with(host_cert.principals, ".example.com")`,
+				`contains_any(set("a", "b", "foo.example.com"), host_cert.principals)`,
 			},
 			negative: []string{
 				`all_equal(host_cert.principals, "foo")`,
@@ -491,6 +499,328 @@ func TestParserHostCertContext(t *testing.T) {
 					require.False(t, ret(), pred)
 				}
 			})
+		})
+	}
+}
+
+func TestPredicateContainsAll(t *testing.T) {
+	tests := []struct {
+		name string
+		a    []string
+		b    []string
+		want bool
+	}{
+		{
+			name: "both empty",
+			a:    []string{},
+			b:    []string{},
+			want: false,
+		},
+		{
+			name: "a empty, b not",
+			a:    []string{},
+			b:    []string{"a"},
+			want: false,
+		},
+		{
+			name: "a not empty, b empty",
+			a:    []string{"a"},
+			b:    []string{},
+			want: false,
+		},
+		{
+			name: "a contains b",
+			a:    []string{"a", "b", "c"},
+			b:    []string{"a", "c"},
+			want: true,
+		},
+		{
+			name: "a does not contain b",
+			a:    []string{"a", "b", "c"},
+			b:    []string{"a", "d"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := predicateContainsAll(tt.a, tt.b)
+			require.Equal(t, tt.want, got())
+		})
+	}
+}
+
+func TestPredicateContainsAny(t *testing.T) {
+	tests := []struct {
+		name string
+		a    []string
+		b    []string
+		want bool
+	}{
+		{
+			name: "both empty",
+			a:    []string{},
+			b:    []string{},
+			want: false,
+		},
+		{
+			name: "a empty, b not",
+			a:    []string{},
+			b:    []string{"a"},
+			want: false,
+		},
+		{
+			name: "a not empty, b empty",
+			a:    []string{"a"},
+			b:    []string{},
+			want: false, // no elements in b to be contained in a
+		},
+		{
+			name: "a contains b",
+			a:    []string{"a", "b", "c"},
+			b:    []string{"a", "c"},
+			want: true,
+		},
+		{
+			name: "a does not contain b",
+			a:    []string{"a", "b", "c"},
+			b:    []string{"d", "e"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := predicateContainsAny(tt.a, tt.b)
+			require.Equal(t, tt.want, got())
+		})
+	}
+}
+
+func TestCanView(t *testing.T) {
+	newRole := func(mut func(*types.RoleV6)) *types.RoleV6 {
+		r := newRole(mut)
+		r.Spec.Allow.Rules = append(r.Spec.Allow.Rules, types.Rule{
+			Resources: []string{types.KindSession},
+			Verbs:     []string{types.VerbRead, types.VerbList},
+			Where:     "can_view()",
+		})
+		r.CheckAndSetDefaults()
+		return r
+	}
+
+	user, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	type check struct {
+		server    types.Server
+		hasAccess bool
+	}
+	serverNoLabels := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "a",
+		},
+	}
+	serverWorker := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name:      "b",
+			Namespace: apidefaults.Namespace,
+			Labels:    map[string]string{"role": "worker", "status": "follower"},
+		},
+	}
+	namespaceC := "namespace-c"
+	serverDB := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name:      "c",
+			Namespace: namespaceC,
+			Labels:    map[string]string{"role": "db", "status": "follower"},
+		},
+	}
+	serverDBWithSuffix := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name:      "c2",
+			Namespace: namespaceC,
+			Labels:    map[string]string{"role": "db01", "status": "follower01"},
+		},
+	}
+	testCases := []struct {
+		name   string
+		roles  []*types.RoleV6
+		checks []check
+	}{
+		{
+			name:  "empty role set has access to nothing",
+			roles: []*types.RoleV6{},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: false},
+				{server: serverWorker, hasAccess: false},
+				{server: serverDB, hasAccess: false},
+			},
+		},
+		{
+			name: "role is limited to labels in default namespace",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: false},
+				{server: serverWorker, hasAccess: true},
+				{server: serverDB, hasAccess: false},
+			},
+		},
+		{
+			name: "role matches any label out of multiple labels",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker2", "worker"}}
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: false},
+				{server: serverWorker, hasAccess: true},
+				{server: serverDB, hasAccess: false},
+			},
+		},
+		{
+			name: "node_labels with empty list value matches nothing",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{}}
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: false},
+				{server: serverWorker, hasAccess: false},
+				{server: serverDB, hasAccess: false},
+			},
+		},
+		{
+			name: "one role is more permissive than another",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.Namespaces = []string{apidefaults.Namespace}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root", "admin"}
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: true},
+				{server: serverWorker, hasAccess: true},
+				{server: serverDB, hasAccess: true},
+			},
+		},
+		{
+			name: "one role needs to access servers sharing the partially same label value",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}}
+					r.Spec.Allow.Namespaces = []string{namespaceC}
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: false},
+				{server: serverWorker, hasAccess: false},
+				{server: serverDB, hasAccess: true},
+				{server: serverDBWithSuffix, hasAccess: true},
+			},
+		},
+		{
+			name: "no logins means  access",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = nil
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: true},
+				{server: serverWorker, hasAccess: true},
+				{server: serverDB, hasAccess: true},
+			},
+		},
+		// MFA.
+		{
+			name: "one role requires MFA but MFA was not verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_OFF
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: true},
+				{server: serverWorker, hasAccess: true},
+				{server: serverDB, hasAccess: true},
+			},
+		},
+
+		// Device Trust.
+		{
+			name: "role requires trusted device, device not verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: true},
+				{server: serverWorker, hasAccess: true},
+				{server: serverDB, hasAccess: true},
+			},
+		},
+		{
+			name: "label expressions",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.NodeLabels = nil
+					r.Spec.Allow.NodeLabelsExpression = `labels.role == "worker" && labels.status == "follower"`
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, hasAccess: false},
+				{server: serverWorker, hasAccess: true},
+				{server: serverDB, hasAccess: false},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			accessChecker := makeAccessCheckerWithRolePointers(tc.roles)
+			for j, check := range tc.checks {
+				comment := fmt.Sprintf("check #%v:  server: %v, should access: %v", j, check.server.GetName(), check.hasAccess)
+				serviceCtx := &Context{
+					User:          user,
+					AccessChecker: accessChecker,
+					Resource:      check.server,
+				}
+				err := accessChecker.CheckAccessToRule(
+					serviceCtx,
+					check.server.GetNamespace(),
+					types.KindSession,
+					types.VerbRead,
+				)
+				if check.hasAccess {
+					require.NoError(t, err, comment)
+				} else {
+					require.True(t, trace.IsAccessDenied(err), "Got err = %v/%T, wanted AccessDenied. %v", err, err, comment)
+				}
+			}
 		})
 	}
 }

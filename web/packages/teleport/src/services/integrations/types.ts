@@ -34,7 +34,8 @@ export type IntegrationUpdateResult<T extends IntegrationUpdateRequest> =
 export type Integration =
   | IntegrationGitHub
   | IntegrationAwsOidc
-  | IntegrationAzureOidc;
+  | IntegrationAzureOidc
+  | IntegrationAwsRa;
 
 /**
  * type Integration v. type Plugin:
@@ -77,6 +78,8 @@ export type IntegrationTemplate<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
+  /* AWS Roles Anywhere */
+  AwsRa = 'aws-ra',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',
@@ -108,6 +111,36 @@ export enum IntegrationAudience {
   AwsIdentityCenter = 'aws-identity-center',
 }
 
+/**
+ * RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
+ */
+export type RolesAnywhereProfileSync = {
+  /**
+   * enabled indicates whether the profile sync is enabled.
+   */
+  enabled: boolean;
+  /**
+   * status is the string representation of the profile sync status, either ERROR or SUCCESS.
+   */
+  status: string;
+  /**
+   * errorMessage is the error message from the last sync when the Status is ERROR.
+   */
+  errorMessage: string;
+  /**
+   * syncedProfiles is the number of profiles that were imported into Teleport.
+   */
+  syncedProfiles: number;
+  /**
+   * syncStartTime is the time when the profile sync started.
+   */
+  syncStartTime: number;
+  /**
+   * syncEndTime is the time when the profile/sync ended.
+   */
+  syncEndTime: number;
+};
+
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
@@ -119,10 +152,56 @@ export type IntegrationSpecAwsOidc = {
   audience?: IntegrationAudience;
 };
 
+// IntegrationSpecAwsRa contain the specific fields for the `aws-ra` subkind integration. [go struct ui.IntegrationAWSRASpec]
+export type IntegrationSpecAwsRa = {
+  trustAnchorARN: string; // ARN per API json tag
+  profileSyncConfig: AwsRolesAnywhereProfileSyncConfig;
+};
+/**
+ * AwsRolesAnywhereProfileSyncConfig contains the configuration for the AWS Roles Anywhere Profile sync.
+ * This is used to sync AWS Roles Anywhere profiles as application servers.
+ */
+type AwsRolesAnywhereProfileSyncConfig = {
+  /**
+   * Enabled is set to true if this integration should sync profiles as application servers.
+   */
+  enabled: boolean;
+  /**
+   * ProfileARN is the ARN of the Roles Anywhere Profile used to generate credentials to access the AWS APIs.
+   */
+  profileArn: string;
+  /**
+   * RoleARN is the ARN of the IAM Role to assume when accessing the AWS APIs.
+   */
+  roleArn: string;
+  /**
+   * ProfileNameFilters is a list of filters applied to the profile name.
+   * Only matching profiles will be synchronized as application servers.
+   * If empty, no filtering is applied.
+   *
+   * Filters can be globs, for example,
+   *
+   *	profile*
+   *	*name*
+   *
+   * Or regexes if they're prefixed and suffixed with ^ and $, for example:
+   *
+   *	^profile.*$
+   *	^.*name.*$
+   */
+  filters: string[];
+};
+
 export type IntegrationAwsOidc = IntegrationTemplate<
   'integration',
   IntegrationKind.AwsOidc,
   IntegrationSpecAwsOidc
+>;
+
+export type IntegrationAwsRa = IntegrationTemplate<
+  'integration',
+  IntegrationKind.AwsRa,
+  IntegrationSpecAwsRa
 >;
 
 export type AwsOidcPingRequest = {
@@ -291,6 +370,7 @@ export type PluginKind =
   | 'okta'
   | 'servicenow'
   | 'jamf'
+  | 'intune'
   | 'entra-id'
   | 'datadog'
   | 'aws-identity-center'
@@ -395,9 +475,16 @@ type IntegrationCreateAwsOidcRequest = {
   awsoidc: IntegrationSpecAwsOidc;
 };
 
+type IntegrationCreateAwsRaRequest = {
+  name: string;
+  subKind: IntegrationKind.AwsRa;
+  awsRa: IntegrationSpecAwsRa;
+};
+
 export type IntegrationCreateRequest =
   | IntegrationCreateAwsOidcRequest
-  | IntegrationCreateGitHubRequest;
+  | IntegrationCreateGitHubRequest
+  | IntegrationCreateAwsRaRequest;
 
 export type IntegrationListResponse = {
   items: Integration[];
@@ -410,6 +497,8 @@ export type IntegrationWithSummary = {
   subKind: string;
   // unresolvedUserTasks contains the count of unresolved user tasks related to this integration.
   unresolvedUserTasks: number;
+  // awsra contains the fields for `aws-ra` subkind integration.
+  awsra: IntegrationSpecAwsRa;
   // awsoidc contains the fields for `aws-oidc` subkind integration.
   awsoidc: IntegrationSpecAwsOidc;
   // awsec2 contains the summary for the AWS EC2 resources for this integration.
@@ -418,6 +507,8 @@ export type IntegrationWithSummary = {
   awsrds: ResourceTypeSummary;
   // awseks contains the summary for the AWS EKS resources for this integration.
   awseks: ResourceTypeSummary;
+  // rolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
+  rolesAnywhereProfileSync: RolesAnywhereProfileSync;
 };
 
 // IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
@@ -632,6 +723,70 @@ export type AWSOIDCDeployedDatabaseService = {
   matchingLabels: Label[];
 };
 
+/**
+ * AwsRolesAnywherePingResponse contains the result of the Ping request.
+ * This response contains meta information about the current state of the Integration.
+ */
+export type AwsRolesAnywherePingResponse = {
+  /**
+   * profileCount is the number of IAM Roles Anywhere Profiles that can be accessed by the Integration.
+   * Profiles that are disabled or don't have any IAM Role associated with them are not counted.
+   */
+  profileCount: number;
+  /**
+   * accountId number of the account that owns or contains the calling entity.
+   */
+  accountId: string;
+  /**
+   * arn associated with the calling entity.
+   */
+  arn: string;
+  /**
+   * userID is the unique identifier of the calling entity.
+   */
+  userId: string;
+};
+
+/**
+ * ListRolesAnywhereProfilesResponse contains the response for the ListRolesAnywhereProfiles operation.
+ */
+export type ListRolesAnywhereProfilesResponse = {
+  /**
+   * Profiles is a list of AWS Roles Anywhere Profiles.
+   */
+  profiles: RolesAnywhereProfile[];
+};
+
+/**
+ * RolesAnywhereProfile represents an AWS Roles Anywhere Profile.
+ */
+export type RolesAnywhereProfile = {
+  /**
+   * The AWS Roles Anywhere Profile ARN.
+   */
+  arn: string;
+  /**
+   * Whether the AWS Roles Anywhere Profile is enabled.
+   */
+  enabled: boolean;
+  /**
+   * The name of the AWS Roles Anywhere Profile.
+   */
+  name: string;
+  /**
+   * Whether the profile accepts role session names.
+   */
+  acceptRoleSessionName: boolean;
+  /**
+   * The tags associated with the AWS Roles Anywhere Profile.
+   */
+  tags: string[];
+  /**
+   * The roles accessible from this AWS Roles Anywhere Profile.
+   */
+  roles: string[];
+};
+
 // awsRegionMap maps the AWS regions to it's region name
 // as defined in (omitted gov cloud regions):
 // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html
@@ -763,6 +918,11 @@ export type UpdateIntegrationAwsOidc = {
   };
 };
 
+export type UpdateIntegrationAwsRa = {
+  kind: IntegrationKind.AwsRa;
+  awsRa: IntegrationSpecAwsRa;
+};
+
 export type UpdateIntegrationGithub = {
   kind: IntegrationKind.GitHub;
   oauth: IntegrationOAuthCredentials;
@@ -771,6 +931,7 @@ export type UpdateIntegrationGithub = {
 
 export type IntegrationUpdateRequest =
   | UpdateIntegrationAwsOidc
+  | UpdateIntegrationAwsRa
   | UpdateIntegrationGithub;
 
 export type AwsOidcDeployServiceRequest = {

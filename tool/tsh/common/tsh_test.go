@@ -241,6 +241,10 @@ func handleReexec() {
 
 type cliModules struct{}
 
+func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return &types.LongTermResourceGrouping{}, nil
+}
+
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
@@ -1244,19 +1248,23 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	stage1Hostname := "test-stage-1"
 	node := makeTestSSHNode(t, rootAuthAddr, withHostname(stage1Hostname), withSSHLabel("env", "stage"))
-	sshHostID := node.Config.HostUUID
+	sshHostID, err := node.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	stage2Hostname := "test-stage-2"
 	node2 := makeTestSSHNode(t, rootAuthAddr, withHostname(stage2Hostname), withSSHLabel("env", "stage"))
-	sshHostID2 := node2.Config.HostUUID
+	sshHostID2, err := node2.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	prodHostname := "test-prod-1"
 	nodeProd := makeTestSSHNode(t, rootAuthAddr, withHostname(prodHostname), withSSHLabel("env", "prod"))
-	sshHostID3 := nodeProd.Config.HostUUID
+	sshHostID3, err := nodeProd.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	leafHostname := "leaf-node"
 	leafNode := makeTestSSHNode(t, leafAuthAddr, withHostname(leafHostname), withSSHLabel("animal", "llama"))
-	sshLeafHostID := leafNode.Config.HostUUID
+	sshLeafHostID, err := leafNode.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	hasNodes := func(asrv *auth.Server, hostIDs ...string) func() bool {
 		return func() bool {
@@ -2029,15 +2037,18 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	sshHostname := "test-ssh-server"
 	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	sshHostID := node.Config.HostUUID
+	sshHostID, err := node.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	sshHostname2 := "test-ssh-server-2"
 	node2 := makeTestSSHNode(t, authAddr, withHostname(sshHostname2), withSSHLabel("access", "true"))
-	sshHostID2 := node2.Config.HostUUID
+	sshHostID2, err := node2.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	sshHostnameNoAccess := "test-ssh-server-no-access"
 	nodeNoAccess := makeTestSSHNode(t, authAddr, withHostname(sshHostnameNoAccess), withSSHLabel("access", "false"))
-	sshHostIDNoAccess := nodeNoAccess.Config.HostUUID
+	sshHostIDNoAccess, err := nodeNoAccess.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	hasNodes := func(hostIDs ...string) func() bool {
 		return func() bool {
@@ -4340,6 +4351,7 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
+        "elasticache_serverless": {},
         "secret_store": {},
         "memorydb": {},
         "opensearch": {},
@@ -4351,7 +4363,9 @@ func TestSerializeDatabases(t *testing.T) {
       "oracle": {
         "audit_user": ""
       },
-      "gcp": {},
+      "gcp": {
+        "alloydb": {}
+      },
       "azure": {
 	    "redis": {}
 	  },
@@ -4373,6 +4387,7 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
+        "elasticache_serverless": {},
         "secret_store": {},
         "memorydb": {},
         "opensearch": {},
@@ -5346,7 +5361,7 @@ func TestForwardingTraces(t *testing.T) {
 			proxyAddr, err := proxyProcess.ProxyWebAddr()
 			require.NoError(t, err)
 
-			// --trace should have no impact on login, since login is ignored
+			// --trace should cause the login to be traced.
 			err = Run(context.Background(), []string{
 				"login",
 				"--insecure",
@@ -5355,12 +5370,13 @@ func TestForwardingTraces(t *testing.T) {
 			}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 			require.NoError(t, err)
 
-			if traceCfg.Enabled && traceCfg.SamplingRate > 0 {
+			if traceCfg.Enabled {
 				collector.WaitForExport()
 			}
 
-			// ensure login doesn't generate any spans from tsh if spans are being sampled
-			loginAssertion := spanAssertion(false, !traceCfg.Enabled || traceCfg.SamplingRate <= 0)
+			// Ensure login spans from tsh are forwarded to the exporter if
+			// tracing is enabled on the auth service.
+			loginAssertion := spanAssertion(true, !traceCfg.Enabled)
 			loginAssertion(t, collector.Spans())
 
 			err = Run(context.Background(), []string{
@@ -5560,7 +5576,8 @@ func TestShowSessions(t *testing.T) {
 		"db_protocol": "postgres",
 		"db_uri": "",
 		"session_start": "0001-01-01T00:00:00Z",
-		"session_stop": "0001-01-01T00:00:00Z"
+		"session_stop": "0001-01-01T00:00:00Z",
+		"participants": ["someParticipant"]
     } ]`
 	sessions := []events.AuditEvent{
 		&events.SessionEnd{
@@ -5597,8 +5614,9 @@ func TestShowSessions(t *testing.T) {
 			DatabaseMetadata: events.DatabaseMetadata{
 				DatabaseProtocol: "postgres",
 			},
-			StartTime: time.Time{},
-			EndTime:   time.Time{},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
 		},
 	}
 	var buf bytes.Buffer

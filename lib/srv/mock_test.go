@@ -280,8 +280,8 @@ func (m *mockServer) Context() context.Context {
 }
 
 // GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp string) {
-	return "test", "test", "test"
+func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string) {
+	return "test", "test", "test", "test"
 }
 
 // GetLockWatcher gets the server's lock watcher.

@@ -33,6 +33,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
@@ -1396,9 +1397,76 @@ func TestAccessListRequiresEqual(t *testing.T) {
 	}
 }
 
+func TestAccessListMemberOwnerEligibility(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	acl := newAccessList(t, "test-access-list-1", clock,
+		withOwners([]accesslist.Owner{{Name: "test-owner-1"}}),
+		withOwnerRequires(accesslist.Requires{}),
+		withMemberRequires(accesslist.Requires{}),
+	)
+
+	aclR := newAccessList(t, "test-access-list-2", clock,
+		withOwners([]accesslist.Owner{{Name: "test-owner-1"}}),
+		withOwnerRequires(accesslist.Requires{Roles: []string{"role1"}}),
+		withMemberRequires(accesslist.Requires{Roles: []string{"role2"}}),
+	)
+
+	_, err = service.UpsertAccessList(ctx, acl)
+	require.NoError(t, err)
+	item, err := service.GetAccessList(ctx, acl.GetName())
+	require.NoError(t, err)
+	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(), item.GetOwners()[0].IneligibleStatus)
+
+	_, err = service.UpsertAccessList(ctx, aclR)
+	require.NoError(t, err)
+	item2, err := service.GetAccessList(ctx, aclR.GetName())
+	require.NoError(t, err)
+	require.Empty(t, item2.GetOwners()[0].IneligibleStatus)
+
+	_, err = service.UpsertAccessListMember(ctx, newAccessListMember(t, acl.GetName(), "member1", withExpire(time.Time{})))
+	require.NoError(t, err)
+	m, err := service.GetAccessListMember(ctx, acl.GetName(), "member1")
+	require.NoError(t, err)
+	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(), m.Spec.IneligibleStatus)
+
+	_, err = service.UpsertAccessListMember(ctx, newAccessListMember(t, aclR.GetName(), "member1"))
+	require.NoError(t, err)
+	m, err = service.GetAccessListMember(ctx, aclR.GetName(), "member1")
+	require.NoError(t, err)
+	require.Empty(t, m.Spec.IneligibleStatus)
+
+	require.NoError(t, service.DeleteAllAccessLists(ctx))
+
+	_, _, err = service.UpsertAccessListWithMembers(ctx, acl, []*accesslist.AccessListMember{
+		newAccessListMember(t, acl.GetName(), "member1", withExpire(time.Time{})),
+		newAccessListMember(t, acl.GetName(), "member2", withExpire(time.Now().Add(time.Hour))),
+	})
+	require.NoError(t, err)
+	m1, err := service.GetAccessListMember(ctx, acl.GetName(), "member1")
+	require.NoError(t, err)
+	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(), m1.Spec.IneligibleStatus)
+
+	m2, err := service.GetAccessListMember(ctx, acl.GetName(), "member2")
+	require.NoError(t, err)
+	require.Empty(t, m2.Spec.IneligibleStatus)
+
+}
+
 type newAccessListOptions struct {
-	typ    accesslist.Type
-	owners []accesslist.Owner
+	typ            accesslist.Type
+	owners         []accesslist.Owner
+	ownerRequires  accesslist.Requires
+	memberRequires accesslist.Requires
 }
 
 type newAccessListOpt func(*newAccessListOptions)
@@ -1412,6 +1480,18 @@ func withType(typ accesslist.Type) newAccessListOpt {
 func withOwners(owners []accesslist.Owner) newAccessListOpt {
 	return func(o *newAccessListOptions) {
 		o.owners = owners
+	}
+}
+
+func withOwnerRequires(req accesslist.Requires) newAccessListOpt {
+	return func(o *newAccessListOptions) {
+		o.ownerRequires = req
+	}
+}
+
+func withMemberRequires(req accesslist.Requires) newAccessListOpt {
+	return func(o *newAccessListOptions) {
+		o.memberRequires = req
 	}
 }
 
@@ -1429,6 +1509,20 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...new
 				Description: "test user 2",
 			},
 		},
+		memberRequires: accesslist.Requires{
+			Roles: []string{"mrole1", "mrole2"},
+			Traits: map[string][]string{
+				"mtrait1": {"mvalue1", "mvalue2"},
+				"mtrait2": {"mvalue3", "mvalue4"},
+			},
+		},
+		ownerRequires: accesslist.Requires{
+			Roles: []string{"orole1", "orole2"},
+			Traits: map[string][]string{
+				"otrait1": {"ovalue1", "ovalue2"},
+				"otrait2": {"ovalue3", "ovalue4"},
+			},
+		},
 	}
 	for _, o := range opts {
 		o(&options)
@@ -1444,25 +1538,13 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...new
 			Name: name,
 		},
 		accesslist.Spec{
-			Type:        options.typ,
-			Title:       name + " title",
-			Description: "test access list",
-			Owners:      options.owners,
-			Audit:       audit,
-			MembershipRequires: accesslist.Requires{
-				Roles: []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			OwnershipRequires: accesslist.Requires{
-				Roles: []string{"orole1", "orole2"},
-				Traits: map[string][]string{
-					"otrait1": {"ovalue1", "ovalue2"},
-					"otrait2": {"ovalue3", "ovalue4"},
-				},
-			},
+			Type:               options.typ,
+			Title:              name + " title",
+			Description:        "test access list",
+			Owners:             options.owners,
+			Audit:              audit,
+			MembershipRequires: options.memberRequires,
+			OwnershipRequires:  options.ownerRequires,
 			Grants: accesslist.Grants{
 				Roles: []string{"grole1", "grole2"},
 				Traits: map[string][]string{
@@ -1488,6 +1570,7 @@ func createAccessList(t *testing.T, service *AccessListService, name string, clo
 
 type accessListMemberOptions struct {
 	membershipKind string
+	expires        time.Time
 }
 
 type accessListMemberOpt func(*accessListMemberOptions)
@@ -1498,10 +1581,18 @@ func withMembershipKind(membershipKind string) accessListMemberOpt {
 	}
 }
 
+func withExpire(t time.Time) accessListMemberOpt {
+	return func(o *accessListMemberOptions) {
+		o.expires = t
+	}
+}
+
 func newAccessListMember(t *testing.T, accessList, name string, opts ...accessListMemberOpt) *accesslist.AccessListMember {
 	t.Helper()
 
-	options := accessListMemberOptions{}
+	options := accessListMemberOptions{
+		expires: time.Now().Add(time.Hour * 24),
+	}
 	for _, o := range opts {
 		o(&options)
 	}
@@ -1514,7 +1605,7 @@ func newAccessListMember(t *testing.T, accessList, name string, opts ...accessLi
 			AccessList:     accessList,
 			Name:           name,
 			Joined:         time.Now(),
-			Expires:        time.Now().Add(time.Hour * 24),
+			Expires:        options.expires,
 			Reason:         "a reason",
 			AddedBy:        "dummy",
 			MembershipKind: options.membershipKind,

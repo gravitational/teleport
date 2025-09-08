@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/url"
 	"os"
@@ -63,6 +64,7 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -178,12 +180,13 @@ func (a *ServerWithRoles) identityCenterAction(namespace string, resource string
 
 // actionForListWithCondition extracts a restrictive filter condition to be
 // added to a list query after a simple resource check fails.
-func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resource, identifier string) (*types.WhereExpr, error) {
+func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resource, identifier string) (*utils.ToFieldsConditionConfig, error) {
 	origErr := a.authorizeAction(resource, types.VerbList)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return nil, trace.Wrap(origErr)
 	}
-	cond, err := a.context.Checker.ExtractConditionForIdentifier(&services.Context{User: a.context.User}, apidefaults.Namespace, resource, types.VerbList, identifier)
+	svcCtx := &services.Context{User: a.context.User}
+	cond, err := a.context.Checker.ExtractConditionForIdentifier(svcCtx, apidefaults.Namespace, resource, types.VerbList, identifier)
 	if trace.IsAccessDenied(err) {
 		a.authServer.logger.InfoContext(ctx, "Access to list resource denied",
 			"error", err,
@@ -192,7 +195,19 @@ func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resour
 		// Return the original AccessDenied to avoid leaking information.
 		return nil, trace.Wrap(origErr)
 	}
-	return cond, trace.Wrap(err)
+	return &utils.ToFieldsConditionConfig{
+		CanView: func(ef utils.Fields) bool {
+			au, err := events.FromEventFields(events.EventFields(ef))
+			if err != nil {
+				slog.WarnContext(ctx, "Failed to convert event fields", "error", err)
+				return false
+			}
+			canViewCtx := services.Context{User: a.context.User}
+			canViewCtx.ExtendWithSessionEnd(au, a.context.Checker)
+			return services.CanViewResourceFunc(&canViewCtx)()()
+		},
+		Expr: cond,
+	}, trace.Wrap(err)
 }
 
 // actionWithExtendedContext performs an additional RBAC check with extended
@@ -217,7 +232,18 @@ func (a *ServerWithRoles) actionWithExtendedContext(ctx context.Context, kind, v
 func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.ID) error {
 	extendContext := func(servicesCtx *services.Context) error {
 		sessionEnd, err := a.findSessionEndEvent(ctx, sid)
-		servicesCtx.Session = sessionEnd
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		servicesCtx.ExtendWithSessionEnd(sessionEnd, a.context.Checker)
+		return nil
+	}
+
+	// First try a simple check without the extended context.
+	if err := a.actionWithContext(&services.Context{User: a.context.User}, types.KindSession, types.VerbRead); err == nil {
+		return nil
+	} else if !trace.IsAccessDenied(err) {
+		// If the error is something other than AccessDenied, return it.
 		return trace.Wrap(err)
 	}
 
@@ -1295,12 +1321,17 @@ var (
 		types.KindNode:                   {},
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
+		types.KindMCP:                    {},
 	}
 
 	defaultUnifiedResourceKinds = slices.Collect(maps.Keys(supportedUnifiedResourceKinds))
 )
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
+	// MCP are apps internally atm.
+	if kind == types.KindMCP {
+		kind = types.KindApp
+	}
 	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
 		// Treat unknown kinds as an access denied error instead of a bad parameter
 		// to prevent rejecting the request if users have access to other kinds requested.
@@ -1317,7 +1348,6 @@ func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	default:
 		return trace.Wrap(a.checkAction(apidefaults.Namespace, kind, types.VerbList, types.VerbRead))
 	}
-
 }
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
@@ -4438,10 +4468,12 @@ func (a *ServerWithRoles) findSessionEndEvent(ctx context.Context, sid session.I
 		To:    a.authServer.clock.Now().UTC(),
 		Limit: defaults.EventsIterationLimit,
 		Order: types.EventOrderAscending,
-		Cond: &types.WhereExpr{Equals: types.WhereExpr2{
-			L: &types.WhereExpr{Field: events.SessionEventID},
-			R: &types.WhereExpr{Literal: sid.String()},
-		}},
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr: &types.WhereExpr{Equals: types.WhereExpr2{
+				L: &types.WhereExpr{Field: events.SessionEventID},
+				R: &types.WhereExpr{Literal: sid.String()},
+			}},
+		},
 		SessionID: sid.String(),
 	})
 	if err != nil {
@@ -4746,7 +4778,14 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
 	if slices.Contains(a.context.User.GetRoles(), name) {
-		return a.authServer.GetRole(ctx, name)
+		role, err := a.authServer.GetRole(ctx, name)
+		if err != nil && trace.IsNotFound(err) {
+			// Add the UserSessionRoleNotFoundErrorMsg message to indicate this role not found error was
+			// encountered while the user was looking up one of their own roles. At this point, the
+			// role not found error can only happen if a role in their session cert doesn't exist anymore.
+			return nil, trace.Wrap(err, services.UserSessionRoleNotFoundErrorMsg)
+		}
+		return role, trace.Wrap(err)
 	}
 
 	authErr := a.authorizeAction(types.KindRole, types.VerbRead)
@@ -6526,6 +6565,7 @@ func (a *ServerWithRoles) GetDatabase(ctx context.Context, name string) (types.D
 }
 
 // GetDatabases returns all database resources.
+// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Database, err error) {
 	if err := a.authorizeAction(types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -6541,6 +6581,42 @@ func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Data
 		}
 	}
 	return result, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	if err := a.authorizeAction(types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var next string
+	var seen int
+	out, err := iterstream.Collect(
+		iterstream.TakeWhile(
+			iterstream.FilterMap(
+				a.authServer.RangeDatabases(ctx, startKey, ""),
+				func(db types.Database) (types.Database, bool) {
+					if a.checkAccessToDatabase(db) == nil {
+						return db, true
+					}
+					return nil, false
+				},
+			),
+			func(db types.Database) bool {
+				if seen < limit {
+					seen++
+					return true
+				}
+				next = db.GetName()
+				return false
+			},
+		),
+	)
+	return out, next, trace.Wrap(err)
 }
 
 // DeleteDatabase removes the specified database resource.

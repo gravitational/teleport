@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
@@ -217,6 +218,9 @@ func TestWatcherDynamicResource(t *testing.T) {
 					return trace.BadParameter("bad db")
 				},
 				"db5": func(_ context.Context, db types.Database) error {
+					if db.GetURI() == "evil-llama.com" {
+						return trace.BadParameter("bad database URI")
+					}
 					// Validate AssumeRoleARN and ExternalID matches above
 					// services.ResourceMatcherAWS,
 					meta := db.GetAWS()
@@ -323,7 +327,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
 	})
 
-	t.Run("discovery resource - fail check", func(t *testing.T) {
+	t.Run("discovery resource - fail check on create", func(t *testing.T) {
 		// Created a discovery service created database resource that fails the
 		// fakeDiscoveryResourceChecker.
 		dbFailCheck, err := makeDiscoveryDatabase("db-fail-check", map[string]string{"group": "a"}, withRDSURL)
@@ -331,6 +335,15 @@ func TestWatcherDynamicResource(t *testing.T) {
 		require.NoError(t, testCtx.authServer.CreateDatabase(ctx, dbFailCheck))
 
 		// dbFailCheck should not be proxied.
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
+	})
+
+	t.Run("discovery resource - fail check on update", func(t *testing.T) {
+		badDB := db5.Copy()
+		badDB.SetURI("evil-llama.com")
+		err = testCtx.authServer.UpdateDatabase(ctx, badDB)
+		require.NoError(t, err)
+		// update is rejected for failed URI check.
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
 	})
 }
@@ -504,12 +517,17 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 }
 
 type fakeAWSClients struct {
+	ec2Client        db.EC2Client
 	ecClient         db.ElastiCacheClient
 	mdbClient        db.MemoryDBClient
 	openSearchClient db.OpenSearchClient
 	rdsClient        db.RDSClient
 	redshiftClient   db.RedshiftClient
 	rssClient        db.RSSClient
+}
+
+func (f fakeAWSClients) GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) db.EC2Client {
+	return f.ec2Client
 }
 
 func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {

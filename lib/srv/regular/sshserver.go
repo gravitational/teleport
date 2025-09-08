@@ -101,10 +101,10 @@ type Server struct {
 	// cloudLabels are the labels imported from a cloud provider.
 	cloudLabels labels.Importer
 
-	proxyMode        bool
-	proxyTun         reversetunnelclient.Tunnel
-	proxyAccessPoint authclient.ReadProxyAccessPoint
-	peerAddr         string
+	proxyMode          bool
+	proxyClusterGetter reversetunnelclient.ClusterGetter
+	proxyAccessPoint   authclient.ReadProxyAccessPoint
+	peerAddr           string
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
@@ -182,6 +182,9 @@ type Server struct {
 
 	// btmpPath is the path to the user accounting failed login log.
 	btmpPath string
+
+	// wtmpdbPath is the path to the wtmpdb database file.
+	wtmpdbPath string
 
 	// allowTCPForwarding indicates whether the ssh server is allowed to offer
 	// TCP port forwarding.
@@ -275,8 +278,8 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 }
 
 // GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp paths.
-func (s *Server) GetUserAccountingPaths() (string, string, string) {
-	return s.utmpPath, s.wtmpPath, s.btmpPath
+func (s *Server) GetUserAccountingPaths() (utmp string, wtmp string, btmp string, wtmpdb string) {
+	return s.utmpPath, s.wtmpPath, s.btmpPath, s.wtmpdbPath
 }
 
 // GetPAM returns the PAM configuration for this server.
@@ -440,11 +443,12 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 // SetUserAccountingPaths is a functional server option to override the user accounting database and log path.
-func SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath string) ServerOption {
+func SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath, wtmpdbPath string) ServerOption {
 	return func(s *Server) error {
 		s.utmpPath = utmpPath
 		s.wtmpPath = wtmpPath
 		s.btmpPath = btmpPath
+		s.wtmpdbPath = wtmpdbPath
 		return nil
 	}
 }
@@ -467,13 +471,13 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap authclient.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
+func SetProxyMode(peerAddr string, clusterGetter reversetunnelclient.ClusterGetter, ap authclient.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
 		// but proxy is still used without it.
 		s.proxyMode = true
-		s.proxyTun = tsrv
+		s.proxyClusterGetter = clusterGetter
 		s.proxyAccessPoint = ap
 		s.peerAddr = peerAddr
 		s.router = router
@@ -928,13 +932,13 @@ func (s *Server) getNamespace() string {
 	return types.ProcessNamespace(s.namespace)
 }
 
-func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelclient.Tunnel, error) {
+func (s *Server) clusterGetterWithAccessChecker(ctx *srv.ServerContext) (reversetunnelclient.ClusterGetter, error) {
 	clusterName, err := s.GetAccessPoint().GetClusterName(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.UnstableClusterAccessChecker, s.proxyAccessPoint), nil
+	return reversetunnelclient.NewClusterGetterWithRoles(s.proxyClusterGetter, clusterName.GetClusterName(), ctx.Identity.UnstableClusterAccessChecker, s.proxyAccessPoint), nil
 }
 
 // startAuthorizedKeysManager starts the authorized keys manager.

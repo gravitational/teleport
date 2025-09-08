@@ -115,3 +115,15 @@ type Stream interface {
 	// the stream completed and closes the stream instance
 	Close(ctx context.Context) error
 }
+
+const (
+	// EventProtocolsSSH specifies SSH as a type of captured protocol
+	EventProtocolSSH = "ssh"
+	// EventProtocolKube specifies kubernetes as a type of captured protocol
+	EventProtocolKube = "kube"
+	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
+	// as a type of captured protocol
+	EventProtocolTDP = "tdp"
+	// EventProtocolDB specifies database as a type of captured protocol
+	EventProtocolDB = "db"
+)

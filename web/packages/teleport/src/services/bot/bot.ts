@@ -141,25 +141,17 @@ export async function fetchRoles(
 }
 
 export async function editBot(
-  flags: FeatureFlags,
-  botName: string,
-  req: EditBotRequest
+  variables: { botName: string; req: EditBotRequest },
+  signal?: AbortSignal
 ) {
-  if (!flags.editBots) {
-    throw new Error('cannot edit bot: bots.edit permission required');
-  }
-  if (!flags.roles) {
-    throw new Error('cannot edit bot: roles.list permission required');
-  }
-
   // TODO(nicholasmarais1158) DELETE IN v20.0.0
-  const useV1 = canUseV1Edit(req);
+  const useV1 = canUseV1Edit(variables.req);
   const path = useV1
-    ? cfg.getBotUrl({ action: 'update', botName })
-    : cfg.getBotUrl({ action: 'update-v2', botName });
+    ? cfg.getBotUrl({ action: 'update', botName: variables.botName })
+    : cfg.getBotUrl({ action: 'update-v2', botName: variables.botName });
 
   try {
-    const res = await api.put(path, req);
+    const res = await api.put(path, variables.req, signal);
     return makeBot(res);
   } catch (err: unknown) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
@@ -167,12 +159,16 @@ export async function editBot(
   }
 }
 
-export function deleteBot(flags: FeatureFlags, name: string) {
-  if (!flags.removeBots) {
-    throw new Error('cannot delete bot: bots.remove permission required');
-  }
-
-  return api.delete(cfg.getBotUrl({ action: 'delete', botName: name }));
+export async function deleteBot(
+  variables: { botName: string },
+  signal?: AbortSignal
+) {
+  return api.deleteWithOptions(
+    cfg.getBotUrl({ action: 'delete', botName: variables.botName }),
+    {
+      signal,
+    }
+  );
 }
 
 export async function listBotInstances(
