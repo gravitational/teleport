@@ -29,12 +29,11 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	relaytunnelv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
-	relayv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
 )
 
-type unimplementedDiscoveryServiceServer = relayv1alpha.UnimplementedDiscoveryServiceServer
+type unimplementedDiscoveryServiceServer = relaytunnelv1alpha.UnimplementedDiscoveryServiceServer
 
-// StaticDiscoverServiceServer is a [relayv1alpha.DiscoveryServiceServer]
+// StaticDiscoverServiceServer is a [relaytunnelv1alpha.DiscoveryServiceServer]
 // implementation that responds with fixed data to the Discover rpc.
 type StaticDiscoverServiceServer struct {
 	_ struct{} // prevent unkeyed literals
@@ -44,11 +43,11 @@ type StaticDiscoverServiceServer struct {
 	TargetConnectionCount int32
 }
 
-var _ relayv1alpha.DiscoveryServiceServer = (*StaticDiscoverServiceServer)(nil)
+var _ relaytunnelv1alpha.DiscoveryServiceServer = (*StaticDiscoverServiceServer)(nil)
 
-// Discover implements [relayv1alpha.DiscoveryServiceServer].
-func (d *StaticDiscoverServiceServer) Discover(ctx context.Context, req *relayv1alpha.DiscoverRequest) (*relayv1alpha.DiscoverResponse, error) {
-	return &relayv1alpha.DiscoverResponse{
+// Discover implements [relaytunnelv1alpha.DiscoveryServiceServer].
+func (d *StaticDiscoverServiceServer) Discover(ctx context.Context, req *relaytunnelv1alpha.DiscoverRequest) (*relaytunnelv1alpha.DiscoverResponse, error) {
+	return &relaytunnelv1alpha.DiscoverResponse{
 		RelayGroup:            d.RelayGroup,
 		TargetConnectionCount: d.TargetConnectionCount,
 	}, nil
