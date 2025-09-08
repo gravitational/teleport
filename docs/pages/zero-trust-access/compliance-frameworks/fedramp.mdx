@@ -1,7 +1,7 @@
 ---
 title: FedRAMP Compliance for Infrastructure Access
 description: How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2.
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
@@ -294,4 +294,36 @@ TLS is restricted to TLS 1.2 only (1.3 is not supported).
 
 Note that `arm64` FIPS builds do not support access to Windows desktops.
 
+## Tradeoffs of using the Teleport FIPS binary
 
+Using Teleport's FIPS binary should not be considered a wholesale security improvement.
+It is designed to meet specific regulatory and compliance requirements (such as
+FedRAMP), not to increase security in general-purpose deployments.
+
+There are several tradeoffs when considering using Teleport FIPS builds in
+cases where it is not strictly required.
+
+### Restricted cipher suite selection
+
+The FIPS build only permits ciphers, key exchange mechanisms, and signature
+algorithms that are approved under the FIPS certification program. Due to the
+rigorous and lengthy certification process, FIPS-approved algorithms often lag
+behind the state of the art. As a result, the FIPS build lacks support for
+newer algorithms with improved performance or forward-looking security
+properties (e.g. ChaCha20-Poly1305, Ed25519).
+
+### Reduced performance
+
+Cryptographic operations may be up to 2× slower compared to the standard build.
+This can impact throughput for high-volume clusters.
+
+### Operational complexity
+
+Running the FIPS build can introduce additional maintenance burden, such as
+troubleshooting connection issues where peers expect different cipher support.
+
+### No security benefit without compliance need
+
+Outside of regulated environments, using the FIPS binary does not increase
+Teleport’s security posture. In fact, it may result in a net negative effect by
+limiting use of modern cryptographic algorithms.
