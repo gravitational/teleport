@@ -19,7 +19,7 @@
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, dialog, globalShortcut, nativeTheme, shell } from 'electron';
+import { app, dialog, nativeTheme, shell } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 import { ensureError } from 'shared/utils/error';
@@ -123,7 +123,6 @@ async function initializeApp(): Promise<void> {
       }
     };
 
-    globalShortcut.unregisterAll();
     await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
     app.exit();
   });
