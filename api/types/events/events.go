@@ -1596,13 +1596,15 @@ func (m *DesktopSharedDirectoryStart) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out := utils.CloneProtoMsg(m)
 	out.DirectoryName = ""
+	out.DesktopName = ""
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
-	customFieldsCount := nonEmptyStrs(m.DirectoryName)
+	customFieldsCount := nonEmptyStrs(m.DirectoryName, m.DesktopName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.DirectoryName = trimStr(m.DirectoryName, maxFieldsSize)
+	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
 
 	return out
 }
