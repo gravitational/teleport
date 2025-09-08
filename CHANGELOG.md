@@ -1,5 +1,36 @@
 # Changelog
 
+## 17.7.3 (09/02/25)
+
+* Aa namespace can now be specified for the `tbot` Kubernetes Secret destination. [#58553](https://github.com/gravitational/teleport/pull/58553)
+* Fixed nested access list hierarchy propagation in case of `tctl` using UpsertAccessList API call. [#58550](https://github.com/gravitational/teleport/pull/58550)
+* Added support for setting `"*"` in role `kubernetes_users`. [#58478](https://github.com/gravitational/teleport/pull/58478)
+* Reduced audit log clutter by compacting contiguous shared directory read/write events into a single audit log event. [#58445](https://github.com/gravitational/teleport/pull/58445)
+* Fixed an issue where VNet could not start because of "VNet is already running" error. [#58389](https://github.com/gravitational/teleport/pull/58389)
+* Fixed incorrect scp exit status between OpenSSH clients and servers. [#58328](https://github.com/gravitational/teleport/pull/58328)
+* Fixed sftp readdir failing due to broken symlinks. [#58321](https://github.com/gravitational/teleport/pull/58321)
+* The following Helm charts now support obtaining the plugin credentials using `tbot`: `teleport-plugin-discord`, `teleport-plugin-email`, `teleport-plugin-jira`, `teleport-plugin-mattermost`, `teleport-plugin-msteams`, `teleport-plugin-pagerduty`, `teleport-plugin-event-handler`. [#58300](https://github.com/gravitational/teleport/pull/58300)
+* Enabled separate request_object_mode setting for MFA flow in OIDC connectors. [#58280](https://github.com/gravitational/teleport/pull/58280)
+* Teleport Connect now supports managed updates. [#58261](https://github.com/gravitational/teleport/pull/58261)
+* Teleport Connect now brings focus back from the browser to itself after a successful SSO login. [#58261](https://github.com/gravitational/teleport/pull/58261)
+* Fixed failure to close user accounting session. [#58164](https://github.com/gravitational/teleport/pull/58164)
+* Fixed an uncaught exception in Teleport Connect on Windows when closing the app while the `TELEPORT_TOOLS_VERSION` environment variable is set. [#58132](https://github.com/gravitational/teleport/pull/58132)
+* Fixed a Teleport Connect crash that occurred when assuming an access request while an application or database connection was active. [#58110](https://github.com/gravitational/teleport/pull/58110)
+* Added paginated API ListDatabases, deprecate GetDatabases. [#58104](https://github.com/gravitational/teleport/pull/58104)
+* Fixed modifier keys getting stuck during remote desktop sessions. [#58102](https://github.com/gravitational/teleport/pull/58102)
+* Enable Azure joining with VMSS. [#58093](https://github.com/gravitational/teleport/pull/58093)
+* Windows desktop LDAP discovery now auto-populates the resource's description field. [#58081](https://github.com/gravitational/teleport/pull/58081)
+* TBot now emits a log message stating the current version on startup. [#58057](https://github.com/gravitational/teleport/pull/58057)
+* Added experimental bound keypair joining method, disabled by default behind a flag. [#57961](https://github.com/gravitational/teleport/pull/57961)
+* Updated Go to 1.24.6. [#57860](https://github.com/gravitational/teleport/pull/57860)
+* Added new `oidc` joining mode for Kubernetes delegated joining to support providers that can be configured to provide public OIDC endpoints, like EKS, AKS, and GKE. [#57800](https://github.com/gravitational/teleport/pull/57800)
+* Newly enrolled Kubernetes agents in will now use Managed Updates by default. [#57783](https://github.com/gravitational/teleport/pull/57783)
+
+Enterprise:
+* For OIDC SSO, the IdP app/client configured for MFA checks is no longer expected to return claims that map to Teleport roles. Valid claim to role mappings are only required for login flows. 
+* Fixed SSO MFA method for applications when Teleport is the SAML identity provider and Per-Session MFA is enabled.
+* Fix: Handle disabling okta-requester role assignment.
+
 ## 17.7.2 (08/18/25)
 
 * Fixed an issue that could cause some hosts not to register dynamic Windows desktops. [#58062](https://github.com/gravitational/teleport/pull/58062)

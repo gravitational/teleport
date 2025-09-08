@@ -1,7 +1,7 @@
 ---
 title: Manual Entra ID integration configuration
 description: Describes how to manually set up Entra ID for Teleport Entra ID integration.
-labels:
+tags:
  - how-to
  - identity-governance
 ---
@@ -11,10 +11,11 @@ See [getting started with Entra ID integration](getting-started.mdx) for a guide
 
 The set up is based on the [OIDC IdP authentication method](entra-id.mdx#choosing-the-microsoft-graph-api-authentication-method).
 
+{/* lint ignore page-structure remark-lint */}
+
 ## Prerequisites
 
-- Teleport Identity Governance enabled for your Teleport cluster. Optionally, Identity Security should
-also be enabled if you choose to enable Identity Security integration.
+- Teleport Identity Governance enabled for your Teleport cluster.
 - Your user must have privileged administrator permissions in the Microsoft Entra ID tenant.
 
 ## Step 1/5. Create enterprise application
@@ -90,7 +91,8 @@ $ tctl plugins install entraid \
     --name entra-id-default \
     --auth-connector-name entra-id \
     --default-owner=<Var name="Access List Owner"/> \
-    –-manual-setup
+    --no-access-graph \
+    --manual-setup
 ```
 
 The `--name` flag specifies the resource name of the Entra ID plugin. 
@@ -106,7 +108,7 @@ After you enter these values, Entra ID plugin will be installed with the OIDC Id
 
 ## Next steps
 
-- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/azuread.mdx). 
+- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/entra-id.mdx). 
 - Learn more about [Access List](../access-lists/access-lists.mdx) management.
 - Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
 - See [FAQs](faq.mdx) related to the Teleport Entra ID integration. 

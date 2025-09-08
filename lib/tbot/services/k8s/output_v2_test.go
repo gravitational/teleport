@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -129,18 +130,23 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 		selectors            []*KubernetesSelector
 		expectError          require.ErrorAssertionFunc
 		expectedClusterNames []string
+		wantNamespaces       map[string]string
 	}{
 		{
 			name: "matches by name",
 			selectors: []*KubernetesSelector{
 				{
-					Name: "a",
+					Name:             "a",
+					DefaultNamespace: "a selector",
 				},
 				{
 					Name: "c",
 				},
 			},
 			expectedClusterNames: []string{"a", "c"},
+			wantNamespaces: map[string]string{
+				"a": "a selector",
+			},
 		},
 		{
 			name: "errors when direct lookup fails",
@@ -160,9 +166,14 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 					Labels: map[string]string{
 						"foo": "1",
 					},
+					DefaultNamespace: "my-namespace",
 				},
 			},
 			expectedClusterNames: []string{"b", "c"},
+			wantNamespaces: map[string]string{
+				"b": "my-namespace",
+				"c": "my-namespace",
+			},
 		},
 		{
 			name: "matches with complex label selector",
@@ -175,6 +186,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 				},
 			},
 			expectedClusterNames: []string{"c"},
+			wantNamespaces:       map[string]string{},
 		},
 		{
 			name: "matches with multiple selectors",
@@ -183,6 +195,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 					Labels: map[string]string{
 						"foo": "1",
 					},
+					DefaultNamespace: "bar",
 				},
 				{
 					Labels: map[string]string{
@@ -194,6 +207,10 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 				},
 			},
 			expectedClusterNames: []string{"a", "b", "c", "d"},
+			wantNamespaces: map[string]string{
+				"b": "bar",
+				"c": "bar",
+			},
 		},
 	}
 
@@ -207,15 +224,21 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 
 				var names []string
 				for _, match := range matches {
-					names = append(names, match.GetName())
+					names = append(names, match.cluster.GetName())
 				}
 
 				// `generate()` dedupes downstream, so we'll replicate that
 				// here, otherwise we might see duplicates if some label
 				// selectors overlap.
 				names = apiutils.Deduplicate(names)
-
-				require.ElementsMatch(t, tt.expectedClusterNames, names)
+				assert.ElementsMatch(t, tt.expectedClusterNames, names)
+				namespaces := make(map[string]string)
+				for _, match := range matches {
+					if match.selector.DefaultNamespace != "" {
+						namespaces[match.cluster.GetName()] = match.selector.DefaultNamespace
+					}
+				}
+				assert.Equal(t, tt.wantNamespaces, namespaces)
 			}
 		})
 	}
@@ -282,10 +305,13 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 			require.NoError(t, err)
 			status := &kubernetesStatusV2{
 				kubernetesClusterNames: []string{"a", "b", "c"},
-				teleportClusterName:    mockClusterName,
-				tlsServerName:          client.GetKubeTLSServerName(mockClusterName),
-				credentials:            keyRing,
-				clusterAddr:            fmt.Sprintf("https://%s:443", mockClusterName),
+				defaultNamespaces: map[string]string{
+					"a": "namespace-a",
+				},
+				teleportClusterName: mockClusterName,
+				tlsServerName:       client.GetKubeTLSServerName(mockClusterName),
+				credentials:         keyRing,
+				clusterAddr:         fmt.Sprintf("https://%s:443", mockClusterName),
 			}
 
 			err = svc.render(
