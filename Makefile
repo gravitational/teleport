@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.1.8
+VERSION=18.2.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -1619,7 +1619,7 @@ GODERIVE := $(TOOLINGDIR)/bin/goderive
 .PHONY: derive
 derive:
 	cd $(TOOLINGDIR) && go build -o $(GODERIVE) ./cmd/goderive/main.go
-	$(GODERIVE) ./api/types ./api/types/discoveryconfig
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate
 
 # derive-up-to-date checks if the generated derived functions are up to date.
 .PHONY: derive-up-to-date

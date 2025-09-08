@@ -119,6 +119,10 @@ windows_desktop_service:
   # (optional) interval at which to run desktop discovery
   discovery_interval: 10m
 
+  # (optional) interval at which to publish CRLs
+  # Defaults to 5m if unspecified
+  publish_crl_interval: 10m
+
   # (optional) configure a set of label selectors for dynamic registration.
   # If specified, this service will monitor the cluster for dynamic_windows_desktop
   # and automatically proxy connections for desktops with matching labels.

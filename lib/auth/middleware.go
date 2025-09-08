@@ -690,6 +690,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 			return nil, trace.AccessDenied("access denied: invalid client certificate")
 		}
 		identity.TeleportCluster = certClusterName
+		identity.OriginClusterName = certClusterName
 	}
 	// If there is any restriction on the certificate usage
 	// reject the API server request. This is done so some classes

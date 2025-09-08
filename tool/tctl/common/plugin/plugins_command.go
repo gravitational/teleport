@@ -60,7 +60,8 @@ type pluginEditArgs struct {
 
 type scimArgs struct {
 	cmd           *kingpin.CmdClause
-	samlConnector string
+	connector     string
+	connectorType string
 	auth          string
 }
 

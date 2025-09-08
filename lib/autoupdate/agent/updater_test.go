@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -1420,6 +1421,7 @@ func TestUpdater_Install(t *testing.T) {
 		notPresent bool
 		notEnabled bool
 		notActive  bool
+		restrictOS []string
 
 		removedRevision   Revision
 		installedRevision Revision
@@ -1713,6 +1715,7 @@ func TestUpdater_Install(t *testing.T) {
 			setupCalls:        1,
 			selinuxInstalls:   1,
 			restarted:         true,
+			restrictOS:        []string{"linux"},
 		},
 		{
 			name: "install selinux from user",
@@ -1740,11 +1743,15 @@ func TestUpdater_Install(t *testing.T) {
 			setupCalls:        1,
 			selinuxInstalls:   1,
 			restarted:         true,
+			restrictOS:        []string{"linux"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.restrictOS) > 0 && !slices.Contains(tt.restrictOS, runtime.GOOS) {
+				t.Skip("skipping test because OS is not supported")
+			}
 			dir := t.TempDir()
 			ns := &Namespace{
 				installDir:       dir,
