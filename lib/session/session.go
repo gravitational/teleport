@@ -170,6 +170,8 @@ type Party struct {
 	RemoteAddr string `json:"remote_addr"`
 	// User is a teleport user using this session
 	User string `json:"user"`
+	// Cluster is the cluster name the user is authenticated against.
+	Cluster string `json:"cluster"`
 	// ServerID is an address of the server
 	ServerID string `json:"server_id"`
 	// LastActive is a last time this party was active

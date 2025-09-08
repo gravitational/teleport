@@ -343,7 +343,8 @@ func (c *ConnectionsHandler) createTracker(sess *sessionChunk, identity *tlsca.I
 		ClusterName: identity.RouteToApp.ClusterName,
 		Login:       identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
-			User: identity.Username,
+			User:    identity.Username,
+			Cluster: identity.OriginClusterName,
 		}},
 		HostUser:     identity.Username,
 		Created:      c.cfg.Clock.Now(),

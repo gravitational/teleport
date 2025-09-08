@@ -1444,7 +1444,8 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		ClusterName:  sessionCtx.ClusterName,
 		Login:        sessionCtx.Identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
-			User: sessionCtx.Identity.Username,
+			User:    sessionCtx.Identity.Username,
+			Cluster: sessionCtx.Identity.OriginClusterName,
 		}},
 		HostUser: sessionCtx.Identity.Username,
 		Created:  s.cfg.Clock.Now(),
