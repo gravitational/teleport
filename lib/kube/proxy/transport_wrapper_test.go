@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
 )
@@ -39,7 +40,7 @@ import (
 func TestTransportWrapperWithGOAWAY(t *testing.T) {
 	backend := httptest.NewUnstartedServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// trigger connection close on /goaway.
+			// Trigger connection close on /goaway.
 			if r.RequestURI == "/goaway" {
 				w.Header().Set("Connection", "close")
 			}
@@ -82,12 +83,12 @@ func TestTransportWrapperWithGOAWAY(t *testing.T) {
 	tr := &http.Transport{
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     tlsConfig,
-		MaxIdleConnsPerHost: -1, // disable pooling for test.
+		MaxIdleConnsPerHost: -1, // Disable pooling for test.
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return dialFn(network, addr, tlsConfig)
 		},
 	}
-	
+
 	if err := http2.ConfigureTransport(tr); err != nil {
 		t.Fatalf("failed to configure transport: %s", err)
 	}
@@ -100,17 +101,17 @@ func TestTransportWrapperWithGOAWAY(t *testing.T) {
 		Transport: wrapper,
 	}
 
-	// hammer it with requests.
-	wg := &sync.WaitGroup{}
+	// Hammer it with requests.
+	var wg sync.WaitGroup
 	wg.Add(10)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < 5; j++ {
+			for range 5 {
 				// hit both normal and goaway endpoints.
 				for _, path := range []string{"/", "/goaway"} {
 					body := []byte("test payload")
-					req, err := http.NewRequestWithContext(context.Background(), 
+					req, err := http.NewRequestWithContext(context.Background(),
 						http.MethodPost, backend.URL+path, bytes.NewReader(body))
 					if err != nil {
 						t.Errorf("failed to create request: %s", err)
@@ -122,16 +123,16 @@ func TestTransportWrapperWithGOAWAY(t *testing.T) {
 						t.Errorf("request failed: %s", err)
 						return
 					}
-					
+
 					got, err := io.ReadAll(res.Body)
 					res.Body.Close()
 					if err != nil {
 						t.Errorf("failed to read response: %s", err)
 						return
 					}
-					
-					require.Equal(t, http.StatusOK, res.StatusCode)
-					require.Equal(t, body, got)
+
+					assert.Equal(t, http.StatusOK, res.StatusCode)
+					assert.Equal(t, body, got)
 				}
 			}
 		}()
@@ -144,18 +145,18 @@ func TestTransportWrapperWithGOAWAY(t *testing.T) {
 
 func TestTransportWrapperGetBody(t *testing.T) {
 	cases := []struct {
-		name      string
-		body      []byte
+		name        string
+		body        []byte
 		wantGetBody bool
 	}{
 		{
-			name:      "with body",
-			body:      []byte("some data here"),
+			name:        "with body",
+			body:        []byte("some data here"),
 			wantGetBody: true,
 		},
 		{
-			name:      "nil body",
-			body:      nil,
+			name:        "nil body",
+			body:        nil,
 			wantGetBody: false,
 		},
 	}
@@ -206,7 +207,8 @@ func TestTransportWrapperGetBody(t *testing.T) {
 }
 
 func TestTransportWrapperStreamingSkipped(t *testing.T) {
-	// these shouldn't get retryable treatment.
+	// Exec, attach and portforward are HTTP1 so Kube shouldn't return any GOAWAY error.
+	// Watch and logs can however, but as we need to buffer the body to allow for retries, there is nothing we can do.
 	paths := []string{
 		"/api/v1/namespaces/default/pods/mypod/exec",
 		"/api/v1/namespaces/default/pods/mypod/attach",
@@ -232,7 +234,7 @@ func TestTransportWrapperStreamingSkipped(t *testing.T) {
 				RoundTripper: transport,
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "http://test.local"+p, 
+			req, err := http.NewRequest(http.MethodPost, "http://test.local"+p,
 				io.NopCloser(bytes.NewReader([]byte("body"))))
 			require.NoError(t, err)
 			req.ContentLength = 4

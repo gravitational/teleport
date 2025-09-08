@@ -100,29 +100,31 @@ func (t *transportWrapper) makeRetryable(req *http.Request) error {
 
 // isStreamingRequest checks if this is a streaming request that shouldn't be made retryable
 func (*transportWrapper) isStreamingRequest(req *http.Request) bool {
-	// Check for Kubernetes exec/attach/port-forward
+	// Check for Kubernetes exec/attach/port-forward.
+	// NOTE: Exec, Attach and PortForward are HTTP1 at the moment.
 	if strings.Contains(req.URL.Path, "/exec") ||
 		strings.Contains(req.URL.Path, "/attach") ||
 		strings.Contains(req.URL.Path, "/portforward") {
 		return true
 	}
 
-	// Check for log streaming
+	// Check for log streaming / watch operation. Those can be HTTP/2 and susceptible to the GOAWAY issue,
+	// however, as they are long-running, the only way to recover would be to dump the body to disc,
+	// resulting in concerns about infinitely growing file, and privacy/security as we deal with unencrypted
+	// traffic and we don't want to store that somewher, even if it is a tmpfs.
 	if strings.Contains(req.URL.Path, "/log") && req.URL.Query().Get("follow") == "true" {
 		return true
 	}
-
-	// Check for watch operations
 	if req.URL.Query().Get("watch") == "true" {
 		return true
 	}
 
-	// Check for SPDY upgrade
+	// Check for SPDY upgrade. Those are supposed to be HTTP1 only.
 	if req.Header.Get("X-Stream-Protocol-Version") != "" {
 		return true
 	}
 
-	// Check for WebSocket upgrade
+	// Check for WebSocket upgrade. Those are supposed to be HTTP1 only.
 	if req.Header.Get("Upgrade") == "websocket" || req.Header.Get("Connection") == "Upgrade" {
 		return true
 	}
