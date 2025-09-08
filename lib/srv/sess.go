@@ -1235,13 +1235,27 @@ func (s *session) emitSessionEndEvent() {
 	}
 
 	for _, p := range s.participants {
-		sessionEndEvent.Participants = append(sessionEndEvent.Participants, p.user)
+		username := services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              p.user,
+				OriginClusterName: p.originCluster,
+				LocalClusterName:  ctx.ClusterName,
+			},
+		)
+		sessionEndEvent.Participants = append(sessionEndEvent.Participants, username)
 	}
 
 	// If there are 0 participants, this is an exec session.
 	// Use the user from the session context.
 	if len(s.participants) == 0 {
-		sessionEndEvent.Participants = []string{s.scx.Identity.TeleportUser}
+		username := services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              s.scx.Identity.TeleportUser,
+				OriginClusterName: s.scx.Identity.OriginClusterName,
+				LocalClusterName:  ctx.ClusterName,
+			},
+		)
+		sessionEndEvent.Participants = []string{username}
 	}
 
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionEndEvent)
