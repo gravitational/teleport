@@ -74,7 +74,6 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .default(defaultTerminalFont)
       .describe('Font family for the terminal.'),
     'terminal.fontSize': z
-      .number()
       .int()
       .min(1)
       .max(256)

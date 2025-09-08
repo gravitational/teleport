@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { z, ZodIssue } from 'zod';
+import { z } from 'zod';
+import { $ZodIssue } from 'zod/v4/core';
 
 import Logger from 'teleterm/logger';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
@@ -37,7 +38,7 @@ export type FileLoadingError = {
 
 export type ValidationError = {
   source: 'validation';
-  errors: ZodIssue[];
+  errors: $ZodIssue[];
 };
 
 export type ConfigError = FileLoadingError | ValidationError;
@@ -142,7 +143,7 @@ function validateStoredConfig(
 ): {
   storedConfig: Partial<AppConfig>;
   configWithDefaults: AppConfig;
-  errors: ZodIssue[] | undefined;
+  errors: $ZodIssue[] | undefined;
 } {
   const parse = (data: Partial<AppConfig>) => schema.safeParse(data);
 
