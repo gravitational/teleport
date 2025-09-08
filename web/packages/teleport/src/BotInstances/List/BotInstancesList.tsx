@@ -108,7 +108,7 @@ export function BotInstancesList({
             <Cell>
               <Flex inline alignItems={'center'} gap={1} mr={0}>
                 <MonoText>{instanceIdDisplay}</MonoText>
-                <CopyButton name={instance_id} />
+                <CopyButton value={instance_id} />
               </Flex>
             </Cell>
           ),

@@ -241,7 +241,7 @@ export function BotDetails() {
                     overflow={'hidden'}
                   >
                     <MonoText>{data.name}</MonoText>
-                    <CopyButton name={data.name} />
+                    <CopyButton value={data.name} />
                   </Flex>
                   <GridLabel>Max session duration</GridLabel>
                   {data.max_session_ttl

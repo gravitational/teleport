@@ -358,7 +358,7 @@ const NameCell = ({ token }: { token: JoinToken }) => {
             visibility: ${hovered ? 'visible' : 'hidden'};
           `}
         >
-          <CopyButton name={id} />
+          <CopyButton value={id} />
         </Box>
       </Flex>
     </Cell>

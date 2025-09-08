@@ -237,7 +237,7 @@ export function ResourceCard({
                   <Text typography="body1">{name}</Text>
                 </HoverTooltip>
               </SingleLineBox>
-              {hovered && <CopyButton name={name} mr={2} />}
+              {hovered && <CopyButton value={name} mr={2} />}
               <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
                 {ActionButton}
               </ResourceActionButtonWrapper>

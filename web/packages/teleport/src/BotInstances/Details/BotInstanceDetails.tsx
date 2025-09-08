@@ -86,7 +86,7 @@ export function BotInstanceDetails(props: {
                 <MonoText>
                   {data.bot_instance.spec.instance_id.substring(0, 7)}
                 </MonoText>
-                <CopyButton name={data.bot_instance.spec.instance_id} />
+                <CopyButton value={data.bot_instance.spec.instance_id} />
               </Flex>
             </InstanceId>
           ) : undefined}

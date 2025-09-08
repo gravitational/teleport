@@ -24,12 +24,15 @@ import { Check, Copy } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 
+/**
+ * Renders a button that copies the provided value to clipboard when clicked.
+ */
 export function CopyButton({
-  name,
+  value,
   mr,
   ml,
 }: {
-  name: string;
+  value: string;
   mr?: number;
   ml?: number;
 }) {
@@ -51,7 +54,7 @@ export function CopyButton({
 
     clearCurrentTimeout();
     setCopiedText(copySuccess);
-    copyToClipboard(name);
+    copyToClipboard(value);
     // Change to default text after 1 second
     timeout.current = setTimeout(() => {
       setCopiedText(copyDefault);

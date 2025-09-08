@@ -165,7 +165,7 @@ export function ResourceListItem({
               align-self: start;
             `}
           >
-            {hovered && <CopyButton name={name} ml={1} />}
+            {hovered && <CopyButton value={name} ml={1} />}
           </Box>
         </Flex>
 
