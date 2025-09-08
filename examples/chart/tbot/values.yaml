@@ -18,7 +18,7 @@ fullnameOverride: ""
 # Connecting to the Proxy Service is the most common and recommended way to connect to Teleport.
 # This is mandatory to connect to Teleport Enterprise (Cloud)
 #
-# This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+# This setting is mutually exclusive with teleportProxyAddress and is ignored if `tbotConfig` is set.
 #
 # For example:
 # ```yaml
@@ -31,7 +31,7 @@ teleportProxyAddress: ""
 # Helm release and have direct access to the Auth Service.
 # Else, you should prefer connecting via the Proxy Service.
 #
-# This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+# This setting is mutually exclusive with teleportProxyAddress and is ignored if `tbotConfig` is set.
 #
 # For example:
 # ```yaml
@@ -40,10 +40,51 @@ teleportProxyAddress: ""
 teleportAuthAddress: ""
 
 # defaultOutput -- controls the default output configured for the tbot agent.
-# Ignored if `customConfig` is set.
+# Ignored if `tbotConfig` is set.
 defaultOutput:
   # defaultOutput.enabled(bool) -- controls whether the default output is enabled.
   enabled: true
+
+# argocd -- configures tbot to synchronize Teleport-managed Kubernetes clusters
+# to Argo CD.
+# Ignored if `tbotConfig` is set.
+argocd:
+  # argocd.enabled(bool) -- controls whether the Argo CD output is enabled.
+  enabled: false
+  # argocd.clusterSelectors(list) -- determines which Kubernetes clusters will
+  # be synchronized to Argo CD.
+  #
+  # For example:
+  # ```yaml
+  # clusterSelectors:
+  #   - name: my-cluster-1
+  #   - labels:
+  #     environment: production
+  # ```
+  clusterSelectors: []
+  # argocd.secretNamespace(string) -- determines to which Kubernetes namespace
+  # cluster secrets will be written (it must be the namespace in which Argo CD
+  # is running). Defaults to the current namespace.
+  secretNamespace: ""
+  # argocd.secretNamePrefix(string) -- overrides the string that cluster secret
+  # names will be prefixed with. Defaults to "teleport.argocd-cluster".
+  secretNamePrefix: ""
+  # argocd.secretLabels(object) -- provides a set of labels that will be applied
+  # to cluster secrets.
+  secretLabels: {}
+  # argocd.secretAnnotations(object) -- provides a set of annotations that will
+  # be applied to cluster secrets.
+  secretAnnotations: {}
+  # argocd.project(string) -- sets the Argo CD project with which the Kubernetes
+  # clusters will be associated.
+  project: ""
+  # argocd.namespaces(list) -- controls which Kubernetes namespaces the Argo CD
+  # clusters will be allowed to operate on.
+  namespaces: []
+  # argocd.clusterResources(bool) -- determines whether the Argo CD cluster is
+  # allowed to operate on cluster-scoped resources (only when `argocd.namespaces`
+  # is non-empty).
+  clusterResources: false
 
 # persistence -- controls how the tbot agent stores its data.
 #
@@ -61,22 +102,22 @@ tbotConfig: {}
 
 # outputs(list) -- contains additional outputs to configure for the tbot agent.
 # These should be in the same format as the `outputs` field in the tbot.yaml.
-# Ignored if `customConfig` is set.
+# Ignored if `tbotConfig` is set.
 outputs: []
 
 # services(list) -- contains additional services to configure for the tbot agent.
 # These should be in the same format as the `services` field in the tbot.yaml.
-# Ignored if `customConfig` is set.
+# Ignored if `tbotConfig` is set.
 services: []
 
 # joinMethod(string) -- describes how tbot joins the Teleport cluster.
 # See [the join method reference](../../reference/join-methods.mdx) for a list fo supported values and detailed explanations.
-# Ignored if `customConfig` is set.
+# Ignored if `tbotConfig` is set.
 joinMethod: "kubernetes"
 
 # token(string) -- is the name of the token used by tbot to join the Teleport cluster.
 # This value is not sensitive unless the `joinMethod` is set to `"token"`.
-# Ignored if `customConfig` is set.
+# Ignored if `tbotConfig` is set.
 token: ""
 
 # teleportVersionOverride(string) -- controls the tbot image version deployed by
