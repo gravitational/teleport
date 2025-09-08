@@ -29,8 +29,8 @@ import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
 import { Indicator } from 'design/Indicator/Indicator';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import TextEditor from 'shared/components/TextEditor/TextEditor';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import {
   FeatureBox,

@@ -27,7 +27,7 @@ import { HoverTooltip } from 'design/Tooltip';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 
-import { CopyButton } from '../shared/CopyButton';
+import { CopyButton } from '../../CopyButton/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
