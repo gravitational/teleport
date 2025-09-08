@@ -13,10 +13,9 @@ CGOFLAG ?= CGO_ENABLED=0
 
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
 
+EXEEXT = 
 ifeq ($(OS),windows)
-  EXEEXT := .exe
-else
-  EXEEXT :=
+  EXEEXT = .exe
 endif
 
 # The name of the built binary inside $(BUILDDIR)
