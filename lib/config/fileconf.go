@@ -606,6 +606,7 @@ type Global struct {
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
+	RelayServer string `yaml:"relay_server,omitempty"`
 
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
