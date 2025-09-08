@@ -63,6 +63,12 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .describe(
         'Skips the version check and hides the version compatibility warning when logging in to a cluster.'
       ),
+    runInBackground: z
+      .boolean()
+      .default(settings.platform === 'darwin' || settings.platform === 'win32')
+      .describe(
+        'Keeps the app running in the menu bar/system tray even when the main window is closed. On Linux, displaying the system tray icon may require installing shell extensions.'
+      ),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
