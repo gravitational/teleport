@@ -1119,13 +1119,16 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// `host_uuid` from local data directory.
 	// If no host id is available, it will generate a new host id and persist it to available storages.
 	// If we fail with an already exists failure, retry.
-	if err := store.ReadOrGenerateHostID(supervisor.ExitContext(), cfg); err != nil {
+	hostID, err := store.ReadOrGenerateHostID(supervisor.ExitContext(), cfg)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if _, err := uuid.Parse(cfg.HostUUID); err != nil && !aws.IsEC2NodeID(cfg.HostUUID) {
-		cfg.Logger.WarnContext(supervisor.ExitContext(), "Host UUID is not a true UUID (not eligible for UUID-based proxying)", "host_uuid", cfg.HostUUID)
+	if _, err := uuid.Parse(hostID); err != nil && !aws.IsEC2NodeID(hostID) {
+		cfg.Logger.WarnContext(supervisor.ExitContext(), "Host UUID is not a true UUID (not eligible for UUID-based proxying)", "host_uuid", hostID)
 	}
+
+	// TODO(nklaassen): remove Process.Config.HostUUID
+	cfg.HostUUID = hostID
 
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -1295,7 +1298,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
 
 	getHello := func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
-		hostID, err := process.waitForHostID(ctx)
+		hostID, err := process.WaitForHostID(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err, "waiting for host ID")
 		}
@@ -1768,10 +1771,10 @@ func (process *TeleportProcess) waitForInstanceConnector(ctx context.Context) *C
 	}
 }
 
-// waitForHostID returns the local host UUID. If there is a local auth service,
+// WaitForHostID returns the local host UUID. If there is a local auth service,
 // it returns immediately, otherwise it waits for the instance connector to
 // become available.
-func (process *TeleportProcess) waitForHostID(ctx context.Context) (string, error) {
+func (process *TeleportProcess) WaitForHostID(ctx context.Context) (string, error) {
 	if auth := process.getLocalAuth(); auth != nil {
 		return auth.ServerID, nil
 	}
@@ -2651,7 +2654,7 @@ func (process *TeleportProcess) initAuthService() error {
 				Version: types.V2,
 				Metadata: types.Metadata{
 					Namespace: apidefaults.Namespace,
-					Name:      process.Config.HostUUID,
+					Name:      connector.HostUUID(),
 				},
 				Spec: types.ServerSpecV2{
 					Addr:     authAddr,
@@ -2720,7 +2723,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Emitter:     authServer,
 		AccessPoint: authServer.Services,
 		Clock:       process.Clock,
-		HostID:      cfg.HostUUID,
+		HostID:      connector.HostUUID(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3989,7 +3992,7 @@ func (process *TeleportProcess) initTracingService() error {
 
 	go func() {
 		var delayedResourceAttrs []attribute.KeyValue
-		hostUUID, err := process.waitForHostID(process.GracefulExitContext())
+		hostUUID, err := process.WaitForHostID(process.GracefulExitContext())
 		if err != nil {
 			logger.WarnContext(process.ExitContext(), "Failed to get host UUID, traces may be exported without host UUID attribute", "error", err)
 		} else {
@@ -4968,7 +4971,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Component:      teleport.ComponentProxy,
 		Logger:         process.logger.With(teleport.ComponentKey, "sessionctrl"),
 		TracerProvider: process.TracingProvider,
-		ServerID:       cfg.HostUUID,
+		ServerID:       conn.HostUUID(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5321,7 +5324,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		"",
 		process.proxyPublicAddr(),
 		conn.Client,
-		regular.SetUUID(cfg.HostUUID),
+		regular.SetUUID(conn.HostUUID()),
 		regular.SetLimiter(proxyLimiter),
 		regular.SetProxyMode(peerAddrString, tsrv, accessPoint, proxyRouter),
 		regular.SetCiphers(cfg.Ciphers),
@@ -5421,7 +5424,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:    accessPoint,
 		LockWatcher:    lockWatcher,
 		Clock:          process.Clock,
-		ServerID:       cfg.HostUUID,
+		ServerID:       conn.HostUUID(),
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
 		Logger:         process.logger,
@@ -6345,6 +6348,10 @@ func (process *TeleportProcess) initApps() {
 				MCP:                   app.MCP,
 			})
 			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := services.ValidateApp(a, accessPoint); err != nil {
 				return trace.Wrap(err)
 			}
 
