@@ -993,7 +993,8 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	s.log.DebugContext(s.forwarder.ctx, "Tracking participant", "participant_id", p.ID)
 	participant := &types.Participant{
 		ID:         p.ID.String(),
-		User:       p.Ctx.User.GetName(),
+		User:       p.Ctx.Identity.GetIdentity().Username,
+		Cluster:    p.Ctx.Identity.GetIdentity().OriginClusterName,
 		Mode:       string(p.Mode),
 		LastActive: time.Now().UTC(),
 	}
