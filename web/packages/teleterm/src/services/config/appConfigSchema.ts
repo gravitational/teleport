@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { en } from 'zod/locales';
 
 import { Platform, RuntimeSettings } from 'teleterm/mainProcess/types';
 
@@ -338,6 +339,10 @@ function getDefaultTerminalFont(platform: Platform) {
 function getShortcutDesc(actionDesc: string): string {
   return `Shortcut to ${actionDesc}. A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab". Function keys do not require a modifier.`;
 }
+
+// Explicitly load the English locale to avoid being tree-shaken by Vite
+// https://github.com/colinhacks/zod/issues/4891
+z.config(en());
 
 z.config({
   customError: iss => {
