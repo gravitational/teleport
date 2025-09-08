@@ -149,6 +149,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	peerquic "github.com/gravitational/teleport/lib/proxy/peer/quic"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -3211,6 +3212,7 @@ func (process *TeleportProcess) initSSH() error {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id))
 
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
+	relayInfoHolder := new(relaytunnel.InfoHolder)
 
 	process.RegisterCriticalFunc("ssh.node", func() error {
 		// restartingOnGracefulShutdown will be set to true before the function
@@ -3369,6 +3371,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 			regular.SetAllowFileCopying(cfg.SSH.AllowFileCopying),
 			regular.SetConnectedProxyGetter(proxyGetter),
+			regular.SetRelayInfoGetter(relayInfoHolder.GetRelayInfo),
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
@@ -3495,6 +3498,15 @@ func (process *TeleportProcess) initSSH() error {
 				return trace.Wrap(err)
 			}
 			logger.InfoContext(process.ExitContext(), "Service is starting in tunnel mode.")
+		}
+		if !conn.UseTunnel() && cfg.RelayServer != "" {
+			logger.WarnContext(process.ExitContext(), "Service is configured for relay tunnel mode but the agent is running in direct connection mode, so the configured relay will be ignored.")
+		}
+		if conn.UseTunnel() && cfg.RelayServer != "" {
+			// TODO(espadolini): replace this with the relay tunnel client
+			// implementation, which will make use of SetRelayInfo
+			_ = relayInfoHolder.SetRelayInfo
+			panic("relay tunnel mode is not implemented")
 		}
 
 		// Broadcast that the node has started.
