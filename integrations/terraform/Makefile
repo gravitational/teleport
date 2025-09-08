@@ -19,7 +19,7 @@ ifeq ($(OS),windows)
 endif
 
 # The name of the built binary inside $(BUILDDIR)
-BINARY_NAME := terraform-provider-teleport$(EXEEXT)
+BINARY_NAME = terraform-provider-teleport$(EXEEXT)
 
 # Full release filename for Windows
 WINDOWS_RELEASE := terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)$(EXEEXT)
