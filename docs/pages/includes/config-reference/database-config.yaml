@@ -180,6 +180,12 @@ db_service:
       project_id: "xxx-1234"
       # Cloud SQL instance ID.
       instance_id: "example"
+      # AlloyDB-specific configuration.
+      alloydb:
+        # Endpoint type. Valid types: "private" (default), "public", "PSC".
+        endpoint_type: "private"
+        # Endpoint override. IP address or hostname to be used instead of automatically resolved endpoint.
+        endpoint_override: "11.22.33.44"
 
     # Settings specific to Active Directory authentication e.g. for SQL Server.
     ad:

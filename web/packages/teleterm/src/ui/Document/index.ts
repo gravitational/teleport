@@ -19,3 +19,4 @@
 import Document from './Document';
 
 export default Document;
+export { ForegroundSession } from './Document';

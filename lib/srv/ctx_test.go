@@ -31,6 +31,7 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -148,6 +149,11 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Impersonator:   "llama",
 				Login:          "alpaca1",
 				ActiveRequests: []string{"access-req1", "access-req2"},
+				MappedRoles:    []string{"role1", "role2"},
+				Traits: wrappers.Traits{
+					"trait1": []string{"value1", "value2"},
+					"trait2": []string{"value3"},
+				},
 			},
 			want: apievents.UserMetadata{
 				User:           "alpaca",
@@ -155,6 +161,11 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Impersonator:   "llama",
 				AccessRequests: []string{"access-req1", "access-req2"},
 				UserKind:       apievents.UserKind_USER_KIND_HUMAN,
+				UserRoles:      []string{"role1", "role2"},
+				UserTraits: wrappers.Traits{
+					"trait1": []string{"value1", "value2"},
+					"trait2": []string{"value3"},
+				},
 			},
 		},
 		{
