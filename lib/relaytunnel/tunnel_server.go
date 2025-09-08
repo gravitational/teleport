@@ -90,12 +90,12 @@ func (s *serverTransportCredentials) ServerHandshake(rawConn net.Conn) (net.Conn
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cert, err := (*Server)(s).getCertificate(ctx)
+	cert, err := s.getCertificate(ctx)
 	if err != nil {
 		_ = rawConn.Close()
 		return nil, nil, trace.Wrap(err)
 	}
-	pool, err := (*Server)(s).getPool(ctx)
+	pool, err := s.getPool(ctx)
 	if err != nil {
 		_ = rawConn.Close()
 		return nil, nil, trace.Wrap(err)
@@ -134,7 +134,7 @@ func (s *serverTransportCredentials) ServerHandshake(rawConn net.Conn) (net.Conn
 		InsecureSkipVerify: false,
 
 		MinVersion:             tls.VersionTLS12,
-		CipherSuites:           (*Server)(s).ciphersuites,
+		CipherSuites:           s.ciphersuites,
 		SessionTicketsDisabled: true,
 	}
 
