@@ -19,15 +19,14 @@ package join
 import (
 	"cmp"
 	"context"
-	"encoding/pem"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -169,7 +168,10 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
 	}
 
-	var certs *proto.Certs
+	var (
+		certs  *proto.Certs
+		hostID *string
+	)
 	if types.SystemRole(clientInit.SystemRole) == types.RoleBot {
 		params, err := joincerts.MakeBotCertsParams(diag, authCtx, clientInit)
 		if err != nil {
@@ -184,6 +186,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		hostID = &params.HostID
 		certs, err = s.cfg.AuthService.GenerateHostCertsForJoin(ctx, provisionToken, params)
 		if err != nil {
 			return trace.Wrap(err)
@@ -192,7 +195,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 
 	// Convert the result from GenerateCertsForJoin to a Result message and
 	// send it back to the client.
-	result, err := joincerts.MakeResultMessage(certs)
+	result, err := joincerts.MakeResultMessage(certs, hostID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -225,9 +228,10 @@ func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientIn
 			IsForwardedByProxy: true,
 		}, nil
 	}
+
 	id := authCtx.Identity.GetIdentity()
 
-	isInstance := authz.HasBuiltinRole(*authCtx, types.RoleInstance.String())
+	isInstance := slices.Equal(id.Groups, []string{types.RoleInstance.String()})
 	var systemRoles types.SystemRoles
 	if isInstance {
 		systemRoles, err = types.NewTeleportRoles(id.SystemRoles)
@@ -247,7 +251,7 @@ func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientIn
 	}
 
 	return &joinauthz.Context{
-		IsInstance:    authz.HasBuiltinRole(*authCtx, types.RoleInstance.String()),
+		IsInstance:    isInstance,
 		IsBot:         id.IsBot(),
 		SystemRoles:   systemRoles,
 		HostID:        hostID,
