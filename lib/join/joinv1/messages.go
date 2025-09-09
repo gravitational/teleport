@@ -21,7 +21,7 @@ import (
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
-	"github.com/gravitational/teleport/lib/join/messages"
+	"github.com/gravitational/teleport/lib/join/internal/messages"
 )
 
 func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
@@ -51,8 +51,10 @@ func clientInitToMessage(req *joinv1.ClientInit) *messages.ClientInit {
 		}
 	}
 	if botParams := req.BotParams; botParams != nil {
-		msg.BotParams = &messages.BotParams{
-			Expires: botParams.Expires.AsTime(),
+		msg.BotParams = &messages.BotParams{}
+		if botParams.Expires != nil {
+			expires := botParams.Expires.AsTime()
+			msg.BotParams.Expires = &expires
 		}
 	}
 	if proxySuppliedParams := req.GetProxySuppliedParameters(); proxySuppliedParams != nil {
@@ -94,8 +96,9 @@ func clientInitFromMessage(msg *messages.ClientInit) *joinv1.ClientInit {
 		}
 	}
 	if botParams := msg.BotParams; botParams != nil {
-		req.BotParams = &joinv1.ClientInit_BotParams{
-			Expires: timestamppb.New(botParams.Expires),
+		req.BotParams = &joinv1.ClientInit_BotParams{}
+		if botParams.Expires != nil {
+			req.BotParams.Expires = timestamppb.New(*botParams.Expires)
 		}
 	}
 	if proxySuppliedParams := msg.ProxySuppliedParams; proxySuppliedParams != nil {

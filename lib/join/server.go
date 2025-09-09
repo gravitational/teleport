@@ -19,8 +19,6 @@ package join
 import (
 	"cmp"
 	"context"
-	"crypto"
-	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"log/slog"
@@ -28,21 +26,21 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/join/diagnostic"
-	"github.com/gravitational/teleport/lib/join/messages"
-	"github.com/gravitational/teleport/lib/utils/hostid"
+	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
+	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
+	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/joincerts"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -52,8 +50,8 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, "join")
 // JoinServer to implement joining.
 type AuthService interface {
 	ValidateToken(ctx context.Context, tokenName string) (types.ProvisionToken, error)
-	GenerateHostCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *HostCertsParams) (*proto.Certs, error)
-	GenerateBotCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *BotCertsParams) (*proto.Certs, string, error)
+	GenerateHostCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *joincerts.HostCertsParams) (*proto.Certs, error)
+	GenerateBotCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *joincerts.BotCertsParams) (*proto.Certs, string, error)
 	EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error
 }
 
@@ -61,17 +59,20 @@ type AuthService interface {
 type ServerConfig struct {
 	AuthService AuthService
 	Authorizer  authz.Authorizer
+	Clock       clockwork.Clock
 }
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
-	cfg *ServerConfig
+	cfg   *ServerConfig
+	clock clockwork.Clock
 }
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
-		cfg: cfg,
+		cfg:   cfg,
+		clock: cmp.Or(cfg.Clock, clockwork.NewRealClock()),
 	}
 }
 
@@ -128,10 +129,10 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	}
 	// Set any diagnostic info we can get from the authenticated identity.
 	diag.Set(func(i *diagnostic.Info) {
-		i.HostID = authCtx.hostID
-		i.SystemRoles = authCtx.systemRoles.StringSlice()
-		i.BotInstanceID = authCtx.botInstanceID
-		i.BotGeneration = authCtx.botGeneration
+		i.HostID = authCtx.HostID
+		i.SystemRoles = authCtx.SystemRoles.StringSlice()
+		i.BotInstanceID = authCtx.BotInstanceID
+		i.BotGeneration = authCtx.BotGeneration
 	})
 
 	// Fetch the provision token and validate that it is not expired.
@@ -170,7 +171,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 
 	var certs *proto.Certs
 	if types.SystemRole(clientInit.SystemRole) == types.RoleBot {
-		params, err := makeBotCertsParams(diag, authCtx, clientInit)
+		params, err := joincerts.MakeBotCertsParams(diag, authCtx, clientInit)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -179,7 +180,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 			return trace.Wrap(err)
 		}
 	} else {
-		params, err := makeHostCertsParams(ctx, diag, authCtx, clientInit, joinMethod)
+		params, err := joincerts.MakeHostCertsParams(ctx, diag, authCtx, clientInit, joinMethod)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -191,24 +192,14 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 
 	// Convert the result from GenerateCertsForJoin to a Result message and
 	// send it back to the client.
-	result, err := makeResultMessage(certs)
+	result, err := joincerts.MakeResultMessage(certs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(stream.Send(result))
 }
 
-type authContext struct {
-	isForwardedByProxy bool
-	isInstance         bool
-	isBot              bool
-	systemRoles        types.SystemRoles
-	hostID             string
-	botGeneration      uint64
-	botInstanceID      string
-}
-
-func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientInit) (*authContext, error) {
+func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientInit) (*joinauthz.Context, error) {
 	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err, "unexpected error authorizing request")
@@ -216,8 +207,8 @@ func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientIn
 	if trace.IsAccessDenied(err) || authCtx == nil {
 		// No authentication or AccessDenied is okay, this is not normally an
 		// authenticated endpoint unless the client is re-joining or the
-		// request was forwarded by a proxy, just return an empty authContext.
-		return &authContext{}, nil
+		// request was forwarded by a proxy, just return an empty Context.
+		return &joinauthz.Context{}, nil
 	}
 	isProxy := authz.HasBuiltinRole(*authCtx, types.RoleProxy.String())
 	if !isProxy && clientInit.ProxySuppliedParams != nil {
@@ -230,8 +221,8 @@ func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientIn
 		// Must ignore any authentication if the request was forwarded by a
 		// proxy to avoid forgery of a host ID or system role via the proxy
 		// credentials.
-		return &authContext{
-			isForwardedByProxy: true,
+		return &joinauthz.Context{
+			IsForwardedByProxy: true,
 		}, nil
 	}
 	id := authCtx.Identity.GetIdentity()
@@ -255,13 +246,13 @@ func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientIn
 		hostID = strings.SplitN(id.Username, ".", 2)[0]
 	}
 
-	return &authContext{
-		isInstance:    authz.HasBuiltinRole(*authCtx, types.RoleInstance.String()),
-		isBot:         id.IsBot(),
-		systemRoles:   systemRoles,
-		hostID:        hostID,
-		botInstanceID: botInstanceID,
-		botGeneration: botGeneration,
+	return &joinauthz.Context{
+		IsInstance:    authz.HasBuiltinRole(*authCtx, types.RoleInstance.String()),
+		IsBot:         id.IsBot(),
+		SystemRoles:   systemRoles,
+		HostID:        hostID,
+		BotInstanceID: botInstanceID,
+		BotGeneration: botGeneration,
 	}, nil
 }
 
@@ -277,209 +268,6 @@ func checkJoinMethod(provisionToken types.ProvisionToken, requestedJoinMethod *s
 			*requestedJoinMethod, tokenJoinMethod)
 	}
 	return tokenJoinMethod, nil
-}
-
-// GenerateCertsForJoinRequest is a request to generate host or bot
-// certificates as the result of the cluster join process.
-type GenerateCertsForJoinRequest struct {
-	// HostID is the unique ID of the host.
-	HostID string
-	// NodeName is a user-friendly host name.
-	NodeName string
-	// Role is the main system role requested, e.g. Instance, Node, Proxy, etc.
-	Role types.SystemRole
-	// AuthenticatedSystemRoles is a set of system roles that the Instance
-	// identity currently re-joining has authenticated.
-	AuthenticatedSystemRoles types.SystemRoles
-	// PublicTLSKey is the requested TLS public key in PEM-encoded PKIX DER format.
-	PublicTLSKey []byte
-	// PublicSSHKey is the requested SSH public key in SSH authorized keys format.
-	PublicSSHKey []byte
-	// AdditionalPrincipals is a list of additional principals
-	// to include in OpenSSH and X509 certificates
-	AdditionalPrincipals []string
-	// DNSNames is a list of DNS names to include in x509 certificates.
-	DNSNames []string
-	// BotInstanceID is a trusted instance identifier for a Machine ID bot,
-	// provided to Auth by the Join Service when bots rejoin via a client
-	// certificate extension.
-	BotInstanceID string
-	// PreviousBotInstanceID is a trusted previous instance identifier for a
-	// Machine ID bot.
-	PreviousBotInstanceID string
-	// BotGeneration is a trusted generation counter value for Machine ID bots,
-	// provided to Auth by the Join Service when bots rejoin via a client
-	// certificate extension.
-	BotGeneration int32
-	// Expires is a desired time of the expiry of user certificates. This only
-	// applies to bot joining, and will be ignored by node joining.
-	Expires *time.Time
-	// RemoteAddr is the remote address of the host requesting a host certificate.
-	RemoteAddr string
-	// RawJoinClaims are raw claims asserted by specific join methods.
-	RawJoinClaims any
-	// Attrs is a collection of attributes that result from the join process.
-	Attrs *workloadidentityv1pb.JoinAttrs
-}
-
-type HostCertsParams struct {
-	// HostID is the unique ID of the host.
-	HostID string
-	// HostName is a user-friendly host name.
-	HostName string
-	// SystemRole is the main system role requested, e.g. Instance, Node, Proxy, etc.
-	SystemRole types.SystemRole
-	// AuthenticatedSystemRoles is a set of system roles that the Instance
-	// identity currently re-joining has authenticated.
-	AuthenticatedSystemRoles types.SystemRoles
-	// PublicTLSKey is the requested TLS public key in PEM-encoded PKIX DER format.
-	PublicTLSKey []byte
-	// PublicSSHKey is the requested SSH public key in SSH authorized keys format.
-	PublicSSHKey []byte
-	// AdditionalPrincipals is a list of additional principals
-	// to include in OpenSSH and X509 certificates
-	AdditionalPrincipals []string
-	// DNSNames is a list of DNS names to include in x509 certificates.
-	DNSNames []string
-	// RemoteAddr is the remote address of the host requesting a host certificate.
-	RemoteAddr string
-	// RawJoinClaims are raw claims asserted by specific join methods.
-	RawJoinClaims any
-}
-
-func makeHostCertsParams(
-	ctx context.Context,
-	diag *diagnostic.Diagnostic,
-	authCtx *authContext,
-	clientInit *messages.ClientInit,
-	joinMethod types.JoinMethod,
-) (*HostCertsParams, error) {
-	// GenerateHostCertsForJoin requires the TLS key to be PEM-encoded.
-	tlsPub, err := x509.ParsePKIXPublicKey(clientInit.PublicTLSKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsPubPEM, err := keys.MarshalPublicKey(crypto.PublicKey(tlsPub))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// GenerateHostCertsForJoin requires the SSH key to be in authorized keys format.
-	sshPub, err := ssh.ParsePublicKey(clientInit.PublicSSHKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshAuthorizedKey := ssh.MarshalAuthorizedKey(sshPub)
-
-	params := &HostCertsParams{
-		SystemRole:   types.SystemRole(clientInit.SystemRole),
-		PublicTLSKey: tlsPubPEM,
-		PublicSSHKey: sshAuthorizedKey,
-	}
-
-	if hostParams := clientInit.HostParams; hostParams != nil {
-		params.HostName = hostParams.HostName
-		params.AdditionalPrincipals = hostParams.AdditionalPrincipals
-		params.DNSNames = hostParams.DNSNames
-	}
-
-	if authCtx.isInstance {
-		// Only authenticated Instance certs are allowed to re-join and
-		// maintain their existing host ID and authenticate additional system
-		// roles.
-		params.HostID = authCtx.hostID
-		params.AuthenticatedSystemRoles = authCtx.systemRoles
-	} else {
-		// Generate a new host ID to assign to the client.
-		hostID, err := hostid.Generate(ctx, joinMethod)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		params.HostID = hostID
-	}
-
-	// Trust the remote address as forwarded by the proxy, or else use the one
-	// we get from the connection context.
-	if authCtx.isForwardedByProxy && clientInit.ProxySuppliedParams != nil {
-		params.RemoteAddr = clientInit.ProxySuppliedParams.RemoteAddr
-	} else {
-		// This gets set on the diagnostic by the gRPC layer.
-		params.RemoteAddr = diag.Get().RemoteAddr
-	}
-
-	return params, nil
-}
-
-type BotCertsParams struct {
-	// PublicTLSKey is the requested TLS public key in PEM-encoded PKIX DER format.
-	PublicTLSKey []byte
-	// PublicSSHKey is the requested SSH public key in SSH authorized keys format.
-	PublicSSHKey []byte
-	// BotInstanceID is a trusted instance identifier for a Machine ID bot,
-	// provided to Auth by the Join Service when bots rejoin via a client
-	// certificate extension.
-	BotInstanceID string
-	// PreviousBotInstanceID is a trusted previous instance identifier for a
-	// Machine ID bot.
-	PreviousBotInstanceID string
-	// BotGeneration is a trusted generation counter value for Machine ID bots,
-	// provided to Auth by the Join Service when bots rejoin via a client
-	// certificate extension.
-	BotGeneration int32
-	// Expires is a desired time of the expiry of user certificates. This only
-	// applies to bot joining, and will be ignored by node joining.
-	Expires *time.Time
-	// RemoteAddr is the remote address of the host requesting a host certificate.
-	RemoteAddr string
-	// RawJoinClaims are raw claims asserted by specific join methods.
-	RawJoinClaims any
-	// Attrs is a collection of attributes that result from the join process.
-	Attrs *workloadidentityv1pb.JoinAttrs
-}
-
-func makeBotCertsParams(
-	diag *diagnostic.Diagnostic,
-	authCtx *authContext,
-	clientInit *messages.ClientInit,
-) (*BotCertsParams, error) {
-	// GenerateBotCertsForJoin requires the TLS key to be PEM-encoded.
-	tlsPub, err := x509.ParsePKIXPublicKey(clientInit.PublicTLSKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsPubPEM, err := keys.MarshalPublicKey(crypto.PublicKey(tlsPub))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// GenerateBotCertsForJoin requires the SSH key to be in authorized keys format.
-	sshPub, err := ssh.ParsePublicKey(clientInit.PublicSSHKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshAuthorizedKey := ssh.MarshalAuthorizedKey(sshPub)
-
-	params := &BotCertsParams{
-		PublicTLSKey: tlsPubPEM,
-		PublicSSHKey: sshAuthorizedKey,
-	}
-
-	if botParams := clientInit.BotParams; botParams != nil {
-		params.BotGeneration = int32(authCtx.botGeneration)
-		params.BotInstanceID = authCtx.botInstanceID
-		params.Expires = &botParams.Expires
-	}
-
-	// Trust the remote address as forwarded by the proxy, or else use the one
-	// we get from the connection context.
-	if authCtx.isForwardedByProxy && clientInit.ProxySuppliedParams != nil {
-		params.RemoteAddr = clientInit.ProxySuppliedParams.RemoteAddr
-	} else {
-		// This gets set on the diagnostic by the gRPC layer.
-		params.RemoteAddr = diag.Get().RemoteAddr
-	}
-
-	return params, nil
 }
 
 // ProvisionTokenAllowsRole asserts that the given provision token allows the
@@ -559,63 +347,4 @@ func makeAuditEvent(d *diagnostic.Diagnostic) apievents.AuditEvent {
 		Role:         info.Role,
 		NodeName:     info.NodeName,
 	}
-}
-
-func makeResultMessage(certs *proto.Certs) (*messages.Result, error) {
-	sshCert, err := rawSSHCert(certs.SSH)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// certs.SSHCACerts is a misnomer, SSH CAs are just public keys, not certificates.
-	sshCAKeys, err := rawSSHPublicKeys(certs.SSHCACerts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &messages.Result{
-		TLSCert:    rawTLSCert(certs.TLS),
-		TLSCACerts: rawTLSCerts(certs.TLSCACerts),
-		SSHCert:    sshCert,
-		SSHCAKeys:  sshCAKeys,
-	}, nil
-}
-
-// rawTLSCerts converts a slice of PEM-encoded TLS certificates to the raw ASN.1
-// DER form as required by [messages.Result].
-func rawTLSCerts(pemBytes [][]byte) [][]byte {
-	out := make([][]byte, len(pemBytes))
-	for i, bytes := range pemBytes {
-		out[i] = rawTLSCert(bytes)
-	}
-	return out
-}
-
-// rawTLSCert converts a PEM-encoded TLS certificate to the raw ASN.1 DER form
-// as required by [messages.Result].
-func rawTLSCert(pemBytes []byte) []byte {
-	pemBlock, _ := pem.Decode(pemBytes)
-	return pemBlock.Bytes
-}
-
-// rawSSHCert converts an SSH certificate or public key in SSH authorized_keys
-// format to the SSH wire format as required by [messages.Result].
-func rawSSHCert(authorizedKey []byte) ([]byte, error) {
-	pub, _, _, _, err := ssh.ParseAuthorizedKey(authorizedKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return pub.Marshal(), nil
-}
-
-// rawSSHPublicKeys converts a slices of SSH public keys in SSH authorized_keys
-// format to the SSH wire format as required by [messages.Result].
-func rawSSHPublicKeys(authorizedKeys [][]byte) ([][]byte, error) {
-	out := make([][]byte, len(authorizedKeys))
-	for i, authorizedKey := range authorizedKeys {
-		var err error
-		out[i], err = rawSSHCert(authorizedKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return out, nil
 }

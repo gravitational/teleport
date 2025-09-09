@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/joincerts"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -312,8 +313,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	return certs, trace.Wrap(err)
 }
 
-func makeHostCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any) *join.HostCertsParams {
-	return &join.HostCertsParams{
+func makeHostCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any) *joincerts.HostCertsParams {
+	return &joincerts.HostCertsParams{
 		HostID:               req.HostID,
 		HostName:             req.NodeName,
 		SystemRole:           req.Role,
@@ -326,8 +327,8 @@ func makeHostCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any) *j
 	}
 }
 
-func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, attrs *workloadidentityv1pb.JoinAttrs) *join.BotCertsParams {
-	return &join.BotCertsParams{
+func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, attrs *workloadidentityv1pb.JoinAttrs) *joincerts.BotCertsParams {
+	return &joincerts.BotCertsParams{
 		PublicTLSKey:  req.PublicTLSKey,
 		PublicSSHKey:  req.PublicSSHKey,
 		BotInstanceID: req.BotInstanceID,
@@ -344,7 +345,7 @@ func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, att
 func (a *Server) GenerateBotCertsForJoin(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
-	params *join.BotCertsParams,
+	params *joincerts.BotCertsParams,
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
@@ -477,7 +478,7 @@ func (a *Server) GenerateBotCertsForJoin(
 func (a *Server) GenerateHostCertsForJoin(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
-	params *join.HostCertsParams,
+	params *joincerts.HostCertsParams,
 ) (*proto.Certs, error) {
 	// instance certs include an additional field that specifies the list of
 	// all services authorized by the token.

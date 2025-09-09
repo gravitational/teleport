@@ -28,8 +28,8 @@ import (
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/lib/join"
-	"github.com/gravitational/teleport/lib/join/diagnostic"
-	"github.com/gravitational/teleport/lib/join/messages"
+	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
+	"github.com/gravitational/teleport/lib/join/internal/messages"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
