@@ -156,7 +156,7 @@ type Server interface {
 	GetClock() clockwork.Clock
 
 	// GetInfo returns a services.Server that represents this server.
-	// In the case of the Proxy forwarder, this will is the node target.
+	// In the case of the Proxy forwarder, this is the node target.
 	GetInfo() types.Server
 
 	// UseTunnel used to determine if this node has connected to this cluster
