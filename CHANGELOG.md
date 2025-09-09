@@ -14,7 +14,7 @@
 
 Enterprise:
 * Updated AWS Identity Center plugin to honor Role and Access Request locks.
-* Updated AWS Identity Center plugin to not provision users when Teleport is not acting as a SAML IdP for AWS
+* Updated AWS Identity Center plugin to not provision users when Teleport is not acting as a SAML IdP for AWS.
 
 ## 17.7.3 (09/02/25)
 
