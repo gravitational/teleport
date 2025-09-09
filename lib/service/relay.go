@@ -18,17 +18,27 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"log/slog"
 	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	relaytunnelv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	multiplexergrpc "github.com/gravitational/teleport/lib/multiplexer/grpc"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/srv"
 )
 
@@ -60,8 +70,50 @@ func (process *TeleportProcess) runRelayService() error {
 		return err
 	}
 
-	// TODO(espadolini): use the access point
-	_ = accessPoint
+	tunnelServer, err := relaytunnel.NewServer(relaytunnel.ServerConfig{
+		GetCertificate: func(ctx context.Context) (*tls.Certificate, error) {
+			return conn.serverGetCertificate()
+		},
+		GetPool: func(ctx context.Context) (*x509.CertPool, error) {
+			pool, _, err := authclient.ClientCertPool(ctx, accessPoint, conn.clusterName, apitypes.HostCA)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return pool, nil
+		},
+		Ciphersuites: process.Config.CipherSuites,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tunnelCreds := tunnelServer.GRPCServerCredentials()
+	if process.Config.Relay.TunnelPROXYProtocol {
+		tunnelCreds = multiplexergrpc.PPV2ServerCredentials{TransportCredentials: tunnelCreds}
+	}
+	tunnelGRPCServer := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ChainUnaryInterceptor(
+			interceptors.GRPCServerUnaryErrorInterceptor,
+		),
+		grpc.ChainStreamInterceptor(
+			interceptors.GRPCServerStreamErrorInterceptor,
+		),
+		grpc.Creds(tunnelCreds),
+	)
+	defer tunnelGRPCServer.Stop()
+
+	relaytunnelv1alpha.RegisterDiscoveryServiceServer(tunnelGRPCServer, &relaytunnel.StaticDiscoverServiceServer{
+		RelayGroup:            process.Config.Relay.RelayGroup,
+		TargetConnectionCount: process.Config.Relay.TargetConnectionCount,
+	})
+
+	tunnelListener, err := process.importOrCreateListener(ListenerRelayTunnel, process.Config.Relay.TunnelListenAddr.String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer tunnelListener.Close()
+	go tunnelGRPCServer.Serve(tunnelListener)
 
 	nonce := uuid.NewString()
 	var relayServer atomic.Pointer[presencev1.RelayServer]
@@ -126,6 +178,15 @@ func (process *TeleportProcess) runRelayService() error {
 	} else {
 		log.InfoContext(ctx, "Stopping the relay service")
 	}
+
+	log.DebugContext(ctx, "Stopping servers")
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		defer context.AfterFunc(egCtx, tunnelGRPCServer.Stop)()
+		tunnelGRPCServer.GracefulStop()
+		return nil
+	})
+	warnOnErr(egCtx, eg.Wait(), log)
 
 	warnOnErr(ctx, hb.Close(), log)
 	warnOnErr(ctx, conn.Close(), log)
