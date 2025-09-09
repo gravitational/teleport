@@ -154,6 +154,14 @@ create-tbot-resources:
 	sed "s/@@STATIC_JWKS@@/$${STATIC_JWKS}/g" helm/fixtures/tbot.yaml > tbot.rendered.yaml
 	kubectl --namespace teleport exec -i deploy/teleport-auth -- tctl create -f < tbot.rendered.yaml
 
+
+
+.PHONY: create-tbot-resources-aks
+create-tbot-resources-aks:
+	STATIC_JWKS=$$(kubectl get --raw /openid/v1/jwks); \
+	sed "s/@@STATIC_JWKS@@/$${STATIC_JWKS}/g" helm/fixtures/tbot.yaml > tbot.rendered.yaml
+	kubectl --namespace teleport exec -i deploy/teleport-auth -- tctl create -f < tbot.rendered.yaml
+
 .PHONY: deploy-app-service
 deploy-app-service: COUNT ?= 1
 deploy-app-service:

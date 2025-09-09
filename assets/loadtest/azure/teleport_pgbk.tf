@@ -21,7 +21,7 @@ resource "azurerm_postgresql_flexible_server" "pgbk" {
   }
 
   high_availability {
-    mode = "ZoneRedundant"
+    mode = "SameZone"
   }
 
   lifecycle {

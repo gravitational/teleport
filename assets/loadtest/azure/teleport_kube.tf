@@ -13,7 +13,7 @@ resource "helm_release" "teleport" {
   name = local.teleport_release
 
   chart      = "teleport-cluster"
-  repository = "https://charts.releases.development.teleport.dev"
+  repository = "https://charts.releases.teleport.dev"
   version    = var.teleport_version
 
   namespace = kubernetes_namespace_v1.teleport.metadata.0.name
@@ -35,8 +35,8 @@ resource "helm_release" "teleport" {
       "level"  = "DEBUG"
     }
     "extraArgs"       = ["--debug"]
-    "image"           = "public.ecr.aws/gravitational-staging/teleport-distroless-debug"
-    "enterpriseImage" = "public.ecr.aws/gravitational-staging/teleport-ent-distroless-debug"
+    "image"           = "public.ecr.aws/gravitational/teleport-distroless-debug"
+    "enterpriseImage" = "public.ecr.aws/gravitational/teleport-ent-distroless-debug"
 
     "proxyListenerMode" = "multiplex"
 

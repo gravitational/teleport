@@ -2,9 +2,10 @@
 # cpus in our quota, ymmv in other locations
 # https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview#azure-regions
 # https://portal.azure.com/#view/Microsoft_Azure_Capacity/QuotaMenuBlade/~/myQuotas
-# location = "northeurope" # ireland
-## location = "eastus" # virginia
-location = "westus2" # california
+location = "northeurope" # ireland
+# location = "eastus" # virginia
+# location = "westus" # california
+# location = "uksouth"
 
 # this will result in a Teleport cluster name of loadtest.az.teleportdemo.net
 cluster_prefix = "loadtest"
