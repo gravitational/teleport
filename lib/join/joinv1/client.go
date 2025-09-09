@@ -25,7 +25,7 @@ import (
 	grpc "google.golang.org/grpc"
 
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
-	"github.com/gravitational/teleport/lib/join/messages"
+	"github.com/gravitational/teleport/lib/join/internal/messages"
 )
 
 // Client wraps a gRPC client to provide a protocol-agnostic client for cluster

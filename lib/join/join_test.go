@@ -51,8 +51,9 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/joincerts"
 	"github.com/gravitational/teleport/lib/join/joinv1"
-	"github.com/gravitational/teleport/lib/join/messages"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -318,7 +319,7 @@ func (s *fakeAuthService) ValidateToken(ctx context.Context, tokenName string) (
 	return token, nil
 }
 
-func (s *fakeAuthService) GenerateHostCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, params *join.HostCertsParams) (*proto.Certs, error) {
+func (s *fakeAuthService) GenerateHostCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, params *joincerts.HostCertsParams) (*proto.Certs, error) {
 	identity := tlsca.Identity{
 		Username:        utils.HostFQDN(params.HostID, "testcluster"),
 		Groups:          []string{params.SystemRole.String()},
@@ -380,7 +381,7 @@ func (s *fakeAuthService) GenerateHostCertsForJoin(ctx context.Context, provisio
 	}, nil
 }
 
-func (s *fakeAuthService) GenerateBotCertsForJoin(_ context.Context, _ types.ProvisionToken, _ *join.BotCertsParams) (*proto.Certs, string, error) {
+func (s *fakeAuthService) GenerateBotCertsForJoin(_ context.Context, _ types.ProvisionToken, _ *joincerts.BotCertsParams) (*proto.Certs, string, error) {
 	return nil, "", trace.NotImplemented("fakeAuthService.GenerateBotCertsForJoin is not implemented")
 }
 

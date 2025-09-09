@@ -22,7 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/join/diagnostic"
+	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 )
 
 // Request is implemented by all join request messages.
@@ -138,7 +138,7 @@ func (p *HostParams) check() error {
 type BotParams struct {
 	// Expires is a desired time of the expiry of certificates returned by
 	// registration.
-	Expires time.Time
+	Expires *time.Time
 }
 
 func (p *BotParams) check() error {
@@ -179,7 +179,7 @@ type Result struct {
 	// Each CA key is encoded in SSH wire format.
 	SSHCAKeys [][]byte
 	// HostId is the unique ID assigned to the host.
-	HostID string
+	HostID *string
 }
 
 // ClientStream represents the client side of a join request stream.
