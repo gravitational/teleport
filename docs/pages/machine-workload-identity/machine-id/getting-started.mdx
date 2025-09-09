@@ -85,8 +85,11 @@ Host    UUID                                 Public Address Labels              
 ------- ------------------------------------ -------------- ----------------------------------- -------
 target1 8a50c8aa-c45f-403c-95ff-83f50561d64c                env=mwi-demo,hostname=ip-10-0-0-200 18.1.5
 ```
+
 </TabItem>
+
 <TabItem label="Kubernetes">
+
 ![Example kubernetes cluster resource with label env: mwidemo](../../../img/machine-id/k8s-target-example.png)
 
 You can also find your clusters with the following command:
@@ -98,10 +101,12 @@ Cluster  Labels                        Version
 -------- ----------------------------- -------
 crumpet  env=dogfood,region=us-west-2  18.1.5
 ```
+
 </TabItem>
 </Tabs>
 
 ## Step 2/5. Choose or create a role
+
 <Admonition
   type="tip"
   title="Using the example repository"
@@ -145,7 +150,9 @@ Run `tctl create` with the file:
 ```code
 $ tctl create -f ./teleport/github_bot_server_role.yaml
 ```
+
 </TabItem>
+
 <TabItem label="Kubernetes">
 
 For the role defintion, edit the `kubernetes_labels`
@@ -181,6 +188,7 @@ Run `tctl create` with the file:
 ```code
 $ tctl create -f .teleport/github_bot_k8s_role.yaml
 ```
+
 </TabItem>
 </Tabs>
 
@@ -210,6 +218,7 @@ $ tctl create -f ./teleport/github_bot.yaml
 ```
 
 ## Step 4/5 Create a join token
+
 Unlike users, bots do not authenticate using a username and password or SSO.
 Instead, they initially authenticate in a process called joining. Teleport
 uses metadata about the platform the bot is running on, such as OIDC endpoints for CI pipelines,
@@ -254,6 +263,7 @@ $ tctl create -f ./teleport/github_bot_join_token.yaml
 ```
 
 ## Step 5/5 Access a resource from GitHub Actions
+
 We have several published [Actions](../../../reference/machine-id/github-actions/#github-actions-helpers)
 for convenience, but for this guide we will look at things explicitly to aid understanding.
 
@@ -283,6 +293,7 @@ outputs:
 - The certificate_ttl is set to 5 minutes. In production you can make this slightly longer than the runtime of your job, so the identity expires when its purpose is complete.
 - The output path is set to `./ssh-out`. This is where `tbot` will output the SSH configuration and credentials that the command will use.
 </details>
+
 - Replace the `proxy_server` address with your Teleport Proxy address.
 
 <details>
@@ -328,6 +339,7 @@ jobs:
 This kind of workflow can be used with Ansible or any other kind of SSH-based automation.
 
 </TabItem>
+
 <TabItem label="Kubernetes">
 
 <details>
@@ -356,6 +368,7 @@ outputs:
 - The certificate_ttl is set to 5 minutes. In production you can make this slightly longer than the runtime of your job, so the identity expires when its purpose is complete.
 - The output path is set to `./k8s-out`. This is where `tbot` will output the kubeconfig that the command will use.
 </details>
+
 - Replace the `proxy_server` address with your Teleport Proxy address.
 - Replace the label selector with your Kubernetes cluster label.
 
@@ -405,6 +418,7 @@ This kind of workflow can be used with Helm to deploy apps, or any other kind of
 </Tabs>
 
 ### Run the workflow
+
 In your GitHub repository, go to the `Actions` tab, select the workflow you created, and click `Run workflow`.
 After the workflow completes, you should see the job complete successfully, and the output of the command in the logs.
 
