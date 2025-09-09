@@ -225,7 +225,7 @@ uses metadata about the platform the bot is running on, such as OIDC endpoints f
 or the Assumed Role of an AWS EC2 Instance, to ensure that only authorized bots can join the cluster.
 This means the bot has a verified <i>identity</i>, rather than just a shared secret.
 
-Teleport supports a number of secure [join methods](../../../reference/join-methods.mdx#delegated-join-methods)
+Teleport supports a number of secure [join methods](../../reference/join-methods.mdx#delegated-join-methods)
 specific to the platform the bot is running on. Since we are using GitHub Actions,
 we will use the `github` join method.
 
@@ -264,7 +264,7 @@ $ tctl create -f ./teleport/github_bot_join_token.yaml
 
 ## Step 5/5 Access a resource from GitHub Actions
 
-We have several published [Actions](../../../reference/machine-id/github-actions.mdx#github-actions-helpers)
+We have several published [Actions](../../reference/machine-id/github-actions.mdx#github-actions-helpers)
 for convenience, but for this guide we will look at things explicitly to aid understanding.
 
 <Tabs>
