@@ -87,7 +87,7 @@ crumpet  env=dogfood,region=us-west-2  18.1.5
 </TabItem>
 </Tabs>
 
-## Step 2/5. Choose or Create a Role
+## Step 2/5. Choose or create a role
 
 If you have an existing role that allows access to your target resource, you can skip this step.
 Every Teleport cluster has a default `access` role that allows access to all nodes and clusters,
@@ -149,7 +149,7 @@ Now run `tctl create` with the file:
 $ tctl create -f github-bot-role.yaml
 ```
 
-## Step 3/5. Create a Bot
+## Step 3/5. Create a bot
 
 In Teleport, a **Bot** represents an identity for a machine. This is similar to
 how a user represents the identity of a human. Like users, bots are assigned
@@ -161,7 +161,7 @@ Use `tctl bots add` to create our bot:
 $ tctl bots add github-bot --roles=github-bot
 ```
 
-## Step 4/5 Create a Join Token
+## Step 4/5 Create a join token
 Unlike users, bots do not authenticate using a username and password or SSO.
 Instead, they initially authenticate in a process called joining. Teleport
 uses metadata about the platform the bot is running on, such as OIDC endpoints for CI pipelines,
@@ -199,7 +199,7 @@ $ tctl create -f github-bot-token.yaml
 ```
 
 
-## Step 5/5 Access a Resource from GitHub Actions
+## Step 5/5 Access a resource from GitHub Actions
 
 You can find the files you'll need in the
 [example repository](https://github.com/asteroid-earth/mwi-getting-started-guide) for this guide.
@@ -340,7 +340,7 @@ This kind of workflow can be used with Helm to deploy apps, or any other kind of
 ## Summary
 
 You've successfully set up a workflow in GitHub Actions that can access your resources securely through the Teleport proxy,
-without distributing long-lived credentials, making the process more secure and more efficient for development teams.
+without distributing long-lived credentials, making the process more secure and efficient for development teams.
 
 ## Next Steps
 
