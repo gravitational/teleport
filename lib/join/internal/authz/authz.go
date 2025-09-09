@@ -21,6 +21,6 @@ type Context struct {
 	HostID string
 	// BotGeneration is the current generation of an authenticated Bot.
 	BotGeneration uint64
-	// BotInstanceID is an authenticted Bot ID.
+	// BotInstanceID is an authenticated Bot ID.
 	BotInstanceID string
 }
