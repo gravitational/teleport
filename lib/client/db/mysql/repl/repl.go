@@ -40,10 +40,11 @@ import (
 
 // REPL implements [dbrepl.REPLInstance] for MySQL.
 type REPL struct {
+	*term.Terminal
+
 	client     io.ReadWriteCloser
 	serverConn net.Conn
 	route      clientproto.RouteToDatabase
-	term       *term.Terminal
 	parser     *parser
 	myConn     mysqlConn
 
@@ -72,10 +73,10 @@ func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, err
 		return nil, trace.Wrap(err)
 	}
 	return &REPL{
+		Terminal:   term.NewTerminal(cfg.Client, ""),
 		client:     cfg.Client,
 		serverConn: cfg.ServerConn,
 		route:      cfg.Route,
-		term:       term.NewTerminal(cfg.Client, ""),
 		parser:     parser,
 	}, nil
 }
@@ -150,7 +151,7 @@ func withClientCapabilities(caps ...uint32) client.Option {
 
 func (r *REPL) presentBanner() error {
 	_, err := fmt.Fprintf(
-		r.term,
+		r.Terminal,
 		`Teleport MySQL interactive shell (v%s)
 Connected to instance %q as user %q.
 Type 'help' or '\h' for help.
@@ -163,8 +164,8 @@ Type 'help' or '\h' for help.
 }
 
 func (r *REPL) readLine() (string, error) {
-	r.term.SetPrompt(r.getPrompt())
-	return r.term.ReadLine()
+	r.Terminal.SetPrompt(r.getPrompt())
+	return r.Terminal.ReadLine()
 }
 
 func (r *REPL) getPrompt() string {
@@ -205,7 +206,7 @@ func (r *REPL) print(reply string) error {
 	if reply == "" {
 		return nil
 	}
-	_, err := r.term.Write([]byte(lineBreak + reply + lineBreak + lineBreak))
+	_, err := r.Terminal.Write([]byte(lineBreak + reply + lineBreak + lineBreak))
 	return trace.Wrap(err)
 }
 

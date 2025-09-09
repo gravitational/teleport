@@ -18,7 +18,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { screen } from '@testing-library/react';
 
-import { render, userEvent } from 'design/utils/testing';
+import { fireEvent, render, waitFor } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport/index';
@@ -62,8 +62,6 @@ afterEach(() => {
 });
 
 test('flows through roles anywhere IAM setup', async () => {
-  const user = userEvent.setup();
-
   render(
     <ContextProvider ctx={createTeleportContext()}>
       <InfoGuidePanelProvider>
@@ -84,15 +82,14 @@ test('flows through roles anywhere IAM setup', async () => {
     screen.getByRole('button', { name: 'Next: Configure Access' })
   ).toBeDisabled();
 
-  await user.type(
-    screen.getByLabelText('Integration Name'),
-    'some-integration-name'
-  );
-  await user.click(screen.getByRole('button', { name: 'Generate Command' }));
+  fireEvent.change(screen.getByLabelText('Integration Name'), {
+    target: { value: 'some-integration-name' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Generate Command' }));
 
-  expect(
-    screen.getByText('Step 2: Create Roles Anywhere Trust Anchor')
-  ).toBeInTheDocument();
+  await waitFor(() =>
+    screen.findByText('Step 2: Create Roles Anywhere Trust Anchor')
+  );
   expect(
     screen.getByText('Step 3: Create and Sync the Integration Profile and Role')
   ).toBeInTheDocument();
@@ -103,18 +100,25 @@ test('flows through roles anywhere IAM setup', async () => {
     screen.getByRole('button', { name: 'Next: Configure Access' })
   ).toBeDisabled();
 
-  await user.type(
+  fireEvent.change(
     screen.getByLabelText('Trust Anchor, Profile and Role ARNs'),
-    'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo\n' +
-      'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar\n' +
-      'arn:aws:iam::123456789012:role/baz'
+    {
+      target: {
+        value:
+          'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo\n' +
+          'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar\n' +
+          'arn:aws:iam::123456789012:role/baz',
+      },
+    }
   );
 
   expect(
     screen.getByRole('button', { name: 'Test Configuration' })
   ).toBeEnabled();
-  await user.click(screen.getByRole('button', { name: 'Test Configuration' }));
-  expect(integrationService.awsRolesAnywherePing).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Test Configuration' }));
+  await waitFor(() =>
+    expect(integrationService.awsRolesAnywherePing).toHaveBeenCalledTimes(1)
+  );
   expect(integrationService.awsRolesAnywherePing).toHaveBeenCalledWith({
     integrationName: 'some-integration-name',
     syncProfileArn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar',
@@ -126,10 +130,12 @@ test('flows through roles anywhere IAM setup', async () => {
   expect(
     screen.getByRole('button', { name: 'Next: Configure Access' })
   ).toBeEnabled();
-  await user.click(
+  fireEvent.click(
     screen.getByRole('button', { name: 'Next: Configure Access' })
   );
-
+  await waitFor(() =>
+    expect(integrationService.createIntegration).toHaveBeenCalledTimes(1)
+  );
   expect(integrationService.createIntegration).toHaveBeenCalledWith({
     name: 'some-integration-name',
     subKind: 'aws-ra',
