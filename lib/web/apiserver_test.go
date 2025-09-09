@@ -8123,32 +8123,46 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 type WebPackOptions struct {
 	// Number of proxies to setup (default: 1)
 	numProxies      int
-	opts            []proxyOption
+	proxyOptions    []proxyOption
 	enableAuthCache bool
 }
 
-func (o *WebPackOptions) setDefaultOptions() {
-	if o == nil {
-		return
-	}
-	if o.numProxies <= 0 {
-		o.numProxies = 1
+type webPackOptions = func(*WebPackOptions)
+
+func withWebPackProxyOptions(opts ...proxyOption) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.proxyOptions = opts
 	}
 }
 
-// Deprecated: use newWebPackWithOptions instead
-//
-// TODO(nicholasmarais1158): Replace uses of this function, then rename `newWebPackWithOptions` to `newWebPack`.
+func withWebPackNumProxies(numProxies int) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.numProxies = numProxies
+	}
+}
+
+func withWebPackAuthCacheEnabled(enable bool) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.enableAuthCache = enable
+	}
+}
+
 func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
-	return newWebPackWithOptions(t, &WebPackOptions{
-		numProxies:      numProxies,
-		opts:            opts,
-		enableAuthCache: false,
-	})
+	return newWebPackWithOptions(
+		t,
+		withWebPackProxyOptions(opts...),
+		withWebPackNumProxies(numProxies),
+	)
 }
 
-func newWebPackWithOptions(t *testing.T, options *WebPackOptions) *webPack {
-	options.setDefaultOptions()
+func newWebPackWithOptions(t *testing.T, opts ...webPackOptions) *webPack {
+	options := &WebPackOptions{
+		numProxies: 1,
+	}
+
+	for _, opt := range opts {
+		opt(options)
+	}
 
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -8272,7 +8286,7 @@ func newWebPackWithOptions(t *testing.T, options *WebPackOptions) *webPack {
 	var proxies []*testProxy
 	for p := range options.numProxies {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.opts...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
