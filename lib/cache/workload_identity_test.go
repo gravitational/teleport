@@ -89,7 +89,7 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 
 	rs := []struct {
 		name     string
-		spiffeId string
+		spiffeID string
 	}{
 		{"test-workload-identity-1", "/test/spiffe/2"},
 		{"test-workload-identity-3", "/test/spiffe/1"},
@@ -105,7 +105,7 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 			},
 			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
 				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-					Id: r.spiffeId,
+					Id: r.spiffeID,
 				},
 			},
 		}

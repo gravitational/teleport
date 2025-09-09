@@ -122,7 +122,7 @@ type UserACL struct {
 	FileTransferAccess bool `json:"fileTransferAccess"`
 	// GitServers defines access to Git servers.
 	GitServers ResourceAccess `json:"gitServers"`
-	//WorkloadIdentity defines access to Workload Identity
+	// WorkloadIdentity defines access to Workload Identity
 	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
 }
 

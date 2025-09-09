@@ -8121,13 +8121,13 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 type WebPackOptions struct {
-	// Number of proxies to setup (default: 1)
+	// Number of proxies to set up (default: 1)
 	numProxies      int
 	proxyOptions    []proxyOption
 	enableAuthCache bool
 }
 
-type webPackOptions = func(*WebPackOptions)
+type webPackOptions func(*WebPackOptions)
 
 func withWebPackProxyOptions(opts ...proxyOption) webPackOptions {
 	return func(cfg *WebPackOptions) {
