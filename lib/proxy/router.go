@@ -247,7 +247,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 	span.AddEvent("retrieved target server")
 
-	serverID := fmt.Sprintf("%v.%v", target.GetName(), clusterName)
+	serverID := target.GetName() + "." +  clusterName
 	hostClusterPrincipal := host + "." + clusterName
 	principals := []string{
 		host,
