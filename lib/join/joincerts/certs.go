@@ -191,7 +191,7 @@ func MakeBotCertsParams(
 
 // MakeResultMessage returns a [*messages.Result] populated from [*proto.Certs]
 // with the certs converted into the proper wire format.
-func MakeResultMessage(certs *proto.Certs) (*messages.Result, error) {
+func MakeResultMessage(certs *proto.Certs, hostID *string) (*messages.Result, error) {
 	sshCert, err := rawSSHCert(certs.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -206,6 +206,7 @@ func MakeResultMessage(certs *proto.Certs) (*messages.Result, error) {
 		TLSCACerts: rawTLSCerts(certs.TLSCACerts),
 		SSHCert:    sshCert,
 		SSHCAKeys:  sshCAKeys,
+		HostID:     hostID,
 	}, nil
 }
 

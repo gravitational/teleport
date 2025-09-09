@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 
@@ -43,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join"
-	"github.com/gravitational/teleport/lib/joincerts"
+	"github.com/gravitational/teleport/lib/join/joincerts"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -482,22 +483,17 @@ func (a *Server) GenerateHostCertsForJoin(
 ) (*proto.Certs, error) {
 	// instance certs include an additional field that specifies the list of
 	// all services authorized by the token.
-	var systemRoles []types.SystemRole
+	var systemRoles types.SystemRoles
 	if params.SystemRole == types.RoleInstance {
-		for _, r := range provisionToken.GetRoles() {
+		systemRolesSet := make(map[types.SystemRole]struct{})
+		for _, r := range slices.Concat(provisionToken.GetRoles(), params.AuthenticatedSystemRoles) {
 			if r.IsLocalService() {
-				systemRoles = append(systemRoles, r)
+				systemRolesSet[r] = struct{}{}
 			} else {
 				a.logger.WarnContext(ctx, "Omitting non-service system role from instance cert", "system_role", string(r))
 			}
 		}
-		for _, r := range params.AuthenticatedSystemRoles {
-			if r.IsLocalService() {
-				systemRoles = append(systemRoles, r)
-			} else {
-				a.logger.WarnContext(ctx, "Omitting non-service system role from instance cert", "system_role", string(r))
-			}
-		}
+		systemRoles = types.SystemRoles(slices.Collect(maps.Keys(systemRolesSet)))
 	}
 
 	// generate and return host certificate and keys

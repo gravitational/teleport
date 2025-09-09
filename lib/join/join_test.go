@@ -21,8 +21,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"net"
 	"slices"
 	"testing"
@@ -31,33 +29,26 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/keygen"
-	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/join"
+	//"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
-	"github.com/gravitational/teleport/lib/join/joincerts"
+	//"github.com/gravitational/teleport/lib/join/joincerts"
 	"github.com/gravitational/teleport/lib/join/joinv1"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
@@ -92,16 +83,13 @@ func TestJoin(t *testing.T) {
 	require.NoError(t, err)
 
 	authService := newFakeAuthService(t)
-	authService.validTokens[token1.GetName()] = token1
-	authService.validTokens[token2.GetName()] = token2
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
 
-	authListener := bufconn.Listen(8192)
-	t.Cleanup(func() { authListener.Close() })
-	authService.runGRPCServer(t, authListener)
-
-	proxy := newFakeProxy(authListener.DialContext, authService.unauthenticatedClientCreds())
+	proxy := newFakeProxy(authService)
 	proxy.join(t)
-	proxyListener := bufconn.Listen(8192)
+	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 	t.Cleanup(func() { proxyListener.Close() })
 	proxy.runGRPCServer(t, proxyListener)
 
@@ -110,48 +98,63 @@ func TestJoin(t *testing.T) {
 	t.Run("invalid token", func(t *testing.T) {
 		_, err := node.join(
 			t.Context(),
-			proxyListener.DialContext,
+			proxyListener.Addr(),
 			insecure.NewCredentials(),
 			"invalidtoken",
 		)
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
-		evt := <-authService.events
-		require.Empty(t, cmp.Diff(
-			&apievents.InstanceJoin{
-				Metadata: apievents.Metadata{
-					Type: "instance.join",
-					Code: events.InstanceJoinFailureCode,
+		ctx := t.Context()
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := authService.lastEvent(ctx, "instance.join")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinFailureCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "token expired or not found",
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					NodeName: "node",
+					Role:     "Instance",
 				},
-				Status: apievents.Status{
-					Success: false,
-					Error:   "token expired or not found",
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: "bufconn",
-				},
-				NodeName: "node",
-				Role:     "Instance",
-			},
-			evt,
-			protocmp.Transform(),
-			cmpopts.IgnoreMapEntries(func(key string, val any) bool { return key == "Time" }),
-		))
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID"
+				}),
+			))
+		}, time.Second, time.Millisecond, "expected instance.join failed event not found")
 	})
 
 	t.Run("join and rejoin", func(t *testing.T) {
 		// Node joins by connecting to the proxy's gRPC service.
 		joinResult, err := node.join(
 			t.Context(),
-			proxyListener.DialContext,
+			proxyListener.Addr(),
 			insecure.NewCredentials(),
 			token1.GetName(),
 		)
+		// Make sure the result contains a host ID and expected certificate roles.
 		require.NoError(t, err)
+		require.NotNil(t, joinResult.HostID)
+		require.NotEmpty(t, *joinResult.HostID)
 		cert, err := x509.ParseCertificate(joinResult.TLSCert)
 		require.NoError(t, err)
 		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 		require.NoError(t, err)
-		require.ElementsMatch(t, token1.GetRoles().StringSlice(), identity.SystemRoles)
+		require.Len(t, identity.Groups, 1)
+		require.Equal(t, identity.Groups[0], types.RoleInstance.String())
+		expectedSystemRoles := slices.DeleteFunc(
+			token1.GetRoles().StringSlice(),
+			func(s string) bool { return s == types.RoleInstance.String() },
+		)
+		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
 
 		// Node can rejoin with a different token by dialing the auth service
 		// with its original credentials (for this test we omit the details of
@@ -164,7 +167,7 @@ func TestJoin(t *testing.T) {
 		require.NoError(t, err)
 		rejoinResult, err := node.join(
 			t.Context(),
-			authListener.DialContext,
+			authService.TLS.Listener.Addr(),
 			creds,
 			token2.GetName(),
 		)
@@ -173,12 +176,16 @@ func TestJoin(t *testing.T) {
 		require.NoError(t, err)
 		identity, err = tlsca.FromSubject(cert.Subject, cert.NotAfter)
 		require.NoError(t, err)
-		require.ElementsMatch(t,
+		require.Len(t, identity.Groups, 1)
+		require.Equal(t, identity.Groups[0], types.RoleInstance.String())
+		expectedSystemRoles = slices.DeleteFunc(
 			apiutils.Deduplicate(slices.Concat(
 				token1.GetRoles().StringSlice(),
 				token2.GetRoles().StringSlice(),
 			)),
-			identity.SystemRoles)
+			func(s string) bool { return s == types.RoleInstance.String() },
+		)
+		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
 
 		// The node gets back its original host ID when rejoining with an
 		// authenticated client.
@@ -189,7 +196,7 @@ func TestJoin(t *testing.T) {
 		// Node joins by connecting to the proxy's gRPC service.
 		joinResult, err := node.join(
 			t.Context(),
-			proxyListener.DialContext,
+			proxyListener.Addr(),
 			insecure.NewCredentials(),
 			token1.GetName(),
 		)
@@ -200,238 +207,104 @@ func TestJoin(t *testing.T) {
 		require.NoError(t, err)
 		_, err = node.join(
 			t.Context(),
-			authListener.DialContext,
+			authService.TLS.Listener.Addr(),
 			creds,
 			"invalidtoken",
 		)
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
-		evt := <-authService.events
-		require.Empty(t, cmp.Diff(
-			&apievents.InstanceJoin{
-				Metadata: apievents.Metadata{
-					Type: "instance.join",
-					Code: events.InstanceJoinFailureCode,
+		ctx := t.Context()
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := authService.lastEvent(ctx, "instance.join")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinFailureCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "token expired or not found",
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					NodeName: "node",
+					Role:     "Instance",
 				},
-				Status: apievents.Status{
-					Success: false,
-					Error:   "token expired or not found",
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: "bufconn",
-				},
-				NodeName: "node",
-				Role:     "Instance",
-			},
-			evt,
-			protocmp.Transform(),
-			cmpopts.IgnoreMapEntries(func(key string, val any) bool { return key == "Time" }),
-		))
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID"
+				}),
+			))
+		}, time.Second, time.Millisecond, "expected instance.join failed event not found")
 	})
 }
 
 type fakeAuthService struct {
-	validTokens map[string]types.ProvisionToken
-	events      chan apievents.AuditEvent
-	ca          *tlsca.CertAuthority
+	*authtest.Server
 }
 
 func newFakeAuthService(t *testing.T) *fakeAuthService {
-	keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "auth"}, nil, time.Minute)
-	require.NoError(t, err)
-	ca, err := tlsca.FromKeys(certPEM, keyPEM)
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:         t.TempDir(),
+			ClusterName: "testcluster",
+		},
+	})
 	require.NoError(t, err)
 	return &fakeAuthService{
-		validTokens: make(map[string]types.ProvisionToken),
-		events:      make(chan apievents.AuditEvent, 5),
-		ca:          ca,
+		Server: testServer,
 	}
 }
 
-func (s *fakeAuthService) runGRPCServer(t *testing.T, l net.Listener) {
-	authGRPCServer := grpc.NewServer(
-		grpc.Creds(s.serverCreds(t)),
-		grpc.ChainStreamInterceptor(
-			interceptors.GRPCServerStreamErrorInterceptor,
-			authInterceptor,
-		),
-	)
-	joinv1.RegisterJoinServiceServer(authGRPCServer, join.NewServer(&join.ServerConfig{
-		AuthService: s,
-		Authorizer:  &fakeAuthorizer{},
-	}))
-	testutils.RunTestBackgroundTask(t.Context(), t, &testutils.TestBackgroundTask{
-		Name: "auth gRPC server",
-		Task: func(ctx context.Context) error {
-			return trace.Wrap(authGRPCServer.Serve(l))
-		},
-		Terminate: func() error {
-			authGRPCServer.Stop()
-			return nil
-		},
-	})
-}
-
-func (s *fakeAuthService) serverCreds(t *testing.T) credentials.TransportCredentials {
-	authTLSKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	authIdentity := tlsca.Identity{
-		Username:        utils.HostFQDN("auth", "testcluster"),
-		Groups:          []string{types.RoleAuth.String()},
-		TeleportCluster: "testcluster",
-	}
-	subject, err := authIdentity.Subject()
-	require.NoError(t, err)
-	authTLSCertPEM, err := s.ca.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: authTLSKey.Public(),
-		Subject:   subject,
-		NotAfter:  time.Now().Add(time.Minute),
-		DNSNames:  []string{"auth"},
-	})
-	require.NoError(t, err)
-	authTLSCertPEMBlock, _ := pem.Decode(authTLSCertPEM)
-	authTLSCert := authTLSCertPEMBlock.Bytes
-
-	clientCAs := x509.NewCertPool()
-	clientCAs.AddCert(s.ca.Cert)
-	return credentials.NewTLS(&tls.Config{
-		Certificates: []tls.Certificate{{
-			Certificate: [][]byte{authTLSCert},
-			PrivateKey:  authTLSKey,
-		}},
-		ClientAuth: tls.VerifyClientCertIfGiven,
-		ClientCAs:  clientCAs,
-	})
-}
-
-func (s *fakeAuthService) unauthenticatedClientCreds() credentials.TransportCredentials {
-	caPool := x509.NewCertPool()
-	caPool.AddCert(s.ca.Cert)
-	return credentials.NewTLS(&tls.Config{
-		RootCAs: caPool,
-	})
-}
-
-func (s *fakeAuthService) ValidateToken(ctx context.Context, tokenName string) (types.ProvisionToken, error) {
-	token, ok := s.validTokens[tokenName]
-	if !ok {
-		return nil, trace.AccessDenied("token expired or not found")
-	}
-	return token, nil
-}
-
-func (s *fakeAuthService) GenerateHostCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, params *joincerts.HostCertsParams) (*proto.Certs, error) {
-	identity := tlsca.Identity{
-		Username:        utils.HostFQDN(params.HostID, "testcluster"),
-		Groups:          []string{params.SystemRole.String()},
-		TeleportCluster: "testcluster",
-	}
-	if params.SystemRole == types.RoleInstance {
-		identity.SystemRoles = apiutils.Deduplicate(slices.Concat(
-			provisionToken.GetRoles().StringSlice(),
-			params.AuthenticatedSystemRoles.StringSlice(),
-		))
-	}
-	subject, err := identity.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsPub, err := keys.ParsePublicKey(params.PublicTLSKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsCert, err := s.ca.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: tlsPub,
-		Subject:   subject,
-		NotAfter:  time.Now().Add(time.Minute),
-		DNSNames:  params.AdditionalPrincipals,
+func (s *fakeAuthService) lastEvent(ctx context.Context, eventType string) (apievents.AuditEvent, error) {
+	events, _, err := s.Auth().SearchEvents(ctx, events.SearchEventsRequest{
+		From:       s.Auth().GetClock().Now().Add(-time.Hour),
+		To:         s.Auth().GetClock().Now().Add(time.Hour),
+		EventTypes: []string{eventType},
+		Limit:      1,
+		Order:      types.EventOrderDescending,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	sshCASigner, err := ssh.NewSignerFromSigner(s.ca.Signer)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(events) == 0 {
+		return nil, trace.NotFound("no matching events")
 	}
-	sshKeyGen := keygen.New(ctx)
-	sshCert, err := sshKeyGen.GenerateHostCert(sshca.HostCertificateRequest{
-		CASigner:      sshCASigner,
-		PublicHostKey: params.PublicSSHKey,
-		HostID:        params.HostID,
-		NodeName:      params.HostName,
-		Identity: sshca.Identity{
-			ClusterName: "testcluster",
-			SystemRole:  params.SystemRole,
-			Principals:  params.AdditionalPrincipals,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &proto.Certs{
-		TLS: tlsCert,
-		TLSCACerts: [][]byte{
-			pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: s.ca.Cert.Raw}),
-		},
-		SSH: sshCert,
-		SSHCACerts: [][]byte{
-			ssh.MarshalAuthorizedKey(sshCASigner.PublicKey()),
-		},
-	}, nil
-}
-
-func (s *fakeAuthService) GenerateBotCertsForJoin(_ context.Context, _ types.ProvisionToken, _ *joincerts.BotCertsParams) (*proto.Certs, string, error) {
-	return nil, "", trace.NotImplemented("fakeAuthService.GenerateBotCertsForJoin is not implemented")
-}
-
-func (s *fakeAuthService) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
-	select {
-	case s.events <- e:
-		return nil
-	default:
-		return trace.Errorf("fakeAuthService events channel full")
-	}
+	return events[0], nil
 }
 
 type fakeProxy struct {
-	authDialer               func(context.Context) (net.Conn, error)
-	unauthenticatedAuthCreds credentials.TransportCredentials
-	authenticatedAuthCreds   credentials.TransportCredentials
+	auth                   *fakeAuthService
+	authenticatedAuthCreds credentials.TransportCredentials
 }
 
-func newFakeProxy(
-	authDialer func(context.Context) (net.Conn, error),
-	unauthenticatedAuthCreds credentials.TransportCredentials,
-) *fakeProxy {
+func newFakeProxy(auth *fakeAuthService) *fakeProxy {
 	return &fakeProxy{
-		authDialer:               authDialer,
-		unauthenticatedAuthCreds: unauthenticatedAuthCreds,
+		auth: auth,
 	}
 }
 
 func (p *fakeProxy) join(t *testing.T) {
-	authConn, err := grpc.NewClient("passthrough:auth",
-		grpc.WithContextDialer(func(ctx context.Context, name string) (net.Conn, error) {
-			return p.authDialer(ctx)
-		}),
-		grpc.WithTransportCredentials(p.unauthenticatedAuthCreds),
-	)
+	unauthenticatedAuthClt, err := p.auth.NewClient(authtest.TestNop())
 	require.NoError(t, err)
-	defer authConn.Close()
-	joinClient := joinv1.NewClient(authConn)
+	joinClient := joinv1.NewClient(unauthenticatedAuthClt.GRPCConn())
 
 	stream, err := joinClient.Join(t.Context())
 	require.NoError(t, err)
 
-	hostKeys := genHostKeys(t)
+	hostKeys, err := genHostKeys()
+	require.NoError(t, err)
 	require.NoError(t, stream.Send(&messages.ClientInit{
 		TokenName:    "token1",
 		SystemRole:   types.RoleProxy.String(),
 		PublicTLSKey: hostKeys.tlsPubKey,
 		PublicSSHKey: hostKeys.sshPubKey,
 		HostParams: &messages.HostParams{
-			HostName: "proxy",
+			HostName:             "proxy",
+			AdditionalPrincipals: []string{"proxy"},
 		},
 	}))
 	resp, err := stream.Recv()
@@ -445,21 +318,19 @@ func (p *fakeProxy) join(t *testing.T) {
 }
 
 func (p *fakeProxy) runGRPCServer(t *testing.T, l net.Listener) {
-	authConn, err := grpc.NewClient("passthrough:auth",
+	authenticatedAuthClientConn, err := grpc.NewClient(p.auth.TLS.Listener.Addr().String(),
 		grpc.WithTransportCredentials(p.authenticatedAuthCreds),
-		grpc.WithContextDialer(func(ctx context.Context, name string) (net.Conn, error) {
-			return p.authDialer(ctx)
-		}),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, authConn.Close())
+		require.NoError(t, authenticatedAuthClientConn.Close())
 	})
+
 	grpcServer := grpc.NewServer(
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
-	joinv1.RegisterProxyForwardingJoinServiceServer(grpcServer, authConn)
+	joinv1.RegisterProxyForwardingJoinServiceServer(grpcServer, authenticatedAuthClientConn)
 
 	testutils.RunTestBackgroundTask(t.Context(), t, &testutils.TestBackgroundTask{
 		Name: "proxy gRPC server",
@@ -478,22 +349,21 @@ type fakeNode struct {
 }
 
 func newFakeNode(t *testing.T) *fakeNode {
+	hostKeys, err := genHostKeys()
+	require.NoError(t, err)
 	return &fakeNode{
-		hostKeys: genHostKeys(t),
+		hostKeys: hostKeys,
 	}
 }
 
 func (n *fakeNode) join(
 	ctx context.Context,
-	dialer func(context.Context) (net.Conn, error),
+	addr net.Addr,
 	creds credentials.TransportCredentials,
 	token string,
 ) (*messages.Result, error) {
-	conn, err := grpc.NewClient("passthrough:auth",
+	conn, err := grpc.NewClient(addr.String(),
 		grpc.WithTransportCredentials(creds),
-		grpc.WithContextDialer(func(ctx context.Context, name string) (net.Conn, error) {
-			return dialer(ctx)
-		}),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)
 	if err != nil {
@@ -546,7 +416,8 @@ func clientCreds(tlsKey crypto.PrivateKey, result *messages.Result) (credentials
 			Certificate: [][]byte{result.TLSCert},
 			PrivateKey:  tlsKey,
 		}},
-		RootCAs: caPool,
+		RootCAs:    caPool,
+		ServerName: "teleport.cluster.local",
 	}), nil
 }
 
@@ -557,89 +428,24 @@ type hostKeys struct {
 	sshPubKey []byte
 }
 
-func genHostKeys(t *testing.T) *hostKeys {
+func genHostKeys() (*hostKeys, error) {
 	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	tlsPubKey, err := x509.MarshalPKIXPublicKey(signer.Public())
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	sshKey, err := ssh.NewSignerFromSigner(signer)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	sshPubKey := sshKey.PublicKey().Marshal()
 	return &hostKeys{
 		tls:       signer,
 		tlsPubKey: tlsPubKey,
 		ssh:       sshKey,
 		sshPubKey: sshPubKey,
-	}
-}
-
-func authInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	peerInfo, ok := peer.FromContext(ss.Context())
-	if !ok {
-		return trace.BadParameter("could not get gRPC peer info")
-	}
-	if tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo); ok {
-		if len(tlsInfo.State.PeerCertificates) > 0 {
-			cert := tlsInfo.State.PeerCertificates[0]
-			id, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			additionalSystemRoles, err := types.NewTeleportRoles(id.SystemRoles)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			role := authz.BuiltinRole{
-				Role:                  types.SystemRole(id.Groups[0]),
-				AdditionalSystemRoles: additionalSystemRoles,
-				Username:              id.Username,
-				ClusterName:           "testcluster",
-				Identity:              *id,
-			}
-			ctx := authz.ContextWithUser(ss.Context(), role)
-			return handler(srv, newWrappedStream(ctx, ss))
-		}
-	}
-	return handler(srv, ss)
-}
-
-type wrappedStream struct {
-	grpc.ServerStream
-	ctx context.Context
-}
-
-func newWrappedStream(ctx context.Context, ss grpc.ServerStream) *wrappedStream {
-	return &wrappedStream{
-		ServerStream: ss,
-		ctx:          ctx,
-	}
-}
-
-func (w *wrappedStream) Context() context.Context {
-	return w.ctx
-}
-
-type fakeAuthorizer struct{}
-
-func (a *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
-	identityGetter, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, trace.AccessDenied("access denied")
-	}
-	identity := identityGetter.GetIdentity()
-	return &authz.Context{
-		Identity: identityGetter,
-		Checker: &fakeChecker{
-			roles: slices.Concat(identity.Groups, identity.SystemRoles),
-		},
 	}, nil
-}
-
-type fakeChecker struct {
-	services.AccessChecker
-	roles []string
-}
-
-func (c *fakeChecker) HasRole(role string) bool {
-	return slices.Contains(c.roles, role)
 }
