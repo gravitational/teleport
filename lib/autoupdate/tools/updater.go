@@ -34,7 +34,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -55,6 +54,9 @@ const (
 	// teleportToolsVersionEnvDisabled is a special value that disables teleport tools updates
 	// when assigned to the teleportToolsVersionEnv environment variable.
 	teleportToolsVersionEnvDisabled = "off"
+	// teleportToolsVersionEnvDisabledLocal is a special value that disables only local update
+	// by setting the version to teleportToolsVersionEnv and disables re-execution.
+	teleportToolsVersionEnvDisabledLocal = "off-local"
 	// teleportToolsVersionReExecEnv is internal environment name for transferring original
 	// version to re-executed ones.
 	teleportToolsVersionReExecEnv = "TELEPORT_TOOLS_VERSION_REEXEC"
@@ -153,7 +155,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
-	case teleportToolsVersionEnvDisabled:
+	case teleportToolsVersionEnvDisabled, teleportToolsVersionEnvDisabledLocal:
 		return &UpdateResponse{Version: "", ReExec: false}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
@@ -228,7 +230,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		}
 		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
 	// No requested version, we continue.
-	case "":
+	case "", teleportToolsVersionEnvDisabledLocal:
 	// Requested version that is not the local one.
 	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
@@ -422,16 +424,17 @@ func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) 
 	}
 	env := append(os.Environ(), fmt.Sprintf("%s=%s", teleportToolsDirsEnv, u.toolsDir))
 	// To prevent re-execution loop we have to disable update logic for re-execution,
-	// by unsetting current tools version env variable and setting it to "off".
-	// The re-execution path and tools directory are absolute. Since the v2 logic
-	// no longer uses a static path, any re-execution from the tools directory
-	// must disable further re-execution.
-	if path == executablePath || strings.HasPrefix(path, u.toolsDir) {
-		if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
-			return 0, trace.Wrap(err)
-		}
+	// by unsetting current tools version env variable and setting it to "off-local",
+	// or to "off" if same version is requested to be re-executed.
+	if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if path == executablePath {
 		env = append(env, teleportToolsVersionEnv+"="+teleportToolsVersionEnvDisabled)
-		slog.DebugContext(ctx, "Disable next re-execution")
+		slog.DebugContext(ctx, "Disable re-execution")
+	} else {
+		env = append(env, teleportToolsVersionEnv+"="+teleportToolsVersionEnvDisabledLocal)
+		slog.DebugContext(ctx, "Disable next local re-execution")
 	}
 	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
 

@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -38,9 +37,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/integration/autoupdate/tools/updater/tctl"
+	"github.com/gravitational/teleport/integration/autoupdate/tools/updater/tsh"
 	"github.com/gravitational/teleport/integration/helpers/archive"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -51,8 +54,10 @@ const (
 var (
 	// testVersions list of the pre-compiled binaries with encoded versions to check.
 	testVersions = []string{
-		"1.2.3",
-		"3.2.1",
+		"1.0.0",
+		"2.0.0",
+		"3.0.0",
+		"4.0.0",
 	}
 	limitedWriter = newLimitedResponseWriter()
 
@@ -61,6 +66,19 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	executable, err := os.Executable()
+	if err != nil {
+		log.Fatal("failed to get executable name", err)
+	}
+	switch filepath.Base(executable) {
+	case "tsh", "tsh.exe":
+		tsh.Main()
+		return
+	case "tctl", "tctl.exe":
+		tctl.Main()
+		return
+	}
+
 	modules.SetInsecureTestMode(true)
 	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildCommunity})
 	ctx := context.Background()
@@ -84,6 +102,9 @@ func TestMain(m *testing.M) {
 		}
 	}))
 	baseURL = server.URL
+	if err := os.Setenv(autoupdate.BaseURLEnvVar, server.URL); err != nil {
+		log.Fatalf("failed to set base URL environment variable: %v", err)
+	}
 	for _, version := range testVersions {
 		if err := buildAndArchiveApps(ctx, tmp, version, server.URL); err != nil {
 			log.Fatalf("failed to build testing app binary archive: %v", err)
@@ -99,6 +120,9 @@ func TestMain(m *testing.M) {
 	}
 	if err := os.RemoveAll(toolsDir); err != nil {
 		log.Fatalf("failed to remove tools directory: %v", err)
+	}
+	if err := os.Unsetenv(autoupdate.BaseURLEnvVar); err != nil {
+		log.Fatalf("failed to unset %q environment variable: %v", autoupdate.BaseURLEnvVar, err)
 	}
 
 	os.Exit(code)
@@ -136,15 +160,22 @@ func serve256File(w http.ResponseWriter, _ *http.Request, filePath string) {
 func buildAndArchiveApps(ctx context.Context, path string, version string, baseURL string) error {
 	versionPath := filepath.Join(path, version)
 	for _, app := range []string{"tsh", "tctl"} {
-		output := filepath.Join(versionPath, app)
+		output := filepath.Join(versionPath, version, app)
 		switch runtime.GOOS {
 		case constants.WindowsOS:
-			output = filepath.Join(versionPath, app+".exe")
+			output = filepath.Join(versionPath, version, app+".exe")
 		case constants.DarwinOS:
-			output = filepath.Join(versionPath, app+".app", "Contents", "MacOS", app)
+			output = filepath.Join(versionPath, app+".app", "Contents", "MacOS", version, app)
 		}
-		if err := buildBinary(output, version, baseURL, app); err != nil {
-			return trace.Wrap(err)
+		if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+			return err
+		}
+		testBinary, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		if err := utils.CopyFile(testBinary, output, 0o755); err != nil {
+			return err
 		}
 	}
 	switch runtime.GOOS {
@@ -158,21 +189,4 @@ func buildAndArchiveApps(ctx context.Context, path string, version string, baseU
 		archivePath := filepath.Join(path, fmt.Sprintf("teleport-v%s-linux-%s-bin.tar.gz", version, runtime.GOARCH))
 		return trace.Wrap(archive.CompressDirToTarGzFile(ctx, versionPath, archivePath))
 	}
-}
-
-// buildBinary executes command to build client tool binary with updater logic for testing.
-func buildBinary(output string, version string, baseURL string, app string) error {
-	cmd := exec.Command(
-		"go", "build", "-o", output,
-		"-ldflags", strings.Join([]string{
-			fmt.Sprintf("-X 'github.com/gravitational/teleport/integration/autoupdate/tools/updater.version=%s'", version),
-			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.version=%s'", version),
-			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.baseURL=%s'", baseURL),
-		}, " "),
-		fmt.Sprintf("./updater/%s", app),
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return trace.Wrap(cmd.Run())
 }

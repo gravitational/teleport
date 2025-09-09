@@ -27,7 +27,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
@@ -40,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -52,7 +55,7 @@ import (
 // $ tsh loginByAlias
 // $ tctl status
 // $ tsh version
-// Teleport v3.2.1
+// Teleport v2.0.0
 func TestAliasLoginWithUpdater(t *testing.T) {
 	ctx := context.Background()
 
@@ -63,7 +66,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	// Fetch compiled test binary and install to tools dir [v1.2.3].
+	// Fetch compiled test binary and install to tools dir [v1.0.0].
 	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
 	require.NoError(t, updater.Update(ctx, testVersions[0]))
 	tshPath, err := updater.ToolPath("tsh", testVersions[0])
@@ -101,7 +104,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	require.NoError(t, cmd.Run())
 
 	// Run version command to verify that login command executed auto update and
-	// tsh was upgraded to [v3.2.1].
+	// tsh was upgraded to [v2.0.0].
 	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err = cmd.Output()
 	require.NoError(t, err)
@@ -111,14 +114,51 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	require.Contains(t, string(out), fmt.Sprintf("Re-executed from version: %s", testVersions[0]))
 }
 
+// TestSequentialUpdate runs test cluster with sequential changing version required for
+// client tools for managed updates. After each new login we should receive updated version.
+func TestSequentialUpdate(t *testing.T) {
+	ctx := context.Background()
+
+	rootServer, _, installDir := bootstrapTestServer(t)
+
+	// Assign alias to the login command for test cluster.
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Fetch compiled test binary and install to tools dir [v1.0.0].
+	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
+	require.NoError(t, updater.Update(ctx, testVersions[0]))
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
+
+	for _, testVersion := range testVersions[1:] {
+		// Set cluster version to be upgraded.
+		setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersion)
+
+		cmd := exec.CommandContext(ctx, tshPath,
+			"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
+		cmd.Env = os.Environ()
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		require.NoError(t, cmd.Run())
+
+		// Run version command to verify that login command executed auto update and
+		// tsh was upgraded to [testVersion].
+		cmd = exec.CommandContext(ctx, tshPath, "version")
+		out, err := cmd.Output()
+		require.NoError(t, err)
+		matchVersion(t, string(out), testVersion)
+	}
+}
+
 // TestLoginWithUpdaterAndProfile runs test cluster with disabled managed updates for client tools,
 // verifies that if we set env variable during login we keep using updated version.
 //
 // # Managed updates: disabled.
-// $ TELEPORT_TOOLS_VERSION=3.2.1 tsh login --proxy proxy.example.com
+// $ TELEPORT_TOOLS_VERSION=2.0.0 tsh login --proxy proxy.example.com
 // # Check that created profile after login has enabled autoupdates flag.
 // $ tsh version
-// Teleport v3.2.1
+// Teleport v2.0.0
 func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	ctx := context.Background()
 
@@ -128,7 +168,7 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	// Fetch compiled test binary and install to tools dir [v1.2.3].
+	// Fetch compiled test binary and install to tools dir [v1.0.0].
 	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
 	require.NoError(t, updater.Update(ctx, testVersions[0]))
 	tshPath, err := updater.ToolPath("tsh", testVersions[0])
@@ -146,7 +186,7 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
 	// Run version command to verify that login command executed auto update and
-	// tsh was upgraded to [v3.2.1].
+	// tsh was upgraded to [v2.0.0].
 	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err := cmd.Output()
 	require.NoError(t, err)
@@ -157,11 +197,11 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 // verifies that after first update and disabling.
 //
 // # Managed updates: disabled.
-// $ TELEPORT_TOOLS_VERSION=3.2.1 tsh version
-// Teleport v3.2.1
+// $ TELEPORT_TOOLS_VERSION=2.0.0 tsh version
+// Teleport v2.0.0
 // $ tsh login --proxy proxy.example.com
 // $ tsh version
-// Teleport v1.2.3
+// Teleport v1.0.0
 func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	ctx := context.Background()
 
@@ -171,7 +211,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	// Fetch compiled test binary and install to tools dir [v1.2.3].
+	// Fetch compiled test binary and install to tools dir [v1.0.0].
 	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
 	require.NoError(t, updater.Update(ctx, testVersions[0]))
 	tshPath, err := updater.ToolPath("tsh", testVersions[0])
@@ -197,7 +237,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	require.NoError(t, cmd.Run())
 
 	// Run version command to verify that login command executed auto update and
-	// tsh was upgraded to [v3.2.1].
+	// tsh was upgraded to [v2.0.0].
 	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err = cmd.Output()
 	require.NoError(t, err)
@@ -210,10 +250,10 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 //
 // # Managed updates: disabled.
 // $ tsh login --proxy proxy.example.com
-// $ TELEPORT_TOOLS_VERSION=3.2.1 tsh version
-// Teleport v3.2.1
+// $ TELEPORT_TOOLS_VERSION=2.0.0 tsh version
+// Teleport v2.0.0
 // $ tsh version
-// Teleport v1.2.3
+// Teleport v1.0.0
 func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	ctx := context.Background()
 
@@ -223,7 +263,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	// Fetch compiled test binary and install to tools dir [v1.2.3].
+	// Fetch compiled test binary and install to tools dir [v1.0.0].
 	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
 	require.NoError(t, updater.Update(ctx, testVersions[0]))
 	tshPath, err := updater.ToolPath("tsh", testVersions[0])
@@ -249,7 +289,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
 	// Run version command to verify that login command executed auto update and
-	// tsh is version [v1.2.3] since it was requested not during login and cluster
+	// tsh is version [v1.0.0] since it was requested not during login and cluster
 	// has disabled managed updates.
 	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err = cmd.Output()
@@ -316,6 +356,9 @@ func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string, string
 		testserver.WithBootstrap(alice),
 		testserver.WithClusterName("root"),
 		testserver.WithAuthPreference(ap),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Clock = clockwork.NewFakeClock()
+		}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -354,4 +397,7 @@ func setupManagedUpdates(t *testing.T, server *auth.Server, muMode string, muVer
 	require.NoError(t, err)
 	_, err = server.UpsertAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
+
+	// Expire the fn cache to force the next answer to be fresh.
+	server.GetClock().(*clockwork.FakeClock).Advance(20 * time.Second)
 }
