@@ -29,7 +29,7 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	scimsdk "github.com/gravitational/teleport/lib/scim/sdk"
 )
 
 func TestAWSICUserFilters(t *testing.T) {
@@ -370,6 +370,7 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		cliArgs             awsICRotateCredsArgs
 		pluginValueProvider func() *types.PluginV1
 		pluginFetchError    error
+		expectValidation    bool
 		validationError     error
 		expectUpdate        bool
 		updateError         error
@@ -378,18 +379,21 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		{
 			name: "default",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName: types.PluginTypeAWSIdentityCenter,
-				payload:    "some-token",
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
 			},
 			pluginValueProvider: validAWSICPlugin,
+			expectValidation:    true,
 			expectUpdate:        true,
 			assertError:         require.NoError,
 		},
 		{
 			name: "no such plugin",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName: types.PluginTypeAWSIdentityCenter,
-				payload:    "some-token",
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
 			},
 			pluginValueProvider: func() *types.PluginV1 { return nil },
 			pluginFetchError:    trace.NotFound("no such plugin"),
@@ -398,8 +402,9 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		{
 			name: "wrong plugin type",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName: types.PluginTypeAWSIdentityCenter,
-				payload:    "some-token",
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
 			},
 			pluginValueProvider: func() *types.PluginV1 {
 				return &types.PluginV1{
@@ -421,20 +426,37 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		{
 			name: "no such credential",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName: types.PluginTypeAWSIdentityCenter,
-				payload:    "some-token",
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
 			},
 			pluginValueProvider: validAWSICPlugin,
+			expectValidation:    true,
 			expectUpdate:        true,
 			updateError:         trace.NotFound("no such credential"),
 			assertError:         require.Error,
 		},
 		{
+			name: "validation failure",
+			cliArgs: awsICRotateCredsArgs{
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: true,
+				payload:       "some-token",
+			},
+			expectValidation:    true,
+			validationError:     trace.AccessDenied("Validation failed"),
+			pluginValueProvider: validAWSICPlugin,
+			expectUpdate:        false,
+			assertError:         require.Error,
+		},
+		{
 			name: "bypass validation",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName: types.PluginTypeAWSIdentityCenter,
-				payload:    "some-token",
+				pluginName:    types.PluginTypeAWSIdentityCenter,
+				validateToken: false,
+				payload:       "some-token",
 			},
+			expectValidation:    false,
 			validationError:     trace.AccessDenied("Validation failed"),
 			pluginValueProvider: validAWSICPlugin,
 			expectUpdate:        true,
@@ -475,14 +497,25 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 					})
 			}
 
+			scimClient := mockSCIMClient{
+				Client:       scimsdk.NewSCIMClientMock(),
+				pingResponse: test.validationError,
+			}
+
 			args := installPluginArgs{
 				plugins: pluginsClient,
+				scimProvider: func(_, _, token string) (scimsdk.Client, error) {
+					require.Equal(t, test.cliArgs.payload, token)
+					return &scimClient, nil
+				},
 			}
 
 			err := cliArgs.RotateAWSICCreds(context.Background(), args)
 			test.assertError(t, err)
 
 			pluginsClient.AssertExpectations(t)
+			require.Equal(t, test.expectValidation, scimClient.pingCalled,
+				"SCIM validation Ping expected: %t, Ping called %t", test.expectValidation, scimClient.pingCalled)
 		})
 	}
 }
