@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"net"
@@ -247,7 +246,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 	span.AddEvent("retrieved target server")
 
-	serverID := target.GetName() + "." +  clusterName
+	serverID := target.GetName() + "." + clusterName
 	hostClusterPrincipal := host + "." + clusterName
 	principals := []string{
 		host,
