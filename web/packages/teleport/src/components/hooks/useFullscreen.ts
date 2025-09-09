@@ -16,11 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type RefObject,
+} from 'react';
 
-export function useFullScreen(
-  ref: RefObject<HTMLElement>
-): [boolean, () => void, () => void] {
+export function useFullScreen(ref: RefObject<HTMLElement>) {
   const [active, setActive] = useState<boolean>(false);
 
   useEffect(() => {
@@ -53,5 +57,5 @@ export function useFullScreen(
     return Promise.resolve();
   }, [ref]);
 
-  return [active, enter, exit];
+  return useMemo(() => ({ active, enter, exit }), [active, enter, exit]);
 }

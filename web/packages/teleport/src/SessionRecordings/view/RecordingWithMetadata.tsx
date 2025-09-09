@@ -61,8 +61,7 @@ export function RecordingWithMetadata({
   const playerRef = useRef<PlayerHandle>(null);
   const timelineRef = useRef<RecordingTimelineHandle>(null);
 
-  const [fullScreenActive, enterFullScreen, exitFullScreen] =
-    useFullScreen(containerRef);
+  const fullscreen = useFullScreen(containerRef);
 
   const [timelineHidden, setTimelineHidden] = useLocalStorage(
     KeysEnum.SESSION_RECORDING_TIMELINE_HIDDEN,
@@ -104,12 +103,12 @@ export function RecordingWithMetadata({
   }, [timelineHidden, setTimelineHidden]);
 
   const handleToggleFullscreen = useCallback(() => {
-    if (fullScreenActive) {
-      exitFullScreen();
+    if (fullscreen.active) {
+      void fullscreen.exit();
     } else {
-      enterFullScreen();
+      void fullscreen.enter();
     }
-  }, [enterFullScreen, exitFullScreen, fullScreenActive]);
+  }, [fullscreen]);
 
   const summary = useMemo(
     () => summarySlot?.(sessionId),
@@ -136,7 +135,7 @@ export function RecordingWithMetadata({
           durationMs={data.metadata.duration}
           recordingType={data.metadata.type}
           onToggleFullscreen={handleToggleFullscreen}
-          fullscreen={fullScreenActive}
+          fullscreen={fullscreen.active}
           onToggleSidebar={toggleSidebar}
           onToggleTimeline={toggleTimeline}
           onTimeChange={handleTimeChange}
