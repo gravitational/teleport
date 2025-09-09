@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // IdentityCenterAccount wraps a raw identity center record in a new type to
@@ -71,7 +70,7 @@ type IdentityCenterAccountID string
 type IdentityCenterAccountGetter interface {
 	// ListIdentityCenterAccounts provides a paged list of all known identity
 	// center accounts
-	ListIdentityCenterAccounts(context.Context, int, *pagination.PageRequestToken) ([]IdentityCenterAccount, pagination.NextPageToken, error)
+	ListIdentityCenterAccounts(context.Context, int, string) ([]*identitycenterv1.Account, string, error)
 	ListIdentityCenterAccounts2(context.Context, int, string) ([]*identitycenterv1.Account, string, error)
 
 	// GetIdentityCenterAccount fetches a specific Identity Center Account
@@ -84,12 +83,12 @@ type IdentityCenterAccounts interface {
 	IdentityCenterAccountGetter
 
 	// CreateIdentityCenterAccount creates a new Identity Center Account record
-	CreateIdentityCenterAccount(context.Context, IdentityCenterAccount) (IdentityCenterAccount, error)
+	CreateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
 	CreateIdentityCenterAccount2(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
 
 	// UpdateIdentityCenterAccount performs a conditional update on an Identity
 	// Center Account record, returning the updated record on success.
-	UpdateIdentityCenterAccount(context.Context, IdentityCenterAccount) (IdentityCenterAccount, error)
+	UpdateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
 	UpdateIdentityCenterAccount2(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
 
 	// UpsertIdentityCenterAccount performs an *unconditional* upsert on an
@@ -114,7 +113,7 @@ type PrincipalAssignmentID string
 type IdentityCenterPrincipalAssignments interface {
 	// ListPrincipalAssignments lists all PrincipalAssignment records in the
 	// service
-	ListPrincipalAssignments(context.Context, int, *pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error)
+	ListPrincipalAssignments(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
 	ListPrincipalAssignments2(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
 
 	// CreatePrincipalAssignment creates a new Principal Assignment record in
@@ -147,7 +146,7 @@ type PermissionSetID string
 // identitycenterv1.PermissionSet records in the service.
 type IdentityCenterPermissionSets interface {
 	// ListPermissionSets list the known Permission Sets
-	ListPermissionSets(context.Context, int, *pagination.PageRequestToken) ([]*identitycenterv1.PermissionSet, pagination.NextPageToken, error)
+	ListPermissionSets(context.Context, int, string) ([]*identitycenterv1.PermissionSet, string, error)
 	ListPermissionSets2(context.Context, int, string) ([]*identitycenterv1.PermissionSet, string, error)
 
 	// CreatePermissionSet creates a new PermissionSet record based on the
@@ -205,13 +204,10 @@ type IdentityCenterAccountAssignmentID string
 // IdentityCenterAccountAssignmentGetter provides read-only access to Identity
 // Center Account Assignment records
 type IdentityCenterAccountAssignmentGetter interface {
-	// GetAccountAssignment fetches a specific Account Assignment record.
-	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
+	// GetIdentityCenterAccountAssignment fetches a specific Account Assignment record.
 	GetIdentityCenterAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
 
-	// ListAccountAssignments lists all IdentityCenterAccountAssignment record
-	// known to the service
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+	// ListIdentityCenterAccountAssignments provides a page of AccountAssignment records.
 	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
 }
 
@@ -220,15 +216,13 @@ type IdentityCenterAccountAssignmentGetter interface {
 type IdentityCenterAccountAssignments interface {
 	IdentityCenterAccountAssignmentGetter
 
-	// CreateAccountAssignment creates a new Account Assignment record in
+	// CreateIdentityCenterAccountAssignment creates a new Account Assignment record in
 	// the service from the supplied in-memory representation. Returns the
 	// created record on success.
-	CreateAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
 	CreateIdentityCenterAccountAssignment(context.Context, *identitycenterv1.AccountAssignment) (*identitycenterv1.AccountAssignment, error)
 
-	// UpdateAccountAssignment performs a conditional update on the supplied
+	// UpdateIdentityCenterAccountAssignment performs a conditional update on the supplied
 	// Account Assignment, returning the updated record on success.
-	UpdateAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
 	UpdateIdentityCenterAccountAssignment(context.Context, *identitycenterv1.AccountAssignment) (*identitycenterv1.AccountAssignment, error)
 
 	// UpsertAccountAssignment performs an unconditional update on the supplied

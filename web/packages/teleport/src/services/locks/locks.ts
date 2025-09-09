@@ -81,9 +81,11 @@ export async function deleteLock(
   variables: { uuid: string },
   signal?: AbortSignal
 ) {
-  return api.delete(
+  return api.deleteWithOptions(
     cfg.getLockUrl({ action: 'delete', uuid: variables.uuid }),
-    signal
+    {
+      signal,
+    }
   );
 }
 

@@ -40,7 +40,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -825,40 +824,40 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 
 func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]resource, error) {
 	var accounts []resource
-	var pageRequest pagination.PageRequestToken
+	var startKey string
 	for {
-		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		resp, nextKey, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
-		for _, a := range resultsPage {
-			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+		for _, acct := range resp {
+			accounts = append(accounts, types.Resource153ToUnifiedResource(IdentityCenterAccount{Account: acct}))
 		}
 
-		if nextPage == pagination.EndOfList {
+		if nextKey == "" {
 			break
 		}
-		pageRequest.Update(nextPage)
+		startKey = nextKey
 	}
 	return accounts, nil
 }
 
 func (c *UnifiedResourceCache) getIdentityCenterAccountAssignments(ctx context.Context) ([]resource, error) {
 	var accounts []resource
-	var pageRequest pagination.PageRequestToken
+	var startKey string
 	for {
-		resultsPage, nextPage, err := c.ListAccountAssignments(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		resp, nextKey, err := c.ListIdentityCenterAccountAssignments(ctx, apidefaults.DefaultChunkSize, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
-		for _, a := range resultsPage {
-			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+		for _, a := range resp {
+			accounts = append(accounts, types.Resource153ToUnifiedResource(IdentityCenterAccountAssignment{AccountAssignment: a}))
 		}
 
-		if nextPage == pagination.EndOfList {
+		if nextKey == "" {
 			break
 		}
-		pageRequest.Update(nextPage)
+		startKey = nextKey
 	}
 	return accounts, nil
 }

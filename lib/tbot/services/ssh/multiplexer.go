@@ -271,7 +271,7 @@ func (s *MultiplexerService) setup(ctx context.Context) (
 			select {
 			case <-s.botIdentityReadyCh:
 			case <-ctx.Done():
-				return nil, nil, "", nil, nil
+				return nil, nil, "", nil, ctx.Err()
 			}
 		}
 	}

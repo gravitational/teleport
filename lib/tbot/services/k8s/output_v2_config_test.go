@@ -49,6 +49,7 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 						Labels: map[string]string{
 							"foo": "bar",
 						},
+						DefaultNamespace: "foo-namespace",
 					},
 				},
 				CredentialLifetime: bot.CredentialLifetime{

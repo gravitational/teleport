@@ -84,7 +84,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -6388,21 +6387,19 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 			name: "account",
 			kind: types.KindIdentityCenterAccount,
 			init: func(subtestT *testing.T) {
-				acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-					Account: &identitycenterv1.Account{
-						Kind:    types.KindIdentityCenterAccount,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: "test-account",
-							Labels: map[string]string{
-								types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-							},
+				acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+					Kind:    types.KindIdentityCenterAccount,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "test-account",
+						Labels: map[string]string{
+							types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 						},
-						Spec: &identitycenterv1.AccountSpec{
-							Id:   validAccountID,
-							Arn:  "some:account:arn",
-							Name: "Test Account",
-						},
+					},
+					Spec: &identitycenterv1.AccountSpec{
+						Id:   validAccountID,
+						Arn:  "some:account:arn",
+						Name: "Test Account",
 					},
 				})
 				require.NoError(subtestT, err)
@@ -6413,8 +6410,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 
 				inlineEventually(subtestT,
 					func() bool {
-						accounts, _, err := srv.Auth().ListIdentityCenterAccounts(
-							ctx, 100, &pagination.PageRequestToken{})
+						accounts, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 						require.NoError(t, err)
 						return len(accounts) == 1
 					},
@@ -6426,24 +6422,22 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 			name: "account assignment",
 			kind: types.KindIdentityCenterAccountAssignment,
 			init: func(subtestT *testing.T) {
-				asmt, err := srv.Auth().CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-					AccountAssignment: &identitycenterv1.AccountAssignment{
-						Kind:    types.KindIdentityCenterAccountAssignment,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: "test-account",
-							Labels: map[string]string{
-								types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-							},
+				asmt, err := srv.Auth().CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+					Kind:    types.KindIdentityCenterAccountAssignment,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "test-account",
+						Labels: map[string]string{
+							types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 						},
-						Spec: &identitycenterv1.AccountAssignmentSpec{
-							AccountId: validAccountID,
-							Display:   "Test Account Assignment",
-							PermissionSet: &identitycenterv1.PermissionSetInfo{
-								Arn:          validPermissionSetARN,
-								Name:         "Test permission set",
-								AssignmentId: "Test Assignment on Test Account",
-							},
+					},
+					Spec: &identitycenterv1.AccountAssignmentSpec{
+						AccountId: validAccountID,
+						Display:   "Test Account Assignment",
+						PermissionSet: &identitycenterv1.PermissionSetInfo{
+							Arn:          validPermissionSetARN,
+							Name:         "Test permission set",
+							AssignmentId: "Test Assignment on Test Account",
 						},
 					},
 				})
@@ -6455,8 +6449,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 
 				inlineEventually(subtestT,
 					func() bool {
-						testAssignments, _, err := srv.Auth().ListAccountAssignments(
-							ctx, 100, &pagination.PageRequestToken{})
+						testAssignments, _, err := srv.Auth().ListIdentityCenterAccountAssignments(ctx, 100, "")
 						require.NoError(t, err)
 						return len(testAssignments) == 1
 					},
@@ -10469,26 +10462,23 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		},
 	}
 
-	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx,
-		services.IdentityCenterAccount{
-			Account: &identitycenterv1.Account{
-				Kind:    types.KindIdentityCenterAccount,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: accountID,
-					Labels: map[string]string{
-						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-					},
-				},
-				Spec: &identitycenterv1.AccountSpec{
-					Id:                accountID,
-					Arn:               "aws:arn:test:account",
-					Name:              "Test Account",
-					Description:       "An account for testing",
-					PermissionSetInfo: permissionSets,
-				},
+	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: accountID,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-		})
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:                accountID,
+			Arn:               "aws:arn:test:account",
+			Name:              "Test Account",
+			Description:       "An account for testing",
+			PermissionSetInfo: permissionSets,
+		},
+	})
 	require.NoError(t, err)
 
 	// GIVEN a role that allows access to all permission sets on the target
@@ -10517,8 +10507,7 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 	// EXPECT that the IC Account has made it to the cache
 	inlineEventually(t,
 		func() bool {
-			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(testAssignments) == 1
 		},

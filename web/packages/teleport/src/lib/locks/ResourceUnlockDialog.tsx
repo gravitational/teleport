@@ -71,12 +71,10 @@ export function ResourceUnlockDialog(props: {
   targetName: string;
   /**
    * Called when the user cancels the unlock operation.
-   * @returns nothing
    */
   onCancel: () => void;
   /**
    * Called when the user completes the unlock operation.
-   * @returns nothing
    */
   onComplete: () => void;
   /**
@@ -101,16 +99,17 @@ export function ResourceUnlockDialog(props: {
   const handleUnlock = async () => {
     try {
       await unlock();
-      onComplete();
     } catch {
       // Swallow this error - it's handled as `unlockError` above
+      return;
     }
+    onComplete();
   };
 
   const multipleLocksExist = locks && locks.length > 1;
 
   return (
-    <Dialog open={true}>
+    <Dialog onClose={onCancel} open={true}>
       <DialogHeader>
         <DialogTitle>Unlock {targetName}?</DialogTitle>
       </DialogHeader>
