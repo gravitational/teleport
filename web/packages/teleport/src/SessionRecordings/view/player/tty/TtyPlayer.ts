@@ -227,13 +227,27 @@ export class TtyPlayer extends Player<TtyEvent> {
       const mouseService = selectionService._mouseService;
       const originalGetCoords = mouseService.getCoords;
 
-      mouseService.getCoords = (event: MouseEvent, element: HTMLElement, colCount: number, rowCount: number, isSelection?: boolean): [number, number] | undefined => {
+      mouseService.getCoords = (
+        event: MouseEvent,
+        element: HTMLElement,
+        colCount: number,
+        rowCount: number,
+        isSelection?: boolean
+      ): [number, number] | undefined => {
         const scale = this.aspectFitAddon.getScale();
         const offsets = this.aspectFitAddon.getOffsets();
 
-        const parentRect = terminalElement.parentElement?.getBoundingClientRect();
+        const parentRect =
+          terminalElement.parentElement?.getBoundingClientRect();
         if (!parentRect) {
-          return originalGetCoords.call(mouseService, event, element, colCount, rowCount, isSelection);
+          return originalGetCoords.call(
+            mouseService,
+            event,
+            element,
+            colCount,
+            rowCount,
+            isSelection
+          );
         }
 
         // Calculate mouse position relative to the parent container
@@ -249,7 +263,14 @@ export class TtyPlayer extends Player<TtyEvent> {
         const cellHeight = core._renderService?.dimensions?.css?.cell?.height;
 
         if (!cellWidth || !cellHeight) {
-          return originalGetCoords.call(mouseService, event, element, colCount, rowCount, isSelection);
+          return originalGetCoords.call(
+            mouseService,
+            event,
+            element,
+            colCount,
+            rowCount,
+            isSelection
+          );
         }
 
         // Calculate column and row (0-based indexing)
@@ -261,7 +282,7 @@ export class TtyPlayer extends Player<TtyEvent> {
         const clampedRow = Math.max(0, Math.min(row, rowCount - 1));
 
         return [clampedCol, clampedRow];
-      }
+      };
     }
   }
 }
