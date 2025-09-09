@@ -74,7 +74,7 @@ Here are example resources with labels we can reference:
 <Tabs>
 <TabItem label="Server">
 
-![Example ssh server resource with label env: mwidemo](../../../img/machine-id/ssh-target-example.png)
+![Example ssh server resource with label](../../../img/machine-id/ssh-target-example.png)
 
 You can also find your nodes with the following command:
 
@@ -90,7 +90,7 @@ target1 8a50c8aa-c45f-403c-95ff-83f50561d64c                env=mwi-demo,hostnam
 
 <TabItem label="Kubernetes">
 
-![Example kubernetes cluster resource with label env: mwidemo](../../../img/machine-id/k8s-target-example.png)
+![Example kubernetes cluster resource with label](../../../img/machine-id/k8s-target-example.png)
 
 You can also find your clusters with the following command:
 
@@ -99,7 +99,7 @@ $ tctl kube ls --format=text
 
 Cluster  Labels                        Version
 -------- ----------------------------- -------
-crumpet  env=dogfood,region=us-west-2  18.1.5
+crumpet  env=dog-food,region=us-west-2  18.1.5
 ```
 
 </TabItem>
@@ -138,7 +138,7 @@ metadata:
 spec:
   allow:
     node_labels:
-      env: myenvlabel
+      env: my-env-label
     logins:
       - ubuntu
 ```
@@ -155,7 +155,7 @@ $ tctl create -f ./teleport/github_bot_server_role.yaml
 
 <TabItem label="Kubernetes">
 
-For the role defintion, edit the `kubernetes_labels`
+For the role definition, edit the `kubernetes_labels`
 fields to match the labels on your target resource. To make going through this guide more secure,
 this role only allows the bot to take actions in the `default` namespace.
 
@@ -170,7 +170,7 @@ metadata:
 spec:
   allow:
     kubernetes_labels:
-      env: myenvlabel
+      env: my-env-label
     kubernetes_groups:
       - system:masters
     kubernetes_resources:
@@ -250,8 +250,8 @@ spec:
   github:
     allows:
     - repository: "your-github-username/mwi-getting-started-guide" # if you cloned the example repo, if not, use your repo name
-  # enterprise_server_host: github.mycompany.com # use for self-hosted GitHub Enterprise
-  # enterprise_slug: mycompany # use for GitHub Enterprise Cloud organization
+  # enterprise_server_host: github.my-company.com # use for self-hosted GitHub Enterprise
+  # enterprise_slug: my-company # use for GitHub Enterprise Cloud organization
 ```
 </details>
 
@@ -358,7 +358,7 @@ outputs:
   - type: kubernetes/v2
     selectors:
       - labels:
-          env: myenvlabel
+          env: my-env-label
     destination:
       type: directory
       path: ./k8s_out

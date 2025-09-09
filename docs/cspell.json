@@ -691,6 +691,7 @@
     "mongodbatlas",
     "mongosh",
     "mpghq",
+    "mpstat",
     "msapi",
     "msclmd",
     "mspan",
