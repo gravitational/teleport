@@ -1040,7 +1040,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 }
 
 func testRecordingModesSessionTrackers(t *testing.T, suite *integrationTestSuite) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cfg := suite.defaultServiceConfig()
 	cfg.Auth.Enabled = true
