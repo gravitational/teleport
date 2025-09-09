@@ -39,7 +39,7 @@ func New(r []*types.PluginSyncFilter) (Filters, error) {
 	return out, nil
 }
 
-// validate validates the filters.
+// validate validates the Filters.
 func (f Filters) validate() error {
 	for _, v := range f {
 		switch v.GetInclude().(type) {
@@ -58,7 +58,7 @@ func (f Filters) validate() error {
 	return nil
 }
 
-// MatchParam is a defines filter parameters.
+// MatchParam defines filter matcher parameters.
 // It contains the functions to get the name and ID of an item.
 type MatchParam[T any] struct {
 	// GetName is a function that gets the name of an item.
