@@ -56,29 +56,42 @@ type Server struct {
 }
 
 func (s *Server) GRPCServerCredentials() credentials.TransportCredentials {
-	return (*serverTransportCredentials)(s)
+	return &grpcServerCredentials{
+		tunnelServer: s,
+
+		getCertificate: s.getCertificate,
+		getPool:        s.getPool,
+		ciphersuites:   s.ciphersuites,
+	}
 }
 
-type serverTransportCredentials Server
+type grpcServerCredentials struct {
+	tunnelServer *Server
+
+	getCertificate func(ctx context.Context) (*tls.Certificate, error)
+	getPool        func(ctx context.Context) (*x509.CertPool, error)
+	ciphersuites   []uint16
+}
 
 // ClientHandshake implements [credentials.TransportCredentials].
-func (*serverTransportCredentials) ClientHandshake(ctx context.Context, authority string, rawConn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+func (*grpcServerCredentials) ClientHandshake(ctx context.Context, authority string, rawConn net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	_ = rawConn.Close()
 	return nil, nil, trace.NotImplemented("these transport credentials can only be used as a server")
 }
 
 // OverrideServerName implements implements [credentials.TransportCredentials].
-func (*serverTransportCredentials) OverrideServerName(string) error {
+func (*grpcServerCredentials) OverrideServerName(string) error {
 	return nil
 }
 
 // Clone implements implements [credentials.TransportCredentials].
-func (s *serverTransportCredentials) Clone() credentials.TransportCredentials {
+func (s *grpcServerCredentials) Clone() credentials.TransportCredentials {
+	// s is immutable so there's no need to copy anything
 	return s
 }
 
 // Info implements implements [credentials.TransportCredentials].
-func (s *serverTransportCredentials) Info() credentials.ProtocolInfo {
+func (s *grpcServerCredentials) Info() credentials.ProtocolInfo {
 	return credentials.ProtocolInfo{
 		SecurityProtocol: "tls",
 		SecurityVersion:  "1.2",
@@ -86,7 +99,7 @@ func (s *serverTransportCredentials) Info() credentials.ProtocolInfo {
 }
 
 // ServerHandshake implements implements [credentials.TransportCredentials].
-func (s *serverTransportCredentials) ServerHandshake(rawConn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+func (s *grpcServerCredentials) ServerHandshake(rawConn net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
