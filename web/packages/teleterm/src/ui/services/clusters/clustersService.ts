@@ -419,16 +419,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
   }
 
-  // DELETE IN 15.0.0 (gzdunek),
-  // since we will no longer have to support old kube connections.
-  // See call in `trackedConnectionOperationsFactory.ts` for more details.
-  async removeKubeGateway(kubeUri: uri.KubeUri) {
-    const gateway = this.findGatewayByConnectionParams({ targetUri: kubeUri });
-    if (gateway) {
-      await this.removeGateway(gateway.uri);
-    }
-  }
-
   async setGatewayTargetSubresourceName(
     gatewayUri: uri.GatewayUri,
     targetSubresourceName: string
@@ -559,12 +549,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return this.mainProcessClient.removeKubeConfig({
       relativePath: rootClusterId,
       isDirectory: true,
-    });
-  }
-
-  async removeKubeConfig(kubeConfigRelativePath: string): Promise<void> {
-    return this.mainProcessClient.removeKubeConfig({
-      relativePath: kubeConfigRelativePath,
     });
   }
 

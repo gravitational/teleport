@@ -21,7 +21,6 @@ import type { TshdClient } from 'teleterm/services/tshd';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeDatabaseGateway,
-  makeKubeGateway,
   makeLeafCluster,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
@@ -270,32 +269,6 @@ test('remove a gateway', async () => {
 
   expect(removeGateway).toHaveBeenCalledWith({ gatewayUri });
   expect(service.findGateway(gatewayUri)).toBeUndefined();
-});
-
-test('remove a kube gateway', async () => {
-  const { removeGateway } = getClientMocks();
-  const service = createService({
-    removeGateway,
-  });
-  const kubeGatewayMock = makeKubeGateway({
-    uri: '/gateways/gatewayTestUri',
-    targetUri: `${clusterUri}/kubes/testKubeId`,
-  });
-
-  service.setState(draftState => {
-    draftState.gateways = new Map([[kubeGatewayMock.uri, kubeGatewayMock]]);
-  });
-
-  await service.removeKubeGateway(kubeGatewayMock.targetUri as uri.KubeUri);
-  expect(removeGateway).toHaveBeenCalledTimes(1);
-  expect(removeGateway).toHaveBeenCalledWith({
-    gatewayUri: kubeGatewayMock.uri,
-  });
-  expect(service.findGateway(kubeGatewayMock.uri)).toBeUndefined();
-
-  // Calling it again should not increase mock calls.
-  await service.removeKubeGateway(kubeGatewayMock.targetUri as uri.KubeUri);
-  expect(removeGateway).toHaveBeenCalledTimes(1);
 });
 
 test('sync gateways', async () => {

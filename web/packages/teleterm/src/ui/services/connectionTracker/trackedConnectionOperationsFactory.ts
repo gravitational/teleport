@@ -206,22 +206,18 @@ export class TrackedConnectionOperationsFactory {
         documentsService.open(gwDoc.uri);
       },
       disconnect: async () => {
-        return (
-          this._clustersService
-            // We have to use `removeKubeGateway` instead of `removeGateway`,
-            // because we need to support both the old kube connections
-            // (which don't have gatewayUri and an underlying gateway)
-            // and new ones (which do have a gateway).
-            .removeKubeGateway(connection.kubeUri)
-            .then(() => {
-              documentsService
-                .getDocuments()
-                .filter(getGatewayKubeDocumentByConnection(connection))
-                .forEach(document => {
-                  documentsService.close(document.uri);
-                });
-            })
-        );
+        const gateway = this._clustersService.findGatewayByConnectionParams({
+          targetUri: connection.kubeUri,
+        });
+        if (gateway) {
+          await this._clustersService.removeGateway(gateway.uri);
+        }
+        documentsService
+          .getDocuments()
+          .filter(getGatewayKubeDocumentByConnection(connection))
+          .forEach(document => {
+            documentsService.close(document.uri);
+          });
       },
       remove: async () => {},
     };
