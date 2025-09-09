@@ -17,7 +17,7 @@
  */
 
 export type BaseIntegration = (
-  | { name: string; title?: never } // Plugin, IntegrationSpec
+  | { name: string; title?: never } // Plugin, IntegrationTileSpec
   | { title: string; name?: never } // BotIntegration uses title
 ) & {
   tags: IntegrationTag[];
@@ -34,6 +34,9 @@ export const integrationTagOptions = [
   { value: 'scim', label: 'SCIM' },
 ] as const satisfies { value: string; label: string }[];
 
+/**
+ * Type representing tags used for categorizing and filtering integrations
+ */
 export type IntegrationTag = Extract<
   (typeof integrationTagOptions)[number],
   { value: string }
