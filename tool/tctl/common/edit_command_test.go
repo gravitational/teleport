@@ -684,7 +684,7 @@ func TestMultipleRoles(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
