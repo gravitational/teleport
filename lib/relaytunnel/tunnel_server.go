@@ -108,6 +108,9 @@ func (s *serverTransportCredentials) ServerHandshake(rawConn net.Conn) (net.Conn
 		},
 		VerifyConnection: func(cs tls.ConnectionState) error {
 			if cs.NegotiatedProtocol == "" {
+				// client tried to connect with no ALPN (or with http/1.1 in its
+				// protocol list because of an undocumented behavior of the
+				// crypto/tls server handshake)
 				return trace.NotImplemented("missing ALPN in TLS ClientHello")
 			}
 			if len(cs.VerifiedChains) < 1 {
@@ -126,7 +129,7 @@ func (s *serverTransportCredentials) ServerHandshake(rawConn net.Conn) (net.Conn
 
 			return nil
 		},
-		NextProtos: []string{"h2", yamuxTunnelALPN},
+		NextProtos: []string{yamuxTunnelALPN, "h2"},
 
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		ClientCAs:  pool,
