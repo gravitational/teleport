@@ -95,6 +95,9 @@ export class TtyPlayer extends Player<TtyEvent> {
     this.terminal.open(element);
 
     this.aspectFitAddon.fitWithAspectRatio(this.size);
+
+    // Set up mouse event interceptor to scale coordinates
+    this.setupMouseEventScaling();
   }
 
   override applyEvent(event: TtyEvent) {
@@ -194,5 +197,92 @@ export class TtyPlayer extends Player<TtyEvent> {
 
   onStop() {
     this.playing = false;
+  }
+
+  /**
+   * The aspect fit addon scales the terminal using CSS transforms. This breaks the text
+   * selection and mouse events as the mouse coordinates are not scaled. This method patches
+   * xterm's mouse event handling to adjust the mouse coordinates based on the current scale
+   * and offsets applied by the aspect fit addon.
+   */
+  private setupMouseEventScaling() {
+    if (!this.terminal) {
+      return;
+    }
+
+    const terminalElement = this.terminal.element;
+    if (!terminalElement) {
+      return;
+    }
+
+    const core = (this.terminal as any)._core;
+
+    if (!core) {
+      return;
+    }
+
+    if (core._selectionService) {
+      const selectionService = core._selectionService;
+
+      const mouseService = selectionService._mouseService;
+      const originalGetCoords = mouseService.getCoords;
+
+      mouseService.getCoords = (
+        event: MouseEvent,
+        element: HTMLElement,
+        colCount: number,
+        rowCount: number,
+        isSelection?: boolean
+      ): [number, number] | undefined => {
+        const scale = this.aspectFitAddon.getScale();
+        const offsets = this.aspectFitAddon.getOffsets();
+
+        const parentRect =
+          terminalElement.parentElement?.getBoundingClientRect();
+        if (!parentRect) {
+          return originalGetCoords.call(
+            mouseService,
+            event,
+            element,
+            colCount,
+            rowCount,
+            isSelection
+          );
+        }
+
+        // Calculate mouse position relative to the parent container
+        const mouseX = event.clientX - parentRect.left;
+        const mouseY = event.clientY - parentRect.top;
+
+        // Adjust for the terminal's offset and scale
+        const adjustedX = (mouseX - offsets.x) / scale;
+        const adjustedY = (mouseY - offsets.y) / scale;
+
+        // Get cell dimensions
+        const cellWidth = core._renderService?.dimensions?.css?.cell?.width;
+        const cellHeight = core._renderService?.dimensions?.css?.cell?.height;
+
+        if (!cellWidth || !cellHeight) {
+          return originalGetCoords.call(
+            mouseService,
+            event,
+            element,
+            colCount,
+            rowCount,
+            isSelection
+          );
+        }
+
+        // Calculate column and row (0-based indexing)
+        const col = Math.floor(adjustedX / cellWidth) + 1;
+        const row = Math.floor(adjustedY / cellHeight) + 1;
+
+        // Clamp to terminal bounds
+        const clampedCol = Math.max(0, Math.min(col, colCount - 1));
+        const clampedRow = Math.max(0, Math.min(row, rowCount - 1));
+
+        return [clampedCol, clampedRow];
+      };
+    }
   }
 }

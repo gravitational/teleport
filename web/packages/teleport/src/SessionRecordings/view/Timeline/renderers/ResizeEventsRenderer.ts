@@ -76,7 +76,7 @@ function calculateEventEndTimes(
   return events;
 }
 
-const TEXT_PADDING_X = 8;
+const TEXT_PADDING_X = 4;
 const TEXT_PADDING_Y = 3.5;
 const ROW_HEIGHT = 20;
 const BORDER_RADIUS = 6;
