@@ -2004,3 +2004,227 @@ func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
 		})
 	}
 }
+
+func TestDatabaseInfo(t *testing.T) {
+	const serviceName = "test-db"
+	tests := []struct {
+		name     string
+		dbSpec   types.DatabaseSpecV3
+		cliConf  *CLIConf
+		routeIn  tlsca.RouteToDatabase
+		routeOut tlsca.RouteToDatabase
+	}{
+		{
+			name: "basic case no changes",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "postgres",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "postgres",
+			},
+		},
+		{
+			name: "override from CLI flags",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			cliConf: &CLIConf{
+				DatabaseUser:  "bob",
+				DatabaseName:  "bob_db",
+				DatabaseRoles: "r1,r2,r3",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "postgres",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "bob",
+				Database:    "bob_db",
+				Roles:       []string{"r1", "r2", "r3"},
+			},
+		},
+		{
+			name: "add GCP IAM suffix for CloudSQL",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "uri",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "my-project",
+					InstanceID: "my-instance",
+				},
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-project.iam",
+			},
+		},
+		{
+			name: "add GCP IAM suffix for AlloyDB",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-project-123456.iam",
+			},
+		},
+		{
+			name: "keep existing GCP IAM suffix",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "uri",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "my-project",
+					InstanceID: "my-instance",
+				},
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-other-project.iam",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-other-project.iam",
+			},
+		},
+		{
+			name: "do not modify non-Postgres logins",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSpanner,
+				URI:      "uri",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "my-project",
+					InstanceID: "my-instance",
+				},
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "spanner",
+				Database:    "spanner",
+				Username:    "iamuser",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "spanner",
+				Database:    "spanner",
+				Username:    "iamuser",
+			},
+		},
+		{
+			name: "default database name from role",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "database_from_role",
+			},
+		},
+		{
+			name: "default database username from role",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Database:    "postgres",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "user_from_role",
+				Database:    "postgres",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, err := types.NewDatabaseV3(types.Metadata{
+				Name:   serviceName,
+				Labels: map[string]string{"foo": "bar"},
+			}, tt.dbSpec)
+			require.NoError(t, err)
+
+			role := &types.RoleV6{
+				Metadata: types.Metadata{Name: "test-role", Namespace: apidefaults.Namespace},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  []string{"user_from_role"},
+						DatabaseNames:  []string{"database_from_role"},
+					},
+				},
+			}
+
+			checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", services.NewRoleSet(role))
+
+			dbInfo := &databaseInfo{
+				RouteToDatabase: tt.routeIn,
+
+				database: db,
+				checker:  checker,
+			}
+
+			cf := &CLIConf{}
+			if tt.cliConf != nil {
+				cf = tt.cliConf
+			}
+
+			// as long as dbInfo.database and dbInfo.checker are set
+			// the Teleport client won't be used and therefore can be nil.
+			var tc *client.TeleportClient = nil
+
+			err = dbInfo.checkAndSetDefaults(cf, tc)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.routeOut, dbInfo.RouteToDatabase)
+		})
+	}
+}
