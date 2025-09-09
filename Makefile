@@ -1903,9 +1903,10 @@ ensure-wasm-deps:
 else
 ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt rustup-install-wasm-toolchain
 
-# Get the version of wasm-bindgen from cargo
-WASM_BINDGEN_VERSION = $(shell cat web/packages/shared/libs/ironrdp/Cargo.toml | grep  'wasm-bindgen =' | cut -d '=' -f 2 | tr -d '\"')
-#WASM_BINDGEN_VERSION = $(shell cargo pkgid --package ironrdp wasm-bindgen 2>/dev/null | cut -d '@' -f 2)
+WASM_BINDGEN_VERSION = $(shell awk ' \
+  $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
+  in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
+' Cargo.lock)
 
 .PHONY: print-wasm-bindgen-version
 print-wasm-bindgen-version:
