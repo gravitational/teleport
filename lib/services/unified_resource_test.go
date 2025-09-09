@@ -183,8 +183,8 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	// we expect each of the resources above to exist
 	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win,
 		gitServer, gitServer2,
-		types.Resource153ToUnifiedResource(icAcct),
-		types.Resource153ToUnifiedResource(icAcctAssignment),
+		types.Resource153ToUnifiedResource(services.IdentityCenterAccount{Account: icAcct}),
+		types.Resource153ToUnifiedResource(services.IdentityCenterAccountAssignment{AccountAssignment: icAcctAssignment}),
 	}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
@@ -225,8 +225,8 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	// this should include the updated node, and shouldn't have any apps included
 	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win,
 		gitServer, gitServer2,
-		types.Resource153ToUnifiedResource(icAcct),
-		types.Resource153ToUnifiedResource(icAcctAssignment)}
+		types.Resource153ToUnifiedResource(services.IdentityCenterAccount{Account: icAcct}),
+		types.Resource153ToUnifiedResource(services.IdentityCenterAccountAssignment{AccountAssignment: icAcctAssignment})}
 
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
@@ -384,8 +384,8 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		types.KindKubernetesCluster:               kubeServer,
 		types.KindSAMLIdPServiceProvider:          samlapp,
 		types.KindGitServer:                       gitServer,
-		types.KindIdentityCenterAccount:           types.Resource153ToUnifiedResource(icAcct),
-		types.KindIdentityCenterAccountAssignment: types.Resource153ToUnifiedResource(icAcctAssignment),
+		types.KindIdentityCenterAccount:           types.Resource153ToUnifiedResource(services.IdentityCenterAccount{Account: icAcct}),
+		types.KindIdentityCenterAccountAssignment: types.Resource153ToUnifiedResource(services.IdentityCenterAccountAssignment{AccountAssignment: icAcctAssignment}),
 	}
 
 	for r, err := range w.Resources(ctx, "", types.SortBy{Field: services.SortByKind}) {
@@ -696,30 +696,28 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 		{
 			name: "identity center account",
 			createResource: func(name string, c *client) error {
-				_, err := c.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-					Account: &identitycenterv1.Account{
-						Kind:    types.KindIdentityCenterAccount,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: name,
-							Labels: map[string]string{
-								types.OriginLabel: common.OriginAWSIdentityCenter,
-							},
+				_, err := c.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+					Kind:    types.KindIdentityCenterAccount,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: name,
+						Labels: map[string]string{
+							types.OriginLabel: common.OriginAWSIdentityCenter,
 						},
-						Spec: &identitycenterv1.AccountSpec{
-							Id:          name,
-							Arn:         "arn:aws:sso:::account/" + name,
-							Name:        "Test AWS Account",
-							Description: "Used for testing",
-							PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-								{
-									Name: "Alpha",
-									Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
-								},
-								{
-									Name: "Beta",
-									Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
-								},
+					},
+					Spec: &identitycenterv1.AccountSpec{
+						Id:          name,
+						Arn:         "arn:aws:sso:::account/" + name,
+						Name:        "Test AWS Account",
+						Description: "Used for testing",
+						PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
+							{
+								Name: "Alpha",
+								Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
+							},
+							{
+								Name: "Beta",
+								Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
 							},
 						},
 					}})
@@ -743,26 +741,24 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 		{
 			name: "identity center account assignment",
 			createResource: func(name string, c *client) error {
-				_, err := c.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-					AccountAssignment: &identitycenterv1.AccountAssignment{
-						Kind:    types.KindIdentityCenterAccountAssignment,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: name,
-							Labels: map[string]string{
-								types.OriginLabel: common.OriginAWSIdentityCenter,
-							},
+				_, err := c.CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+					Kind:    types.KindIdentityCenterAccountAssignment,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: name,
+						Labels: map[string]string{
+							types.OriginLabel: common.OriginAWSIdentityCenter,
 						},
-						Spec: &identitycenterv1.AccountAssignmentSpec{
-							Display: "Admin access on Production",
-							PermissionSet: &identitycenterv1.PermissionSetInfo{
-								Arn:          "arn:aws::::ps-Admin",
-								Name:         "Admin",
-								AssignmentId: "production--admin",
-							},
-							AccountName: "Production",
-							AccountId:   "99999999",
+					},
+					Spec: &identitycenterv1.AccountAssignmentSpec{
+						Display: "Admin access on Production",
+						PermissionSet: &identitycenterv1.PermissionSetInfo{
+							Arn:          "arn:aws::::ps-Admin",
+							Name:         "Admin",
+							AssignmentId: "production--admin",
 						},
+						AccountName: "Production",
+						AccountId:   "99999999",
 					}})
 				return err
 			},
@@ -1138,65 +1134,62 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 </md:EntityDescriptor>
 `
 
-func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) services.IdentityCenterAccount {
+func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) *identitycenterv1.Account {
 	t.Helper()
 
 	accountID := t.Name()
 
-	icAcct, err := svc.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: t.Name(),
-				Labels: map[string]string{
-					types.OriginLabel: common.OriginAWSIdentityCenter,
+	icAcct, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: t.Name(),
+			Labels: map[string]string{
+				types.OriginLabel: common.OriginAWSIdentityCenter,
+			},
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:          accountID,
+			Arn:         "arn:aws:sso:::account/" + accountID,
+			Name:        "Test AWS Account",
+			Description: "Used for testing",
+			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
+				{
+					Name: "Alpha",
+					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
+				},
+				{
+					Name: "Beta",
+					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
 				},
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:          accountID,
-				Arn:         "arn:aws:sso:::account/" + accountID,
-				Name:        "Test AWS Account",
-				Description: "Used for testing",
-				PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-					{
-						Name: "Alpha",
-						Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
-					},
-					{
-						Name: "Beta",
-						Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
-					},
-				},
-			},
-		}})
+		},
+	})
 	require.NoError(t, err, "creating Identity Center Account")
 	return icAcct
 }
 
-func newICAccountAssignment(t *testing.T, ctx context.Context, svc services.IdentityCenterAccountAssignments) services.IdentityCenterAccountAssignment {
+func newICAccountAssignment(t *testing.T, ctx context.Context, svc services.IdentityCenterAccountAssignments) *identitycenterv1.AccountAssignment {
 	t.Helper()
 
-	assignment, err := svc.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-		AccountAssignment: &identitycenterv1.AccountAssignment{
-			Kind:    types.KindIdentityCenterAccountAssignment,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: t.Name(),
-				Labels: map[string]string{
-					types.OriginLabel: common.OriginAWSIdentityCenter,
-				},
+	assignment, err := svc.CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+		Kind:    types.KindIdentityCenterAccountAssignment,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: t.Name(),
+			Labels: map[string]string{
+				types.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-			Spec: &identitycenterv1.AccountAssignmentSpec{
-				Display: "Admin access on Production",
-				PermissionSet: &identitycenterv1.PermissionSetInfo{
-					Arn:          "arn:aws::::ps-Admin",
-					Name:         "Admin",
-					AssignmentId: "production--admin",
-				},
-				AccountName: "Production",
-				AccountId:   "99999999",
+		},
+		Spec: &identitycenterv1.AccountAssignmentSpec{
+			Display: "Admin access on Production",
+			PermissionSet: &identitycenterv1.PermissionSetInfo{
+				Arn:          "arn:aws::::ps-Admin",
+				Name:         "Admin",
+				AssignmentId: "production--admin",
 			},
+			AccountName: "Production",
+			AccountId:   "99999999",
 		}})
 	require.NoError(t, err, "creating Identity Center Account Assignment")
 	return assignment
