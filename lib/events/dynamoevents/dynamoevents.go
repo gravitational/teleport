@@ -225,15 +225,45 @@ type Log struct {
 	svc *dynamodb.Client
 }
 
+// EventKey contains the subset of event fields used as a dynamo primary key,
+// or used by a secondary index.
+// This is used in checkpointKey to track the last processed event of a query
+// and resume the query from there.
+type EventKey struct {
+	// SessionID and EventIndex must always be set.
+	// If the event is not linked to a session, we generate a random UUID.
+	SessionID string
+	// EventIndex represent the relative order of an event in the sesssion.
+	// Its value can be 0 if the event does not belong to a session or if it is
+	// the first event of a session.
+	// Next session events increase this counter. In case of conflict
+	// (two events with the same SessionID and EventIndex), EventIndex is set to
+	// the Unix nanosecond timestamp. This seems to break the "EventIndex
+	// monotonically increases" property and might cause events to be
+	// backfilled/skipped by ongoing queries.
+	// This behavior was introduced in https://github.com/gravitational/teleport/pull/40854.
+	// Since then, EventIndex is a large int64 and might not survive a round-trip
+	// through float64. When its JSON representation is unmarshalled into
+	// `map[string]any`, the event will lose EventIndex precision this will
+	// cause data-loss. For critical usage, like DynamoDB ExclusiveStartKey,
+	// one must always marshall/unmarshall using the typed event struct.
+	// event.FieldsMap["ei"] suffers from this data loss, so its value and
+	// EventIndex might be different.
+	EventIndex int64
+	// CreatedAt is used to know if the event is outside of the requested time
+	// range (so we can discard the cursor completely in this case).
+	// This is also used as a secondary DynamodDB index.
+	CreatedAt int64 `json:",omitempty" dynamodbav:",omitempty"`
+	// CreatedAtDate is used to identify the event partition.
+	CreatedAtDate string `json:",omitempty" dynamodbav:",omitempty"`
+}
+
 type event struct {
-	SessionID      string
-	EventIndex     int64
+	EventKey
 	EventType      string
-	CreatedAt      int64
 	Expires        *int64 `json:"Expires,omitempty" dynamodbav:",omitempty"`
 	FieldsMap      events.EventFields
 	EventNamespace string
-	CreatedAtDate  string
 }
 
 const (
@@ -647,13 +677,15 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 		return nil, trace.Wrap(err)
 	}
 	e := event{
-		SessionID:      sessionID,
-		EventIndex:     in.GetIndex(),
+		EventKey: EventKey{
+			SessionID:     sessionID,
+			EventIndex:    in.GetIndex(),
+			CreatedAt:     in.GetTime().Unix(),
+			CreatedAtDate: in.GetTime().Format(iso8601DateFormat),
+		},
 		EventType:      in.GetType(),
 		EventNamespace: apidefaults.Namespace,
-		CreatedAt:      in.GetTime().Unix(),
 		FieldsMap:      fieldsMap,
-		CreatedAtDate:  in.GetTime().Format(iso8601DateFormat),
 	}
 	l.setExpiry(&e)
 	av, err := attributevalue.MarshalMap(e)
@@ -710,6 +742,7 @@ type checkpointKey struct {
 
 	// EventKey is a derived identifier for an event used for resuming
 	// sub-page breaks due to size constraints.
+	// TODO(hugoShaka): Deprecate and remove this field.
 	EventKey string `json:"event_key,omitempty"`
 }
 
@@ -835,7 +868,7 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	l.logger.DebugContext(ctx, "search events", "from", fromUTC, "to", toUTC, "filter", filter, "limit", limit, "start_key", startKey, "order", order, "checkpoint", checkpoint)
 
 	if startKey != "" {
-		createdAt, err := GetCreatedAtFromStartKey(startKey)
+		createdAt, err := getCreatedAtFromCheckpoint(checkpoint)
 		if err == nil {
 			// we compare the cursor unix time to the from unix in order to drop the nanoseconds
 			// that are not present in the cursor.
@@ -957,10 +990,14 @@ func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
+	return getCreatedAtFromCheckpoint(checkpoint)
+}
+
+func getCreatedAtFromCheckpoint(checkpoint checkpointKey) (time.Time, error) {
 	if checkpoint.Iterator == "" {
 		return time.Time{}, errors.New("missing iterator")
 	}
-	var e event
+	var e EventKey
 	if err := json.Unmarshal([]byte(checkpoint.Iterator), &e); err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
@@ -1010,13 +1047,13 @@ func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
 	}
 
 	// decode the dynamo attrs into the go map repr common to the old and new formats.
-	m := make(map[string]any)
-	if err := attributevalue.UnmarshalMap(convertedAttrMap, &m); err != nil {
+	var e event
+	if err := attributevalue.UnmarshalMap(convertedAttrMap, &e); err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}
 
 	// encode the map into json, making it equivalent to the new format.
-	iterator, err := json.Marshal(m)
+	iterator, err := json.Marshal(e)
 	if err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}
@@ -1566,12 +1603,12 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 	l.checkpoint.Iterator = ""
 
 	if output.LastEvaluatedKey != nil {
-		m := make(map[string]any)
-		if err := attributevalue.UnmarshalMap(output.LastEvaluatedKey, &m); err != nil {
+		var e EventKey
+		if err := attributevalue.UnmarshalMap(output.LastEvaluatedKey, &e); err != nil {
 			return nil, false, trace.Wrap(err)
 		}
 
-		iter, err := json.Marshal(&m)
+		iter, err := json.Marshal(&e)
 		if err != nil {
 			return nil, false, err
 		}
@@ -1592,6 +1629,9 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
+
+		// TODO(hugoShaka): Fix this. This code path has terrible performance
+		// and should be replaced by proper pagination.
 		if !l.foundStart {
 			key, err := getSubPageCheckpoint(&e)
 			if err != nil {
@@ -1673,13 +1713,13 @@ dateLoop:
 			}
 
 			if l.checkpoint.Iterator != "" {
-				m := make(map[string]any)
-				err = json.Unmarshal([]byte(l.checkpoint.Iterator), &m)
+				var e EventKey
+				err = json.Unmarshal([]byte(l.checkpoint.Iterator), &e)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
-				input.ExclusiveStartKey, err = attributevalue.MarshalMap(&m)
+				input.ExclusiveStartKey, err = attributevalue.MarshalMap(&e)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -1756,12 +1796,12 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	}
 
 	if l.checkpoint.Iterator != "" {
-		m := make(map[string]string)
-		if err = json.Unmarshal([]byte(l.checkpoint.Iterator), &m); err != nil {
+		var e EventKey
+		if err = json.Unmarshal([]byte(l.checkpoint.Iterator), &e); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		input.ExclusiveStartKey, err = attributevalue.MarshalMap(&m)
+		input.ExclusiveStartKey, err = attributevalue.MarshalMap(&e)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
