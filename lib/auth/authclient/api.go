@@ -352,10 +352,6 @@ type ProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
-
-	// HealthCheckConfigReader defines methods for fetching health check config
-	// resources.
-	services.HealthCheckConfigReader
 }
 
 // ReadRelayAccessPoint is a read only API interface to be used by a Relay
