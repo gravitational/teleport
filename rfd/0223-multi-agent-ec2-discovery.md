@@ -63,6 +63,7 @@ discovery_service:
    - types: ["ec2"]
      install:
         suffix: cluster-blue # this is a new field
+        update_group: prod-blue # this is a new field
 # ...
 ```
 
@@ -79,10 +80,13 @@ discovery_service:
    - types: ["ec2"]
      install:
         suffix: cluster-green # this is a new field
+        update_group: prod-green # this is a new field
 # ...
 ```
 
 Only the `discovery_service.aws[].install.suffix` has to be defined, when compared to the current guide.
+
+The value at `discovery_service.aws[].install.update_group` can be defined in order to set the update group in the `teleport-update` configuration.
 
 **Alice already has access to EC2 instances from Cluster Green and wants to access them from Cluster Blue**
 
@@ -99,10 +103,13 @@ discovery_service:
    - types: ["ec2"]
      install:
         suffix: cluster-blue # this is a new field
+        update_group: prod-blue # this is a new field
 # ...
 ```
 
 Only the `discovery_service.aws[].install.suffix` has to be defined, when compared to the current guide.
+
+The value at `discovery_service.aws[].install.update_group` can be defined in order to set the update group in the `teleport-update` configuration.
 
 This installs Teleport using a suffix, and two agents are running:
 - one using the global installation (ie, configuration at `/etc/teleport.yaml` and binaries at `/usr/local/bin/teleport`), which is connecting to Cluster Green
@@ -173,8 +180,13 @@ When the EC2 Matcher (whether is comes from the `teleport.yaml/discovery_service
 it will inject the following value into the `env` parameter:
 ```go
 var envVars []string
+
 if install.suffix != "" {
   envVars = append(envVars, "TELEPORT_INSTALL_SUFFIX="+install.suffix)
+}
+
+if install.updateGroup != "" {
+  envVars = append(envVars, "TELEPORT_UPDATE_GROUP="+install.updateGroup)
 }
 
 params["env"] = strings.Join(envVars, " ")
@@ -220,10 +232,10 @@ The `scripts/install.sh` script will call the `teleport-update` binary with the 
 $ teleport-update enable --proxy teleport.example.com:443
 ```
 
-After the changes in the SSM Document, the `TELEPORT_INSTALL_SUFFIX` environment variable set is set.
+After the changes in the SSM Document, the `TELEPORT_INSTALL_SUFFIX` and `TELEPORT_UPDATE_GROUP` environment variables are set.
 The above command is equivalent to:
 ```code
-$ teleport-update enable --proxy teleport.example.com:443 --install-suffix example-suffix
+$ teleport-update enable --proxy teleport.example.com:443 --install-suffix=example-suffix --group=example-group
 ```
 
 This configures the following:
@@ -280,6 +292,9 @@ Only `a-zA-Z0-9-` chars are acceptable there: https://github.com/gravitational/t
 Validation is done when reading the `teleport.yaml/discovery_service` configuration or when writing to `discovery_config` resource.
 
 Given this, there's no need for additional measures (like shell escaping) because the only special symbol is `-` which can't be used to inject any command.
+
+The `install.updater_group` parameter will also be validated against the same rule: `a-zA-Z0-9-`.
+The validation used in `teleport-update` or in the backend resource that stores the group is not that strict, but opting for this validation should help us prevent any shell injection.
 
 ### Proto Specifications
 Add the suffix parameter
