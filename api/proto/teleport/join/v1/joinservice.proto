@@ -58,15 +58,15 @@ message ClientInit {
     // DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
     repeated string dns_names = 3;
   }
-  HostParams host_params = 7;
+  optional HostParams host_params = 7;
 
   // BotParams holds parameters that are specific to bot joining and irrelevant
   // to host joining.
   message BotParams {
     // Expires is a desired time of the expiry of the returned certificates.
-    google.protobuf.Timestamp expires = 9;
+    optional google.protobuf.Timestamp expires = 9;
   }
-  BotParams bot_params = 8;
+  optional BotParams bot_params = 8;
 
   // ProxySuppliedParams holds parameters set by the Proxy when nodes join
   // via the proxy address. They must only be trusted if the incoming join
@@ -113,7 +113,7 @@ message Result {
   // Each CA key is encoded in SSH wire format.
   repeated bytes ssh_ca_keys = 4;
   // HostId is the unique ID assigned to the host.
-  string host_id = 5;
+  optional string host_id = 5;
 }
 
 // JoinResponse is the message type sent from the server to the joining client.
