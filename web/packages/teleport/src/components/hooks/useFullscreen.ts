@@ -24,7 +24,7 @@ import {
   type RefObject,
 } from 'react';
 
-export function useFullScreen(ref: RefObject<HTMLElement>) {
+export function useFullscreen(ref: RefObject<HTMLElement>) {
   const [active, setActive] = useState<boolean>(false);
 
   useEffect(() => {

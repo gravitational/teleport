@@ -26,7 +26,7 @@ import { ChevronLeft, Terminal } from 'design/Icon';
 import { H3 } from 'design/Text';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
-import { useFullScreen } from 'teleport/components/hooks/useFullscreen';
+import { useFullscreen } from 'teleport/components/hooks/useFullscreen';
 import cfg from 'teleport/config';
 import { useSuspenseGetRecordingMetadata } from 'teleport/services/recordings/hooks';
 import { KeysEnum } from 'teleport/services/storageService';
@@ -61,7 +61,7 @@ export function RecordingWithMetadata({
   const playerRef = useRef<PlayerHandle>(null);
   const timelineRef = useRef<RecordingTimelineHandle>(null);
 
-  const fullscreen = useFullScreen(containerRef);
+  const fullscreen = useFullscreen(containerRef);
 
   const [timelineHidden, setTimelineHidden] = useLocalStorage(
     KeysEnum.SESSION_RECORDING_TIMELINE_HIDDEN,
