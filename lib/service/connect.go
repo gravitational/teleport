@@ -471,6 +471,9 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if instanceConn == nil {
+		return nil, trace.BadParameter("process exiting and Instance connector never became available")
+	}
 	instanceIdentity := instanceConn.clientState.Load().identity
 	if !instanceIdentity.HasSystemRole(role) {
 		// The instance connector does not have the role requested. Go through
