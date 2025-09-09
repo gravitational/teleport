@@ -623,6 +623,7 @@ func TestNewAppV3(t *testing.T) {
 				Metadata: Metadata{
 					Name:      "mcp-everything",
 					Namespace: "default",
+					Labels:    map[string]string{AppSubKindLabel: "mcp"},
 				},
 				Spec: AppSpecV3{
 					URI: "mcp+stdio://",
@@ -678,10 +679,34 @@ func TestNewAppV3(t *testing.T) {
 					Namespace: "default",
 					Labels: map[string]string{
 						TeleportInternalResourceType: DemoResource,
+						AppSubKindLabel:              "mcp",
 					},
 				},
 				Spec: AppSpecV3{
 					URI: "mcp+stdio://teleport-mcp-demo",
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "mcp with uri",
+			meta: Metadata{
+				Name: "mcp-everything",
+			},
+			spec: AppSpecV3{
+				URI: "mcp+sse+http://localhost:12345/sse",
+			},
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: "mcp",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "mcp-everything",
+					Namespace: "default",
+					Labels:    map[string]string{AppSubKindLabel: "mcp"},
+				},
+				Spec: AppSpecV3{
+					URI: "mcp+sse+http://localhost:12345/sse",
 				},
 			},
 			wantErr: require.NoError,
@@ -757,6 +782,16 @@ func TestGetMCPServerTransportType(t *testing.T) {
 			name: "unknown",
 			uri:  "http://localhost",
 			want: "",
+		},
+		{
+			name: "SSE HTTP",
+			uri:  "mcp+sse+http://127.0.0.1:12345",
+			want: MCPTransportSSE,
+		},
+		{
+			name: "SSE HTTPS",
+			uri:  "mcp+sse+httpS://some-domain:443",
+			want: MCPTransportSSE,
 		},
 	}
 	for _, tt := range tests {

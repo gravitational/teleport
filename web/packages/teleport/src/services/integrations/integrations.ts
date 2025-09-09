@@ -107,6 +107,12 @@ export const integrationService = {
       .then(resp => makeIntegration(resp) as IntegrationCreateResult<T>);
   },
 
+  validateAWSRolesAnywhereIntegration<T>(integrationName: string): Promise<T> {
+    return api.post(
+      cfg.getValidateAWSRolesAnywhereIntegrationUrl(integrationName)
+    );
+  },
+
   pingAwsOidcIntegration(
     urlParams: {
       integrationName: string;
@@ -620,7 +626,7 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc, github } = json;
+  const { name, subKind, awsoidc, github, awsra } = json;
 
   const commonFields = {
     name,
@@ -644,6 +650,23 @@ function makeIntegration(json: any): Integration {
         issuerS3Bucket: awsoidc?.issuerS3Bucket,
         issuerS3Prefix: awsoidc?.issuerS3Prefix,
         audience: awsoidc?.audience,
+      },
+    };
+  }
+
+  if (subKind === IntegrationKind.AwsRa) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details: 'Sync AWS IAM Roles Anywhere Profiles with Teleport',
+      spec: {
+        trustAnchorARN: awsra?.trustAnchorARN,
+        profileSyncConfig: {
+          enabled: awsra.profileSyncConfig.enabled,
+          profileArn: awsra.profileSyncConfig.profileArn,
+          roleArn: awsra.profileSyncConfig.roleArn,
+          filters: awsra.profileSyncConfig.filters,
+        },
       },
     };
   }
@@ -730,12 +753,9 @@ function makeProfile(json: any): RolesAnywhereProfile {
   const { arn, enabled, name, acceptRoleSessionName, tags, roles } = json;
 
   let arr: string[] = [];
-  if (tags != undefined && tags.length > 0) {
-    const parsedObject: { [key: string]: string } = JSON.parse(
-      JSON.stringify(tags[0])
-    );
-    Object.entries(parsedObject).forEach(entry => {
-      arr.push(entry.join(':'));
+  if (tags != undefined) {
+    new Map(Object.entries(tags)).forEach((v, k) => {
+      arr.push(`${k}:${v}`);
     });
   }
 

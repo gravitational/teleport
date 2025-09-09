@@ -16,10 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ReactNode, useState } from 'react';
 
 import { Flex } from 'design';
 import { useRefAutoFocus } from 'shared/hooks';
+
+import { useIsInBackgroundMode } from 'teleterm/ui/hooks/useIsInBackgroundMode';
 
 const Document: React.FC<{
   visible: boolean;
@@ -53,3 +55,51 @@ const Document: React.FC<{
 };
 
 export default Document;
+
+/**
+ * Wrapper for sessions that should end when the app is in background mode.
+ *
+ * When `connected` and the window goes into the background, this component
+ * unmounts its children, terminating any session tied to the document
+ * (e.g. desktop or SSH). The children are restored when the window
+ * becomes visible again and `visible` is true.
+ */
+export function ForegroundSession({
+  connected,
+  visible,
+  children,
+}: {
+  /** When `true`, children are unmounted if the app is in the background. */
+  connected: boolean;
+  /** When `true`, children are mounted. */
+  visible: boolean;
+  children: ReactNode;
+}) {
+  const isInBackgroundMode = useIsInBackgroundMode();
+  if (isInBackgroundMode && connected) {
+    return;
+  }
+
+  return (
+    <MountWhenVisible visible={!isInBackgroundMode && visible}>
+      {children}
+    </MountWhenVisible>
+  );
+}
+
+/** Defers mounting the children until they are visible. */
+function MountWhenVisible({
+  visible,
+  children,
+}: {
+  visible: boolean;
+  children: ReactNode;
+}) {
+  const [showChildren, setShowChildren] = useState(visible);
+
+  if (!showChildren && visible) {
+    setShowChildren(true);
+  }
+
+  return showChildren ? children : undefined;
+}

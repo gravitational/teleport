@@ -156,6 +156,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID: d.AWS.ElastiCache.ReplicationGroupID,
 			},
+			ElastiCacheServerless: types.ElastiCacheServerless{
+				CacheName: d.AWS.ElastiCacheServerless.CacheName,
+			},
 			MemoryDB: types.MemoryDB{
 				ClusterName: d.AWS.MemoryDB.ClusterName,
 			},
@@ -167,6 +170,10 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		GCP: types.GCPCloudSQL{
 			ProjectID:  d.GCP.ProjectID,
 			InstanceID: d.GCP.InstanceID,
+			AlloyDB: types.AlloyDB{
+				EndpointType:     d.GCP.AlloyDB.EndpointType,
+				EndpointOverride: d.GCP.AlloyDB.EndpointOverride,
+			},
 		},
 		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
 		AD: types.AD{
@@ -222,6 +229,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
+	// ElastiCacheServerless contains ElastiCacheServerless specific settings.
+	ElastiCacheServerless DatabaseAWSElastiCacheServerless
 	// MemoryDB contains MemoryDB specific settings.
 	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
@@ -266,6 +275,12 @@ type DatabaseAWSElastiCache struct {
 	ReplicationGroupID string
 }
 
+// DatabaseAWSElastiCacheServerless contains settings for ElastiCache Serverless databases.
+type DatabaseAWSElastiCacheServerless struct {
+	// CacheName is the ElastiCache Serverless cache name.
+	CacheName string
+}
+
 // DatabaseAWSMemoryDB contains settings for MemoryDB databases.
 type DatabaseAWSMemoryDB struct {
 	// ClusterName is the MemoryDB cluster name.
@@ -286,6 +301,16 @@ type DatabaseGCP struct {
 	ProjectID string
 	// InstanceID is the Cloud SQL instance ID.
 	InstanceID string
+	// AlloyDB contains AlloyDB specific settings.
+	AlloyDB DatabaseGCPAlloyDB
+}
+
+// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
+type DatabaseGCPAlloyDB struct {
+	// EndpointType is the database endpoint type to use.
+	EndpointType string
+	// EndpointOverride is an override of endpoint address to use.
+	EndpointOverride string
 }
 
 // DatabaseAD contains database Active Directory configuration.

@@ -41,7 +41,7 @@ function getUrlForEvent<C extends EventCode>(event: RawEvents[C]) {
 
   // eslint-disable-next-line no-console
   console.warn(
-    'Unsupported event code for "View in Policy" button',
+    'Unsupported event code for "View in Identity Security" button',
     event.code
   );
 }
@@ -65,7 +65,7 @@ export function ViewInPolicyButton({ event }: { event: Event }) {
       size="small"
       style={{ whiteSpace: 'nowrap' }}
     >
-      View in Policy
+      View in Identity Security
     </ButtonBorder>
   );
 }

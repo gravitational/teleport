@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -1883,6 +1884,60 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 	}
 }
 
+func TestExtraElastiCacheServerlessLabels(t *testing.T) {
+	cache := &ectypes.ServerlessCache{
+		ServerlessCacheName: aws.String("my-redis"),
+		Engine:              aws.String("redis"),
+		MajorEngineVersion:  aws.String("7"),
+		FullEngineVersion:   aws.String("7.1"),
+		SubnetIds:           []string{"subnet-a", "subnet-b"},
+	}
+	tags := []ectypes.Tag{
+		{Key: aws.String("key1"), Value: aws.String("value1")},
+		{Key: aws.String("key2"), Value: aws.String("value2")},
+	}
+
+	tests := []struct {
+		name         string
+		inputTags    []ectypes.Tag
+		inputSubnets map[string]ec2types.Subnet
+		expectLabels map[string]string
+	}{
+		{
+			name:      "all tags and vpc label",
+			inputTags: tags,
+			inputSubnets: map[string]ec2types.Subnet{
+				"subnet-x": {VpcId: aws.String("vpc1")},
+				"subnet-a": {VpcId: aws.String("vpc2")},
+				"subnet-b": {VpcId: aws.String("vpc2")},
+			},
+			expectLabels: map[string]string{
+				"key1":           "value1",
+				"key2":           "value2",
+				"engine":         "redis",
+				"engine-version": "7.1",
+				"vpc-id":         "vpc2",
+			},
+		},
+		{
+			name:         "no resource tags no vpc label",
+			inputTags:    nil,
+			inputSubnets: nil,
+			expectLabels: map[string]string{
+				"engine":         "redis",
+				"engine-version": "7.1",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualLabels := ExtraElastiCacheServerlessLabels(cache, test.inputTags, test.inputSubnets)
+			require.Equal(t, test.expectLabels, actualLabels)
+		})
+	}
+}
+
 func TestExtraMemoryDBLabels(t *testing.T) {
 	cluster := &memorydbtypes.Cluster{
 		Name:            aws.String("my-cluster"),
@@ -2352,4 +2407,45 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 func makeAzureResourceID(subID, group, provider, resourceName string) string {
 	return fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
 		subID, group, provider, resourceName)
+}
+
+func TestNewDatabaseFromElastiCacheServerlessCache(t *testing.T) {
+	cache := &ectypes.ServerlessCache{
+		ARN:                 aws.String("arn:aws:elasticache:ca-central-1:123456789012:serverlesscache:my-cache"),
+		ServerlessCacheName: aws.String("my-cache"),
+		Status:              aws.String("available"),
+		UserGroupId:         aws.String("my-user-group"),
+		Endpoint: &ectypes.Endpoint{
+			Address: aws.String("my-cache-abc123.serverless.cac1.cache.amazonaws.com"),
+			Port:    aws.Int32(6379),
+		},
+	}
+	extraLabels := map[string]string{"key": "value"}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-cache",
+		Description: "ElastiCache Serverless cache in ca-central-1",
+		Labels: map[string]string{
+			types.DiscoveryLabelAccountID: "123456789012",
+			types.CloudLabel:              types.CloudAWS,
+			types.DiscoveryLabelRegion:    "ca-central-1",
+			"key":                         "value",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "my-cache-abc123.serverless.cac1.cache.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			Region:    "ca-central-1",
+			ElastiCacheServerless: types.ElastiCacheServerless{
+				CacheName: "my-cache",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromElastiCacheServerlessCache(cache, extraLabels)
+	require.NoError(t, err)
+	require.NotNil(t, actual)
+	require.Equal(t, expected, actual)
 }

@@ -82,10 +82,11 @@ func setup(desktop types.WindowsDesktop) (*tlsca.Identity, *desktopSessionAudito
 	}
 
 	id := &tlsca.Identity{
-		Username:     "foo",
-		Impersonator: "bar",
-		MFAVerified:  "mfa-id",
-		LoginIP:      "127.0.0.1",
+		Username:        "foo",
+		Impersonator:    "bar",
+		MFAVerified:     "mfa-id",
+		LoginIP:         "127.0.0.1",
+		TeleportCluster: s.clusterName,
 	}
 
 	d := &desktopSessionAuditor{
@@ -107,7 +108,6 @@ func setup(desktop types.WindowsDesktop) (*tlsca.Identity, *desktopSessionAudito
 }
 
 func TestSessionStartEvent(t *testing.T) {
-
 	id, audit := setup(testDesktop)
 
 	userMeta := id.GetUserMetadata()
@@ -172,7 +172,6 @@ func TestSessionStartEvent(t *testing.T) {
 }
 
 func TestSessionEndEvent(t *testing.T) {
-
 	id, audit := setup(testDesktop)
 
 	audit.clock.(*clockwork.FakeClock).Advance(30 * time.Second)
@@ -191,6 +190,11 @@ func TestSessionEndEvent(t *testing.T) {
 		SessionMetadata: events.SessionMetadata{
 			SessionID: "sessionID",
 			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.LoginIP,
+			RemoteAddr: testDesktop.GetAddr(),
+			Protocol:   libevents.EventProtocolTDP,
 		},
 		WindowsDesktopService: audit.desktopServiceUUID,
 		DesktopAddr:           testDesktop.GetAddr(),
@@ -607,7 +611,6 @@ func fillReadRequestCache(cache *sharedDirectoryAuditCache, did directoryID) {
 // failed DesktopSharedDirectoryStart is emitted when the shared
 // directory audit cache is full.
 func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
-
 	id, audit := setup(testDesktop)
 
 	// Set the audit cache entry to the maximum allowable size
@@ -656,7 +659,6 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 // failed DesktopSharedDirectoryRead is generated when the shared
 // directory audit cache is full.
 func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
-
 	id, audit := setup(testDesktop)
 
 	// Send a SharedDirectoryAnnounce
@@ -715,7 +717,6 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 // failed DesktopSharedDirectoryWrite is generated when the shared
 // directory audit cache is full.
 func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
-
 	id, audit := setup(testDesktop)
 
 	audit.onSharedDirectoryAnnounce(tdp.SharedDirectoryAnnounce{

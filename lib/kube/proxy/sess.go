@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/services"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -993,7 +994,8 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	s.log.DebugContext(s.forwarder.ctx, "Tracking participant", "participant_id", p.ID)
 	participant := &types.Participant{
 		ID:         p.ID.String(),
-		User:       p.Ctx.User.GetName(),
+		User:       p.Ctx.Identity.GetIdentity().Username,
+		Cluster:    p.Ctx.Identity.GetIdentity().OriginClusterName,
 		Mode:       string(p.Mode),
 		LastActive: time.Now().UTC(),
 	}
@@ -1322,7 +1324,14 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 func (s *session) allParticipants() []string {
 	var participants []string
 	for _, p := range s.partiesHistorical {
-		participants = append(participants, p.Ctx.User.GetName())
+		username := services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              p.Ctx.Identity.GetIdentity().Username,
+				OriginClusterName: p.Ctx.Identity.GetIdentity().OriginClusterName,
+				LocalClusterName:  p.Ctx.Identity.GetIdentity().TeleportCluster,
+			},
+		)
+		participants = append(participants, username)
 	}
 
 	return participants

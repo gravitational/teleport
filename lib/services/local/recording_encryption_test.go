@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"crypto/x509"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -98,7 +99,7 @@ func TestRotatedKeys(t *testing.T) {
 	fingerprint, err := recordingencryption.Fingerprint(publicKey)
 	require.NoError(t, err)
 
-	publicKeyPEM, err := keys.MarshalPublicKey(publicKey)
+	publicKeyDER, err := x509.MarshalPKIXPublicKey(publicKey)
 	require.NoError(t, err)
 
 	// get should fail when there's no rotated key
@@ -107,19 +108,19 @@ func TestRotatedKeys(t *testing.T) {
 
 	created, err := service.CreateRotatedKey(ctx, &types.EncryptionKeyPair{
 		PrivateKey:     testRSA4096PrivateKeyPEM,
-		PublicKey:      publicKeyPEM,
+		PublicKey:      publicKeyDER,
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	})
 	require.NoError(t, err)
 	require.Equal(t, testRSA4096PrivateKeyPEM, created.Spec.EncryptionKeyPair.PrivateKey)
-	require.Equal(t, publicKeyPEM, created.Spec.EncryptionKeyPair.PublicKey)
+	require.Equal(t, publicKeyDER, created.Spec.EncryptionKeyPair.PublicKey)
 	require.Equal(t, types.PrivateKeyType_RAW, created.Spec.EncryptionKeyPair.PrivateKeyType)
 
 	rotatedKey, err := service.GetRotatedKey(ctx, fingerprint)
 	require.NoError(t, err)
 
 	require.Equal(t, testRSA4096PrivateKeyPEM, rotatedKey.Spec.EncryptionKeyPair.PrivateKey)
-	require.Equal(t, publicKeyPEM, rotatedKey.Spec.EncryptionKeyPair.PublicKey)
+	require.Equal(t, publicKeyDER, rotatedKey.Spec.EncryptionKeyPair.PublicKey)
 	require.Equal(t, types.PrivateKeyType_RAW, rotatedKey.Spec.EncryptionKeyPair.PrivateKeyType)
 
 	err = service.DeleteRotatedKey(ctx, fingerprint)

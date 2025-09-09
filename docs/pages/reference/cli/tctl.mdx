@@ -1,7 +1,7 @@
 ---
 title: tctl CLI reference
 description: Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -798,10 +798,9 @@ $ tctl devices ls
 
 ```code
 $ tctl devices ls
-
-Asset Tag    OS    Enroll Status Device ID
------------- ----- ------------- ------------------------------------
-(=devicetrust.asset_tag=) macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
+Asset Tag    OS    Source Enroll Status Owner Device ID
+------------ ----- ------ ------------- ----- ------------------------------------
+(=devicetrust.asset_tag=) macOS        not enrolled        d40f2ee4-856d-4aef-b784-c4371e39c036
 ```
 
 ## tctl devices rm
@@ -2209,4 +2208,51 @@ Print the version of your `tctl` binary:
 
 ```code
 tctl version
+```
+
+## tctl recordings encryption rotate
+
+Rotate the active session recording encryption key. Will fail if rotation is already in
+progress.
+
+### Example
+
+```code
+$ tctl recordings encryption rotate
+```
+
+## tctl recordings encryption status
+
+Print the rotation status of all active encryption keys.
+
+### Flags
+
+| Name       | Default Value(s) | Allowed Value(s)     | Description               |
+| ---------- | ---------------- | -------------------- | ------------------------- |
+| `--format` | `text`           | `text`,`yaml`,`json` | The format of the output. |
+
+### Example
+
+```code
+$ tctl recordings encryption status
+```
+
+## tctl recordings encryption complete-rotation
+
+Completes a key rotation.
+
+### Example
+
+```code
+$ tctl recordings encryption complete-rotation
+```
+
+## tctl recordings encryption rollback-rotation
+
+Reverts a key rotation.
+
+### Example
+
+```code
+$ tctl recordings encryption rollback-rotation
 ```

@@ -121,7 +121,7 @@ authentication:
   connectorName: ""
 
   # Enable/disable local authentication by setting `authentication.local_auth` in `teleport.yaml`.
-  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/.
+  # Disabling local auth is required for FedRAMP / FIPS; see https://goteleport.com/docs/zero-trust-access/compliance-frameworks/fedramp/#configure-the-teleport-auth-service
   localAuth: true
 
   # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?

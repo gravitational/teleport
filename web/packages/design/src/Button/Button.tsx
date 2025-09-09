@@ -468,6 +468,9 @@ const StyledButton = styled.button.withConfig({
 export const ButtonPrimary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="primary" {...props} />;
+export const ButtonPrimaryBorder = <E extends React.ElementType = 'button'>(
+  props: ButtonProps<E>
+) => <Button fill="border" intent="primary" {...props} />;
 export const ButtonSecondary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="neutral" {...props} />;

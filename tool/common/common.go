@@ -83,7 +83,7 @@ func (e *SessionsCollection) WriteText(w io.Writer) error {
 		case *events.DatabaseSessionEnd:
 			id = session.GetSessionID()
 			typ = session.DatabaseProtocol
-			participants = session.GetUser()
+			participants = strings.Join(session.Participants, ", ")
 			target = session.DatabaseName
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		default:

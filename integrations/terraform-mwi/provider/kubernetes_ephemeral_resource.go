@@ -196,7 +196,6 @@ func (r *KubernetesEphemeralResource) Open(
 				},
 				DisableExecPlugin: true,
 			},
-			bot.DefaultCredentialLifetime,
 		),
 	}
 	if err := botCfg.CheckAndSetDefaults(); err != nil {

@@ -15,6 +15,11 @@
 package summarizer
 
 import (
+	"slices"
+	"strings"
+
+	"github.com/gravitational/trace"
+
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -33,6 +38,51 @@ func NewInferenceModel(name string, spec *summarizerv1.InferenceModelSpec) *summ
 	}
 }
 
+// ValidateInferenceModel validates an InferenceModel.
+func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
+	switch {
+	case m == nil:
+		return trace.BadParameter("inference model is nil")
+	case m.GetKind() != types.KindInferenceModel:
+		return trace.BadParameter("kind must be %s, got %s", types.KindInferenceModel, m.GetKind())
+	case m.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case m.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case m.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", m.GetVersion(), types.V1)
+
+	case m.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case m.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name is required")
+	case m.GetMetadata().GetName() == "teleport-cloud-default":
+		return trace.BadParameter("metadata.name \"teleport-cloud-default\" is reserved")
+
+	case m.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	}
+
+	provider := m.GetSpec().GetProvider()
+	switch p := provider.(type) {
+	case nil:
+		m.GetSpec().ProtoReflect().GetUnknown()
+		return trace.BadParameter(
+			// Unfortunately, there's no way to tell between a missing and
+			// unsupported one once the object is parsed from YAML. There may be a
+			// way to do it if it was created from binary wire format, but it's not
+			// worth the effort.
+			"missing or unsupported inference provider in spec, supported providers: openai",
+		)
+	case *summarizerv1.InferenceModelSpec_Openai:
+		if p.Openai.GetOpenaiModelId() == "" {
+			return trace.BadParameter("spec.openai.openai_model_id is required")
+		}
+	}
+
+	return nil
+}
+
 // NewInferenceSecret creates a new InferenceSecret resource with the given name
 // and spec.
 func NewInferenceSecret(name string, spec *summarizerv1.InferenceSecretSpec) *summarizerv1.InferenceSecret {
@@ -46,6 +96,34 @@ func NewInferenceSecret(name string, spec *summarizerv1.InferenceSecretSpec) *su
 	}
 }
 
+// ValidateInferenceSecret validates an inference secret.
+func ValidateInferenceSecret(s *summarizerv1.InferenceSecret) error {
+	switch {
+	case s == nil:
+		return trace.BadParameter("inference secret is nil")
+	case s.GetKind() != types.KindInferenceSecret:
+		return trace.BadParameter("kind must be %s, got %s", types.KindInferenceSecret, s.GetKind())
+	case s.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case s.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case s.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", s.GetVersion(), types.V1)
+
+	case s.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case s.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name is required")
+
+	case s.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	case s.GetSpec().GetValue() == "":
+		return trace.BadParameter("spec.value is required")
+	}
+
+	return nil
+}
+
 // NewInferencePolicy creates a new InferencePolicy resource with the given name
 // and spec.
 func NewInferencePolicy(name string, spec *summarizerv1.InferencePolicySpec) *summarizerv1.InferencePolicy {
@@ -57,4 +135,53 @@ func NewInferencePolicy(name string, spec *summarizerv1.InferencePolicySpec) *su
 		},
 		Spec: spec,
 	}
+}
+
+// ValidateInferencePolicy validates an InferencePolicy. This function doesn't
+// validate the Filter field, as it's unable to access the lib/services
+// package; to fully validate a policy, use
+// lib/services.ValidateInferencePolicy.
+func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
+	switch {
+	case p == nil:
+		return trace.BadParameter("inference policy is nil")
+	case p.GetKind() != types.KindInferencePolicy:
+		return trace.BadParameter("kind must be %s, got %s", types.KindInferencePolicy, p.GetKind())
+	case p.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case p.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case p.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", p.GetVersion(), types.V1)
+
+	case p.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case p.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name is required")
+
+	case p.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	case p.GetSpec().GetModel() == "":
+		return trace.BadParameter("spec.model is required")
+	}
+
+	kinds := p.GetSpec().GetKinds()
+	if len(kinds) == 0 {
+		return trace.BadParameter("spec.kinds are required")
+	}
+	supportedKinds := []string{
+		string(types.SSHSessionKind),
+		string(types.KubernetesSessionKind),
+		string(types.DatabaseSessionKind),
+	}
+	for _, kind := range kinds {
+		if !slices.Contains(supportedKinds, kind) {
+			return trace.BadParameter(
+				"unsupported kind in spec.kinds: %s, supported: %v",
+				kind, strings.Join(supportedKinds, ", "),
+			)
+		}
+	}
+
+	return nil
 }

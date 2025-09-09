@@ -33,7 +33,7 @@ const userLoginStateNameIndex userLoginStateIndex = "name"
 
 func newUserLoginStateCollection(upstream services.UserLoginStates, w types.WatchKind) (*collection[*userloginstate.UserLoginState, userLoginStateIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter UserTasks")
+		return nil, trace.BadParameter("missing parameter UserLoginStates")
 	}
 
 	return &collection[*userloginstate.UserLoginState, userLoginStateIndex]{

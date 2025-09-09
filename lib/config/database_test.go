@@ -115,6 +115,18 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.ElastiCacheDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("ElastiCacheServerlessAutoDiscovery", func(t *testing.T) {
+		t.Parallel()
+		flags := DatabaseSampleFlags{
+			ElastiCacheServerlessDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"elasticache-serverless"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.ElastiCacheServerlessDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
 	t.Run("MemoryDBAutoDiscovery", func(t *testing.T) {
 		t.Parallel()
 		flags := DatabaseSampleFlags{
@@ -312,7 +324,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 					DatabaseAWSExternalID:          "externalID123",
 				},
 			},
-			"AWSElastieCache": {
+			"AWSElastiCache": {
 				flags: DatabaseSampleFlags{
 					StaticDatabaseName:            "sample",
 					StaticDatabaseProtocol:        "redis",
@@ -321,6 +333,17 @@ func TestMakeDatabaseConfig(t *testing.T) {
 					DatabaseAWSElastiCacheGroupID: "redis-cluster-example",
 					DatabaseAWSAssumeRoleARN:      "arn:aws:iam::123456789012:role/DBDiscoverer",
 					DatabaseAWSExternalID:         "externalID123",
+				},
+			},
+			"AWSElastiCacheServerless": {
+				flags: DatabaseSampleFlags{
+					StaticDatabaseName:                        "sample",
+					StaticDatabaseProtocol:                    "redis",
+					StaticDatabaseURI:                         "example-cache-abc123.serverless.cac1.cache.amazonaws.com:6379",
+					DatabaseAWSRegion:                         "us-west-1",
+					DatabaseAWSElastiCacheServerlessCacheName: "example-cache",
+					DatabaseAWSAssumeRoleARN:                  "arn:aws:iam::123456789012:role/DBDiscoverer",
+					DatabaseAWSExternalID:                     "externalID123",
 				},
 			},
 			"AD": {
@@ -383,6 +406,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				require.Equal(t, tt.flags.DatabaseAWSRDSClusterID, got.AWS.RDS.ClusterID)
 				require.Equal(t, tt.flags.DatabaseAWSRDSInstanceID, got.AWS.RDS.InstanceID)
 				require.Equal(t, tt.flags.DatabaseAWSElastiCacheGroupID, got.AWS.ElastiCache.ReplicationGroupID)
+				require.Equal(t, tt.flags.DatabaseAWSElastiCacheServerlessCacheName, got.AWS.ElastiCacheServerless.CacheName)
 				require.Equal(t, tt.flags.DatabaseAWSMemoryDBClusterName, got.AWS.MemoryDB.ClusterName)
 				require.Equal(t, tt.flags.DatabaseADDomain, got.AD.Domain)
 				require.Equal(t, tt.flags.DatabaseADSPN, got.AD.SPN)
@@ -451,6 +475,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 // generateAndParse generetes config using provided flags, parse them using
 // `ReadConfig`, checks if the Database service is enable and return it.
 func generateAndParseConfig(t *testing.T, flags DatabaseSampleFlags) Databases {
+	t.Helper()
 	configString, err := MakeDatabaseAgentConfigString(flags)
 	require.NoError(t, err)
 

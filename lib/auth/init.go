@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -92,6 +93,7 @@ type VersionStorage interface {
 type RecordingEncryptionManager interface {
 	services.RecordingEncryption
 	recordingencryption.KeyUnwrapper
+	recordingencryptionv1.KeyRotater
 	SetCache(cache recordingencryption.Cache)
 }
 
@@ -549,7 +551,14 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
+		if err := initializeAuthPreference(ctx, asrv, cfg.AuthPreference); err != nil {
+			span.End()
+			return trace.Wrap(err)
+		}
+		span.End()
+
+		ctx, span = cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
 		defer span.End()
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
@@ -564,12 +573,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeVnetConfig")
 		defer span.End()
 		return trace.Wrap(initializeVnetConfig(ctx, asrv))
-	})
-
-	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
-		defer span.End()
-		return trace.Wrap(initializeAuthPreference(ctx, asrv, cfg.AuthPreference))
 	})
 
 	g.Go(func() error {
@@ -1327,6 +1330,7 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
+		services.NewPresetMCPUserRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the

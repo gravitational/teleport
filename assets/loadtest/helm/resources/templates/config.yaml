@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  entrypoint.sh: |2
+    #!/bin/sh
+    set -euxo pipefail
+
+    cp ${RESOURCE_YAML} /tmp/rendered.yaml
+    sed -i "s/@@JOB_INDEX@@/$JOB_COMPLETION_INDEX/g" /tmp/rendered.yaml
+    cat /tmp/rendered.yaml
+
+    tctl \
+       --auth-server=${PROXY} \
+       -i /identity-output/identity \
+       create -f /tmp/rendered.yaml
+  resource.yaml: |
+    {{ .Files.Get .Values.resources.template | nindent 4 }}

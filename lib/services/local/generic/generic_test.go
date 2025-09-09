@@ -48,10 +48,13 @@ type testResource struct {
 }
 
 func newTestResource(name string) *testResource {
+	expires := time.Now()
+
 	tr := &testResource{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
-				Name: name,
+				Name:    name,
+				Expires: &expires,
 			},
 			Kind:    "test_resource",
 			Version: types.V1,
@@ -67,10 +70,13 @@ type testResourceSpec struct {
 }
 
 func newTestResourceWithSpec(name string, specPropA string) *testResource {
+	expires := time.Now()
+
 	tr := &testResource{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
-				Name: name,
+				Name:    name,
+				Expires: &expires,
 			},
 			Kind:    "test_resource",
 			Version: types.V1,
@@ -114,6 +120,11 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Mimic the behavior of resources that utilize protojson such as `PluginStaticCredentials` which
+	// fail to unmarshal time correctly and require a `WithExpires` service marshal option on the backend.
+	r.SetExpiry(time.Time{})
+
 	if cfg.Revision != "" {
 		r.SetRevision(cfg.Revision)
 	}
@@ -160,7 +171,9 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEmpty(t, r1.GetRevision())
+	require.NotEmpty(t, r1.Expiry())
 	require.NotEmpty(t, r2.GetRevision())
+	require.NotEmpty(t, r2.Expiry())
 	require.NotEqual(t, r1.GetRevision(), r2.GetRevision())
 
 	// Fetch all resources using paging default.
@@ -259,6 +272,7 @@ func TestGenericCRUD(t *testing.T) {
 
 	// Update a resource.
 	r1.SetStaticLabels(map[string]string{"newlabel": "newvalue"})
+	r1.SetExpiry(time.Now().Add(20 * time.Hour))
 	r1, err = service.UpdateResource(ctx, r1)
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetName())
@@ -299,6 +313,7 @@ func TestGenericCRUD(t *testing.T) {
 
 	// Upsert a resource (update).
 	r1.SetStaticLabels(map[string]string{"newerlabel": "newervalue"})
+	r1.SetExpiry(time.Now().Add(20 * time.Hour))
 	r1, err = service.UpsertResource(ctx, r1)
 	require.NoError(t, err)
 	out, nextToken, err = service.ListResources(ctx, 200, "")
@@ -331,7 +346,9 @@ func TestGenericCRUD(t *testing.T) {
 		item, err := b.Get(ctx, service.MakeKey(backend.NewKey(r1.GetName())))
 		require.NoError(t, err)
 
-		r, err = unmarshalResource(item.Value, services.WithRevision(item.Revision))
+		r, err = unmarshalResource(item.Value,
+			services.WithRevision(item.Revision),
+			services.WithExpires(item.Expires))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(r1, r,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),

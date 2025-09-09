@@ -571,7 +571,7 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 		// NOTE: this restriction may eventually be relaxed in favor of something more flexible,
 		// but as of right now we haven't decided what that should look like.
 		if scopes.Compare(rrsp.GetRole().GetScope(), assignment.GetScope()) != scopes.Equivalent {
-			return nil, trace.BadParameter("role %q is not scoped to the same resource scope as assignment %q (%q -> %q)", subAssignment.GetRole(), assignment.GetMetadata().GetName(), rrsp.GetRole().GetScope(), subAssignment.GetScope())
+			return nil, trace.BadParameter("role %q is not scoped to the same resource scope as assignment %q (%q -> %q)", subAssignment.GetRole(), assignment.GetMetadata().GetName(), rrsp.GetRole().GetScope(), assignment.GetScope())
 		}
 
 		// verify that the role is assignable at the specified scope

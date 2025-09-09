@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -280,6 +281,17 @@ type Grants struct {
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
+// Clone returns a copy of the Grants.
+func (grants *Grants) Clone() Grants {
+	if grants == nil {
+		return Grants{}
+	}
+	return Grants{
+		Roles:  slices.Clone(grants.Roles),
+		Traits: grants.Traits.Clone(),
+	}
+}
+
 // Status contains dynamic fields calculated during retrieval.
 type Status struct {
 	// MemberCount is the number of members in the access list.
@@ -440,9 +452,12 @@ func (a *AccessList) MatchSearch(values []string) bool {
 
 // Clone returns a copy of the list.
 func (a *AccessList) Clone() *AccessList {
-	var copy *AccessList
-	utils.StrictObjectToStruct(a, &copy)
-	return copy
+	if a == nil {
+		return nil
+	}
+	out := &AccessList{}
+	deriveDeepCopyAccessList(out, a)
+	return out
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {

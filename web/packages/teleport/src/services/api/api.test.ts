@@ -21,7 +21,7 @@ import websession from '../websession';
 import api, {
   defaultRequestOptions,
   getAuthHeaders,
-  isRoleNotFoundError,
+  isUserSessionRoleNotFoundError,
   MFA_HEADER,
 } from './api';
 import { ApiError } from './parseError';
@@ -205,31 +205,45 @@ test('fetchJsonWithMfaAuthnRetry does not return any', () => {
   expect(true).toBe(true);
 });
 
-test('isRoleNotFoundError correctly identifies role not found errors', () => {
-  const errorMessage1 = 'role admin is not found';
-  expect(isRoleNotFoundError(errorMessage1)).toBe(true);
+test('isUserSessionRoleNotFoundError correctly identifies user session role not found errors', () => {
+  const userSessionRoleError = {
+    error: 'role admin is not found',
+    messages: ['user session role not found'],
+  };
+  expect(isUserSessionRoleNotFoundError(userSessionRoleError)).toBe(true);
 
-  const errorMessage2 = '    role test-role is not found ';
-  expect(isRoleNotFoundError(errorMessage2)).toBe(true);
+  const regularRoleError = { error: 'role admin is not found' };
+  expect(isUserSessionRoleNotFoundError(regularRoleError)).toBe(false);
 
-  const errorMessage3 = 'failed to list access lists';
-  expect(isRoleNotFoundError(errorMessage3)).toBe(false);
+  const regularRoleWithIrrelevantMessages = {
+    error: 'role admin is not found',
+    messages: ['some_other_message'],
+  };
+  expect(
+    isUserSessionRoleNotFoundError(regularRoleWithIrrelevantMessages)
+  ).toBe(false);
+
+  const nonRoleError = { error: 'failed to list access lists' };
+  expect(isUserSessionRoleNotFoundError(nonRoleError)).toBe(false);
 });
 
-describe('api.get handling of role not found errors', () => {
-  beforeEach(() => {
-    jest.spyOn(global, 'fetch').mockResolvedValue({
-      json: async () => ({ error: { message: 'role foo is not found' } }),
-      ok: false,
-      status: 404,
-    } as Response); // we don't care about response
-  });
-
+describe('handling of role not found errors', () => {
   afterEach(() => {
     jest.resetAllMocks();
   });
 
-  test('sign out on error', async () => {
+  test('sign out on user session role not found error', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      json: async () => ({
+        error: {
+          message: 'role foo is not found',
+        },
+        messages: ['user session role not found'],
+      }),
+      ok: false,
+      status: 404,
+    } as Response);
+
     await api.get('/foobar');
     expect(mockedWebsession.logoutWithoutSlo).toHaveBeenCalledWith({
       rememberLocation: false,
@@ -237,10 +251,14 @@ describe('api.get handling of role not found errors', () => {
     });
   });
 
-  test("don't sign out on error", async () => {
-    await expect(
-      api.get('/foobar', null, null, { allowRoleNotFound: true })
-    ).rejects.toThrow(ApiError);
+  test("don't sign out on regular role not found error", async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      json: async () => ({ error: { message: 'role foo is not found' } }),
+      ok: false,
+      status: 404,
+    } as Response);
+
+    await expect(api.get('/foobar')).rejects.toThrow(ApiError);
     expect(mockedWebsession.logoutWithoutSlo).not.toHaveBeenCalled();
   });
 });

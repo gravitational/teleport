@@ -30,7 +30,7 @@ const { argv, env } = process;
 
 const RESOURCES_PATH = app.isPackaged
   ? process.resourcesPath
-  : path.join(__dirname, '../../../../');
+  : path.join(__dirname, '../../..');
 
 const TSH_BIN_ENV_VAR = 'CONNECT_TSH_BIN_PATH';
 // __dirname of this file in dev mode is teleport/web/packages/teleterm/build/app/main
@@ -201,7 +201,7 @@ function getBinaryPaths(): { binDir?: string; tshBinPath: string } {
 }
 
 export function getAssetPath(...paths: string[]): string {
-  return path.join(RESOURCES_PATH, 'assets', ...paths);
+  return path.join(RESOURCES_PATH, 'build_resources', ...paths);
 }
 
 /**

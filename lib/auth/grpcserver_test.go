@@ -3680,6 +3680,45 @@ func TestAppsCRUD(t *testing.T) {
 		iterOut = append(iterOut, app)
 	}
 	require.Empty(t, iterOut)
+
+	err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+		Kind: types.KindProxy,
+		Metadata: types.Metadata{
+			Name: "proxy",
+		},
+		Spec: types.ServerSpecV2{
+			PublicAddrs: []string{"proxy.example.com:443"},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("Creating an app with a public address matching a proxy address should fail", func(t *testing.T) {
+		misconfiguredApp, err := types.NewAppV3(types.Metadata{
+			Name:   "misconfigured-app",
+			Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		}, types.AppSpecV3{
+			URI:        "localhost1",
+			PublicAddr: "proxy.example.com",
+		})
+		require.NoError(t, err)
+
+		err = clt.CreateApp(ctx, misconfiguredApp)
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+	})
+
+	t.Run("Updating an app with a public address matching a proxy address should fail", func(t *testing.T) {
+		misconfiguredApp, err := types.NewAppV3(types.Metadata{
+			Name:   "misconfigured-app",
+			Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		}, types.AppSpecV3{
+			URI:        "localhost1",
+			PublicAddr: "proxy.example.com",
+		})
+		require.NoError(t, err)
+
+		err = clt.UpdateApp(ctx, misconfiguredApp)
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+	})
 }
 
 // TestAppServersCRUD tests application server resource operations.
@@ -3778,6 +3817,34 @@ func TestAppServersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, resources.Resources)
+
+	t.Run("App server with an app that has a public address matching a proxy address should fail", func(t *testing.T) {
+		err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+			Kind: types.KindProxy,
+			Metadata: types.Metadata{
+				Name: "proxy",
+			},
+			Spec: types.ServerSpecV2{
+				PublicAddrs: []string{"proxy.example.com:443"},
+			},
+		})
+		require.NoError(t, err)
+
+		misconfiguredApp, err := types.NewAppV3(types.Metadata{
+			Name:   "misconfigured-app",
+			Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		}, types.AppSpecV3{
+			URI:        "localhost1",
+			PublicAddr: "proxy.example.com",
+		})
+		require.NoError(t, err)
+
+		appServer, err := types.NewAppServerV3FromApp(misconfiguredApp, "misconfigured-app", "hostID")
+		require.NoError(t, err)
+
+		_, err = clt.UpsertApplicationServer(ctx, appServer)
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+	})
 }
 
 // TestDatabasesCRUD tests database resource operations.

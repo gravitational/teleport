@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -166,6 +167,17 @@ func (c *Cache) ListScopedRoleAssignments(ctx context.Context, req *scopedaccess
 	return state.assignments.ListScopedRoleAssignments(ctx, req)
 }
 
+// PopulatePinnedAssignmentsForUser populates the provided scope pin with all relevant assignments related to the
+// given user. The provided pin must already have its Scope field set.
+func (c *Cache) PopulatePinnedAssignmentsForUser(ctx context.Context, user string, pin *scopesv1.Pin) error {
+	state, err := c.read(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return state.assignments.PopulatePinnedAssignmentsForUser(ctx, user, pin)
+}
+
 // Close stops cache background operations and causes future reads to fail. It is safe to call multiple times.
 func (c *Cache) Close() error {
 	c.cancel()
@@ -187,7 +199,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 	}()
 
 	for {
-		err := c.fetchAndWatch(ctx)
+		err := c.fetchAndWatch(ctx, retry)
 		if ctx.Err() != nil {
 			return
 		}
@@ -197,6 +209,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 		waitStart := time.Now()
 		select {
 		case <-retry.After():
+			retry.Inc()
 			slog.InfoContext(ctx, "attempting re-init of scoped access cache after delay", "delay", time.Since(waitStart))
 		case <-ctx.Done():
 			return
@@ -206,7 +219,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 
 // fetchAndWatch attempts to establish a watcher with the upstream events service, populate the cache
 // state, and process changes as they come in.
-func (c *Cache) fetchAndWatch(ctx context.Context) error {
+func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error {
 	watcher, err := c.cfg.Events.NewWatcher(ctx, types.Watch{
 		Name: "scoped-access-cache",
 		Kinds: []types.WatchKind{
@@ -230,7 +243,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context) error {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
 	case <-watcher.Done():
-		return trace.Errorf("watcher failed while waiting for init event: %w", watcher.Error())
+		if err := watcher.Error(); err != nil {
+			// watcher errors are expected if the watcher is closed before init completes.
+			return trace.Errorf("watcher failed while waiting for init event: %w", err)
+		}
+		return trace.Errorf("watcher failed while waiting for init event")
 	case <-time.After(retryutils.SeventhJitter(time.Minute)):
 		return trace.Errorf("timed out waiting for init event from watcher")
 	case <-ctx.Done():
@@ -251,6 +268,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context) error {
 	c.rw.Unlock()
 
 	slog.InfoContext(ctx, "scoped access cache successfully initialized")
+	retry.Reset()
 
 	// start processing and applying changes
 	for {
@@ -260,7 +278,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context) error {
 				return trace.Errorf("failed to process event: %w", err)
 			}
 		case <-watcher.Done():
-			return trace.Errorf("watcher failed: %w", watcher.Error())
+			if err := watcher.Error(); err != nil {
+				// watcher errors are expected if the watcher is closed before init completes.
+				return trace.Errorf("watcher failed during event processing: %w", err)
+			}
+			return trace.Errorf("watcher failed during event processing")
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}

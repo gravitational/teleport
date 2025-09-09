@@ -1,0 +1,15 @@
+image:
+  repository: public.ecr.aws/gravitational/teleport-ent-distroless-debug
+  pullPolicy: IfNotPresent
+  tag: ""
+
+proxy: ""
+clusterName: ""
+
+resources:
+  template: "resources/apps.yaml"
+  # Total number of resouces to create
+  count: 10
+  # Number of batch jobs to run in parallel, scale this depending on cluster.
+  parallelism: 5
+

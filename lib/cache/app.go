@@ -83,7 +83,7 @@ func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.App
 
 		if rg.ReadCache() {
 			for a := range rg.store.resources(appNameIndex, start, end) {
-				if !yield(a, nil) {
+				if !yield(a.Copy(), nil) {
 					return
 				}
 			}

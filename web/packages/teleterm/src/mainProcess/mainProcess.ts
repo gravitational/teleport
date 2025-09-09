@@ -808,13 +808,17 @@ export default class MainProcess {
       {
         windowsHide: true,
         timeout: 2_000,
+        env: {
+          ...process.env,
+          [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+        },
       }
     );
     daemonStop.on('error', error => {
       logger.error('daemon stop process failed to start', error);
     });
     daemonStop.stderr.setEncoding('utf-8');
-    daemonStop.stderr.on('data', logger.error);
+    daemonStop.stderr.on('data', data => logger.error(data));
   }
 
   private logProcessExitAndError(

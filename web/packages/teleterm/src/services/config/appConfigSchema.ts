@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { en } from 'zod/locales';
 
 import { Platform, RuntimeSettings } from 'teleterm/mainProcess/types';
 
@@ -63,6 +64,12 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .describe(
         'Skips the version check and hides the version compatibility warning when logging in to a cluster.'
       ),
+    runInBackground: z
+      .boolean()
+      .default(settings.platform === 'darwin' || settings.platform === 'win32')
+      .describe(
+        'Keeps the app running in the menu bar/system tray even when the main window is closed. On Linux, displaying the system tray icon may require installing shell extensions.'
+      ),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
@@ -74,7 +81,6 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .default(defaultTerminalFont)
       .describe('Font family for the terminal.'),
     'terminal.fontSize': z
-      .number()
       .int()
       .min(1)
       .max(256)
@@ -97,9 +103,10 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
           availableShellIdsWithCustom.some(
             shellId => shellId === configuredShell
           ),
-        configuredShell => ({
-          message: `Cannot find the shell "${configuredShell}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
-        })
+        {
+          error: iss =>
+            `Cannot find the shell "${iss.input}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
+        }
       ),
     'terminal.customShell': z
       .string()
@@ -338,3 +345,25 @@ function getDefaultTerminalFont(platform: Platform) {
 function getShortcutDesc(actionDesc: string): string {
   return `Shortcut to ${actionDesc}. A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab". Function keys do not require a modifier.`;
 }
+
+// Explicitly load the English locale to avoid being tree-shaken by Vite
+// https://github.com/colinhacks/zod/issues/4891
+z.config(en());
+
+const optionsFormatter = new Intl.ListFormat('en', {
+  style: 'long',
+  type: 'disjunction',
+});
+
+z.config({
+  customError: iss => {
+    switch (iss.code) {
+      case 'invalid_type':
+        return `Expected ${iss.expected}, received ${typeof iss.input}`;
+      case 'invalid_value':
+        return `Expected ${optionsFormatter.format(iss.values.map(v => `"${String(v)}"`))}, received "${iss.input}"`;
+      default:
+        return undefined;
+    }
+  },
+});

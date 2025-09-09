@@ -407,9 +407,9 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 }
 
 func (h *Handler) dbConnect(
-	w http.ResponseWriter,
+	_ http.ResponseWriter,
 	r *http.Request,
-	p httprouter.Params,
+	_ httprouter.Params,
 	sctx *SessionContext,
 	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
@@ -420,6 +420,20 @@ func (h *Handler) dbConnect(
 	ctx, cancel := context.WithCancel(tctx)
 	defer cancel()
 	h.logger.DebugContext(ctx, "Received database interactive connection")
+
+	var term session.TerminalParams
+	q := r.URL.Query()
+	params := q.Get("params")
+	if params != "" {
+		var termReq TerminalRequest
+		if err := json.Unmarshal([]byte(params), &termReq); err != nil {
+			h.logger.DebugContext(ctx, "Failed to unmarshal terminal request",
+				"error", err,
+			)
+		} else {
+			term = termReq.Term
+		}
+	}
 
 	req, err := readDatabaseSessionRequest(ws)
 	if err != nil {
@@ -486,8 +500,10 @@ func (h *Handler) dbConnect(
 		alpnHandler:       h.cfg.ALPNHandler,
 		proxyAddr:         h.PublicProxyAddr(),
 		proxyHostCA:       proxyHostCA,
+		Term:              term,
 	})
 	if err != nil {
+		h.logger.ErrorContext(r.Context(), "Failed to create interactive database session", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	defer sess.Close()
@@ -570,6 +586,8 @@ type databaseInteractiveSessionConfig struct {
 	alpnHandler       ConnectionHandler
 	proxyAddr         string
 	proxyHostCA       types.CertAuthority
+	// Term is the initial PTY size.
+	Term session.TerminalParams
 }
 
 func (c *databaseInteractiveSessionConfig) check() error {
@@ -600,15 +618,20 @@ func (c *databaseInteractiveSessionConfig) check() error {
 	if c.proxyHostCA == nil {
 		return trace.BadParameter("missing parameter proxyHostCA")
 	}
+	if err := c.Term.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
 type databaseInteractiveSession struct {
 	databaseInteractiveSessionConfig
-	ctx      context.Context
-	replConn net.Conn
-	alpnConn net.Conn
-	stream   *terminal.Stream
+	ctx            context.Context
+	replConn       net.Conn
+	alpnConn       net.Conn
+	stream         *terminal.Stream
+	instance       dbrepl.REPLInstance
+	instanceReadyC chan struct{}
 }
 
 func newDatabaseInteractiveSession(ctx context.Context, cfg databaseInteractiveSessionConfig) (*databaseInteractiveSession, error) {
@@ -616,20 +639,25 @@ func newDatabaseInteractiveSession(ctx context.Context, cfg databaseInteractiveS
 		return nil, trace.Wrap(err)
 	}
 	replConn, alpnConn := net.Pipe()
-	return &databaseInteractiveSession{
+	sess := &databaseInteractiveSession{
 		ctx:                              ctx,
 		databaseInteractiveSessionConfig: cfg,
 		replConn:                         replConn,
 		alpnConn:                         alpnConn,
-		stream: terminal.NewStream(ctx, terminal.StreamConfig{
-			// Don't close the terminal stream on session error, as it would also
-			// cause the underlying connection to be closed. This will prevent the
-			// middleware from properly writing the error into the WebSocket connection.
-			// The middleware initiates the connection, forwards it to our
-			// handler, and always closes it.
-			WS: noopCloserWS{Conn: cfg.ws},
-		}),
-	}, nil
+		instanceReadyC:                   make(chan struct{}),
+	}
+	sess.stream = terminal.NewStream(ctx, terminal.StreamConfig{
+		// Don't close the terminal stream on session error, as it would also
+		// cause the underlying connection to be closed. This will prevent the
+		// middleware from properly writing the error into the WebSocket connection.
+		// The middleware initiates the connection, forwards it to our
+		// handler, and always closes it.
+		WS: noopCloserWS{Conn: cfg.ws},
+		Handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketResize: sess.handleWindowResize,
+		},
+	})
+	return sess, nil
 }
 
 // noopCloserWS prevents the stream from closing the websocket, to allow the
@@ -653,13 +681,24 @@ func (s *databaseInteractiveSession) Run() error {
 		return trace.Wrap(err)
 	}
 
+	defaultCloseHandler := s.ws.CloseHandler()
+	s.ws.SetCloseHandler(func(code int, text string) error {
+		s.log.DebugContext(s.ctx, "web socket was closed by client - terminating session")
+		// Call the default close handler if one was set.
+		if defaultCloseHandler != nil {
+			err := defaultCloseHandler(code, text)
+			return trace.NewAggregate(err, s.Close())
+		}
+
+		return trace.Wrap(s.Close())
+	})
 	go startWSPingLoop(s.ctx, s.ws, s.keepAliveInterval, s.log, s.Close)
 
 	// Wrap s.alpnConn with real client addresses and pass it to the ALPN
 	// handler.
 	go func() {
 		alpnConnWithAddr := utils.NewConnWithAddr(s.alpnConn, s.ws.LocalAddr(), s.ws.RemoteAddr())
-		if err := s.alpnHandler(s.ctx, alpnConnWithAddr); !utils.IsOKNetworkError(err) {
+		if err := s.alpnHandler(s.ctx, alpnConnWithAddr); err != nil && !utils.IsOKNetworkError(err) {
 			s.log.ErrorContext(s.ctx, "ALPN handler for database interactive session failed", "error", err)
 		}
 	}()
@@ -672,6 +711,13 @@ func (s *databaseInteractiveSession) Run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.instance = repl
+	if err := repl.SetSize(s.Term.W, s.Term.H); err != nil {
+		s.log.ErrorContext(s.ctx, "Failed to set initial terminal window size",
+			"error", err,
+		)
+	}
+	close(s.instanceReadyC)
 
 	s.log.DebugContext(s.ctx, "Starting database interactive session")
 	if err := repl.Run(s.ctx); err != nil {
@@ -830,6 +876,35 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 	}
 
 	return nil
+}
+
+func (s *databaseInteractiveSession) waitForREPLInstance(ctx context.Context) (dbrepl.REPLInstance, error) {
+	select {
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case <-s.instanceReadyC:
+	}
+	if s.instance == nil {
+		return nil, trace.NotFound("missing database REPL instance")
+	}
+	return s.instance, nil
+}
+
+func (s *databaseInteractiveSession) handleWindowResize(ctx context.Context, envelope terminal.Envelope) {
+	repl, err := s.waitForREPLInstance(ctx)
+	if err != nil {
+		s.log.DebugContext(ctx, "Failed to get database REPL instance", "error", err)
+		return
+	}
+	if params, err := terminal.ParseWindowResizeMsg(envelope); err != nil {
+		s.log.WarnContext(ctx, "Failed to handle terminal window resize",
+			"error", err,
+		)
+	} else if err := repl.SetSize(params.W, params.H); err != nil {
+		s.log.ErrorContext(ctx, "Failed to set terminal window size",
+			"error", err,
+		)
+	}
 }
 
 // fetchDatabaseServersWithName fetches all database servers with provided database name.

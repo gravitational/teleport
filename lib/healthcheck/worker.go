@@ -29,11 +29,14 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	"github.com/gravitational/teleport/lib/utils/log"
 )
@@ -50,6 +53,11 @@ type workerConfig struct {
 	Log *slog.Logger
 	// Target is the health check target.
 	Target Target
+	// getTargetHealthTimeout is the timeout to wait for an initial health
+	// check before returning the target health to callers of GetTargetHealth.
+	getTargetHealthTimeout time.Duration
+	// metricType is the resource type (db, k8s, etc) use in Prometheus metrics.
+	metricType string
 }
 
 // checkAndSetDefaults checks the worker config and sets defaults.
@@ -59,6 +67,9 @@ func (cfg *workerConfig) checkAndSetDefaults() error {
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
+	}
+	if cfg.getTargetHealthTimeout == 0 {
+		cfg.getTargetHealthTimeout = 10 * time.Second
 	}
 	if err := cfg.Target.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -90,6 +101,8 @@ func newUnstartedWorker(ctx context.Context, cfg workerConfig) (*worker, error) 
 		healthCheckConfigUpdateCh: make(chan *healthCheckConfig, 1),
 		log:                       cfg.Log,
 		target:                    cfg.Target,
+		getTargetHealthTimeout:    cfg.getTargetHealthTimeout,
+		metricType:                cfg.metricType,
 	}
 	if w.healthCheckCfg != nil {
 		w.setTargetInit(ctx)
@@ -135,6 +148,16 @@ type worker struct {
 	// targetHealth is the latest target health. Initialized to "unknown" status
 	// before the worker starts.
 	targetHealth types.TargetHealth
+	// initCheckPendingCh is non-nil when the target health is unknown because
+	// the worker is still running an initial health check. When the worker
+	// transitions to any other status, the channel is closed and this field is
+	// set to nil.
+	initCheckPendingCh chan struct{}
+	// getTargetHealthTimeout is the timeout to wait for an initial health
+	// check before returning the target health to callers of GetTargetHealth.
+	getTargetHealthTimeout time.Duration
+	// metricType is the resource type (db, k8s, etc) use in Prometheus metrics.
+	metricType string
 }
 
 // dialFunc dials an address on the given network.
@@ -144,6 +167,7 @@ type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 func (w *worker) GetTargetHealth() *types.TargetHealth {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
+	w.waitForInitCheckLocked(w.getTargetHealthTimeout)
 	return utils.CloneProtoMsg(&w.targetHealth)
 }
 
@@ -174,6 +198,9 @@ func (w *worker) run() {
 		if w.healthCheckInterval != nil {
 			w.healthCheckInterval.Stop()
 		}
+		if w.initCheckPendingCh != nil {
+			close(w.initCheckPendingCh)
+		}
 		if w.target.onClose != nil {
 			w.target.onClose()
 		}
@@ -198,6 +225,10 @@ func (w *worker) run() {
 		case newCfg := <-w.healthCheckConfigUpdateCh:
 			w.updateHealthCheckConfig(w.closeContext, newCfg)
 		case <-w.closeContext.Done():
+			w.mu.RLock()
+			targetHealthStatus := w.targetHealth.Status
+			w.mu.RUnlock()
+			w.decrementPreviousMetric(targetHealthStatus)
 			return
 		}
 	}
@@ -281,11 +312,12 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	}
 	switch {
 	case newCfg == nil:
-		w.setTargetDisabled(ctx)
 		w.stopHealthCheckInterval(ctx)
+		w.setTargetDisabled(ctx)
 		return
 	case oldCfg == nil:
 		w.startHealthCheckInterval(ctx)
+		w.setTargetInit(ctx)
 		return
 	}
 	w.log.DebugContext(ctx, "Updated health check config",
@@ -401,6 +433,11 @@ func (w *worker) setTargetDisabled(ctx context.Context) {
 func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.TargetHealthStatus, reason types.TargetHealthTransitionReason, message string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if reason != types.TargetHealthTransitionReasonInit {
+		w.notifyInitStatusAvailableLocked()
+	} else if w.initCheckPendingCh == nil {
+		w.initCheckPendingCh = make(chan struct{})
+	}
 	oldHealth := w.targetHealth
 	if oldHealth.Status == string(newStatus) && oldHealth.TransitionReason == string(reason) {
 		return
@@ -411,17 +448,21 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 			"reason", reason,
 			"message", message,
 		)
+		resourceHealthyGauge.WithLabelValues(w.metricType).Inc()
 	case types.TargetHealthStatusUnhealthy:
 		w.log.WarnContext(ctx, "Target became unhealthy",
 			"reason", reason,
 			"message", message,
 		)
+		resourceUnhealthyGauge.WithLabelValues(w.metricType).Inc()
 	case types.TargetHealthStatusUnknown:
 		w.log.DebugContext(ctx, "Target health status is unknown",
 			"reason", reason,
 			"message", message,
 		)
+		resourceUnknownGauge.WithLabelValues(w.metricType).Inc()
 	}
+	w.decrementPreviousMetric(oldHealth.Status)
 	now := w.clock.Now()
 	w.targetHealth = types.TargetHealth{
 		Address:             strings.Join(w.lastResolvedEndpoints, ","),
@@ -437,3 +478,91 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 		w.targetHealth.Protocol = string(w.healthCheckCfg.protocol)
 	}
 }
+
+// notifyInitStatusAvailableLocked closes the pending init status channel, if
+// one exists, to notify any waiters that the init health check status is
+// available. It is assumed that the caller of this func is holding the lock.
+func (w *worker) notifyInitStatusAvailableLocked() {
+	if w.initCheckPendingCh != nil {
+		close(w.initCheckPendingCh)
+		w.initCheckPendingCh = nil
+	}
+}
+
+// waitForInitCheckLocked waits for the pending init status channel to be nil
+// or for a timeout to expire. It is assumed that the caller of this func is
+// holding the read lock.
+func (w *worker) waitForInitCheckLocked(timeout time.Duration) {
+	if w.initCheckPendingCh == nil {
+		return
+	}
+	timeoutCh := time.After(retryutils.HalfJitter(timeout))
+	for w.initCheckPendingCh != nil {
+		ch := w.initCheckPendingCh
+		w.mu.RUnlock()
+		select {
+		case <-ch:
+			w.mu.RLock()
+		case <-timeoutCh:
+			w.mu.RLock()
+			return
+		}
+	}
+}
+
+// decrementPreviousMetric decrements the previous health metric.
+func (w *worker) decrementPreviousMetric(previousHealthStatus string) {
+	// Decrement previous state when not the initial state.
+	// Avoids decrementing the "unknown" gauge below zero.
+	if previousHealthStatus != "" {
+		switch types.TargetHealthStatus(previousHealthStatus) {
+		case types.TargetHealthStatusHealthy:
+			resourceHealthyGauge.WithLabelValues(w.metricType).Dec()
+		case types.TargetHealthStatusUnhealthy:
+			resourceUnhealthyGauge.WithLabelValues(w.metricType).Dec()
+		case types.TargetHealthStatusUnknown:
+			resourceUnknownGauge.WithLabelValues(w.metricType).Dec()
+		}
+	}
+}
+
+func init() {
+	metrics.RegisterPrometheusCollectors(
+		resourceHealthyGauge,
+		resourceUnhealthyGauge,
+		resourceUnknownGauge,
+	)
+}
+
+var (
+	// teleport_resources_health_status_healthy
+	resourceHealthyGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricHealthy,
+			Help:      "Number of healthy resources",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+	// teleport_resources_health_status_unhealthy
+	resourceUnhealthyGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricUnhealthy,
+			Help:      "Number of unhealthy resources",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+	// teleport_resources_health_status_unknown
+	resourceUnknownGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricUnknown,
+			Help:      "Number of resources in an unknown health state",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+)

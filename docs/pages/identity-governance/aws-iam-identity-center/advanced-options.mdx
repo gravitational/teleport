@@ -1,0 +1,76 @@
+---
+title: Advanced Identity Center Options
+description: Describes advanced Identity Center use cases.
+labels:
+ - conceptual
+ - identity-governance
+---
+
+The Identity Center Integration can be configured to handle various advanced use
+cases that are ot necessarily supported by the default installation flow. This
+guide describes these advanced options and use cases.
+
+## Disabling Account Assignment role creation
+
+By default, the AWS Identity Center integration will create a Teleport role for
+every possible combination of AWS Account and Permission Set managed by your AWS
+Identity Center instance. If your Identity Center controls a large number of AWS
+Accounts and/or Permission Sets, this may end up creating so many roles that it
+starts to affect Teleport's performance.
+
+To avoid creating these Account Assignment roles, you can create the AWS IC 
+integration with this feature disabled by specifying `--roles-sync-mode NONE`
+when creating the integration with `tctl`, for example:
+
+<Admonition type="note">
+Setting the Roles Sync Mode is only available when installing the Identity Center
+integration via `tctl`. 
+
+Role Sync Mode `NONE` is only available during installation. The Roles Sync Mode
+can be changed to `ALL` later, but you can't go back the other way.
+</Admonition>
+
+```console
+$ tctl plugins install awsic \
+    --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
+    --instance-region ${IDENTITY_CENTER_INSTANCE_REGION} \
+    --use-system-credentials \
+    --assume-role-arn ${AWS_IAM_ROLE_ARN} \
+    --scim-url ${IDENTITY_CENTER_SCIM_BASE_URL} \
+    --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
+    --access-list-default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
+    --roles-sync-mode NONE
+```
+
+### Roles Sync Modes
+
+The Roles Sync Mode controls whether the IC integration will create Account
+Assignment roles for each possible AWS Account Assignment. There are currently
+two possible values: `ALL` (create roles for all possible Account Assignments)
+and `NONE` (do not create roles for _any_ possible Account Assignment).
+
+<Admonition type="warning">
+The integration's Group Import process uses these Account Assignment roles to
+provision access for the Access Lists it creates. In order to prevent the integration
+from creating invalid Access Lists, setting the Roles Sync Mode to `NONE` also 
+requires that integration's Group Import filter contain a single exclude-all clause.
+
+Teleport enforces this restriction, preventing the accidental creation of an invalid
+configuration.
+</Admonition>
+
+### Switching Roles Sync Modes
+
+After installation you can switch the Roles Sync Mode from `NONE` to `ALL` using
+`tctl plugins edit`.
+
+```console
+$ tctl plugins edit awsic --roles-sync-mode ALL
+```
+
+<Admonition type="warning">
+Moving from Roles Sync Mode `ALL` to `NONE` may cause Teleport to potentially
+delete in-use roles, so that transition is not allowed.
+
+Currently the only way to move back to `NONE` is deleting and re-installing the integration.
+</Admonition>

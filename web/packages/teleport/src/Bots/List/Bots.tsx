@@ -31,7 +31,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import { deleteBot, fetchBots } from 'teleport/services/bot/bot';
+import { fetchBots } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
@@ -47,7 +47,6 @@ export function Bots() {
 
   const [bots, setBots] = useState<FlatBot[]>([]);
   const [selectedBot, setSelectedBot] = useState<FlatBot | null>();
-  const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
   const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext(
     canListBots ? 'processing' : 'success'
   );
@@ -73,10 +72,8 @@ export function Bots() {
   }, [ctx, fetchRun, canListBots]);
 
   function onDelete() {
-    crudRun(() => deleteBot(flags, selectedBot.name)).then(() => {
-      setBots(bots.filter(bot => bot.name !== selectedBot.name));
-      onClose();
-    });
+    setBots(bots.filter(bot => bot.name !== selectedBot.name));
+    onClose();
   }
 
   function onEdit(updated: FlatBot) {
@@ -167,7 +164,6 @@ export function Bots() {
       )}
       {fetchAttempt.status == 'success' && (
         <BotList
-          attempt={crudAttempt}
           bots={bots}
           disabledEdit={!flags.roles || !flags.editBots}
           disabledDelete={!flags.removeBots}

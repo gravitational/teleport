@@ -30,10 +30,11 @@ const schema = z.object({
   'keymap.tab1': createKeyboardShortcutSchema('darwin'),
 });
 
-function getZodError(...issues: any[]): z.ZodError {
+function getZodError(...issues: string[]): z.ZodError {
   return new ZodError(
     issues.map(issue => ({
-      ...issue,
+      message: issue,
+      code: 'custom',
       path: ['keymap.tab1'],
     }))
   );

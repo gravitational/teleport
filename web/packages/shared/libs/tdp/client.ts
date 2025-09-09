@@ -194,6 +194,16 @@ export class TdpClient extends EventEmitter<EventMap> {
     // avoids the connection crashing.
     if (options.keyboardLayout !== undefined && options.keyboardLayout !== 0) {
       this.sendClientKeyboardLayout(options.keyboardLayout);
+    } else {
+      // The proxy expects two messasges (client screen spec and keyboard layout)
+      // before it will initialise the connection to WDS. If no keyboard layout
+      // is sent, the proxy will hang waiting for a second message that won't
+      // arrive. To get around this we send another client screen spec.
+      // TODO (danielashare): Remove this once proxy doesn't block on
+      // keyboardLayout.
+      if (options.screenSpec) {
+        this.sendClientScreenSpec(options.screenSpec);
+      }
     }
 
     let processingError: Error | undefined;

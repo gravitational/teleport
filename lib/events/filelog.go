@@ -365,12 +365,12 @@ func getCheckpointFromEvent(event EventFields) (string, error) {
 func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	var whereExp types.WhereExpr
 	if req.Cond != nil {
-		whereExp = *req.Cond
+		whereExp = *req.Cond.Expr
 	}
 	l.logger.DebugContext(ctx, "SearchSessionEvents", "from", req.From, "to", req.To, "order", req.Order, "limit", req.Limit, "cond", logutils.StringerAttr(whereExp))
 	filter := searchEventsFilter{eventTypes: SessionRecordingEvents}
 	if req.Cond != nil {
-		condFn, err := utils.ToFieldsCondition(req.Cond)
+		condFn, err := utils.ToFieldsCondition(*req.Cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

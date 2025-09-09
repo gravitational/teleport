@@ -583,8 +583,8 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceDiffer func(old, new T) bool
 	// ResourceKey defines how the resources should be keyed.
 	ResourceKey func(resource T) string
-	// ResourcesC is a channel used to report the current resourxe set. It receives
-	// a fresh list at startup and subsequently a list of all known resourxes
+	// ResourcesC is a channel used to report the current resource set. It receives
+	// a fresh list at startup and subsequently a list of all known resources
 	// whenever an addition or deletion is detected.
 	ResourcesC chan []T
 	// CloneFunc defines how a resource is cloned. All resources provided via

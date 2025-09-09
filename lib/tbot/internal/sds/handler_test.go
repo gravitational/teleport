@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -40,6 +41,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
 
 type mockTrustBundleCache struct {
 	currentBundle *workloadidentity.BundleSet

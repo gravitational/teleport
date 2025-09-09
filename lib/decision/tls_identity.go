@@ -41,6 +41,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 
 	return &tlsca.Identity{
 		Username:                id.Username,
+		ScopePin:                id.ScopePin,
 		Impersonator:            id.Impersonator,
 		Groups:                  id.Groups,
 		SystemRoles:             id.SystemRoles,
@@ -54,6 +55,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 		Traits:                  traitToWrappers(id.Traits),
 		RouteToApp:              routeToAppFromProto(id.RouteToApp),
 		TeleportCluster:         id.TeleportCluster,
+		OriginClusterName:       id.TeleportCluster,
 		RouteToDatabase:         routeToDatabaseFromProto(id.RouteToDatabase),
 		DatabaseNames:           id.DatabaseNames,
 		DatabaseUsers:           id.DatabaseUsers,
@@ -89,6 +91,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 
 	return &decisionpb.TLSIdentity{
 		Username:                id.Username,
+		ScopePin:                id.ScopePin,
 		Impersonator:            id.Impersonator,
 		Groups:                  id.Groups,
 		SystemRoles:             id.SystemRoles,

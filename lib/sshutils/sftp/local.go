@@ -54,11 +54,11 @@ func (l localFS) ReadDir(path string) ([]os.FileInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		// if the file is a symlink, return the info of the linked file
-		if info.Mode().Type()&os.ModeSymlink != 0 {
-			info, err = os.Stat(filepath.Join(path, info.Name()))
-			if err != nil {
-				return nil, err
+		// If the file is a valid symlink, return the info of the linked file.
+		if info.Mode()&os.ModeSymlink != 0 {
+			resolvedInfo, err := os.Stat(filepath.Join(path, info.Name()))
+			if err == nil {
+				info = resolvedInfo
 			}
 		}
 

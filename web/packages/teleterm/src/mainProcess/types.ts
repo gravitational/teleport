@@ -147,10 +147,10 @@ export type MainProcessClient = {
    * Tells the OS to focus the window. If wait is true, polls periodically for window status and
    * resolves when it's focused or after a short timeout.
    *
-   * Most of the time wait shouldn't be used, it's there for use cases where it's important for the
-   * app to be focused (e.g., the business logic needs to use the clipboard API). Even in that case,
-   * the logic must handle a scenario where focus wasn't received as focus cannot be guaranteed.
-   * Any app can steal focus at any time.
+   * Most of the time wait shouldn't be used. It's for use cases where the app must be focused
+   * before carrying out the rest of the logic (e.g., the clipboard API requires focus). Even in
+   * those cases, the logic must handle a scenario where focus wasn't received as focus cannot be
+   * guaranteed. Any app can steal focus at any time.
    */
   forceFocusWindow(
     args?: { wait?: false } | { wait: true; signal?: AbortSignal }
@@ -222,6 +222,11 @@ export type MainProcessClient = {
     cleanup: () => void;
   };
   subscribeToOpenAppUpdateDialog(listener: () => void): {
+    cleanup: () => void;
+  };
+  subscribeToIsInBackgroundMode(
+    listener: (opts: { isInBackgroundMode: boolean }) => void
+  ): {
     cleanup: () => void;
   };
 };
@@ -331,6 +336,7 @@ export enum RendererIpc {
   DeepLinkLaunch = 'renderer-deep-link-launch',
   OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
   AppUpdateEvent = 'renderer-app-update-event',
+  IsInBackgroundMode = 'renderer-is-in-background-mode',
 }
 
 export enum MainProcessIpc {

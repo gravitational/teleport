@@ -309,12 +309,12 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
-		credenialsProvider, err := e.createCredentialsProvider(ctx, sessionCtx, username, password)
+		credentialsProvider, err := e.createCredentialsProvider(ctx, sessionCtx, username, password)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, credenialsProvider)
+		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, credentialsProvider)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -387,6 +387,10 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 	dbUser := sessionCtx.DatabaseUser
 	ok, err := e.checkUserIAMAuthIsEnabled(ctx, sessionCtx, dbUser)
 	if err != nil {
+		if sessionCtx.Database.GetType() == types.DatabaseTypeElastiCacheServerless {
+			e.Log.DebugContext(e.Context, "Assuming IAM auth is enabled for user", "user", dbUser, "error", err)
+			return true
+		}
 		e.Log.DebugContext(e.Context, "Assuming IAM auth is not enabled for user.", "user", dbUser, "error", err)
 		return false
 	}
@@ -402,6 +406,8 @@ func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
 		return iam.CheckElastiCacheSupportsIAMAuth(database)
 	case types.DatabaseTypeMemoryDB:
 		return iam.CheckMemoryDBSupportsIAMAuth(database)
+	case types.DatabaseTypeElastiCacheServerless:
+		return true, nil
 	default:
 		return false, nil
 	}
@@ -411,7 +417,7 @@ func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
 // user has IAM auth enabled.
 func (e *Engine) checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *common.Session, username string) (bool, error) {
 	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeElastiCache:
+	case types.DatabaseTypeElastiCache, types.DatabaseTypeElastiCacheServerless:
 		return e.checkElastiCacheUserIAMAuthIsEnabled(ctx, sessionCtx.Database.GetAWS(), username)
 	case types.DatabaseTypeMemoryDB:
 		return e.checkMemoryDBUserIAMAuthIsEnabled(ctx, sessionCtx.Database.GetAWS(), username)
@@ -629,6 +635,9 @@ func getConnectionOptions(db types.Database) (*connection.Options, error) {
 		if db.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
 			defaultMode = connection.Cluster
 		}
+
+	case types.DatabaseTypeElastiCacheServerless:
+		defaultMode = connection.Cluster
 
 	case types.DatabaseTypeMemoryDB:
 		if db.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {

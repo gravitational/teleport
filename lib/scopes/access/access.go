@@ -176,8 +176,8 @@ func commonValidateRole(role *scopedaccessv1.ScopedRole) error {
 }
 
 // WeakValidatedSubAssignments is a helper for iterating all well formed sub-assignments within a given assignment. Note that the concept
-// of a well-formed sub-assignment is distinct from wether or not an assignment is "boken/invalidated" in the sense used when
-// deciding wether or not an access-control check can be performed for a given scope. The only thing that is being filtered out
+// of a well-formed sub-assignment is distinct from whether or not an assignment is "boken/invalidated" in the sense used when
+// deciding whether or not an access-control check can be performed for a given scope. The only thing that is being filtered out
 // by this iterator is sub-assignments that are so obviously misconfigured that we can't reason about them at all. Sub-assignments
 // returned by this iterator may still be broken because they assign a nonexistent role, or to a scope that the target role is not
 // assignable to.
