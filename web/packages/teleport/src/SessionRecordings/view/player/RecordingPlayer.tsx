@@ -129,12 +129,10 @@ export function RecordingPlayer<
   }, [player]);
 
   const handlePlay = useCallback(() => {
-    if (showPlayButton) {
-      setShowPlayButton(false);
-    }
+    setShowPlayButton(false);
 
     stream.play();
-  }, [stream, showPlayButton]);
+  }, [stream]);
 
   const handlePause = useCallback(() => {
     stream.pause();
@@ -142,13 +140,11 @@ export function RecordingPlayer<
 
   const handleSeek = useCallback(
     (time: number) => {
-      if (showPlayButton) {
-        setShowPlayButton(false);
-      }
+      setShowPlayButton(false);
 
       stream.seek(time);
     },
-    [stream, showPlayButton]
+    [stream]
   );
 
   useImperativeHandle(ref, () => ({
