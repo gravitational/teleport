@@ -224,8 +224,7 @@ func TestWorkloadIdentityCacheFallback(t *testing.T) {
 				IsDesc: true,
 			},
 		})
-		require.Error(t, err)
-		require.Equal(t, "unsupported sort, only name:asc is supported, but got \"name\" (desc = true)", err.Error())
+		require.ErrorContains(t, err, "unsupported sort, only name:asc is supported, but got \"name\" (desc = true)")
 	})
 }
 

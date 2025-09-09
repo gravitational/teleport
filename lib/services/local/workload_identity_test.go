@@ -215,8 +215,7 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 				IsDesc: true,
 			},
 		})
-		require.Error(t, err)
-		require.Equal(t, `unsupported sort, only name:asc is supported, but got "name" (desc = true)`, err.Error())
+		require.ErrorContains(t, err, `unsupported sort, only name:asc is supported, but got "name" (desc = true)`, err.Error())
 	})
 	t.Run("search filter match on name", func(t *testing.T) {
 		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
