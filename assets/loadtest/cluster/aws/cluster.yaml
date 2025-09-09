@@ -1,7 +1,7 @@
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 metadata:
-  name: lukeo
+  name: luke
   region: us-west-2
   version: "1.29"
   tags:
@@ -16,7 +16,7 @@ addons:
       - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
 
 managedNodeGroups:
-  - name: lukeo
+  - name: luke
     instanceType: m5.4xlarge
     minSize: 3
     maxSize: 10

@@ -5,8 +5,8 @@ metadata:
 provisioner: ebs.csi.aws.com
 parameters:
   type: io2
-  iopsPerGB: "200"
+  iopsPerGB: "150"
   fsType: ext4
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
-allowVolumeExpansion: true
+allowVolumeExpansion: false

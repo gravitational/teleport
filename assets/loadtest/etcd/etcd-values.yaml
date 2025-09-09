@@ -7,11 +7,11 @@ persistence:
 
 resources:
   limits:
-    cpu: 2
-    memory: 4Gi
+    cpu: 4
+    memory: 6Gi
   requests:
-    cpu: 1
-    memory: 1Gi
+    cpu: 2
+    memory: 2Gi
 
 replicaCount: 5
 

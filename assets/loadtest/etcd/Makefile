@@ -10,6 +10,8 @@ deploy:
 		--set auth.rbac.allowNoneAuthentication=true \
 		--set auth.token.enabled=false \
 		--values etcd-values.yaml
+	kubectl wait pods --namespace etcd --timeout 20m --for "condition=ready" --selector "app.kubernetes.io/component=etcd"
+
 
 # deletes etcd from the cluster
 .PHONY: delete
