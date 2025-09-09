@@ -36,15 +36,14 @@ import (
 
 // Variables might to be overridden during compilation time for integration tests.
 var (
-	// version is the current version of the Teleport.
-	version = teleport.Version
-	// baseURL is CDN URL for downloading official Teleport packages.
-	baseURL = autoupdate.DefaultBaseURL
+	// Version is the current version of the Teleport.
+	Version = teleport.Version
 )
 
 // newUpdater inits the updater with default base URL and creates directory
 // if it doesn't exist.
 func newUpdater(toolsDir string) (*Updater, error) {
+	baseURL := autoupdate.DefaultBaseURL
 	// Overrides default base URL for custom CDN for downloading updates.
 	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
 		baseURL = envBaseURL
@@ -55,7 +54,7 @@ func newUpdater(toolsDir string) (*Updater, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewUpdater(toolsDir, version, WithBaseURL(baseURL)), nil
+	return NewUpdater(toolsDir, Version, WithBaseURL(baseURL)), nil
 }
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
@@ -71,7 +70,8 @@ func newUpdater(toolsDir string) (*Updater, error) {
 func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
 	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
 	// so we don't try to read te user home directory, fail, and log warnings.
-	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled {
+	toolsVersion := os.Getenv(teleportToolsVersionEnv)
+	if toolsVersion == teleportToolsVersionEnvDisabled || toolsVersion == teleportToolsVersionEnvDisabledLocal {
 		return nil
 	}
 
