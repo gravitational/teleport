@@ -532,6 +532,9 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 
 			roundTripper := &mockRoundTripper{}
 			if test.expectValidation {
+				response := makeResponse(test.validationResponse)
+				defer response.Body.Close()
+
 				roundTripper.
 					On("RoundTrip", mock.Anything).
 					Run(func(args mock.Arguments) {
@@ -539,7 +542,7 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 						require.True(t, ok, "expecting a *http.Request, got %T", args.Get(0))
 						require.Equal(t, "Bearer "+test.cliArgs.payload, req.Header.Get("Authorization"))
 					}).
-					Return(makeResponse(test.validationResponse), test.validationError)
+					Return(response, test.validationError)
 			}
 
 			args := pluginServices{
