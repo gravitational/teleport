@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -957,35 +958,61 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		}
 		return trace.Wrap(err)
 	}
+
 	// ensure the route protocol matches the db.
 	d.Protocol = db.GetProtocol()
 
 	needDBUser := d.Username == "" && isDatabaseUserRequired(d.Protocol)
 	needDBName := d.Database == "" && isDatabaseNameRequired(d.Protocol)
-	if !needDBUser && !needDBName {
-		return nil
-	}
-
-	checker, err := d.getChecker(cf.Context, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if needDBUser {
-		dbUser, err := getDefaultDBUser(db, checker)
+	if needDBUser || needDBName {
+		checker, err := d.getChecker(cf.Context, tc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		logger.DebugContext(cf.Context, "Defaulting to the allowed database user", "database_user", dbUser)
-		d.Username = dbUser
-	}
-	if needDBName {
-		dbName, err := getDefaultDBName(db, checker)
-		if err != nil {
-			return trace.Wrap(err)
+
+		if needDBUser {
+			dbUser, err := getDefaultDBUser(db, checker)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			logger.DebugContext(cf.Context, "Defaulting to the allowed database user", "database_user", dbUser)
+			d.Username = dbUser
 		}
-		logger.DebugContext(cf.Context, "Defaulting to the allowed database name", "database_name", dbName)
-		d.Database = dbName
+		if needDBName {
+			dbName, err := getDefaultDBName(db, checker)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			logger.DebugContext(cf.Context, "Defaulting to the allowed database name", "database_name", dbName)
+			d.Database = dbName
+		}
+	}
+
+	// As a convenience, we will append the `@<project-id>.iam` suffix to a username
+	// when connecting to Postgres GCP databases and the domain is missing.
+	//
+	// Commonly, the service account and the database share the same project ID,
+	// which means we can try to guess the intended suffix.
+	//
+	// This is only applied for Postgres (CloudSQL Postgres or AlloyDB) because:
+	// - CloudSQL MySQL still supports "classical" (one-time password) users;
+	//   otherwise it would have used the `@<project>.iam.gserviceaccount.com` suffix.
+	// - Spanner applies the `@<project>.iam.gserviceaccount.com` suffix directly in the engine.
+	if db.GetProtocol() == defaults.ProtocolPostgres &&
+		d.Username != "" && !strings.Contains(d.Username, "@") &&
+		(db.GetGCP().ProjectID != "" || db.GetType() == types.DatabaseTypeAlloyDB || db.GetType() == types.DatabaseTypeCloudSQL) {
+		projectID := db.GetGCP().ProjectID
+		if db.GetType() == types.DatabaseTypeAlloyDB {
+			// parse from URI
+			parsed, err := gcputils.ParseAlloyDBConnectionURI(db.GetURI())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			projectID = parsed.ProjectID
+		}
+		updated := fmt.Sprintf("%s@%s.iam", strings.TrimSpace(d.Username), projectID)
+		logger.DebugContext(cf.Context, "Adding default project suffix for IAM principal", "original", d.Username, "updated", updated)
+		d.Username = updated
 	}
 	return nil
 }
