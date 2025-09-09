@@ -1907,9 +1907,8 @@ ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt rustup-install-wasm-toolch
 WASM_BINDGEN_VERSION = $(shell cargo pkgid --package ironrdp wasm-bindgen 2>/dev/null | cut -d '@' -f 2)
 
 .PHONY: print-wasm-bindgen-version
-print-wasm-bindgen-version: NEED_VERSION = $(WASM_BINDGEN_VERSION)
 print-wasm-bindgen-version:
-	@echo $(NEED_VERSION)
+	@echo $(WASM_BINDGEN_VERSION)
 
 ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
