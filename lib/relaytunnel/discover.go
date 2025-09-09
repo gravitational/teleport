@@ -31,6 +31,7 @@ import (
 	relaytunnelv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
 )
 
+//nolint:unused // used by StaticDiscoverServiceServer
 type unimplementedDiscoveryServiceServer = relaytunnelv1alpha.UnimplementedDiscoveryServiceServer
 
 // StaticDiscoverServiceServer is a [relaytunnelv1alpha.DiscoveryServiceServer]
