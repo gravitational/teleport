@@ -633,11 +633,20 @@ Below is the list of the supported config properties.
   It should not be modified.
 </Admonition>
 
-### tsh Environment Variables
+### `tsh ssh` environment variables
 
-Under the hood, Teleport Connect uses `tsh` for several of its features. As a result, Teleport Connect
-will respect [tsh Environment Variables](../reference/cli/tsh.mdx#tsh-environment-variables) in many cases.
-This can make it easier to share common settings between `tsh` into your Teleport Connect App.
+Under the hood, Teleport Connect uses `tsh ssh` to connect to Nodes. As a result,
+Teleport Connect will respect many [tsh Environment Variables](../reference/cli/tsh.mdx#tsh-environment-variables)
+related to `tsh ssh`. This can make it easier to share common settings between `tsh` into your Teleport Connect App.
+
+Below is a list of environment variables supported by Teleport Connect for Node connections:
+
+| Property | Default | Allowed Value(s) | Description |
+|----------|---------|------------------|-------------|
+| `TELEPORT_MFA_MODE` | `auto` | `auto`, `cross-platform`, `platform`, `otp`, or `sso` | Preferred mode for MFA and Passwordless assertions. |
+| `TELEPORT_ADD_KEYS_TO_AGENT` | `auto` | `auto`, `no`, `yes`, or `only` | Controls how keys are added to a local SSH agent. "auto" adds the keys only if the agent supports SSH certificates, "no" never attempts to add them, "yes" always attempts to add them, "only" always attempts to add the keys to the agent but it does not save them on disk. |
+| `TELEPORT_HEADLESS_SKIP_CONFIRM` | `false` | `true` or `false` | Skips the confirmation prompt for Headless Authentication approval and instead prompts for MFA immediately. | 
+| `TELEPORT_NO_RESUME` | `false` | `true` or `false` | Disables SSH connection resumption. |
 
 For example, instead of settings `ssh.addKeysToAgent=no`, you could set `TELEPORT_ADD_KEYS_TO_AGENT=no` in
 your shell startup file to configure both `tsh` and Teleport Connect.
