@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"slices"
 
@@ -244,7 +245,7 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 }
 
 // InstallAWSIC installs AWS Identity Center plugin.
-func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args pluginServices) error {
 	awsICArgs := p.install.awsIC
 	if err := awsICArgs.validate(ctx, p.config.Logger); err != nil {
 		return trace.Wrap(err)
@@ -359,7 +360,7 @@ func (p *PluginsCommand) initEditAWSIC(parent *kingpin.CmdClause) {
 		EnumVar(&p.edit.awsIC.rolesSyncMode, types.AWSICRolesSyncModeAll, types.AWSICRolesSyncModeNone)
 }
 
-func (p *PluginsCommand) EditAWSIC(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) EditAWSIC(ctx context.Context, args pluginServices) error {
 	plugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
 		Name: p.edit.awsIC.pluginName,
 	})
@@ -387,10 +388,10 @@ func (p *PluginsCommand) EditAWSIC(ctx context.Context, args installPluginArgs) 
 }
 
 type awsICRotateCredsArgs struct {
-	cmd           *kingpin.CmdClause
-	pluginName    string
-	payload       string
-	validateToken bool
+	cmd               *kingpin.CmdClause
+	pluginName        string
+	payload           string
+	requireValidation bool
 }
 
 func (p *PluginsCommand) initRotateCredsAWSIC(parent *kingpin.CmdClause) {
@@ -409,10 +410,10 @@ func (p *PluginsCommand) initRotateCredsAWSIC(parent *kingpin.CmdClause) {
 
 	cmd.Flag("validate-token", "Validate that the supplied token is valid for the configured downstream SCIM service").
 		Default("true").
-		BoolVar(&args.validateToken)
+		BoolVar(&args.requireValidation)
 }
 
-func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args pluginServices) error {
 	cliArgs := &p.rotateCreds.awsic
 
 	slog.InfoContext(ctx, "Fetching plugin...", "plugin_name", cliArgs.pluginName)
@@ -429,20 +430,9 @@ func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args installPlugi
 		return trace.BadParameter(notAWSICPluginMsg, cliArgs.pluginName)
 	}
 
-	if p.rotateCreds.awsic.validateToken {
-		provisioningSpec := awsicSettings.ProvisioningSpec
-		if provisioningSpec == nil {
-			return trace.BadParameter("plugin is missing provisioning spec")
-		}
-
-		slog.InfoContext(ctx, "Validating token", "scim_server", provisioningSpec.BaseUrl)
-
-		scimClient, err := args.scimProvider(types.PluginTypeAWSIdentityCenter, provisioningSpec.BaseUrl, cliArgs.payload)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := scimClient.Ping(ctx); err != nil {
-			return trace.Wrap(err, "SCIM Token validation failed")
+	if p.rotateCreds.awsic.requireValidation {
+		if err := p.rotateCreds.awsic.validateToken(ctx, awsicSettings, args); err != nil {
+			return trace.Wrap(err, "validating SCIM bearer token")
 		}
 	}
 
@@ -469,5 +459,43 @@ func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args installPlugi
 		return trace.Wrap(err, "updating credentials")
 	}
 
+	return nil
+}
+
+func (args *awsICRotateCredsArgs) validateToken(ctx context.Context, awsicSettings *types.PluginAWSICSettings, env pluginServices) error {
+	provisioningSpec := awsicSettings.ProvisioningSpec
+	if provisioningSpec == nil {
+		return trace.BadParameter("plugin is missing provisioning spec")
+	}
+
+	slog.InfoContext(ctx, "Validating token", "scim_server", provisioningSpec.BaseUrl)
+
+	endPoint, err := url.JoinPath(provisioningSpec.BaseUrl, "ServiceProviderConfig")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endPoint, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", args.payload))
+	req.Header.Set("Accept", "application/scim+json")
+
+	resp, err := env.httpProvider.RoundTrip(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return trace.BadParameter("invalid token")
+	case http.StatusInternalServerError:
+		return trace.BadParameter("internal server error")
+	default:
+		return trace.BadParameter("unexpected status code %v", resp.StatusCode)
+	}
 	return nil
 }

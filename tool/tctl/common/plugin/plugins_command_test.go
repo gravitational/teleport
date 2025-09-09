@@ -501,7 +501,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			var args installPluginArgs
+			var args pluginServices
 
 			if testCase.expectRequest != nil {
 				pluginsClient := &mockPluginsClient{}
@@ -550,9 +550,14 @@ func TestPluginsInstallOkta(t *testing.T) {
 	}
 }
 
-func requireBadParameter(t require.TestingT, err error, _ ...any) {
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "Expecting bad parameter, got %T: \"%v\"", err, err)
+func requireBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
+	var bpe *trace.BadParameterError
+	require.ErrorAs(t, err, &bpe, msgAndArgs...)
+}
+
+func requireAccessDenied(t require.TestingT, err error, msgAndArgs ...any) {
+	var ade *trace.AccessDeniedError
+	require.ErrorAs(t, err, &ade, msgAndArgs...)
 }
 
 func mustParseURL(text string) *url.URL {
