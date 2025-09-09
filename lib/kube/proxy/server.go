@@ -523,7 +523,7 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 
 	// Set and get kube cluster health check.
 	// t.log.DebugContext(t.Context, "kube GetServerInfo: cluster: %+v", cluster)
-	srv.SetTargetHealth(t.getTargetHealth(t.Context, cluster))
+	srv.SetTargetHealth(t.getTargetHealth(t.closeContext, cluster))
 
 	return srv, nil
 }
