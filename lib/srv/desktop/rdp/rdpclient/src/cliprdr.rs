@@ -74,6 +74,10 @@ impl CliprdrBackend for TeleportCliprdrBackend {
         ClipboardGeneralCapabilityFlags::USE_LONG_FORMAT_NAMES
     }
 
+    fn on_ready(&mut self) {
+        trace!("CLIPRDR: on_ready");
+    }
+
     fn on_request_format_list(&mut self) {
         trace!("CLIPRDR: on_request_format_list");
         let formats = available_formats(&self.clipboard_data);
