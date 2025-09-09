@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -30,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -59,7 +59,7 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processer Ser
 	switch mediaType {
 	case "application/json":
 		// Single response.
-		respBody, err := io.ReadAll(resp.Body)
+		respBody, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPRequestSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -73,6 +73,7 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processer Ser
 			return trace.Wrap(err)
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(respToClientAsBody))
+		resp.ContentLength = int64(len(respToClientAsBody))
 		return nil
 
 	case "text/event-stream":
@@ -133,6 +134,10 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 	}
 
 	// Convert to SSE.
-	r.buf = []byte(fmt.Sprintf("event: message\ndata: %s\n\n", string(respToSendAsBody)))
+	e := event{
+		name: sseEventMessage,
+		data: respToSendAsBody,
+	}
+	r.buf = e.marshal()
 	return r.Read(p)
 }
