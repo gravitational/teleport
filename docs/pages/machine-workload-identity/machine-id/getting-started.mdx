@@ -8,12 +8,11 @@ labels:
 
 {/* lint disable page-structure remark-lint */}
 
-Teleport Machine and Workload Identity (MWI) is a versatile tool that integrates
-with many platforms and protected resource types and enables use cases from
-secure [Infrastructure-as-Code](../iac-mwi.mdx) to [AI Agents](../ai-agents-mwi.mdx).
-This guide shows one of the most common use cases, running commands on deployment targets
-from CI/CD. If this is not your goal, this guide will show you the basics of how to get started with MWI
-configuration, and you can then explore the use case pages to find links to your tools.
+Teleport Machine and Workload Identity (MWI) provides secure access across multiple platforms and resource types,
+supporting everything from [Infrastructure-as-Code](../iac-mwi.mdx) workflows to [AI agent](../ai-agents-mwi.mdx)
+operations. This guide focuses on a popular implementation: executing commands on deployment targets through CI/CD
+pipelines. Even if your specific use case differs, this guide covers the fundamental MWI setup process, after which you
+can reference our dedicated use case pages for tool-specific guidance.
 
 Here's an overview of what you will do:
 
@@ -41,10 +40,8 @@ or Kubernetes cluster you can let the bot access before starting.
   - A Linux server
   - A Kubernetes cluster
 
-Most people should be able to set up a GitHub Actions workflow on a personal repository, and
-will already have one of those targets enrolled. If you don't have a target resource that you can use
-for this guide enrolled, follow one of the [guides](../../enroll-resources/enroll-resources.mdx) for
-enrolling a new resource.
+If you don't have a target resource that you can use, follow one of the [guides](../../enroll-resources/enroll-resources.mdx)
+for enrolling a new resource.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -255,7 +252,7 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        version: 18.1.5
+        version: auto
     - name: Export ssh config
       run: tbot start --oneshot -c ./action_support/server_bot.yaml
     - name: Run mpstat
@@ -320,7 +317,7 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        version: 18.1.5
+        version: auto
     - name: Export ssh config
       run: tbot start --oneshot -c ./action_support/server_bot.yaml
     - name: Get pods in default namespace
