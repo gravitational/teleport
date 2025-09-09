@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -74,6 +73,7 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processer Ser
 			return trace.Wrap(err)
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(respToClientAsBody))
+		resp.ContentLength = int64(len(respToClientAsBody))
 		return nil
 
 	case "text/event-stream":
@@ -134,6 +134,10 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 	}
 
 	// Convert to SSE.
-	r.buf = fmt.Appendf(r.buf, "event: message\ndata: %s\n\n", string(respToSendAsBody))
+	e := event{
+		name: sseEventMessage,
+		data: respToSendAsBody,
+	}
+	r.buf = e.marshal()
 	return r.Read(p)
 }
