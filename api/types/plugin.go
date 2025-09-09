@@ -1042,3 +1042,25 @@ func (c *PluginIntuneSettings) Validate() error {
 
 	return nil
 }
+
+// UnmarshalJSON implements [json.Unmarshaler] for the PluginSyncFilter, forcing
+// it to use the `jsonpb` unmarshaler, which understands how to unpack values
+// generated from a protobuf `oneof` directive.
+func (s *PluginSyncFilter) UnmarshalJSON(b []byte) error {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the PluginSyncFilter, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s PluginSyncFilter) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, &s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
