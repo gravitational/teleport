@@ -32,6 +32,7 @@ import (
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	scimsdk "github.com/gravitational/teleport/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -217,8 +218,9 @@ type pluginsClient interface {
 }
 
 type installPluginArgs struct {
-	authClient authClient
-	plugins    pluginsClient
+	authClient   authClient
+	plugins      pluginsClient
+	scimProvider func(plugintType, url, bearerToken string) (scimsdk.Client, error)
 }
 
 // TryRun runs the plugins command
@@ -255,6 +257,13 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 	args := installPluginArgs{
 		authClient: client,
 		plugins:    client.PluginsClient(),
+		scimProvider: func(pluginType, url, token string) (scimsdk.Client, error) {
+			return scimsdk.New(&scimsdk.Config{
+				Endpoint:        url,
+				IntegrationType: pluginType,
+				Token:           token,
+			})
+		},
 	}
 	err = commandFunc(ctx, args)
 	closeFn(ctx)
