@@ -33,7 +33,7 @@ func TestAutoUpdateConfig(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*autoupdatev1.AutoUpdateConfig]{
+	testResources153(t, p, testFuncs[*autoupdatev1.AutoUpdateConfig]{
 		newResource: func(name string) (*autoupdatev1.AutoUpdateConfig, error) {
 			return newAutoUpdateConfig(t), nil
 		},
@@ -48,7 +48,7 @@ func TestAutoUpdateConfig(t *testing.T) {
 			}
 			return []*autoupdatev1.AutoUpdateConfig{item}, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*autoupdatev1.AutoUpdateConfig, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*autoupdatev1.AutoUpdateConfig, error) {
 			item, err := p.cache.GetAutoUpdateConfig(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateConfig{}, nil
@@ -58,7 +58,7 @@ func TestAutoUpdateConfig(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateConfig(ctx))
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestAutoUpdateVersion tests that CRUD operations on AutoUpdateVersion resource are
@@ -69,7 +69,7 @@ func TestAutoUpdateVersion(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*autoupdatev1.AutoUpdateVersion]{
+	testResources153(t, p, testFuncs[*autoupdatev1.AutoUpdateVersion]{
 		newResource: func(name string) (*autoupdatev1.AutoUpdateVersion, error) {
 			return newAutoUpdateVersion(t), nil
 		},
@@ -84,7 +84,7 @@ func TestAutoUpdateVersion(t *testing.T) {
 			}
 			return []*autoupdatev1.AutoUpdateVersion{item}, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*autoupdatev1.AutoUpdateVersion, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*autoupdatev1.AutoUpdateVersion, error) {
 			item, err := p.cache.GetAutoUpdateVersion(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateVersion{}, nil
@@ -94,7 +94,7 @@ func TestAutoUpdateVersion(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateVersion(ctx))
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestAutoUpdateAgentRollout tests that CRUD operations on AutoUpdateAgentRollout resource are
@@ -105,7 +105,7 @@ func TestAutoUpdateAgentRollout(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*autoupdatev1.AutoUpdateAgentRollout]{
+	testResources153(t, p, testFuncs[*autoupdatev1.AutoUpdateAgentRollout]{
 		newResource: func(name string) (*autoupdatev1.AutoUpdateAgentRollout, error) {
 			return newAutoUpdateAgentRollout(t), nil
 		},
@@ -120,7 +120,7 @@ func TestAutoUpdateAgentRollout(t *testing.T) {
 			}
 			return []*autoupdatev1.AutoUpdateAgentRollout{item}, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
 			item, err := p.cache.GetAutoUpdateAgentRollout(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateAgentRollout{}, nil
@@ -130,5 +130,5 @@ func TestAutoUpdateAgentRollout(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateAgentRollout(ctx))
 		},
-	})
+	}, withSkipPaginationTest())
 }
