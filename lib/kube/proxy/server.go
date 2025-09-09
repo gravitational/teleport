@@ -367,7 +367,7 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	}
 
 	// Start the health check manager which monitors kube cluster health.
-	if err := t.healthCheckManager.Start(t.Context); err != nil {
+	if err := t.healthCheckManager.Start(t.closeContext); err != nil {
 		return trace.Wrap(err)
 	}
 
