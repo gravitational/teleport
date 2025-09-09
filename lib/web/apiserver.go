@@ -3824,7 +3824,7 @@ func (f SessionControllerFunc) AcquireSessionContext(ctx context.Context, sctx *
 func (h *Handler) siteNodeConnect(
 	w http.ResponseWriter,
 	r *http.Request,
-	p httprouter.Params,
+	_ httprouter.Params,
 	sessionCtx *SessionContext,
 	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,

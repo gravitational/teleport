@@ -19,12 +19,14 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -149,9 +151,17 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		return trace.Wrap(err)
 	}
 
-	originalName, err := resourceName(f.Name())
+	originalResources, err := editResources(f.Name())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	key := func(r services.UnknownResource) string {
+		return fmt.Sprintf("%s/%s", r.Kind, r.GetName())
+	}
+	originalResourcesMap := make(map[string][]byte)
+	for _, r := range originalResources {
+		originalResourcesMap[key(r)] = r.Raw
 	}
 
 	if err := e.runEditor(ctx, f.Name()); err != nil {
@@ -169,46 +179,51 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		return nil
 	}
 
-	newName, err := resourceName(f.Name())
+	newResources, err := editResources(f.Name())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if originalName != newName {
-		return trace.NotImplemented("renaming resources is not supported with tctl edit")
+	if len(newResources) != len(originalResources) {
+		return trace.BadParameter("one or more resources were added or removed, renaming resources is not supported with tctl edit")
 	}
 
-	f, err = utils.OpenFileAllowingUnsafeLinks(rc.filename)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer f.Close()
-
-	decoder := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
-	var raw services.UnknownResource
-	if err := decoder.Decode(&raw); err != nil {
-		if errors.Is(err, io.EOF) {
-			return trace.BadParameter("no resources found, empty input?")
+	for _, newResource := range newResources {
+		// Ensure the resource name and kind was not changed.
+		origRaw, ok := originalResourcesMap[key(newResource)]
+		if !ok {
+			return trace.BadParameter("resource %s/%s was added or removed, renaming resources is not supported with tctl edit", newResource.Kind, newResource.Metadata.Name)
 		}
-		return trace.Wrap(err)
+
+		if bytes.Equal(origRaw, newResource.Raw) {
+			// Nothing changed for this resource, continue to the next one.
+			slog.DebugContext(ctx, "Resource was not modified", "resource", key(newResource))
+			continue
+		}
+
+		// Use the UpdateHandler if the resource has one, otherwise fallback to using
+		// the CreateHandler. UpdateHandlers are preferred over CreateHandler because an update
+		// will not forcibly overwrite a resource unlike with create which requires the force
+		// flag to be set to update an existing resource.
+		if updator, found := rc.UpdateHandlers[ResourceKind(newResource.Kind)]; found {
+			if err := updator(ctx, client, newResource); err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		}
+
+		// TODO(tross) remove the fallback to CreateHandlers once all the resources
+		// have been updated to implement an UpdateHandler.
+		if creator, found := rc.CreateHandlers[ResourceKind(newResource.Kind)]; found {
+			if err := creator(ctx, client, newResource); err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		}
+		return trace.BadParameter("updating resources of type %q is not supported", newResource.Kind)
 	}
 
-	// Use the UpdateHandler if the resource has one, otherwise fallback to using
-	// the CreateHandler. UpdateHandlers are preferred over CreateHandler because an update
-	// will not forcibly overwrite a resource unlike with create which requires the force
-	// flag to be set to update an existing resource.
-	updator, found := rc.UpdateHandlers[ResourceKind(raw.Kind)]
-	if found {
-		return trace.Wrap(updator(ctx, client, raw))
-	}
-
-	// TODO(tross) remove the fallback to CreateHandlers once all the resources
-	// have been updated to implement an UpdateHandler.
-	if creator, found := rc.CreateHandlers[ResourceKind(raw.Kind)]; found {
-		return trace.Wrap(creator(ctx, client, raw))
-	}
-
-	return trace.BadParameter("updating resources of type %q is not supported", raw.Kind)
+	return nil
 }
 
 // getTextEditor returns the text editor to be used for editing the resource.
@@ -236,19 +251,26 @@ func checksum(filename string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func resourceName(filename string) (string, error) {
+func editResources(filename string) ([]services.UnknownResource, error) {
 	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer f.Close()
 
 	decoder := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
 
-	var raw services.UnknownResource
-	if err := decoder.Decode(&raw); err != nil {
-		return "", trace.Wrap(err)
-	}
+	names := make([]services.UnknownResource, 0)
+	for {
+		var raw services.UnknownResource
+		switch err := decoder.Decode(&raw); {
+		case errors.Is(err, io.EOF):
+			return names, nil
+		case err != nil:
+			return nil, trace.Wrap(err)
+		default:
+			names = append(names, raw)
+		}
 
-	return raw.GetName(), nil
+	}
 }
