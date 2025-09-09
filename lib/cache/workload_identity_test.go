@@ -82,7 +82,7 @@ func TestWorkloadIdentity(t *testing.T) {
 func TestWorkloadIdentityCacheSorting(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
@@ -177,7 +177,7 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 func TestWorkloadIdentityCacheFallback(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, func(cfg Config) Config {
 		cfg.neverOK = true // Force the cache into an unhealthy state
@@ -232,7 +232,7 @@ func TestWorkloadIdentityCacheFallback(t *testing.T) {
 func TestWorkloadIdentityCacheSearchFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)

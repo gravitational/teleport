@@ -758,7 +758,7 @@ func TestListBotInstancesPaging(t *testing.T) {
 func TestListBotInstancesSorting(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPackWithOptions(t, withWebPackAuthCacheEnabled(true))
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})

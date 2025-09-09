@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -41,7 +40,7 @@ import (
 func TestListWorkloadIdentities(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -124,7 +123,7 @@ func TestListWorkloadIdentitiesPaging(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			env := newWebPack(t, 1)
 			proxy := env.proxies[0]
 			pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -170,7 +169,7 @@ func TestListWorkloadIdentitiesPaging(t *testing.T) {
 func TestListWorkloadIdentitiesSorting(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPackWithOptions(t, withWebPackAuthCacheEnabled(true))
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -253,7 +252,7 @@ func TestListWorkloadIdentitiesWithSearchTermFilter(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			env := newWebPack(t, 1)
 			proxy := env.proxies[0]
 			pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
