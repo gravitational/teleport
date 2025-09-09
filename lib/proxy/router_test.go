@@ -382,10 +382,12 @@ func TestGetServers(t *testing.T) {
 		serverAssertion func(t *testing.T, srv types.Server)
 	}{
 		{
-			name:         "no matches for hostname",
-			site:         testSite{cfg: &unambiguousCfg},
-			host:         "test",
-			errAssertion: require.NoError,
+			name: "no matches for hostname",
+			site: testSite{cfg: &unambiguousCfg},
+			host: "test",
+			errAssertion: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsConnectionProblem(err), "Expected connection error but got %v", err)
+			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
 			},
