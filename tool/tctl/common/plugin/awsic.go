@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
@@ -417,7 +416,7 @@ func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args pluginServic
 	cliArgs := &p.rotateCreds.awsic
 
 	slog.InfoContext(ctx, "Fetching plugin...", "plugin_name", cliArgs.pluginName)
-	plugin, err := args.plugins.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+	plugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
 		Name:        cliArgs.pluginName,
 		WithSecrets: true,
 	})
