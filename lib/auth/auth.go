@@ -2157,6 +2157,12 @@ func (a *Server) Close() error {
 		}
 	}
 
+	if a.scopedAccessCache != nil {
+		if err := a.scopedAccessCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	if a.AccessRequestCache != nil {
 		if err := a.AccessRequestCache.Close(); err != nil {
 			errs = append(errs, err)

@@ -247,6 +247,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 			return trace.Wrap(err)
 		}
 		preserveAccessListFields(existingAccessList, accessList)
+		setOwnersEligibility(accessList)
 
 		listMembers, err := a.memberService.WithPrefix(accessList.GetName()).GetResources(ctx)
 		if err != nil {
@@ -566,6 +567,7 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 			return trace.Wrap(err)
 		}
 		keepAWSIdentityCenterLabels(existingMember, member)
+		setMemberEligibility(memberList, member)
 
 		if err := accesslists.ValidateAccessListMember(ctx, memberList, member, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
@@ -613,6 +615,7 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 				return trace.Wrap(err)
 			}
 			keepAWSIdentityCenterLabels(existingMember, member)
+			setMemberEligibility(memberList, member)
 
 			if err := accesslists.ValidateAccessListMember(ctx, memberList, member, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 				return trace.Wrap(err)
@@ -702,6 +705,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	setOwnersEligibility(accessList)
 
 	for _, m := range membersIn {
 		if err := m.CheckAndSetDefaults(); err != nil {
@@ -789,6 +793,11 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 		// Add any remaining members to the access list.
 		for _, member := range membersMap {
+			// Set Eligibility status for new members if this is possible
+			// to avoid updating the user object by access list eligibility reconciler
+			// and save backend operations.
+			setMemberEligibility(accessList, member)
+
 			upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, member)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1092,5 +1101,33 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 	}
 	if old.Origin() == common.OriginAWSIdentityCenter {
 		new.Metadata.Labels = old.GetAllLabels()
+	}
+}
+
+// setMemberEligibility sets the member eligibility status to eligible if possible to avoid
+// unnecessary updates via access list eligibility reconciler.
+func setMemberEligibility(acl *accesslist.AccessList, member *accesslist.AccessListMember) {
+	if !member.Spec.Expires.IsZero() || !acl.Spec.MembershipRequires.IsEmpty() {
+		// If the member has an expiration date or the Access List Requirements are not empty
+		// we cant assume the eligibility status. That needs to be calculated
+		// by the eligibility reconsider based on the user object.
+		return
+	}
+	member.Spec.IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()
+}
+
+// setOwnersEligibility sets the owners eligibility status to eligible if possible to avoid
+// unnecessary updated via access list eligibility reconsider.
+func setOwnersEligibility(accessList *accesslist.AccessList) {
+	if !accessList.Spec.OwnershipRequires.IsEmpty() {
+		// Owners eligibility needs to be calculated based on the user object.
+		// This is done by the eligibility reconsider.
+		return
+	}
+
+	for i := range accessList.Spec.Owners {
+		// If the ownership requirements are empty, all owners are eligible.
+		// There is no owner ineligibility expiration date
+		accessList.Spec.Owners[i].IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()
 	}
 }

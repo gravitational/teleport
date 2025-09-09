@@ -2,12 +2,19 @@
 title: Public IP Address Allowlist
 description: Restrict outbound network connections from your infrastructure to cloud-hosted Teleport Enterprise.
 tocDepth: 3
-labels:
+tags:
  - reference
  - platform-wide
 ---
 
-Teleport Agents connected to cloud-hosted Teleport Enterprise clusters must be allowed to connect to the following IP addresses in order to join the Teleport cluster.
+Teleport Cloud maintains a list of IP addresses it uses for ingress. If your environment restricts outbound traffic,
+you can allowlist these IPs in your firewall or proxy configuration to ensure that Teleport Agents can connect to your cluster.
+While not required for most deployments, this configuration can be useful in environments where outbound
+connections are blocked by default, for example, when firewalls deny all internet access unless explicitly allowed.
+
+<Admonition type="note">
+    If you are a Teleport Enterprise customer and plan to use this allowlist, please open a support ticket to let us know. This allows us to provide advance notice whenever the list is updated.
+</Admonition>
 
 ```
 3.7.23.103/32
@@ -33,13 +40,8 @@ Teleport Agents connected to cloud-hosted Teleport Enterprise clusters must be a
 54.185.13.106/32
 ```
 
-This list may be used to allowlist outbound network connections from Teleport Agents to cloud-hosted Teleport Enterprise.
-
-Allowlisting these IPs is not a required or recommended configuration for Teleport Agents, but it may be useful in environments that require restrictions to outbound network connections.
-For example, this list may be used to configure firewalls that sit in front of Teleport Agents, when those firewalls block access to the public internet by default.
-
-<Admonition type="warning">
-Note that IP addresses may be added or removed from the above list over time.
+<Admonition type="info">
+IP addresses may be added or removed from the above list over time.
 </Admonition>
 
 When this list is modified, we will provide at least two weeks notice by:
@@ -47,10 +49,6 @@ When this list is modified, we will provide at least two weeks notice by:
 1. Notifying cloud-hosted Teleport Enterprise customers via email.
 1. Providing a [Status Page](https://status.teleport.sh/) update.
 1. Reaching out directly to Enterprise customers that have requested advanced notice.
-
-<Admonition type="warning">
-If you are Teleport Enterprise customer and plan to employ this allowlist, please let us know by opening a support ticket.
-</Admonition>
 
 Additionally, to receive Teleport Agent updates, nodes must be able to reach the following domains via HTTPS during the update.
 
