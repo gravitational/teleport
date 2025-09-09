@@ -111,7 +111,7 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 		}
 
 		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, id)
-		require.NoError(t, err)
+		require.NoError(t, err, "failed to create WorkloadIdentity %q", r.name)
 	}
 
 	// Let the cache catch up
@@ -238,11 +238,12 @@ func TestWorkloadIdentityCacheSearchFilter(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	for n := range 10 {
+		name := "test-workload-identity-" + strconv.Itoa(n)
 		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name: "test-workload-identity-" + strconv.Itoa(n),
+				Name: name,
 			},
 			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
 				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
@@ -250,7 +251,7 @@ func TestWorkloadIdentityCacheSearchFilter(t *testing.T) {
 				},
 			},
 		})
-		require.NoError(t, err)
+		require.NoError(t, err, "failed to create WorkloadIdentity %q", name)
 	}
 
 	// Let the cache catch up

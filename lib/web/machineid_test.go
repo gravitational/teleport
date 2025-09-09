@@ -788,7 +788,7 @@ func TestListBotInstancesSorting(t *testing.T) {
 				},
 			},
 		})
-		require.NoError(t, err)
+		require.NoError(t, err, "failed to create BotInstance index:%d", i)
 	}
 
 	response, err := pack.clt.Get(ctx, endpoint, url.Values{

@@ -135,7 +135,7 @@ func TestListWorkloadIdentitiesPaging(t *testing.T) {
 				"workload-identity",
 			)
 
-			for range tc.numInstances {
+			for i := range tc.numInstances {
 				_, err := env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 					Kind:    types.KindWorkloadIdentity,
 					Version: types.V1,
@@ -148,7 +148,7 @@ func TestListWorkloadIdentitiesPaging(t *testing.T) {
 						},
 					},
 				})
-				require.NoError(t, err)
+				require.NoError(t, err, "failed to create WorkloadIdentity index:%d", i)
 			}
 
 			response, err := pack.clt.Get(ctx, endpoint, url.Values{
@@ -181,7 +181,7 @@ func TestListWorkloadIdentitiesSorting(t *testing.T) {
 		"workload-identity",
 	)
 
-	for range 10 {
+	for i := range 10 {
 		_, err := env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
@@ -194,7 +194,7 @@ func TestListWorkloadIdentitiesSorting(t *testing.T) {
 				},
 			},
 		})
-		require.NoError(t, err)
+		require.NoError(t, err, "failed to create WorkloadIdentity index:%d", i)
 	}
 
 	response, err := pack.clt.Get(ctx, endpoint, url.Values{
