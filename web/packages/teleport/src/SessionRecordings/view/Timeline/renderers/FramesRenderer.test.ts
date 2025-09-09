@@ -140,7 +140,7 @@ test('should calculate frame positions correctly', async () => {
   expect(drawImageCalls[0].props.dx).toBe(24); // left padding
   expect(drawImageCalls[1].props.dx).toBe(224); // 24 + 200
   expect(drawImageCalls[2].props.dx).toBe(424); // 224 + 200
-  expect(drawImageCalls[3].props.dx).toBe(800); // last frame at end of timeline, 1000 - 200
+  expect(drawImageCalls[3].props.dx).toBe(624); // last frame positioned next to previous
 });
 
 test('should skip frames that would overlap at current zoom', async () => {
