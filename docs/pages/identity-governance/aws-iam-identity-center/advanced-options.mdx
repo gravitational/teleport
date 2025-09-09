@@ -6,6 +6,10 @@ labels:
  - identity-governance
 ---
 
+The Identity Center Integration can be configured to handle various advanced use
+cases that are ot necessarily supported by the default installation flow. This
+guide describes these advanced options and use cases.
+
 ## Disabling Account Assignment role creation
 
 By default, the AWS Identity Center integration will create a Teleport role for
@@ -17,6 +21,14 @@ starts to affect Teleport's performance.
 To avoid creating these Account Assignment roles, you can create the AWS IC 
 integration with this feature disabled by specifying `--roles-sync-mode NONE`
 when creating the integration with `tctl`, for example:
+
+<Admonition type="note">
+Setting the Roles Sync Mode is only available when installing the Identity Center
+integration via `tctl`. 
+
+Role Sync Mode `NONE` is only available during installation. The Roles Sync Mode
+can be changed to `ALL` later, but you can't go back the other way.
+</Admonition>
 
 ```console
 $ tctl plugins install awsic \
