@@ -61,8 +61,7 @@ RUN yum groupinstall -y 'Development Tools' && \
       perl-CPAN \
       perl-devel \
       scl-utils \
-      wget \
-      binaryen && \
+      wget && \
     yum clean all && \
     /tmp/fix-yum-repo-list.sh
 
@@ -279,11 +278,6 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     cargo --version && \
     rustc --version && \
     rustup target add wasm32-unknown-unknown
-
-ARG WASM_BINDGEN_VERSION
-# Install wasm-opt and wasm-bindgen-cli to reduce webassembly module size
-# and generate js/ts bindings.
-RUN scl enable ${DEVTOOLSET} "cargo install wasm-bindgen-cli --locked --version ${WASM_BINDGEN_VERSION}"
 
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.

@@ -228,10 +228,8 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
 
 ARG WASM_OPT_VERSION
 ARG WASM_BINDGEN_VERSION
-# Install wasm-opt and wasm-bindgen-cli to reduce webassembly module size
-# and generate js/ts bindings.
-RUN cargo install wasm-opt --locked --version ${WASM_OPT_VERSION} && \
-    cargo install wasm-bindgen-cli --locked --version ${WASM_BINDGEN_VERSION}
+# Install wasm-bindgen-ci and wasm-opt for bulding rust webassembly module.
+RUN cargo install --locked wasm-opt@${WASM_OPT_VERSION} wasm-bindgen-cli@${WASM_BINDGEN_VERSION}
 
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
