@@ -239,7 +239,7 @@ func readAzureInputs(acessGraph bool) (entraSettings, error) {
 // system credentials for EntraID authentication.
 // Finally, if no system credentials are in use, the script will set up an Azure OIDC integration
 // in Teleport and a Teleport plugin to synchronize access lists from EntraID to Teleport.
-func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) error {
 	inputs := p.install
 
 	proxyPublicAddr, err := getProxyPublicAddr(ctx, args.authClient)

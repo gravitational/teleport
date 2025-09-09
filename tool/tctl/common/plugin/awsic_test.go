@@ -17,8 +17,11 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -29,7 +32,6 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	scimsdk "github.com/gravitational/teleport/lib/scim/sdk"
 )
 
 func TestAWSICUserFilters(t *testing.T) {
@@ -321,15 +323,18 @@ func TestUseSystemCredentialsInput(t *testing.T) {
 	}
 }
 
-type mockSCIMClient struct {
-	scimsdk.Client
-	pingCalled   bool
-	pingResponse error
+type mockRoundTripper struct {
+	mock.Mock
 }
 
-func (mock *mockSCIMClient) Ping(ctx context.Context) error {
-	mock.pingCalled = true
-	return mock.pingResponse
+// RoundTrip implements the [http.RoundTripper] interface for the mockRoundTripper
+func (m *mockRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	args := m.Called(request)
+	maybeResponse := args.Get(0)
+	if maybeResponse == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*http.Response), args.Error(1)
 }
 
 func TestRotateAWSICSCIMToken(t *testing.T) {
@@ -365,6 +370,17 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		}
 	}
 
+	makeResponse := func(status int) *http.Response {
+		if status == 0 {
+			return nil
+		}
+		return &http.Response{
+			Status:     http.StatusText(status),
+			StatusCode: status,
+			Body:       io.NopCloser(&bytes.Buffer{}),
+		}
+	}
+
 	testCases := []struct {
 		name                string
 		cliArgs             awsICRotateCredsArgs
@@ -372,6 +388,7 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		pluginFetchError    error
 		expectValidation    bool
 		validationError     error
+		validationResponse  int
 		expectUpdate        bool
 		updateError         error
 		assertError         require.ErrorAssertionFunc
@@ -379,21 +396,22 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		{
 			name: "default",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName:    types.PluginTypeAWSIdentityCenter,
-				validateToken: true,
-				payload:       "some-token",
+				pluginName:        types.PluginTypeAWSIdentityCenter,
+				requireValidation: true,
+				payload:           "some-token",
 			},
 			pluginValueProvider: validAWSICPlugin,
 			expectValidation:    true,
+			validationResponse:  http.StatusOK,
 			expectUpdate:        true,
 			assertError:         require.NoError,
 		},
 		{
 			name: "no such plugin",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName:    types.PluginTypeAWSIdentityCenter,
-				validateToken: true,
-				payload:       "some-token",
+				pluginName:        types.PluginTypeAWSIdentityCenter,
+				requireValidation: true,
+				payload:           "some-token",
 			},
 			pluginValueProvider: func() *types.PluginV1 { return nil },
 			pluginFetchError:    trace.NotFound("no such plugin"),
@@ -402,9 +420,9 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		{
 			name: "wrong plugin type",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName:    types.PluginTypeAWSIdentityCenter,
-				validateToken: true,
-				payload:       "some-token",
+				pluginName:        types.PluginTypeAWSIdentityCenter,
+				requireValidation: true,
+				payload:           "some-token",
 			},
 			pluginValueProvider: func() *types.PluginV1 {
 				return &types.PluginV1{
@@ -426,12 +444,13 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		{
 			name: "no such credential",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName:    types.PluginTypeAWSIdentityCenter,
-				validateToken: true,
-				payload:       "some-token",
+				pluginName:        types.PluginTypeAWSIdentityCenter,
+				requireValidation: true,
+				payload:           "some-token",
 			},
 			pluginValueProvider: validAWSICPlugin,
 			expectValidation:    true,
+			validationResponse:  http.StatusOK,
 			expectUpdate:        true,
 			updateError:         trace.NotFound("no such credential"),
 			assertError:         require.Error,
@@ -439,28 +458,42 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 		{
 			name: "validation failure",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName:    types.PluginTypeAWSIdentityCenter,
-				validateToken: true,
-				payload:       "some-token",
+				pluginName:        types.PluginTypeAWSIdentityCenter,
+				requireValidation: true,
+				payload:           "some-token",
 			},
 			expectValidation:    true,
-			validationError:     trace.AccessDenied("Validation failed"),
+			validationResponse:  http.StatusForbidden,
 			pluginValueProvider: validAWSICPlugin,
 			expectUpdate:        false,
-			assertError:         require.Error,
+			assertError:         requireBadParameter,
 		},
 		{
 			name: "bypass validation",
 			cliArgs: awsICRotateCredsArgs{
-				pluginName:    types.PluginTypeAWSIdentityCenter,
-				validateToken: false,
-				payload:       "some-token",
+				pluginName:        types.PluginTypeAWSIdentityCenter,
+				requireValidation: false,
+				payload:           "some-token",
 			},
 			expectValidation:    false,
-			validationError:     trace.AccessDenied("Validation failed"),
+			validationResponse:  http.StatusForbidden,
 			pluginValueProvider: validAWSICPlugin,
 			expectUpdate:        true,
 			assertError:         require.NoError,
+		},
+		{
+			name: "update credential access denied",
+			cliArgs: awsICRotateCredsArgs{
+				pluginName:        types.PluginTypeAWSIdentityCenter,
+				requireValidation: true,
+				payload:           "some-token",
+			},
+			expectValidation:    true,
+			validationResponse:  http.StatusOK,
+			pluginValueProvider: validAWSICPlugin,
+			expectUpdate:        true,
+			updateError:         trace.AccessDenied("computer says no"),
+			assertError:         requireAccessDenied,
 		},
 	}
 
@@ -497,25 +530,28 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 					})
 			}
 
-			scimClient := mockSCIMClient{
-				Client:       scimsdk.NewSCIMClientMock(),
-				pingResponse: test.validationError,
+			roundTripper := &mockRoundTripper{}
+			if test.expectValidation {
+				roundTripper.
+					On("RoundTrip", mock.Anything).
+					Run(func(args mock.Arguments) {
+						req, ok := args.Get(0).(*http.Request)
+						require.True(t, ok, "expecting a *http.Request, got %T", args.Get(0))
+						require.Equal(t, "Bearer "+test.cliArgs.payload, req.Header.Get("Authorization"))
+					}).
+					Return(makeResponse(test.validationResponse), test.validationError)
 			}
 
-			args := installPluginArgs{
-				plugins: pluginsClient,
-				scimProvider: func(_, _, token string) (scimsdk.Client, error) {
-					require.Equal(t, test.cliArgs.payload, token)
-					return &scimClient, nil
-				},
+			args := pluginServices{
+				plugins:      pluginsClient,
+				httpProvider: roundTripper,
 			}
 
 			err := cliArgs.RotateAWSICCreds(context.Background(), args)
 			test.assertError(t, err)
 
 			pluginsClient.AssertExpectations(t)
-			require.Equal(t, test.expectValidation, scimClient.pingCalled,
-				"SCIM validation Ping expected: %t, Ping called %t", test.expectValidation, scimClient.pingCalled)
+			roundTripper.AssertExpectations(t)
 		})
 	}
 }
