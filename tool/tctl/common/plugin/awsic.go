@@ -36,22 +36,30 @@ import (
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
-type awsICArgs struct {
-	cmd                  *kingpin.CmdClause
-	defaultOwners        []string
-	scimToken            string
-	scimURL              *url.URL
-	forceSCIMURL         bool
-	region               string
-	arn                  string
-	useSystemCredentials bool
-	assumeRoleARN        string
-	userOrigins          []string
-	userLabels           []string
-	groupNameFilters     []string
-	accountNameFilters   []string
-	accountIDFilters     []string
+const (
+	defaultAWSICPluginName = apicommon.OriginAWSIdentityCenter
+	awsicPluginNameFlag    = "plugin-name"
+	awsicPluginNameHelp    = "Name of the AWS Identity Center integration instance to update. Defaults to " + apicommon.OriginAWSIdentityCenter + "."
+	awsicRolesSyncModeFlag = "roles-sync-mode"
+	awsicRolesSyncModeHelp = "Control account-assignment role creation. ALL creates roles for all possible account assignments. NONE creates no roles, and also implies a totally-exclusive group import filter."
+)
 
+type awsICArgs struct {
+	cmd                       *kingpin.CmdClause
+	defaultOwners             []string
+	scimToken                 string
+	scimURL                   *url.URL
+	forceSCIMURL              bool
+	region                    string
+	arn                       string
+	useSystemCredentials      bool
+	assumeRoleARN             string
+	userOrigins               []string
+	userLabels                []string
+	groupNameFilters          []string
+	accountNameFilters        []string
+	accountIDFilters          []string
+	rolesSyncMode             string
 	excludeGroupNameFilters   []string
 	excludeAccountNameFilters []string
 	excludeAccountIDFilters   []string
@@ -227,6 +235,10 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 		StringsVar(&p.install.awsIC.excludeAccountNameFilters)
 	cmd.Flag("exclude-account-id", "Exclude AWS account from import list by ID.").
 		StringsVar(&p.install.awsIC.excludeAccountIDFilters)
+
+	cmd.Flag("roles-sync-mode", "Control account-assignment role creation. ALL creates Teleport Roles for all possible account assignments. NONE creates no Teleport Roles, and also implies a totally-exclusive group import filter.").
+		Default(types.AWSICRolesSyncModeAll).
+		EnumVar(&p.install.awsIC.rolesSyncMode, types.AWSICRolesSyncModeAll, types.AWSICRolesSyncModeNone)
 }
 
 // InstallAWSIC installs AWS Identity Center plugin.
@@ -246,6 +258,15 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 		return trace.Wrap(err)
 	}
 
+	if awsICArgs.rolesSyncMode == types.AWSICRolesSyncModeNone {
+		if len(groupFilters) != 0 {
+			return trace.BadParameter("specifying group import filers is incompatible with --roles-sync-mode NONE")
+		}
+		groupFilters = append(groupFilters, &types.AWSICResourceFilter{
+			Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "*"},
+		})
+	}
+
 	accountFilters, err := awsICArgs.parseAccountFilters()
 	if err != nil {
 		return trace.Wrap(err)
@@ -261,6 +282,7 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 		UserSyncFilters:         userFilters,
 		GroupSyncFilters:        groupFilters,
 		AwsAccountsFilters:      accountFilters,
+		RolesSyncMode:           awsICArgs.rolesSyncMode,
 	}
 
 	if awsICArgs.useSystemCredentials {
@@ -314,5 +336,50 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 	}
 	fmt.Println("Successfully created AWS Identity Center plugin.")
 
+	return nil
+}
+
+type awsICEditArgs struct {
+	cmd           *kingpin.CmdClause
+	pluginName    string
+	rolesSyncMode string
+}
+
+func (p *PluginsCommand) initEditAWSIC(parent *kingpin.CmdClause) {
+	p.edit.awsIC.cmd = parent.Command("awsic", "Edit an AWS IAM Identity Center integration's settings.")
+	cmd := p.edit.awsIC.cmd
+
+	cmd.Flag(awsicPluginNameFlag, awsicPluginNameHelp).
+		Default(defaultAWSICPluginName).
+		StringVar(&p.edit.awsIC.pluginName)
+
+	cmd.Flag(awsicRolesSyncModeFlag, awsicRolesSyncModeHelp).
+		EnumVar(&p.edit.awsIC.rolesSyncMode, types.AWSICRolesSyncModeAll, types.AWSICRolesSyncModeNone)
+}
+
+func (p *PluginsCommand) EditAWSIC(ctx context.Context, args installPluginArgs) error {
+	plugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
+		Name: p.edit.awsIC.pluginName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	icSettings := plugin.Spec.GetAwsIc()
+	if icSettings == nil {
+		return trace.BadParameter("%q is not an AWS Identity Center integration", p.edit.awsIC.pluginName)
+	}
+
+	cliArgs := &p.edit.awsIC
+	if cliArgs.rolesSyncMode != "" {
+		icSettings.RolesSyncMode = cliArgs.rolesSyncMode
+	}
+
+	_, err = args.plugins.UpdatePlugin(ctx, &pluginspb.UpdatePluginRequest{
+		Plugin: plugin,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }

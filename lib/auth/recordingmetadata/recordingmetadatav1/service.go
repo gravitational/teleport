@@ -43,10 +43,10 @@ import (
 type Service struct {
 	pb.UnimplementedRecordingMetadataServiceServer
 
-	authorizer    Authorizer
-	streamer      player.Streamer
-	uploadHandler UploadHandler
-	logger        *slog.Logger
+	authorizer      Authorizer
+	streamer        player.Streamer
+	downloadHandler DownloadHandler
+	logger          *slog.Logger
 }
 
 // Authorizer is an interface that defines the method for authorizing access to session recordings.
@@ -55,8 +55,8 @@ type Authorizer interface {
 	Authorize(context.Context, string) error
 }
 
-// UploadHandler uploads and downloads session recording metadata and thumbnails.
-type UploadHandler interface {
+// DownloadHandler downloads session recording metadata and thumbnails.
+type DownloadHandler interface {
 	// DownloadMetadata downloads session metadata and writes it to a writer.
 	DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
 	// DownloadThumbnail downloads a session thumbnail and writes it to a writer.
@@ -69,8 +69,8 @@ type ServiceConfig struct {
 	Authorizer Authorizer
 	// Streamer is used to stream session recordings.
 	Streamer player.Streamer
-	// UploadHandler is used to handle uploads and downloads of session recording metadata and thumbnails.
-	UploadHandler UploadHandler
+	// DownloadHandler is used to handle uploads and downloads of session recording metadata and thumbnails.
+	DownloadHandler DownloadHandler
 }
 
 // NewService creates a new instance of the recording metadata service.
@@ -78,15 +78,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Authorizer == nil {
 		return nil, trace.BadParameter("authorizer is required")
 	}
-	if cfg.UploadHandler == nil {
+	if cfg.DownloadHandler == nil {
 		return nil, trace.BadParameter("upload handler is required")
 	}
 
 	return &Service{
-		authorizer:    cfg.Authorizer,
-		streamer:      cfg.Streamer,
-		uploadHandler: cfg.UploadHandler,
-		logger:        slog.With(teleport.ComponentKey, "recording_metadata"),
+		authorizer:      cfg.Authorizer,
+		streamer:        cfg.Streamer,
+		downloadHandler: cfg.DownloadHandler,
+		logger:          slog.With(teleport.ComponentKey, "recording_metadata"),
 	}, nil
 }
 
@@ -98,7 +98,7 @@ func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest)
 	}
 
 	buf := &memBuffer{}
-	err := r.uploadHandler.DownloadThumbnail(ctx, session.ID(req.SessionId), buf)
+	err := r.downloadHandler.DownloadThumbnail(ctx, session.ID(req.SessionId), buf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,7 +121,7 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 	}
 
 	buf := &memBuffer{}
-	err := r.uploadHandler.DownloadMetadata(stream.Context(), session.ID(req.SessionId), buf)
+	err := r.downloadHandler.DownloadMetadata(stream.Context(), session.ID(req.SessionId), buf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

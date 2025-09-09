@@ -42,12 +42,14 @@ import {
 import { LabelKind } from 'design/LabelState/LabelState';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import { HoverTooltip } from 'design/Tooltip';
+import ResourcesRequested from 'shared/components/AccessRequests/ReviewRequests/RequestView/ResourcesRequested';
 import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 import {
   AccessRequest,
   AccessRequestReview,
   AccessRequestReviewer,
   canAssumeNow,
+  RequestKind,
   RequestState,
   Resource,
 } from 'shared/services/accessRequests';
@@ -224,20 +226,38 @@ export function RequestView({
                     >
                       {request.user}
                     </Text>
-                    <Text
-                      mr={2}
-                      typography="body3"
-                      style={{
-                        flexShrink: 0,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      is requesting roles:
-                    </Text>
-                    <RolesRequested roles={request.roles} />
-                    <Text typography="body3">
-                      for {requestedAccessTime}, starting {startingTime}
-                    </Text>
+                    {request.requestKind === RequestKind.LongTerm ? (
+                      <>
+                        <Text
+                          mr={2}
+                          typography="body3"
+                          style={{
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          is requesting permanent access to resources:
+                        </Text>
+                        <ResourcesRequested resources={request.resources} />
+                      </>
+                    ) : (
+                      <>
+                        <Text
+                          mr={2}
+                          typography="body3"
+                          style={{
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          is requesting roles:
+                        </Text>
+                        <RolesRequested roles={request.roles} />
+                        <Text typography="body3">
+                          for {requestedAccessTime}, starting {startingTime}
+                        </Text>
+                      </>
+                    )}
                   </Flex>
                 </H3>
               </Flex>
@@ -420,7 +440,7 @@ export function Timestamp({
           )
         ) : (
           <span>
-            {verb} this request to long-term access with access list{' '}
+            {verb} this request to permanent access with access list{' '}
             <b>{promotedAccessListTitle}</b> {createdDuration}
           </span>
         )}

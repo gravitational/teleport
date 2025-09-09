@@ -424,7 +424,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		case a.Spec.Cloud != "":
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
 		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
-			a.Spec.URI = SchemaMCPStdio
+			a.Spec.URI = SchemeMCPStdio + "://"
 		default:
 			return trace.BadParameter("app %q URI is empty", a.GetName())
 		}
@@ -482,6 +482,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Set an "app-sub-kind" label can be used for RBAC.
+	if a.SubKind != "" {
+		if a.Metadata.Labels == nil {
+			a.Metadata.Labels = make(map[string]string)
+		}
+		a.Metadata.Labels[AppSubKindLabel] = a.SubKind
+	}
 	return nil
 }
 
@@ -519,6 +526,9 @@ func (a *AppV3) checkMCP() error {
 	switch GetMCPServerTransportType(a.Spec.URI) {
 	case MCPTransportStdio:
 		return trace.Wrap(a.checkMCPStdio())
+	case MCPTransportSSE:
+		_, err := url.Parse(a.Spec.URI)
+		return trace.Wrap(err)
 	default:
 		return trace.BadParameter("unsupported MCP server %q with URI %q", a.GetName(), a.Spec.URI)
 	}
@@ -670,9 +680,16 @@ func (p *PortRange) String() string {
 // the URI. If no MCP transport type can be determined from the URI, an empty
 // string is returned.
 func GetMCPServerTransportType(uri string) string {
-	switch {
-	case strings.HasPrefix(uri, SchemaMCPStdio):
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+
+	switch parsed.Scheme {
+	case SchemeMCPStdio:
 		return MCPTransportStdio
+	case SchemeMCPSSEHTTP, SchemeMCPSSEHTTPS:
+		return MCPTransportSSE
 	default:
 		return ""
 	}

@@ -89,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -6054,6 +6053,9 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		require.NoError(t, err)
 		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 		require.NoError(t, err)
+
+		createTestAppServerV3(t, srv.Auth(), name, nil)
+		createTestMCPAppServer(t, srv.Auth(), "mcp-"+name, nil)
 	}
 
 	// create user and client
@@ -6086,6 +6088,21 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		Limit: 5,
 	})
 	require.NoError(t, err, "sort field is not required")
+
+	t.Run("KindApp", func(t *testing.T) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindApp},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 10) // 5 app + 5 mcp server
+	})
+	t.Run("KindMCP", func(t *testing.T) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindMCP},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 5)
+	})
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -6484,21 +6501,19 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 	withMatchingAccountAssignment := withAccountAssignment(types.Allow,
 		validAccountID, validPermissionSetARN)
 
-	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test-account",
-				Labels: map[string]string{
-					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-				},
+	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "test-account",
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:   validAccountID,
-				Arn:  "some:account:arn",
-				Name: "Test Account",
-			},
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:   validAccountID,
+			Arn:  "some:account:arn",
+			Name: "Test Account",
 		},
 	})
 	require.NoError(t, err)
@@ -6509,8 +6524,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 
 	inlineEventually(t,
 		func() bool {
-			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(accounts) == 1
 		},
@@ -10486,26 +10500,23 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		},
 	}
 
-	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx,
-		services.IdentityCenterAccount{
-			Account: &identitycenterv1.Account{
-				Kind:    types.KindIdentityCenterAccount,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: accountID,
-					Labels: map[string]string{
-						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-					},
-				},
-				Spec: &identitycenterv1.AccountSpec{
-					Id:                accountID,
-					Arn:               "aws:arn:test:account",
-					Name:              "Test Account",
-					Description:       "An account for testing",
-					PermissionSetInfo: permissionSets,
-				},
+	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: accountID,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-		})
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:                accountID,
+			Arn:               "aws:arn:test:account",
+			Name:              "Test Account",
+			Description:       "An account for testing",
+			PermissionSetInfo: permissionSets,
+		},
+	})
 	require.NoError(t, err)
 
 	// GIVEN a role that allows access to all permission sets on the target
@@ -10534,8 +10545,7 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 	// EXPECT that the IC Account has made it to the cache
 	inlineEventually(t,
 		func() bool {
-			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(testAssignments) == 1
 		},
@@ -10740,8 +10750,6 @@ func TestValidateOracleJoinToken(t *testing.T) {
 
 func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
 	t.Helper()
-	ctx := t.Context()
-
 	app, err := types.NewAppV3(
 		types.Metadata{
 			Name:   name,
@@ -10752,10 +10760,15 @@ func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels 
 		},
 	)
 	require.NoError(t, err)
+	return createTestAppServerFromApp(t, auth, app)
+}
+
+func createTestAppServerFromApp(t *testing.T, auth *auth.Server, app *types.AppV3) *types.AppServerV3 {
+	t.Helper()
 	appServer, err := types.NewAppServerV3(
 		types.Metadata{
-			Name:   name,
-			Labels: labels,
+			Name:   app.GetName(),
+			Labels: app.GetAllLabels(),
 		},
 		types.AppServerSpecV3{
 			HostID: "test-host-id",
@@ -10764,10 +10777,28 @@ func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels 
 	)
 	require.NoError(t, err)
 
-	_, err = auth.UpsertApplicationServer(ctx, appServer)
+	_, err = auth.UpsertApplicationServer(t.Context(), appServer)
 	require.NoError(t, err, "upserting test Application Server")
 
 	return appServer
+}
+
+func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
+	t.Helper()
+	mcp, err := types.NewAppV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppSpecV3{
+			MCP: &types.MCP{
+				Command:       "test",
+				RunAsHostUser: "test",
+			},
+		},
+	)
+	require.NoError(t, err)
+	return createTestAppServerFromApp(t, auth, mcp)
 }
 
 func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {

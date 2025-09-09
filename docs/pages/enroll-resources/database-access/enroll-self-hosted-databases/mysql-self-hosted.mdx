@@ -2,7 +2,7 @@
 title: Database Access with Self-Hosted MySQL or MariaDB
 sidebar_label: MySQL/MariaDB
 description: How to configure Teleport database access with self-hosted MySQL/MariaDB.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -196,6 +196,8 @@ $ tsh db connect --db-user=root --db-name=mysql example-mysql
   The `mysql` or `mariadb` command-line client should be available in `PATH` in order to be
   able to connect. `mariadb` is a default command-line client for MySQL and MariaDB.
 </Admonition>
+
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="MySQL or MariaDB"!)
 
 To log out of the database and remove credentials:
 

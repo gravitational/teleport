@@ -99,6 +99,7 @@ func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
 		UserMetadata:       a.makeUserMetadata(),
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
+		McpSessionId:       a.sessionCtx.mcpSessionID.String(),
 	})
 }
 

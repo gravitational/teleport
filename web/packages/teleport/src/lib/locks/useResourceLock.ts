@@ -91,11 +91,12 @@ export function useResourceLock(opts: {
     },
   });
 
-  // The lock (singular) can be removed if it targets only the given resource,
-  // otherwise it may affect other resources
+  // The lock/s can be removed if they all target the given resource, other
+  // locks may affect other resources
   const canUnlock =
     hasRemovePermission &&
-    data?.length === 1 &&
+    data &&
+    data.length > 0 &&
     data.reduce(
       (acc, lock) =>
         acc &&
@@ -128,6 +129,7 @@ export function useResourceLock(opts: {
     locks: isSuccess ? data : null,
     error,
     canUnlock,
+    /** Removes the lock. If there are multiple locks, only the first one is removed */
     unlock,
     unlockPending,
     unlockError,
