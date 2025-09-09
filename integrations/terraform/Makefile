@@ -13,7 +13,7 @@ CGOFLAG ?= CGO_ENABLED=0
 
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
 
-EXEEXT = 
+EXEEXT =
 ifeq ($(OS),windows)
   EXEEXT = .exe
 endif
@@ -162,22 +162,18 @@ darwin-signed-build: build
 endif
 	$(NOTARIZE_BINARIES)
 
-.PHONY: windows-release
-windows-release: build
+.PHONY: release
+ifeq ($(OS),darwin)
+release: darwin-signed-build
+	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
+else ifeq ($(OS),linux)
+release: build
+	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
+else ifeq ($(OS),windows)
+release: build
 	cp $(BUILDDIR)/$(BINARY_NAME) $(WINDOWS_RELEASE)
 	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz $(BINARY_NAME)
-
-.PHONY: release
-ifeq ($(OS),windows)
-release: windows-release
-else ifeq ($(OS),darwin)
-release: darwin-signed-build
-else
-release: build
 endif
-	@if [ "$(OS)" != "windows" ]; then \
-		tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .; \
-	fi
 
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
 CURRENT_ULIMIT := $(shell ulimit -n)
