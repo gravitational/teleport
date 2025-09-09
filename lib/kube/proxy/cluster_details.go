@@ -280,7 +280,7 @@ func (k *kubeDetails) checkHealth(ctx context.Context) error {
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
-		return trace.Wrap(err, "failed 'get pods' SelfSubjectAccessReview in Kubernetes cluster: %s", err)
+		return trace.Wrap(err, "failed 'get pods' SelfSubjectAccessReview in Kubernetes cluster")
 	} // ClusterRole
 	if !resp.Status.Allowed {
 		return trace.AccessDenied("access denied to 'get pods' SelfSubjectAccessReview in Kubernetes cluster")
