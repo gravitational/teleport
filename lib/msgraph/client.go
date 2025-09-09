@@ -154,7 +154,7 @@ func NewClient(cfg Config) (*Client, error) {
 
 // request is the base function for HTTP API calls.
 // It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
-func (c *Client) request(ctx context.Context, method string, uri string, header map[string]string, payload []byte) (*http.Response, error) {
+func (c *Client) request(ctx context.Context, method string, uri string, header http.Header, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
 	if len(payload) > 0 {
 		body = bytes.NewReader(payload)
@@ -164,8 +164,14 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	for key := range header {
+		for _, value := range header.Values(key) {
+			req.Header.Add(key, value)
+		}
+	}
+
 	if body != nil {
-		req.Header.Add("Content-Type", "application/json")
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
@@ -174,10 +180,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get azure authentication token")
 	}
-	req.Header.Add("Authorization", "Bearer "+token.Token)
-	for i := range header {
-		req.Header.Add(i, header[i])
-	}
+	req.Header.Set("Authorization", "Bearer "+token.Token)
 
 	const maxRetries = 5
 	var retryAfter time.Duration

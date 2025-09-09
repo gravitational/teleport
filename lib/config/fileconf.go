@@ -606,6 +606,7 @@ type Global struct {
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
+	RelayServer string `yaml:"relay_server,omitempty"`
 
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
@@ -2936,9 +2937,33 @@ type Relay struct {
 	// enabled.
 	RelayGroup string `yaml:"relay_group"`
 
-	// APIPublicHostnames is the list of DNS names and IP addresses that the
+	// TargetConnectionCount is the connection count that agents are supposed to
+	// maintain when connecting to the Relay group of this instance.
+	TargetConnectionCount int `yaml:"target_connection_count"`
+
+	// PublicHostnames is the list of DNS names and IP addresses that the
 	// Relay service credentials should be authoritative for.
-	APIPublicHostnames []string `yaml:"api_public_hostnames"`
+	PublicHostnames []string `yaml:"public_hostnames"`
+
+	// TransportListenAddr is the listen address for the transport listener, in
+	// addr:port format.
+	TransportListenAddr string `yaml:"transport_listen_addr"`
+
+	// TransportPROXYProtocol is set if the transport listener should expect a
+	// PROXY protocol header in incoming connections.
+	TransportPROXYProtocol bool `yaml:"transport_proxy_protocol"`
+
+	// PeerListenAddr is the listen address for the peer listener, in addr:port
+	// format.
+	PeerListenAddr string `yaml:"peer_listen_addr"`
+
+	// TunnelListenAddr is the listen address for the tunnel listener, in
+	// addr:port format.
+	TunnelListenAddr string `yaml:"tunnel_listen_addr"`
+
+	// TunnelPROXYProtocol is set if the tunnel listener should expect a PROXY
+	// protocol header in incoming connections.
+	TunnelPROXYProtocol bool `yaml:"tunnel_proxy_protocol"`
 }
 
 // SessionRecordingEncryptionConfig is the session_recording_config.encryption

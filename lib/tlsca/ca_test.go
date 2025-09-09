@@ -37,6 +37,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -116,6 +117,54 @@ func TestPrincipals(t *testing.T) {
 			require.ElementsMatch(t, certIPs, ips)
 		})
 	}
+}
+
+// TestScopePin verifies the encoding/decoding of the scope pin field.
+func TestScopePin(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	expires := clock.Now().Add(1 * time.Hour)
+
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	identity := Identity{
+		Username: "alice@example.com",
+		ScopePin: &scopesv1.Pin{
+			Scope: "/foo",
+			Assignments: map[string]*scopesv1.PinnedAssignments{
+				"/": {
+					Roles: []string{"r1"},
+				},
+				"/foo": {
+					Roles: []string{"r2"},
+				},
+			},
+		},
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+	require.NotNil(t, subj)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+
+	parsed, err := FromSubject(cert.Subject, expires)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+
+	require.Empty(t, cmp.Diff(parsed.ScopePin, identity.ScopePin, protocmp.Transform()))
 }
 
 func TestRenewableIdentity(t *testing.T) {
@@ -230,6 +279,7 @@ func TestKubeExtensions(t *testing.T) {
 		KubernetesUsers:   []string{"IAM#alice@example.com"},
 		KubernetesCluster: "kube-cluster",
 		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
 		RouteToDatabase: RouteToDatabase{
 			ServiceName: "postgres-rds",
 			Protocol:    "postgres",
@@ -269,11 +319,12 @@ func TestDatabaseExtensions(t *testing.T) {
 
 	expires := clock.Now().Add(time.Hour)
 	identity := Identity{
-		Username:        "alice@example.com",
-		Groups:          []string{"admin"},
-		Impersonator:    "bob@example.com",
-		Usage:           []string{teleport.UsageDatabaseOnly},
-		TeleportCluster: "tele-cluster",
+		Username:          "alice@example.com",
+		Groups:            []string{"admin"},
+		Impersonator:      "bob@example.com",
+		Usage:             []string{teleport.UsageDatabaseOnly},
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
 		RouteToDatabase: RouteToDatabase{
 			ServiceName: "postgres-rds",
 			Protocol:    "postgres",
@@ -325,8 +376,9 @@ func TestAzureExtensions(t *testing.T) {
 			Name:          "azure-app",
 			AzureIdentity: "azure-identity-3",
 		},
-		TeleportCluster: "tele-cluster",
-		Expires:         expires,
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		Expires:           expires,
 	}
 
 	subj, err := identity.Subject()
@@ -466,8 +518,9 @@ func TestGCPExtensions(t *testing.T) {
 			Name:              "GCP-app",
 			GCPServiceAccount: "acct-3@example-123456.iam.gserviceaccount.com",
 		},
-		TeleportCluster: "tele-cluster",
-		Expires:         expires,
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		Expires:           expires,
 	}
 
 	subj, err := identity.Subject()

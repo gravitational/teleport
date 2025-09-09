@@ -199,6 +199,7 @@
     "Rekor",
     "Relogging",
     "Relogin",
+    "replayable",
     "SAMLIDP",
     "SCIM",
     "SECURITYADMIN",
@@ -302,6 +303,7 @@
     "allkeys",
     "allowdeny",
     "allowedlogins",
+    "alloydb",
     "anonymization",
     "anotheruser",
     "apikey",
@@ -903,12 +905,14 @@
     "semodule",
     "sendall",
     "seqno",
+    "serverlesscache",
     "serviceaccount",
     "serviceaccountname",
     "serviceaccounts",
     "serviceacct",
     "servicecfg",
     "serviceid",
+    "serviceusage",
     "sess",
     "session",
     "sestatus",
@@ -1095,7 +1099,9 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
+  "flagWords": [
+    "hte"
+  ],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**",
