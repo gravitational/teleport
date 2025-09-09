@@ -25,49 +25,47 @@ import (
 	"github.com/hinshun/vt10x"
 )
 
-// terminalStateToANSI converts a terminal state to an ANSI escape sequence string,
+// VtStateToANSI converts a terminal state to an ANSI escape sequence string,
 // including both the primary and alternate screen buffers.
 // It handles terminal modes, colors, cursor position, and other settings.
-func terminalStateToANSI(state vt10x.TerminalState) string {
-	var buf bytes.Buffer
-
+func VtStateToANSI(buf *bytes.Buffer, state vt10x.TerminalState) {
 	// Initialize the terminal
 	buf.WriteString("\x1b[!p") // Soft reset (DECSTR)
 	buf.WriteString("\x1b[2J") // Clear screen
 	buf.WriteString("\x1b[H")  // Home cursor
 
 	// Set terminal size
-	fmt.Fprintf(&buf, "\x1b[8;%d;%dt", state.Rows, state.Cols)
+	fmt.Fprintf(buf, "\x1b[8;%d;%dt", state.Rows, state.Cols)
 
 	if state.Title != "" {
-		fmt.Fprintf(&buf, "\x1b]0;%s\x07", state.Title)
+		fmt.Fprintf(buf, "\x1b]0;%s\x07", state.Title)
 	}
 
 	// Apply terminal mode settings
-	writeMode(&buf, "?7", state.Wrap)         // Line wrap
-	writeMode(&buf, "4", state.Insert)        // Insert mode
-	writeMode(&buf, "?6", state.Origin)       // Origin mode
-	writeMode(&buf, "?5", state.ReverseVideo) // Reverse video
+	writeMode(buf, "?7", state.Wrap)         // Line wrap
+	writeMode(buf, "4", state.Insert)        // Insert mode
+	writeMode(buf, "?6", state.Origin)       // Origin mode
+	writeMode(buf, "?5", state.ReverseVideo) // Reverse video
 
 	// Configure tab stops
 	buf.WriteString("\x1b[3g") // Clear all tab stops
 	for _, col := range state.TabStops {
-		fmt.Fprintf(&buf, "\x1b[%dG", col+1)
+		fmt.Fprintf(buf, "\x1b[%dG", col+1)
 		buf.WriteString("\x1bH")
 	}
 
 	// Set scroll region (if not default)
 	if state.ScrollTop != 0 || state.ScrollBottom != state.Rows-1 {
-		fmt.Fprintf(&buf, "\x1b[%d;%dr", state.ScrollTop+1, state.ScrollBottom+1)
+		fmt.Fprintf(buf, "\x1b[%d;%dr", state.ScrollTop+1, state.ScrollBottom+1)
 	}
 
 	// Handle alternate screen mode
 	if state.AltScreen {
 		// Render background buffer first (will be hidden by alternate screen)
-		renderBuffer(&buf, state.AlternateBuffer)
+		renderBuffer(buf, state.AlternateBuffer)
 
 		// Save the current cursor position
-		fmt.Fprintf(&buf, "\x1b[%d;%dH", state.SavedCursorY+1, state.SavedCursorX+1)
+		fmt.Fprintf(buf, "\x1b[%d;%dH", state.SavedCursorY+1, state.SavedCursorX+1)
 
 		// Switch to alternate screen
 		buf.WriteString("\x1b[?1049h")
@@ -75,16 +73,14 @@ func terminalStateToANSI(state vt10x.TerminalState) string {
 		buf.WriteString("\x1b[H")  // Home cursor
 
 		// Render the primary buffer on the alternate screen
-		renderBuffer(&buf, state.PrimaryBuffer)
+		renderBuffer(buf, state.PrimaryBuffer)
 	} else {
-		renderBuffer(&buf, state.PrimaryBuffer)
+		renderBuffer(buf, state.PrimaryBuffer)
 	}
 
 	// Set cursor position and visibility
-	fmt.Fprintf(&buf, "\x1b[%d;%dH", state.CursorY+1, state.CursorX+1)
-	writeMode(&buf, "?25", state.CursorVisible)
-
-	return buf.String()
+	fmt.Fprintf(buf, "\x1b[%d;%dH", state.CursorY+1, state.CursorX+1)
+	writeMode(buf, "?25", state.CursorVisible)
 }
 
 func writeMode(buf *bytes.Buffer, mode string, enabled bool) {
