@@ -74,7 +74,7 @@ message AccessListTemplateConfig {
 }
 
 // TemplateRoleMetadata contains read-only fields
-// and is only set and upated by Teleport. Used
+// and is only set and updated by Teleport. Used
 // by reconciler to revert roles back to default
 // if changes were detected.
 message TemplateRoleMetadata {
@@ -109,13 +109,13 @@ message TemplateShortTerm {
 }
 ```
 
-The field `AllowResourceAccessConditions` is really just a copy and paste of the existing type [RoleConditions](https://github.com/gravitational/teleport/blob/31143cca86ec73d7404e5f90044996eafff199c8/api/proto/teleport/legacy/types/types.proto#L3759) but only takes the fields that is relevant to an access list and molds it to an organized structure so it will be easier to define with `tctl` users.
+The field `AccessConditions` is really just a copy and paste of the existing type [RoleConditions](https://github.com/gravitational/teleport/blob/31143cca86ec73d7404e5f90044996eafff199c8/api/proto/teleport/legacy/types/types.proto#L3759) but only takes the fields that is relevant to an access list and molds it to an organized structure so it will be easier to define with `tctl` users.
 
-The `AllowResourceAccessConditions` model describes access to resources by its labels and relevant resource principals.
+The `AccessConditions` model describes access to resources by its labels and relevant resource principals.
 
 ```proto
-// AllowResourceAccessConditions defines the access to different resources.
-message AllowResourceAccessConditions {
+// AccessConditions defines the access to different resources.
+message AccessConditions {
   ApplicationAccess application = 1;
   DatabaseAccess database = 2;
   GitServerAccess git_server = 3;
@@ -258,7 +258,7 @@ A templated access list can only be created if access list fields `type: templat
 
 Once these fields are validated, Teleport will take the template specifications and create appropriate roles and then assign them to member and owner.
 
-All roles created by Teleport will be labeled with `teleport.internal/resource-type: system` and will be referred to system-managed roles.
+All roles created by Teleport will be labeled with `teleport.internal/resource-type: system` and will be referred as system-managed roles.
 
 ##### System-managed roles for short-term template
 
@@ -274,7 +274,7 @@ All roles created by Teleport will be labeled with `teleport.internal/resource-t
 
 In order to ensure uniqueness and help identifying which roles belong to access lists, the naming convention takes the following format:
 
-`<purpose>-acl-role-<access list metadata name (UID)>`
+`<purpose>-acl-template-<access list metadata name (UID)>`
 
 | Parts                             |                      Explanation                      |              Example Values |
 | :-------------------------------- | :---------------------------------------------------: | --------------------------: |
@@ -333,15 +333,15 @@ Possibly add more option to `short-term` template such as providing the option t
 
 ```proto
 message TemplateShortTerm {
-  AllowResourceAccessConditions access_condition = 1;
+  AccessConditions allow = 1;
 
   // NEW field (didn't think too much on the naming)
   // Allows admin to fine tune fields related to the requester role.
-  RequesterCondition requester_condition= 2;
+  RequesterConditions requester_allow= 2;
 }
 
 // Controls related to access requests.
-message RequesterCondition {
+message RequesterConditions {
   google.protobuf.Timestamp max_duration = 1;
   AccessRequestConditionsReason reason = 2;
   repeated string suggested_reviewers = 3;
