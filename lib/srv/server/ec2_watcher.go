@@ -21,6 +21,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -226,6 +227,7 @@ func matchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 				Matcher:             matcher,
 				Region:              region,
 				Document:            matcher.SSM.DocumentName,
+				InstallSuffix:       matcher.Params.Suffix,
 				EC2Client:           ec2Client,
 				Labels:              matcher.Tags,
 				Integration:         matcher.Integration,
@@ -242,6 +244,7 @@ type ec2FetcherConfig struct {
 	Matcher             types.AWSMatcher
 	Region              string
 	Document            string
+	InstallSuffix       string
 	EC2Client           ec2.DescribeInstancesAPIClient
 	Labels              types.Labels
 	Integration         string
@@ -303,6 +306,8 @@ const (
 	ParamScriptName = "scriptName"
 	// ParamSSHDConfigPath is the path to the OpenSSH config file sent in the SSM Document
 	ParamSSHDConfigPath = "sshdConfigPath"
+	// ParamEnvVars is a parameter that contains environment variables to set during script run.
+	ParamEnvVars = "env"
 )
 
 // awsEC2APIChunkSize is the max number of instances SSM will send commands to at a time
@@ -342,6 +347,15 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 			ParamScriptName:     cfg.Matcher.Params.ScriptName,
 			ParamSSHDConfigPath: cfg.Matcher.Params.SSHDConfig,
 		}
+	}
+
+	var envVars []string
+	if cfg.InstallSuffix != "" {
+		envVars = append(envVars, "TELEPORT_INSTALL_SUFFIX="+cfg.InstallSuffix)
+	}
+
+	if len(envVars) > 0 {
+		parameters["env"] = strings.Join(envVars, " ")
 	}
 
 	fetcher := ec2InstanceFetcher{

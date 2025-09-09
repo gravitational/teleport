@@ -113,6 +113,10 @@ parameters:
   scriptName:
     type: String
     description: "(Required) The Teleport installer script to use when joining the cluster."
+  env:
+    type: String
+    description: "Environment variables exported to the script. Format 'ENV=var FOO=bar'"
+    default: "X=$X"
 mainSteps:
 - action: aws:downloadContent
   name: downloadContent
@@ -126,7 +130,7 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
+      -  export {{ env }}; /bin/sh /tmp/installTeleport.sh "{{ token }}"
 ```
 
 ## Step 4/7. Install Teleport on the Discovery Node
@@ -242,6 +246,10 @@ parameters:
   scriptName:
     type: String
     description: "(Required) The Teleport installer script to use when joining the cluster."
+  env:
+    type: String
+    description: "Environment variables exported to the script. Format 'ENV=var FOO=bar'"
+    default: "X=$X"
 mainSteps:
 - action: aws:downloadContent
   name: downloadContent
@@ -255,7 +263,7 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
+      -  export {{ env }}; /bin/sh /tmp/installTeleport.sh "{{ token }}"
 ```
 
 ### Step 4/5. Update Teleport configuration

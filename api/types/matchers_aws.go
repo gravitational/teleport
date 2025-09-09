@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"regexp"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -112,6 +113,8 @@ func (m AWSMatcher) CopyWithTypes(t []string) Matcher {
 	return newMatcher
 }
 
+var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
+
 // CheckAndSetDefaults that the matcher is correct and adds default values.
 func (m *AWSMatcher) CheckAndSetDefaults() error {
 	for _, matcherType := range m.Types {
@@ -200,6 +203,12 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 
 	if m.Params.SSHDConfig == "" {
 		m.Params.SSHDConfig = SSHDConfigPath
+	}
+
+	if m.Params.Suffix != "" {
+		if !alphanum.MatchString(m.Params.Suffix) {
+			return trace.BadParameter("suffix can only contain alphanumeric characters and hyphens")
+		}
 	}
 
 	if m.Params.ScriptName == "" {

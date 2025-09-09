@@ -8915,6 +8915,11 @@ message InstallerParams {
   // 1: uses script mode
   // 2: uses eice mode
   InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+
+  // Suffix indicates the installation suffix for the teleport installation.
+  // Set this value if you want multiple installations of Teleport.
+  // Note: only supported for AWS EC2.
+  string Suffix = 9 [(gogoproto.jsontag) = "suffix,omitempty"];
 }
 
 // InstallParamEnrollMode is the mode used to enroll the node into the cluster.
