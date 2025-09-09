@@ -29,12 +29,23 @@ import type { TerminalSize } from 'teleport/SessionRecordings/view/player/tty/ty
  */
 export class AspectFitAddon implements ITerminalAddon {
   private terminal: Terminal | undefined;
+  private currentScale: number = 1;
+  private horizontalOffset: number = 0;
+  private verticalOffset: number = 0;
 
   public activate(terminal: Terminal): void {
     this.terminal = terminal;
   }
 
   public dispose(): void {}
+
+  public getScale(): number {
+    return this.currentScale;
+  }
+
+  public getOffsets(): { x: number; y: number } {
+    return { x: this.horizontalOffset, y: this.verticalOffset };
+  }
 
   public fitWithAspectRatio({ cols, rows }: TerminalSize): void {
     if (!this.terminal?.element?.parentElement) {
@@ -80,6 +91,11 @@ export class AspectFitAddon implements ITerminalAddon {
 
     const horizontalOffset = (availableWidth - scaledWidth) / 2;
     const verticalOffset = (availableHeight - scaledHeight) / 2;
+
+    // Store the current scale and offsets for mouse event transformation
+    this.currentScale = scale;
+    this.horizontalOffset = horizontalOffset;
+    this.verticalOffset = verticalOffset;
 
     const terminalElement = this.terminal.element;
 
