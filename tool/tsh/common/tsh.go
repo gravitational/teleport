@@ -790,6 +790,7 @@ const (
 	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
 	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
 	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
+	pivSlotEnvVar             = "TELEPORT_PIV_SLOT"
 
 	clusterHelp = "Specify the Teleport cluster to connect."
 	browserHelp = "Set to 'none' to suppress browser opening on login."
@@ -830,14 +831,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		DTAutoEnroll:       dtenroll.AutoEnroll,
 	}
 
+	envVarHelp := func(help string, envVar string) string {
+		return fmt.Sprintf("%v [env_var: %q]", help, envVar)
+	}
+
 	// We need to parse the arguments before executing managed updates to identify
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
 	// should be performed only after managed updates are applied.
 	var proxyArg string
 	muApp := utils.InitHiddenCLIParser()
-	muApp.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).Hidden().StringVar(&proxyArg)
-	muApp.Flag("check-update", "Check for availability of managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
+	muApp.Flag("proxy", envVarHelp("Teleport proxy address.", proxyEnvVar)).Envar(proxyEnvVar).Hidden().StringVar(&proxyArg)
+	muApp.Flag("check-update", envVarHelp("Check for availability of managed update.", toolsCheckUpdateEnvVar)).Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
 	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
 		slog.WarnContext(ctx, "can't identify current profile", "error", err)
 	}
@@ -860,11 +865,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client.").Interspersed(true)
 	app := cf.kingpinApp
 
-	app.Flag("login", "Remote host login.").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
-	app.Flag("proxy", "Teleport proxy address.").Envar(proxyEnvVar).StringVar(&cf.Proxy)
-	app.Flag("relay", "Teleport relay address, \"none\" to explicitly disable the use of a relay, or \"default\" to use the cluster-provided address even if a different address was specified at login time.").Envar(relayEnvVar).StringVar(&cf.Relay)
+	app.Flag("login", envVarHelp("Remote host login.", loginEnvVar)).Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
+	app.Flag("proxy", envVarHelp("Teleport proxy address.", proxyEnvVar)).Envar(proxyEnvVar).StringVar(&cf.Proxy)
+	app.Flag("relay", envVarHelp("Teleport relay address, \"none\" to explicitly disable the use of a relay, or \"default\" to use the cluster-provided address even if a different address was specified at login time.", relayEnvVar)).Envar(relayEnvVar).StringVar(&cf.Relay)
 	app.Flag("nocache", "Do not cache cluster discovery locally.").Hidden().BoolVar(&cf.NoCache)
-	app.Flag("user", "Teleport user, defaults to current local user.").Envar(userEnvVar).StringVar(&cf.Username)
+	app.Flag("user", envVarHelp("Teleport user, defaults to current local user.", userEnvVar)).Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file.").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file.").Hidden().StringVar(&cpuProfile)
 	app.Flag("trace-profile", "Write trace profile to file.").Hidden().StringVar(&traceProfile)
@@ -873,7 +878,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}).String()
 
 	app.Flag("ttl", "Minutes to live for a session.").Int32Var(&cf.MinsToLive)
-	app.Flag("identity", "Identity file.").Short('i').Envar(identityFileEnvVar).StringVar(&cf.IdentityFileIn)
+	app.Flag("identity", envVarHelp("Identity file.", identityFileEnvVar)).Short('i').Envar(identityFileEnvVar).StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag.").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format.").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces.").Hidden().BoolVar(&cf.SampleTraces)
@@ -890,21 +895,19 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			BoolVar(&cf.InsecureSkipVerify)
 	}
 
-	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
+	app.Flag("auth", envVarHelp("Specify the name of authentication connector to use.", authEnvVar)).Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	// we don't want to add `.Envar(debugEnvVar)` here:
 	// - we already process TELEPORT_DEBUG with initLogger(), so we don't need to do it second time
 	// - Kingpin is strict about syntax, so TELEPORT_DEBUG=rubbish will crash a program; we don't want such behavior for this variable.
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').IsSetByUser(&cf.DebugSetByUser).BoolVar(&cf.Debug)
-	osLogFlag := app.Flag("os-log",
-		fmt.Sprintf("Verbose logging to the unified logging system. This flag implies --debug. Also available through the %s env var. More details see https://goteleport.com/docs/connect-your-client/tsh/#debug-logs.",
-			osLogEnvVar)).
+	osLogFlag := app.Flag("os-log", envVarHelp("Verbose logging to the unified logging system. This flag implies --debug. More details see https://goteleport.com/docs/connect-your-client/tsh/#debug-logs.", osLogEnvVar)).
 		IsSetByUser(&cf.OSLogSetByUser)
 	if runtime.GOOS != constants.DarwinOS {
 		osLogFlag.Hidden()
 	}
 	osLogFlag.BoolVar(&cf.OSLog)
-	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
+	app.Flag("add-keys-to-agent", envVarHelp(fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions), addKeysToAgentEnvVar)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
 		Hidden().
 		Envar(useLocalSSHAgentEnvVar).
@@ -913,22 +916,22 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("enable-escape-sequences", "Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences. Default is enabled.").
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
-	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins.").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	app.Flag("bind-addr", envVarHelp("Override host:port used when opening a browser for cluster logins.", bindAddrEnvVar)).Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
-	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
+	app.Flag("browser-login", envVarHelp(browserHelp, browserEnvVar)).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v).", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
-	app.Flag("headless", "Use headless login. Shorthand for --auth=headless.").Envar(headlessEnvVar).BoolVar(&cf.Headless)
+	app.Flag("headless", envVarHelp("Use headless login. Shorthand for --auth=headless.", headlessEnvVar)).Envar(headlessEnvVar).BoolVar(&cf.Headless)
 	app.Flag("mlock", fmt.Sprintf("Determines whether process memory will be locked and whether failure to do so will be accepted (%v).", strings.Join(mlockModes, ", "))).
 		Default(mlockModeAuto).
 		Envar(mlockModeEnvVar).
 		StringVar(&cf.MlockMode)
 	app.HelpFlag.Short('h')
-	app.Flag("piv-slot", "Specify a PIV slot key to use for Hardware Key support instead of the default. Ex: \"9d\".").Envar("TELEPORT_PIV_SLOT").StringVar(&cf.PIVSlot)
-	app.Flag("check-update", "Check for availability of managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
+	app.Flag("piv-slot", envVarHelp("Specify a PIV slot key to use for Hardware Key support instead of the default. Ex: \"9d\".", pivSlotEnvVar)).Envar(pivSlotEnvVar).StringVar(&cf.PIVSlot)
+	app.Flag("check-update", envVarHelp("Check for availability of managed update.", toolsCheckUpdateEnvVar)).Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
 
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
@@ -957,10 +960,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic access request to make (%s).", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
+	ssh.Flag("request-mode", envVarHelp(fmt.Sprintf("Type of automatic access request to make (%s).", strings.Join(accessRequestModes, ", ")), requestModeEnvVar)).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off).").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
-	ssh.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	ssh.Flag("no-resume", envVarHelp("Disable SSH connection resumption.", noResumeEnvVar)).Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
 	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete.").Short('f').BoolVar(&cf.ForkAfterAuthentication)
 	// The following flags are OpenSSH compatibility flags. They are used for
@@ -1058,7 +1061,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	proxySSH.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	proxySSH.Flag("no-resume", envVarHelp("Disable SSH connection resumption.", noResumeEnvVar)).Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	proxySSH.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
@@ -1187,7 +1190,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	scp.Flag("port", "Port to connect to on the remote host.").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file.").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
-	scp.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	scp.Flag("no-resume", envVarHelp("Disable SSH connection resumption.", noResumeEnvVar)).Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	scp.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes.")
@@ -1243,7 +1246,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	latencySSH := latency.Command("ssh", "Measure latency to a particular SSH host.")
 	latencySSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
 	latencySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	latencySSH.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	latencySSH.Flag("no-resume", envVarHelp("Disable SSH connection resumption.", noResumeEnvVar)).Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
 	// bench
 	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
@@ -1260,7 +1263,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchSSH.Arg("command", "Command to execute on a remote host.").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
 	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>.").BoolVar(&cf.BenchRandom)
-	benchSSH.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	benchSSH.Flag("no-resume", envVarHelp("Disable SSH connection resumption.", noResumeEnvVar)).Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
 	benchWeb := bench.Command("web", "Run Web benchmark tests.").Hidden()
 	benchWebSSH := benchWeb.Command("ssh", "Run SSH benchmark tests.").Hidden()
@@ -1403,7 +1406,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
 	headlessApprove := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
 	headlessApprove.Arg("request id", "Headless authentication request ID.").StringVar(&cf.HeadlessAuthenticationID)
-	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately.").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
+	headlessApprove.Flag("skip-confirm", envVarHelp("Skip confirmation and prompt for MFA immediately.", headlessSkipConfirmEnvVar)).Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests).").Default("*").StringsVar(&cf.RequestIDs)
