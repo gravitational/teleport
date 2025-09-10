@@ -54,7 +54,7 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 
 		archivePath := filepath.Join(toolsDir, "tsh.tar.gz")
-		err = archive.CompressDirToTarGzFile(ctx, sourceDir, archivePath)
+		err = archive.CompressDirToTarGzFile(ctx, sourceDir, archivePath, archive.WithNoCompress())
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
