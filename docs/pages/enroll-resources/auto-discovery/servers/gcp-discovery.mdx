@@ -1,7 +1,7 @@
 ---
 title: Automatically Discover GCP Compute Instances
 description: How to configure Teleport to automatically enroll GCP compute instances.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -10,6 +10,8 @@ The Teleport Discovery Service can connect to GCP and automatically
 discover and enroll GCP Compute Engine instances matching configured labels. It will then
 execute a script on these discovered instances that will install Teleport,
 start it and join the cluster.
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
