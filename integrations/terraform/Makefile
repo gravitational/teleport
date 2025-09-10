@@ -11,18 +11,20 @@ BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
 # CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
 
+# base name for release archive (used for .tar.gz packaging across all platforms)
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
 
+# executable extension (.exe) for windows specific builds
 EXEEXT =
 ifeq ($(OS),windows)
   EXEEXT = .exe
 endif
 
-# The name of the built binary inside $(BUILDDIR)
+# filename of the compiled binary $(BUILDDIR)
 BINARY_NAME = terraform-provider-teleport$(EXEEXT)
 
-# Full release filename for Windows
-WINDOWS_RELEASE := terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)$(EXEEXT)
+# windows terraform provider filename as it will appear on downloads page
+WINDOWS_DOWNLOAD_FILENAME := terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)$(EXEEXT)
 
 .PHONY: tfclean
 tfclean:
@@ -171,7 +173,10 @@ release: build
 	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
 else ifeq ($(OS),windows)
 release: build
-	cp $(BUILDDIR)/$(BINARY_NAME) $(WINDOWS_RELEASE)
+	# copy the built windows binary to its final release filename for public downloads
+	cp $(BUILDDIR)/$(BINARY_NAME) $(WINDOWS_DOWNLOAD_FILENAME)
+	# package ony the binary file into a .tar.gz archive, the release service will repackage this into a .zip
+	# for the Terraform registry
 	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz $(BINARY_NAME)
 endif
 
