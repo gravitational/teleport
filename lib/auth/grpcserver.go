@@ -131,7 +131,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/joinv1"
-	legacyjoinservice "github.com/gravitational/teleport/lib/join/legacyservice"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -5760,7 +5760,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	trustv1pb.RegisterTrustServiceServer(server, trust)
 
-	legacyJoinServiceServer := legacyjoinservice.NewJoinServiceGRPCServer(cfg.AuthServer)
+	legacyJoinServiceServer := legacyjoin.NewJoinServiceGRPCServer(cfg.AuthServer)
 	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
 
 	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{

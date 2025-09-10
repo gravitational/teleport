@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package legacyservice contains the implementation of the legacy JoinService
+// Package legacyjoin contains the implementation of the legacy JoinService
 // gRPC server which runs on both Auth and Proxy.
-package legacyservice
+package legacyjoin
 
 import (
 	"context"
