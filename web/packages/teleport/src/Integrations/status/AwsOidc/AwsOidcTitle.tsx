@@ -87,21 +87,23 @@ export function AwsOidcTitle({
               {status}
             </Label>
           </Flex>
-          <Flex gap={1}>
-            Role ARN:{' '}
-            <Link
-              target="_blank"
-              href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${roleArnResourceName}`}
-            >
-              <Text
-                style={{
-                  fontFamily: theme.fonts.mono,
-                }}
+          {integration.spec && (
+            <Flex gap={1}>
+              Role ARN:{' '}
+              <Link
+                target="_blank"
+                href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${roleArnResourceName}`}
               >
-                {integration.spec?.roleArn}
-              </Text>
-            </Link>
-          </Flex>
+                <Text
+                  style={{
+                    fontFamily: theme.fonts.mono,
+                  }}
+                >
+                  {integration.spec.roleArn}
+                </Text>
+              </Link>
+            </Flex>
+          )}
         </Flex>
       </Flex>
       <Flex gap={1} alignItems="center">
