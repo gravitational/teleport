@@ -9,7 +9,7 @@ labels:
 {/* lint disable page-structure remark-lint */}
 
 Teleport Machine and Workload Identity (MWI) provides secure access across multiple platforms and resource types,
-supporting everything from [Infrastructure-as-Code](../iac-mwi.mdx) workflows to [AI agent](../ai-agents-mwi.mdx)
+supporting everything from [Infrastructure-as-Code](../machine-workload-identity/iac-mwi.mdx) workflows to [AI agent](../machine-workload-identity/ai-agents-mwi.mdx)
 operations. This guide focuses on a popular implementation: executing commands on deployment targets through CI/CD
 pipelines. Even if your specific use case differs, this guide covers the fundamental MWI setup process, after which you
 can reference the dedicated use case pages for tool-specific guidance.
@@ -24,7 +24,7 @@ Here's an overview of what you will do:
 
 This guide covers configuring MWI for development and learning purposes.
 For a production-ready configuration of MWI, visit the [Deploying Machine
-ID](deployment/deployment.mdx) guides.
+ID](../machine-workload-identity/machine-id/deployment/deployment.mdx) guides.
 
 ## Prerequisites
 
@@ -56,7 +56,7 @@ or Kubernetes cluster you can let the bot access before starting.
 - A target resource enrolled in Teleport, either:
   - A Linux server
   - A Kubernetes cluster
-  - If you don't have a target resource that you can use, follow one of the [guides](../../enroll-resources/enroll-resources.mdx)
+  - If you don't have a target resource that you can use, follow one of the [guides](../enroll-resources/enroll-resources.mdx)
     for enrolling a new resource.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -73,7 +73,7 @@ Here are example resources with labels we can reference:
 <Tabs>
 <TabItem label="Server">
 
-![Example ssh server resource with label](../../../img/machine-id/ssh-target-example.png)
+![Example ssh server resource with label](../../img/machine-id/ssh-target-example.png)
 
 You can also find your nodes with the following command:
 
@@ -89,7 +89,7 @@ target1 8a50c8aa-c45f-403c-95ff-83f50561d64c                env=mwi-demo,hostnam
 
 <TabItem label="Kubernetes">
 
-![Example kubernetes cluster resource with label](../../../img/machine-id/k8s-target-example.png)
+![Example kubernetes cluster resource with label](../../img/machine-id/k8s-target-example.png)
 
 You can also find your clusters with the following command:
 
@@ -224,7 +224,7 @@ uses metadata about the platform the bot is running on, such as OIDC endpoints f
 or the Assumed Role of an AWS EC2 Instance, to ensure that only authorized bots can join the cluster.
 This means the bot has a verified <i>identity</i>, rather than just a shared secret.
 
-Teleport supports a number of secure [join methods](../../reference/join-methods.mdx#delegated-join-methods)
+Teleport supports a number of secure [join methods](../reference/join-methods.mdx#delegated-join-methods)
 specific to the platform the bot is running on. Since we are using GitHub Actions,
 we will use the `github` join method.
 
@@ -263,7 +263,7 @@ $ tctl create -f ./teleport/github_bot_join_token.yaml
 
 ## Step 5/5 Access a resource from GitHub Actions
 
-We have several published [Actions](../../reference/machine-id/github-actions.mdx#github-actions-helpers)
+We have several published [Actions](../reference/machine-id/github-actions.mdx#github-actions-helpers)
 for convenience, but for this guide we will look at things explicitly to aid understanding.
 
 <Tabs>
@@ -433,11 +433,11 @@ without distributing long-lived credentials, making the process more secure and 
 
 ## Next Steps
 
-- Check out the [deployment guides](deployment/deployment.mdx) to learn about
+- Check out the [deployment guides](./machine-id/deployment/deployment.mdx) to learn about
   configuring `tbot` in a production-ready way for your platform.
-- Check out the [access guides](access-guides/access-guides.mdx) to learn about configuring
+- Check out the [access guides](./machine-id/access-guides/access-guides.mdx) to learn about configuring
   `tbot` for other use cases than SSH and Kubernetes.
-- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- Learn how [Workload Identities](../workload-identity/introduction.mdx) enable the same capabilities
+- Learn how [Workload Identities](../machine-workload-identity/workload-identity/introduction.mdx) enable the same capabilities
   for resources like cloud APIs that can't be protected with the Teleport proxy.
