@@ -9,6 +9,7 @@ import { pluginsService } from 'e-teleport/services/plugins';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+import * as Main from 'teleport/Main/Main';
 import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
 import { IntegrationStatusCode, Plugin } from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
@@ -27,6 +28,7 @@ describe('test PluginPick.tsx', () => {
     jest
       .spyOn(userEventService, 'captureIntegrationEnrollEvent')
       .mockImplementation();
+    jest.spyOn(Main, 'useNoMinWidth').mockReturnValue();
   });
 
   afterEach(() => {
@@ -40,9 +42,9 @@ describe('test PluginPick.tsx', () => {
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
 
-    await screen.findByText(/no-code integrations/i);
+    await screen.findByText(/Integration Type/i);
     expect(screen.queryByText(/slack/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/oidc/i)).toBeInTheDocument();
+    expect(screen.getByText(/AWS OIDC Identity Provider/i)).toBeInTheDocument();
   });
 
   test('full access and slack available to enroll', async () => {
@@ -51,7 +53,7 @@ describe('test PluginPick.tsx', () => {
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
 
-    await screen.findByText(/no-code integrations/i);
+    await screen.findByText(/Integration Type/i);
     expect(screen.queryByTestId('plugin-checkmark')).not.toBeInTheDocument();
     expect(screen.getByTestId('tile-slack')).toHaveAttribute('href');
     await waitFor(() => {
@@ -67,8 +69,8 @@ describe('test PluginPick.tsx', () => {
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
 
-    await screen.findByText(/no-code integrations/i);
-    expect(screen.getByTestId('plugin-checkmark')).toBeInTheDocument();
+    await screen.findByText(/Integration Type/i);
+    expect(screen.getByTestId('integration-checkmark')).toBeInTheDocument();
 
     // test clicking on slack tile has no pointer events.
     await userEvent.click(screen.getByTestId('tile-slack'), {
@@ -97,7 +99,7 @@ describe('test PluginPick.tsx', () => {
       customAcl: { ...allAccessAcl, plugins: noAccess },
     });
     renderIntegrationPicker(ctx);
-    await screen.findByText(/no-code integrations/i);
+    await screen.findByText(/Integration Type/i);
 
     // eslint-disable-next-line jest-dom/prefer-enabled-disabled
     expect(screen.getByTestId('tile-slack')).toHaveAttribute('disabled');
@@ -119,7 +121,7 @@ describe('test PluginPick.tsx', () => {
       customAcl: { ...allAccessAcl, integrations: { ...noAccess, use: false } },
     });
     renderIntegrationPicker(ctx);
-    await screen.findByText(/no-code integrations/i);
+    await screen.findByText(/Integration Type/i);
 
     // eslint-disable-next-line jest-dom/prefer-enabled-disabled
     expect(screen.getByTestId('tile-aws-oidc')).toHaveAttribute('disabled');
@@ -139,7 +141,7 @@ describe('test PluginPick.tsx', () => {
     cfg.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
-    await screen.findByText(/no-code integrations/i);
+    await screen.findByText(/Integration Type/i);
 
     // eslint-disable-next-line jest-dom/prefer-enabled-disabled
     expect(screen.getByTestId('tile-jamf')).toHaveAttribute('disabled');
@@ -150,7 +152,7 @@ describe('test PluginPick.tsx', () => {
     cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
-    await screen.findByText(/no-code integrations/i);
+    await screen.findByText(/Integration Type/i);
 
     expect(screen.getByTestId('tile-jamf')).toHaveAttribute('href');
   });

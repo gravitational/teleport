@@ -42,11 +42,13 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'slack',
     isOAuth: true,
     name: 'Slack',
+    description: "Post access requests to your organization's Slack workspace.",
     icon: 'slack',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-slack/',
     fullName: 'Slack access request notifications',
     cloudHostable: true,
     selfHostable: false,
+    tags: ['notifications'],
     Description: () => (
       <Text>
         <P>
@@ -97,7 +99,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           {
             title: 'View email addresses of people in your workspace',
             description:
-              'We will use email addresses to match Teleport users with their Slack profiles',
+              'We will use email addresses to match Teleport users with their Slack profiles.',
           },
         ],
       },
@@ -142,6 +144,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'okta',
     name: 'Okta',
+    description:
+      'Setup SSO, user/group sync and enable access requests to Okta apps.',
     icon: 'okta',
     url: 'https://goteleport.com/docs/enroll-resources/application-access/okta/',
     cloudHostable: true,
@@ -149,26 +153,33 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     customSetup: true,
     fullName: 'Okta Integration',
     Setup: OktaIntegrationSetUp,
+    tags: ['idp', 'scim'],
   },
   {
     type: 'scim',
     name: 'SCIM',
     icon: 'scim',
+    description:
+      'Allow different Identity Providers (IdPs) to push user and permission changes to Teleport.',
+
     url: 'https://goteleport.com/docs/enroll-resources/application-access/scim',
     cloudHostable: true,
     selfHostable: true,
     customSetup: true,
     fullName: 'SCIM Integration',
     Setup: SCIMIntegrationSetUp,
+    tags: ['idp', 'scim'],
   },
   {
     type: 'opsgenie',
+    description: 'Enable access notifications based on your support schedule.',
     name: 'Opsgenie',
     icon: 'opsgenie',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/', // TODO(lisa): change to opsgenie docs (wip)
     cloudHostable: true,
     selfHostable: true,
     fullName: 'Opsgenie access request notifications',
+    tags: ['notifications'],
     Description: () => (
       <Text>
         <P>
@@ -280,11 +291,14 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'jamf',
     name: 'Jamf',
     icon: 'jamf',
+    description:
+      'Allow trusted devices in Teleport to match available devices in your Jamf inventory.',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/',
     cloudHostable: true,
     selfHostable: false,
     disabledIfNoMdmSupport: true,
     fullName: 'Jamf Integration for Device Trust',
+    tags: ['devicetrust'],
     Description: () => (
       <Text>
         <P>
@@ -402,12 +416,15 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'intune',
     name: 'Microsoft Intune',
+    description:
+      'Update trusted devices in Teleport to match available devices in your Intune inventory.',
     icon: 'intune',
     url: 'https://goteleport.com/docs/identity-governance/device-trust/intune-integration/',
     cloudHostable: true,
     selfHostable: true,
     disabledIfNoMdmSupport: true,
     fullName: 'Microsoft Intune Integration for Device Trust',
+    tags: ['devicetrust'],
     Description: () => (
       <Text>
         <P>
@@ -550,11 +567,13 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'servicenow',
     name: 'ServiceNow',
+    description: 'Create ServiceNow incidents from Teleport access requests.',
     icon: 'servicenow',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/',
     cloudHostable: true,
     selfHostable: true,
     fullName: 'ServiceNow Integration',
+    tags: ['notifications'],
     Description: () => (
       <Text>
         <P>
@@ -696,11 +715,13 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'jira',
     name: 'Jira',
+    description: 'Manage access requests through Jira incidents.',
     fullName: 'Jira access request management',
     icon: 'jira',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-jira',
     cloudHostable: true,
     selfHostable: true,
+    tags: ['notifications'],
     permissions: [
       {
         category: 'Read/Write on Jira Issues',
@@ -895,11 +916,13 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'pagerduty',
     name: 'PagerDuty',
+    description: 'Manage access requests through PagerDuty incidents',
     icon: 'pagerduty',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty/',
     fullName: 'PagerDuty access request management',
     cloudHostable: true,
     selfHostable: true,
+    tags: ['notifications'],
     Description: () => (
       <Text>
         <P>
@@ -1026,11 +1049,14 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'email',
     name: 'Email',
+    description:
+      'Email access requests to specified addresses or distribution lists',
     icon: 'email',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-email/',
     fullName: 'Email Integration',
     cloudHostable: true,
     selfHostable: true,
+    tags: ['notifications'],
     Description: () => (
       <Text>
         <P>
@@ -1097,11 +1123,13 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'discord',
     name: 'Discord',
+    description: 'Post access requests to channels on your Discord server.',
     fullName: 'Discord access request notifications',
     icon: 'discord',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-discord/',
     cloudHostable: true,
     selfHostable: false,
+    tags: ['notifications'],
     Description: () => (
       <Text>
         <P>
@@ -1171,11 +1199,14 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'mattermost',
     name: 'Mattermost',
+    description:
+      'Post Teleport access requests as Mattermost messages to alert reviewers.',
     icon: 'mattermost',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-mattermost/',
     fullName: 'Mattermost access request notifications',
     cloudHostable: true,
     selfHostable: true,
+    tags: ['notifications'],
     Description: () => (
       <Text>
         <P>
@@ -1320,11 +1351,14 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'msteams',
     name: 'Microsoft Teams',
+    description:
+      'Send notifications on Microsoft Teams for incoming Teleport access requests.',
     icon: 'microsoftteams',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-msteams/',
     cloudHostable: true,
     selfHostable: true,
     fullName: 'Microsoft Teams access request notifications',
+    tags: ['notifications'],
     Description: () => (
       <Text>
         <P>
@@ -1438,6 +1472,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'entra-id',
     name: 'Microsoft Entra ID',
+    description:
+      'Synchronize users and groups from your Entra ID directory to Teleport',
     icon: 'entraid',
     url: '',
     fullName: 'Entra ID directory synchronization',
@@ -1445,7 +1481,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     selfHostable: true,
     // todo (michellescripts) replace with new entitlement `EntraIDSync`
     requiresIgs: true,
-
+    tags: ['idp'],
     permissions: [
       {
         category: 'Read information about your Entra ID tenant',
@@ -1529,11 +1565,13 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'datadog',
     name: 'Datadog',
+    description: 'Surface Teleport access requests as Datadog incidents.',
     icon: 'datadog',
     url: 'https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/datadog-hosted/',
     fullName: 'Datadog Incident Management',
     cloudHostable: true,
     selfHostable: true,
+    tags: ['notifications'],
     Description: () => (
       <Text>
         <P>

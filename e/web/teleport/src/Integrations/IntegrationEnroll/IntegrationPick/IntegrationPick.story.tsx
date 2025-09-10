@@ -3,10 +3,13 @@ import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
+import { ContentMinWidth } from 'teleport/Main/Main';
 import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
 import {
   IntegrationStatusCode,
@@ -183,9 +186,13 @@ export const FullFeatures: StoryObj = {
 function render(ctx: TeleportEContext) {
   return (
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <IntegrationPick />
-      </ContextProvider>
+      <InfoGuidePanelProvider>
+        <ContentMinWidth>
+          <ContextProvider ctx={ctx}>
+            <IntegrationPick />
+          </ContextProvider>
+        </ContentMinWidth>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 }

@@ -10,7 +10,10 @@ import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 export const AwsIdentityCenterPlugin: CloudHostablePlugin = {
   type: 'aws-identity-center',
   name: 'AWS IAM Identity Center',
-  icon: 'aws',
+  icon: 'awsiamidentitycenter',
+  description:
+    'Manage AWS IAM Identity Center groups and permission sets with Teleport.',
+  tags: ['idp', 'scim'],
   url: 'https://goteleport.com/docs/enroll-resources/application-access/okta/',
   cloudHostable: true,
   selfHostable: true,

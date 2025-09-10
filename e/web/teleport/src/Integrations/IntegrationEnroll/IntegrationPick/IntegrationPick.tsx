@@ -1,50 +1,34 @@
 import { useEffect, useState } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
 
-import {
-  Alert,
-  Box,
-  Link as ExternalLink,
-  Flex,
-  H2,
-  Indicator,
-  Text,
-} from 'design';
-import { FeatureName } from 'design/constants';
-import * as Icons from 'design/Icon';
-import { P } from 'design/Text/Text';
+import { Alert } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
-  getCTAForPlugin,
-  pluginTypeToIntegrationEnrollKind,
   type CloudHostablePlugin,
   type SelfHostedPlugin,
 } from 'e-teleport/services/plugins';
 import useTeleport from 'e-teleport/useTeleportE';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import {
-  BadgeTitle,
-  ToolTipNoPermBadge,
-} from 'teleport/components/ToolTipNoPermBadge';
+  integrations as botIntegrations,
+  BotTile,
+  type BotIntegration,
+} from 'teleport/Bots/Add/AddBotsPicker';
 import cfg from 'teleport/config';
 import {
-  IntegrationTile,
-  NoCodeIntegrationDescription,
-} from 'teleport/Integrations/Enroll';
-import { installableIntegrations } from 'teleport/Integrations/Enroll/IntegrationTiles/integrations';
-import { IntegrationTileWithSpec } from 'teleport/Integrations/Enroll/IntegrationTiles/IntegrationTiles';
-import { MachineIDIntegrationSection } from 'teleport/Integrations/Enroll/MachineIDIntegrationSection';
-import { PluginKind } from 'teleport/services/integrations';
+  installableIntegrations,
+  type IntegrationTileSpec as GenericIntegration,
+} from 'teleport/Integrations/Enroll/IntegrationTiles/integrations';
 import {
-  IntegrationEnrollEvent,
-  userEventService,
-} from 'teleport/services/userEvent';
+  IntegrationTileWithSpec,
+  IntegrationPicker as SharedIntegrationPicker,
+} from 'teleport/Integrations/Enroll/Shared';
+import { sortByDisplayName } from 'teleport/Integrations/Enroll/Shared/IntegrationPicker';
+import { useNoMinWidth } from 'teleport/Main';
+import { PluginKind } from 'teleport/services/integrations';
 
 import { plugins as defaultPlugins } from '../PluginEnroll/plugins';
 import { integrationsE } from './integrations';
-import { PluginIcon } from './PluginIcon';
+import { PluginTile } from './PluginTile';
 
 type Plugins = {
   // enrolled are names of plugin types that have
@@ -59,10 +43,35 @@ type Plugins = {
   selfHosted: SelfHostedPlugin[];
 };
 
+type Integration =
+  | GenericIntegration
+  | BotIntegration
+  | CloudHostablePlugin
+  | SelfHostedPlugin;
+
+function isCloudHostablePlugin(
+  plugin: CloudHostablePlugin | SelfHostedPlugin
+): plugin is CloudHostablePlugin {
+  return plugin.cloudHostable;
+}
+
+function isNotCloudHostablePlugin(
+  plugin: CloudHostablePlugin | SelfHostedPlugin
+): plugin is Exclude<typeof plugin, CloudHostablePlugin> {
+  return !plugin.cloudHostable;
+}
+
+function canBeSelfHosted(
+  plugin: CloudHostablePlugin | SelfHostedPlugin
+): boolean {
+  return plugin.selfHostable;
+}
+
 export function IntegrationPick() {
   const ctx = useTeleport();
   const hasPluginAccess = ctx.storeUser.getPluginsAccess().create;
   const hasIntegrationAccess = ctx.storeUser.getIntegrationsAccess().create;
+  const hasCreateBotPermission = ctx.getFeatureFlags().addBots;
   const canCreate = [
     {
       value: ctx.storeUser.getPluginsAccess().create,
@@ -94,6 +103,7 @@ export function IntegrationPick() {
     enrolled: [],
   });
 
+  useNoMinWidth();
   useEffect(() => {
     async function fetchAndMakePlugins() {
       const [supportedTypes, enrolledPlugins] = await Promise.all([
@@ -121,301 +131,89 @@ export function IntegrationPick() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function getSortedIntegrations() {
-    const sortedIntegrations = [
-      ...plugins.available,
-      ...installableIntegrations(),
-      ...integrationsE,
-    ].toSorted((a, b) => (a.name > b.name ? 1 : -1));
+  const isGuided = (i: Integration) => {
+    if (i.type == 'bot') {
+      return i.guided;
+    }
 
-    return sortedIntegrations.map(i => {
-      if (i.type === 'integration') {
-        return (
-          <IntegrationTileWithSpec
-            key={i.kind}
-            spec={i}
-            hasIntegrationAccess={hasIntegrationAccess}
-            hasExternalAuditStorage={hasExternalAuditStorageAccess}
-          />
-        );
-      }
-      return (
-        <PluginTile
-          pluginAlreadyEnrolled={
-            // Okta integration may be partially enrolled; we want to allow continuing the enrolment process
-            plugins.enrolled.includes(i.type) && i.type !== 'okta'
-          }
-          key={i.type}
-          type={i}
-          hasAccess={hasPluginAccess}
-        />
-      );
-    });
-  }
+    if (i.type === 'integration') {
+      return true;
+    }
 
-  let content;
-  if (attempt.status === 'processing') {
-    content = (
-      <Box textAlign="center" m={10}>
-        <Indicator />
-      </Box>
-    );
-  } else if (attempt.status === 'failed') {
-    content = <Alert children={attempt.statusText} />;
-  } else {
-    content = (
-      <Flex flexDirection="column" gap={4}>
-        <Flex flexDirection="column">
-          <NoCodeIntegrationDescription />
-          <Flex mb={2} gap={3} flexWrap="wrap">
-            {getSortedIntegrations()}
-          </Flex>
-        </Flex>
-
-        {plugins.selfHosted.length > 0 && (
-          <Flex flexDirection="column">
-            <H2 mb={1}>Self-Hosted Plugins</H2>
-            <P mb={3}>
-              There is a wide variety of plugins that you can integrate with.
-              See below for a sampling, or check out the documented list at{' '}
-              <ExternalLink
-                href="https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/"
-                target="_blank"
-              >
-                https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/
-              </ExternalLink>
-              . Self-hosted plugins will not show up in your integration list,
-              and must be managed outside of the Teleport UI.
-            </P>
-            <Flex mb={2} gap={3} flexWrap="wrap">
-              {plugins.selfHosted.map(p => (
-                <PluginTile key={p.type} type={p} hasAccess={hasPluginAccess} />
-              ))}
-            </Flex>
-          </Flex>
-        )}
-
-        <Flex flexDirection="column">
-          <MachineIDIntegrationSection />
-        </Flex>
-      </Flex>
-    );
-  }
-
-  return (
-    <>
-      <FeatureHeader>
-        <FeatureHeaderTitle>Select Integration Type</FeatureHeaderTitle>
-      </FeatureHeader>
-      {!canCreate && (
-        <Alert kind="info" mt={4}>
-          <Flex gap={2}>
-            You do not have permission to create Integrations. You must have at
-            least one of these role permissions: <code>plugin.create</code>{' '}
-            <code>integration.create</code>
-          </Flex>
-        </Alert>
-      )}
-      {content}
-    </>
-  );
-}
-
-function PluginTile({
-  pluginAlreadyEnrolled = false,
-  type: plugin,
-  hasAccess,
-}: {
-  pluginAlreadyEnrolled?: boolean;
-  type: CloudHostablePlugin | SelfHostedPlugin;
-  hasAccess: boolean;
-}) {
-  const hostedButNoAccess = !hasAccess && plugin.cloudHostable;
-
-  const pluginAccess: PluginAccess = (() => {
     if (
-      plugin.disabledIfNoMdmSupport &&
-      !cfg.entitlements.MobileDeviceManagement.enabled
+      // already enrolled, Okta integration may be partially enrolled;
+      // we want to allow continuing the enrollment process
+      (plugins.enrolled.includes(i.type) && i.type !== 'okta') ||
+      // self-hosted plugins not guided
+      (isNotCloudHostablePlugin(i) && plugins.selfHosted.includes(i))
     ) {
-      return 'requires-enterprise';
+      return false;
     }
-    if (plugin.requiresIgs && !cfg.entitlements.Identity.enabled) {
-      return 'requires-identity';
+
+    return true;
+  };
+
+  const initialSort = (a: Integration, b: Integration) => {
+    return (
+      (isGuided(b) ? (isGuided(a) ? 0 : 1) : isGuided(a) ? -1 : 0) ||
+      sortByDisplayName(a, b)
+    );
+  };
+
+  const integrations = [
+    ...plugins.available,
+    ...plugins.selfHosted,
+    ...installableIntegrations(),
+    ...integrationsE,
+    ...botIntegrations,
+  ];
+
+  const renderIntegration = (i: Integration) => {
+    if (i.type === 'integration') {
+      return (
+        <IntegrationTileWithSpec
+          key={i.kind}
+          spec={i}
+          hasIntegrationAccess={hasIntegrationAccess}
+          hasExternalAuditStorage={hasExternalAuditStorageAccess}
+        />
+      );
     }
-    return hostedButNoAccess ? 'denied' : 'allowed';
-  })();
 
-  const pluginEnrollable = pluginAccess === 'allowed' && !pluginAlreadyEnrolled;
+    if (i.type === 'bot') {
+      return (
+        <BotTile
+          key={i.kind}
+          integration={i}
+          hasCreateBotPermission={hasCreateBotPermission}
+        />
+      );
+    }
 
-  let tileProps;
-  const tileDisabled = pluginAccess !== 'allowed';
+    return (
+      <PluginTile
+        pluginAlreadyEnrolled={
+          // Okta integration may be partially enrolled; we want to allow continuing the enrollment process
+          plugins.enrolled.includes(i.type) && i.type !== 'okta'
+        }
+        key={i.type}
+        plugin={i}
+        hasAccess={hasPluginAccess}
+      />
+    );
+  };
 
-  if (pluginEnrollable && plugin.cloudHostable) {
-    tileProps = {
-      as: InternalLink,
-      to: !tileDisabled
-        ? cfg.getIntegrationEnrollRoute(plugin.type)
-        : undefined,
-    };
-  } else if (!plugin.cloudHostable) {
-    tileProps = {
-      as: ExternalLink,
-      href: plugin.url,
-      target: '_blank',
-      onClick: !tileDisabled
-        ? () => {
-            userEventService.captureIntegrationEnrollEvent({
-              event: IntegrationEnrollEvent.Started,
-              eventData: {
-                id: crypto.randomUUID(),
-                kind: pluginTypeToIntegrationEnrollKind(plugin.type),
-              },
-            });
-          }
-        : undefined,
-    };
-  }
+  const isLoading = attempt.status === 'processing';
+  const isFailed = attempt.status === 'failed';
 
   return (
-    <IntegrationTile
-      disabled={tileDisabled}
-      data-testid={`tile-${plugin.type}`}
-      $exists={pluginAlreadyEnrolled}
-      {...tileProps}
-    >
-      <Flex flexBasis={100}>
-        <PluginIcon type={plugin.type} />
-      </Flex>
-      <Flex
-        flexBasis={50}
-        flexDirection="row"
-        textAlign="center"
-        alignItems="flex-end"
-      >
-        <Text>{plugin.name}</Text>
-        {pluginAlreadyEnrolled && (
-          <Icons.Check
-            ml={1}
-            mb={1}
-            data-testid="plugin-checkmark"
-            color="success.main"
-            size="small"
-          />
-        )}
-      </Flex>
-      <RenderTooltip
-        pluginAccess={pluginAccess}
-        pluginName={plugin.name}
-        pluginType={plugin.type}
-      />
-    </IntegrationTile>
+    <SharedIntegrationPicker
+      integrations={integrations}
+      renderIntegration={renderIntegration}
+      initialSort={initialSort}
+      canCreate={canCreate}
+      isLoading={isLoading}
+      ErrorMessage={isFailed && <Alert>{attempt.statusText}</Alert>}
+    />
   );
-}
-
-function isCloudHostablePlugin(
-  plugin: CloudHostablePlugin | SelfHostedPlugin
-): plugin is CloudHostablePlugin {
-  return plugin.cloudHostable;
-}
-
-function isNotCloudHostablePlugin(
-  plugin: CloudHostablePlugin | SelfHostedPlugin
-): plugin is Exclude<typeof plugin, CloudHostablePlugin> {
-  return !plugin.cloudHostable;
-}
-
-function canBeSelfHosted(
-  plugin: CloudHostablePlugin | SelfHostedPlugin
-): boolean {
-  return plugin.selfHostable;
-}
-
-type PluginAccess =
-  | 'allowed'
-  | 'denied'
-  | 'requires-enterprise'
-  | 'requires-identity';
-
-function RenderTooltip({
-  pluginAccess,
-  pluginName,
-  pluginType,
-}: {
-  pluginAccess: PluginAccess;
-  pluginName: string;
-  pluginType: PluginKind;
-}) {
-  switch (pluginAccess) {
-    case 'denied':
-      return (
-        <ToolTipNoPermBadge
-          badgeTitle={BadgeTitle.LackingPermissions}
-          children={
-            <Box>
-              <Text>
-                You are not able to add this plugin. There are two possible
-                reasons for this:
-              </Text>
-              <ul style={{ paddingLeft: 16, marginBottom: 2, marginTop: 2 }}>
-                <li>
-                  Your cluster is not configured to support this plugin or
-                  hosted plugins is not enabled.
-                </li>
-                <li>
-                  You don’t have sufficient permissions to create a plugin.
-                  Reach out to your Teleport administrator to request additional
-                  permissions.
-                </li>
-              </ul>
-            </Box>
-          }
-        />
-      );
-    case 'requires-enterprise':
-      return (
-        <ToolTipNoPermBadge
-          badgeTitle={BadgeTitle.LackingEnterpriseLicense}
-          sticky={true}
-          children={
-            <Box textAlign="center" maxWidth="200px">
-              <Text>Unlock {pluginName} plugin with Teleport Enterprise</Text>
-              <ButtonLockedFeature
-                width="165px"
-                mt={2}
-                mb={1}
-                noIcon
-                event={getCTAForPlugin(pluginType)}
-              >
-                Contact Sales
-              </ButtonLockedFeature>
-            </Box>
-          }
-        />
-      );
-    case 'requires-identity':
-      return (
-        <ToolTipNoPermBadge
-          badgeTitle={BadgeTitle.LackingIgs}
-          sticky={true}
-          children={
-            <Box textAlign="center" maxWidth="200px">
-              <Text>
-                Unlock {pluginName} plugin with {FeatureName.IdentityGovernance}
-              </Text>
-              <ButtonLockedFeature
-                width="165px"
-                mt={2}
-                mb={1}
-                noIcon
-                event={getCTAForPlugin(pluginType)}
-              >
-                Contact Sales
-              </ButtonLockedFeature>
-            </Box>
-          }
-        />
-      );
-    default:
-      return null;
-  }
 }

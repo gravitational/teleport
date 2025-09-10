@@ -4,6 +4,7 @@ import { ResourceIconName } from 'design/ResourceIcon';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { BaseView } from 'teleport/components/Wizard/flow';
+import { IntegrationTag } from 'teleport/Integrations/Enroll/Shared';
 import { PluginKind } from 'teleport/services/integrations';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 
@@ -35,6 +36,7 @@ export type View = BaseView<{
 export type PluginBase = {
   type: PluginKind;
   name: string;
+  description: string;
   icon: ResourceIconName;
   url: string;
 
@@ -60,6 +62,11 @@ export type PluginBase = {
 
   // todo (michellescripts) replace with new entitlement `EntraIDSync`
   requiresIgs?: boolean;
+
+  /**
+   * tags used to categorize and filter plugins.
+   */
+  tags: IntegrationTag[];
 
   /**
    * views represents all the views for each step
