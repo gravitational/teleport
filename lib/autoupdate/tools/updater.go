@@ -54,9 +54,6 @@ const (
 	// teleportToolsVersionEnvDisabled is a special value that disables teleport tools updates
 	// when assigned to the teleportToolsVersionEnv environment variable.
 	teleportToolsVersionEnvDisabled = "off"
-	// teleportToolsVersionEnvDisabledLocal is a special value that disables only local update
-	// by setting the version to teleportToolsVersionEnv and disables re-execution.
-	teleportToolsVersionEnvDisabledLocal = "off-local"
 	// teleportToolsVersionReExecEnv is internal environment name for transferring original
 	// version to re-executed ones.
 	teleportToolsVersionReExecEnv = "TELEPORT_TOOLS_VERSION_REEXEC"
@@ -155,7 +152,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
-	case teleportToolsVersionEnvDisabled, teleportToolsVersionEnvDisabledLocal:
+	case teleportToolsVersionEnvDisabled:
 		return &UpdateResponse{Version: "", ReExec: false}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
@@ -216,6 +213,9 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	proxyHost := utils.TryHost(proxyAddr)
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
+	if requestedVersion == teleportToolsVersionEnvDisabled && os.Getenv(teleportToolsVersionReExecEnv) != "" {
+		requestedVersion = ""
+	}
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case teleportToolsVersionEnvDisabled:
@@ -230,7 +230,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		}
 		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
 	// No requested version, we continue.
-	case "", teleportToolsVersionEnvDisabledLocal:
+	case "":
 	// Requested version that is not the local one.
 	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
@@ -414,29 +414,20 @@ func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) 
 		return 0, trace.Wrap(err)
 	}
 
-	for _, unset := range []string{
+	env := filterEnvs(os.Environ(), []string{
 		teleportToolsVersionReExecEnv,
 		teleportToolsDirsEnv,
-	} {
-		if err := os.Unsetenv(unset); err != nil {
-			return 0, trace.Wrap(err)
-		}
-	}
-	env := append(os.Environ(), fmt.Sprintf("%s=%s", teleportToolsDirsEnv, u.toolsDir))
+	})
+	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
+	env = append(env, fmt.Sprintf("%s=%s", teleportToolsDirsEnv, u.toolsDir))
 	// To prevent re-execution loop we have to disable update logic for re-execution,
-	// by unsetting current tools version env variable and setting it to "off-local",
-	// or to "off" if same version is requested to be re-executed.
-	if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
-		return 0, trace.Wrap(err)
-	}
+	// by unsetting current tools version env variable and setting it to "off"
+	// if same version is requested to be re-executed.
 	if path == executablePath {
+		env = filterEnvs(env, []string{teleportToolsVersionEnv})
 		env = append(env, teleportToolsVersionEnv+"="+teleportToolsVersionEnvDisabled)
 		slog.DebugContext(ctx, "Disable re-execution")
-	} else {
-		env = append(env, teleportToolsVersionEnv+"="+teleportToolsVersionEnvDisabledLocal)
-		slog.DebugContext(ctx, "Disable next local re-execution")
 	}
-	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
 
 	slog.DebugContext(ctx, "Re-execute updated version", "execute", path, "from", executablePath)
 	if runtime.GOOS == constants.WindowsOS {
