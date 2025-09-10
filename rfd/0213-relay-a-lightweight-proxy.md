@@ -5,6 +5,11 @@ state: draft
 
 # RFD 213 - Relay, a lightweight tier 2 proxy
 
+## Required Approvers
+
+* Engineering: @rosstimothy
+* Product: @klizhentas
+
 ## What
 
 A new cluster component, called Relay, that acts as a lightweight proxy, receiving reverse tunnel connections from agents and client connections, and routing connections from clients to resources without the need for the connection to go back and forth through the broader control plane.
