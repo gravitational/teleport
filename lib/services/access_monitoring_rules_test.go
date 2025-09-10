@@ -20,6 +20,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -124,6 +125,27 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			},
 			assertErr: require.NoError,
 		},
+		{
+			description: "valid time schedule",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.Spec.Schedules = []*accessmonitoringrulesv1.Schedule{
+					{
+						Name: "default",
+						Time: &accessmonitoringrulesv1.TimeSchedule{
+							Timezone: time.UTC.String(),
+							Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+								{
+									Weekday: time.Monday.String(),
+									Start:   "00:00",
+									End:     "23:59",
+								},
+							},
+						},
+					},
+				}
+			},
+			assertErr: require.NoError,
+		},
 	}
 
 	validAMR := &accessmonitoringrulesv1.AccessMonitoringRule{
@@ -146,6 +168,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
+			t.Parallel()
 			amr, ok := proto.Clone(validAMR).(*accessmonitoringrulesv1.AccessMonitoringRule)
 			require.True(t, ok)
 
@@ -153,6 +176,208 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 				test.modifyAMR(amr)
 			}
 			test.assertErr(t, ValidateAccessMonitoringRule(amr))
+		})
+	}
+}
+
+func TestValidateSchedules(t *testing.T) {
+	tests := []struct {
+		description string
+		schedules   []*accessmonitoringrulesv1.Schedule
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			description: "valid schedules",
+			schedules: []*accessmonitoringrulesv1.Schedule{
+				{
+					Name: "default",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "multiple schedules",
+			schedules: []*accessmonitoringrulesv1.Schedule{
+				{
+					Name: "on-call-1",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Saturday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+				{
+					Name: "on-call-2",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Sunday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "conflicting schedule names",
+			schedules: []*accessmonitoringrulesv1.Schedule{
+				{
+					Name: "same-name",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Saturday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+				{
+					Name: "same-name",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Sunday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "spec.schedules contains schedules with the same nam")
+			},
+		},
+		{
+			description: "conflicting schedule names",
+			schedules: []*accessmonitoringrulesv1.Schedule{
+				{
+					Name: "same-name",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Saturday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+				{
+					Name: "same-name",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Sunday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "spec.schedules contains schedules with the same name")
+			},
+		},
+		{
+			description: "schedule time not specified",
+			schedules: []*accessmonitoringrulesv1.Schedule{
+				{
+					Name: "default",
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "time is required")
+			},
+		},
+		{
+			description: "does not contain any shifts",
+			schedules: []*accessmonitoringrulesv1.Schedule{
+				{
+					Name: "default",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "at least one shift is require")
+			},
+		},
+		{
+			description: "invalid timezone",
+			schedules: []*accessmonitoringrulesv1.Schedule{
+				{
+					Name: "default",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: "invalid",
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "timezone is invalid")
+			},
+		},
+		{
+			description: "start time is not before end time",
+			schedules: []*accessmonitoringrulesv1.Schedule{
+				{
+					Name: "default",
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "23:59",
+								End:     "00:00",
+							},
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "start time must be before end time")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			t.Parallel()
+			test.assertErr(t, validateSchedules(test.schedules))
 		})
 	}
 }
