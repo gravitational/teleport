@@ -79,8 +79,8 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			uls, err := authServer.GetUserLoginState(ctx, oktaUserEmail)
-			assert.NoError(t, err)
-			assert.Contains(t, uls.GetRoles(), teleport.SystemOktaRequesterRoleName)
+			require.NoError(t, err)
+			require.Contains(t, uls.GetRoles(), teleport.SystemOktaRequesterRoleName)
 		}, time.Second*2, time.Millisecond*50)
 	})
 

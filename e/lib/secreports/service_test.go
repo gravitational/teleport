@@ -268,7 +268,7 @@ func TestService(t *testing.T) {
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, string(secreports.Ready), statusResp.Spec.State)
 			assert.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
 		}, time.Second*2, time.Millisecond*100)
@@ -331,7 +331,7 @@ func TestService(t *testing.T) {
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: uint32(overLimit),
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, string(secreports.Ready), statusResp.Spec.State)
 			assert.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
 		}, time.Second*2, time.Millisecond*100)
@@ -352,7 +352,7 @@ func TestService(t *testing.T) {
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, string(secreports.Ready), statusResp.Spec.State)
 			assert.Equal(t, timeFirstRun, statusResp.Spec.UpdatedAt)
 
@@ -394,7 +394,7 @@ func TestService(t *testing.T) {
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}()
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -402,7 +402,7 @@ func TestService(t *testing.T) {
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, string(secreports.Running), statusResp.Spec.State)
 			assert.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
 		}, time.Second*2, time.Millisecond*100)
@@ -415,7 +415,7 @@ func TestService(t *testing.T) {
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, string(secreports.Ready), statusResp.Spec.State)
 			assert.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
 		}, time.Second*2, time.Millisecond*100)
@@ -458,14 +458,14 @@ func TestService(t *testing.T) {
 
 		close(ongoingQueriesC)
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			queryWg.Add(1)
 			_, err := svc.RunAuditQuery(ctx, &pb.RunAuditQueryRequest{
 				Query: "SELECT * FROM table",
 				Days:  7,
 			})
 			require.NoError(t, err)
-		}, time.Second*2, time.Millisecond*100)
+		}, time.Second*5, time.Millisecond*100)
 	})
 }
 

@@ -525,8 +525,8 @@ endif
 
 #
 # Checks that testing symbols and the testify library is not included in binaries.
-# 
-# 
+#
+#
 .PHONY: lint-test-symbols
 lint-test-symbols: ensure-goda
 	@testing_count=`goda tree "reach(github.com/gravitational/teleport/e/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
@@ -563,7 +563,7 @@ test-go-all:
 #
 test-go:
 ifneq ("$(SUBJECT)", "")
-	gotestsum -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG)" $(ADDFLAGS)
+	GOEXPERIMENT=synctest gotestsum -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
 endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource

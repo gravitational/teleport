@@ -57,7 +57,7 @@ func assertResourcesByDesc[T resourceDesc](t assert.TestingT, want, got []T) {
 	})))
 }
 
-func mustRunTCTLAndGetResultAs(t *testing.T, tctl *tctlCommand, args []string, v any) {
+func mustRunTCTLAndGetResultAs(t require.TestingT, tctl *tctlCommand, args []string, v any) {
 	var output bytes.Buffer
 	tctl.run(t, args, withStdout(&output))
 	err := json.Unmarshal(output.Bytes(), v)
@@ -125,7 +125,7 @@ func withStdout(w io.Writer) cmdOption {
 		o.stdout = w
 	}
 }
-func (c *tctlCommand) run(t *testing.T, args []string, opts ...cmdOption) {
+func (c *tctlCommand) run(t require.TestingT, args []string, opts ...cmdOption) {
 	options := &cmdOptions{
 		stdout: os.Stdout,
 	}
@@ -142,9 +142,15 @@ auth_service:
   listen_addr: %s
 `, c.DataDir, c.Listener)
 
-	d := filepath.Join(t.TempDir(), "teleport.yaml")
-	err := os.WriteFile(d, []byte(yamlConfig), 0600)
+	tempDir, err := os.MkdirTemp("", "*")
 	require.NoError(t, err)
+	d := filepath.Join(tempDir, "teleport.yaml")
+	err = os.WriteFile(d, []byte(yamlConfig), 0600)
+	require.NoError(t, err)
+	defer func() {
+		err = os.RemoveAll(tempDir)
+		require.NoError(t, err)
+	}()
 
 	selfExe, err := os.Executable()
 	require.NoError(t, err)

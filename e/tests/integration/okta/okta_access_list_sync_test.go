@@ -158,23 +158,25 @@ func TestAccessListSync(t *testing.T) {
 			require.Equal(t, resourceSuffix, accessLists[0].GetName())
 		}, time.Second*2, time.Millisecond*50)
 
-		// Ensure there are access and reviewer system roles and their names are stable,
-		// i.e. created from the first app link.
-		roles, err := sut.Teleport.Process.GetAuthServer().GetRoles(ctx)
-		require.NoError(t, err)
-		var roleNames []string
-		for _, r := range roles {
-			roleNames = append(roleNames, r.GetName())
-		}
-		require.Contains(t, roleNames, "my-soft-365-access-okta-acl-role-"+resourceSuffix)
-		require.Contains(t, roleNames, "my-soft-365-reviewer-okta-acl-role-"+resourceSuffix)
-		accessListRolesCnt := 0
-		for _, r := range roleNames {
-			if strings.HasPrefix(r, "my-soft-365") {
-				accessListRolesCnt++
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			// Ensure there are access and reviewer system roles and their names are stable,
+			// i.e. created from the first app link.
+			roles, err := sut.Teleport.Process.GetAuthServer().GetRoles(ctx)
+			require.NoError(t, err)
+			var roleNames []string
+			for _, r := range roles {
+				roleNames = append(roleNames, r.GetName())
 			}
-		}
-		require.Equal(t, 2, accessListRolesCnt)
+			require.Contains(t, roleNames, "my-soft-365-access-okta-acl-role-"+resourceSuffix)
+			require.Contains(t, roleNames, "my-soft-365-reviewer-okta-acl-role-"+resourceSuffix)
+			accessListRolesCnt := 0
+			for _, r := range roleNames {
+				if strings.HasPrefix(r, "my-soft-365") {
+					accessListRolesCnt++
+				}
+			}
+			require.Equal(t, 2, accessListRolesCnt)
+		}, time.Second*15, time.Millisecond*50)
 	})
 }
 

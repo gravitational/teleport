@@ -203,7 +203,7 @@ func BenchmarkUserAssignmentCreator(b *testing.B) {
 }
 
 func assertResourceCount(t *testing.T, ctx context.Context, ap *testUACAccessPoint, want int) {
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		var count int
 		for _, err := range ap.uac.resourceCache.AppServers(ctx, services.UnifiedResourcesIterateParams{}) {
 			if !assert.NoError(t, err) {

@@ -62,7 +62,7 @@ func TestBasicAssignmentFlow(t *testing.T) {
 	waitForOktaFirstOktaAssignment(t, sut)
 	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaInfra.Users[0])
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		wantMembers := []*accesslist.AccessListMember{
 			{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: oktaInfra.Users[0].login()}}},
 			{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: oktaInfra.Users[1].login()}}},
