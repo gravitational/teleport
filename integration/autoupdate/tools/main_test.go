@@ -92,6 +92,12 @@ func TestMain(m *testing.M) {
 		log.Fatalf("failed to create temporary directory: %v", err)
 	}
 
+	for _, version := range testVersions {
+		if err := buildAndArchiveApps(ctx, tmp, version); err != nil {
+			log.Fatalf("failed to build testing app binary archive: %v", err)
+		}
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		filePath := filepath.Join(tmp, r.URL.Path)
 		switch {
@@ -104,11 +110,6 @@ func TestMain(m *testing.M) {
 	baseURL = server.URL
 	if err := os.Setenv(autoupdate.BaseURLEnvVar, server.URL); err != nil {
 		log.Fatalf("failed to set base URL environment variable: %v", err)
-	}
-	for _, version := range testVersions {
-		if err := buildAndArchiveApps(ctx, tmp, version, server.URL); err != nil {
-			log.Fatalf("failed to build testing app binary archive: %v", err)
-		}
 	}
 
 	// Run tests after binary is built.
@@ -157,7 +158,7 @@ func serve256File(w http.ResponseWriter, _ *http.Request, filePath string) {
 }
 
 // buildAndArchiveApps compiles the updater integration and pack it depends on platform is used.
-func buildAndArchiveApps(ctx context.Context, path string, version string, baseURL string) error {
+func buildAndArchiveApps(ctx context.Context, path string, version string) error {
 	versionPath := filepath.Join(path, version)
 	for _, app := range []string{"tsh", "tctl"} {
 		output := filepath.Join(versionPath, version, app)
@@ -184,9 +185,9 @@ func buildAndArchiveApps(ctx context.Context, path string, version string, baseU
 		return trace.Wrap(archive.CompressDirToPkgFile(ctx, versionPath, archivePath, "com.example.pkgtest"))
 	case constants.WindowsOS:
 		archivePath := filepath.Join(path, fmt.Sprintf("teleport-v%s-windows-amd64-bin.zip", version))
-		return trace.Wrap(archive.CompressDirToZipFile(ctx, versionPath, archivePath))
+		return trace.Wrap(archive.CompressDirToZipFile(ctx, versionPath, archivePath, archive.WithNoCompress()))
 	default:
 		archivePath := filepath.Join(path, fmt.Sprintf("teleport-v%s-linux-%s-bin.tar.gz", version, runtime.GOARCH))
-		return trace.Wrap(archive.CompressDirToTarGzFile(ctx, versionPath, archivePath))
+		return trace.Wrap(archive.CompressDirToTarGzFile(ctx, versionPath, archivePath, archive.WithNoCompress()))
 	}
 }
