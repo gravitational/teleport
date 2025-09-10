@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	azcloud "github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	azpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -21,13 +24,14 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/api/cloud"
-	intune "github.com/gravitational/teleport/e/lib/intune/api"
+	"github.com/gravitational/teleport/e/lib/intune"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -582,20 +586,30 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 			graphEndpoint = spec.GraphEndpoint
 		}
 
-		// Creating a client automatically verifies the credentials.
-		if _, err := intune.NewClient(ctx, intune.ClientConfig{
-			APIConfig: intune.Config{
-				AppCredentials: intune.AppCredentials{
-					Tenant:       tenant,
-					ClientID:     clientID,
-					ClientSecret: clientSecret,
+		// Create a client and verify credentials.
+		logger := s.logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentIntune))
+		tokenProvider, err := azidentity.NewClientSecretCredential(tenant, clientID, clientSecret,
+			&azidentity.ClientSecretCredentialOptions{
+				ClientOptions: azpolicy.ClientOptions{
+					Transport: s.httpClient,
+					Cloud: azcloud.Configuration{
+						ActiveDirectoryAuthorityHost: loginEndpoint,
+					},
 				},
-				LoginEndpoint: loginEndpoint,
-				GraphEndpoint: graphEndpoint,
-			},
-			Logger:     s.logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentIntune)),
-			HTTPClient: s.httpClient,
-		}); err != nil {
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		client, err := msgraph.NewClient(msgraph.Config{
+			TokenProvider: tokenProvider,
+			HTTPClient:    s.httpClient,
+			GraphEndpoint: graphEndpoint,
+			Logger:        logger,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := intune.VerifyCredentials(ctx, client); err != nil {
 			s.logger.WarnContext(ctx, "failed to verify Intune credentials", "error", err)
 			return trace.Wrap(err)
 		}

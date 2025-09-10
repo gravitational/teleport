@@ -12,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,17 +22,20 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/intune/api"
 	"github.com/gravitational/teleport/e/lib/mdm"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 // Config contains parameters needed by [Service].
 type Config struct {
-	APIConfig     api.Config
+	APIConfig     APIConfig
 	Logger        *slog.Logger
 	HTTPClient    *http.Client
 	StatusSink    common.StatusSink
@@ -44,6 +50,22 @@ type Config struct {
 	// syncPeriodFull is the FULL sync period. Negative disables FULL syncs.
 	// Defaults to [defaultSyncPeriodFull].
 	syncPeriodFull time.Duration
+}
+
+// APIConfig are parameters required by the Intune API itself.
+type APIConfig struct {
+	// AppCredentials are credentials used to authenticate with the API.
+	AppCredentials api.AppCredentials
+	// LoginEndpoint points to one of the national deployments of Microsoft Entra ID.
+	// Optional, defaults to "https://login.microsoftonline.com".
+	//
+	// https://learn.microsoft.com/en-us/graph/deployments
+	LoginEndpoint string
+	// GraphEndpoint points to one of the national deployments of Microsoft Graph.
+	// Optional, defaults to "https://graph.microsoft.com".
+	//
+	// https://learn.microsoft.com/en-us/graph/deployments
+	GraphEndpoint string
 }
 
 const (
@@ -80,6 +102,14 @@ func NewService(ctx context.Context, config Config) (*Service, error) {
 		return nil, trace.BadParameter("parameter StatusSink required")
 	case config.DevicesClient == nil:
 		return nil, trace.BadParameter("parameter DevicesClient required")
+	case config.HTTPClient == nil:
+		// Token provider blows up if it receives a nil Transport in [policy.ClientOptions].
+		httpClient, err := defaults.HTTPClient()
+		if err != nil {
+			return nil, trace.Wrap(err, "getting default HTTP client")
+		}
+		httpClient.Timeout = apidefaults.DefaultIOTimeout
+		config.HTTPClient = httpClient
 	}
 	config.Clock = cmp.Or(config.Clock, clockwork.NewRealClock())
 
@@ -98,21 +128,46 @@ func NewService(ctx context.Context, config Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Connect to the Intune API and verify credentials.
-	client, err := api.NewClient(ctx, api.ClientConfig{
-		APIConfig:  config.APIConfig,
-		Logger:     config.Logger,
-		HTTPClient: config.HTTPClient,
+	// Connect to the Graph API and verify credentials.
+	if err := config.APIConfig.AppCredentials.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := types.ValidateMSGraphEndpoints(config.APIConfig.LoginEndpoint, config.APIConfig.GraphEndpoint); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	creds := config.APIConfig.AppCredentials
+	tokenProvider, err := azidentity.NewClientSecretCredential(creds.Tenant, creds.ClientID, creds.ClientSecret,
+		&azidentity.ClientSecretCredentialOptions{
+			ClientOptions: policy.ClientOptions{
+				Transport: config.HTTPClient,
+				Cloud: cloud.Configuration{
+					ActiveDirectoryAuthorityHost: config.APIConfig.LoginEndpoint,
+				},
+			},
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	client, err := msgraph.NewClient(msgraph.Config{
+		TokenProvider: tokenProvider,
+		HTTPClient:    config.HTTPClient,
+		Clock:         config.Clock,
+		GraphEndpoint: config.APIConfig.GraphEndpoint,
+		Logger:        config.Logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := VerifyCredentials(ctx, client); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return &Service{
+	s := &Service{
 		cfg:       config,
-		intune:    client,
+		msgraph:   client,
 		scheduler: scheduler,
-	}, nil
+	}
+	return s, nil
 }
 
 type scheduleEntry struct {
@@ -126,7 +181,7 @@ type scheduleEntry struct {
 
 type Service struct {
 	cfg       Config
-	intune    *api.Client
+	msgraph   *msgraph.Client
 	scheduler *mdm.SyncScheduler[*scheduleEntry]
 }
 
@@ -225,25 +280,25 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 	// Read and convert inventory from Intune.
 	go func() {
 		defer close(devicesC)
-		req := &api.ListManagedDevicesRequest{}
+		var iterateOpts []msgraph.IterateOpt
 		if spec.mode == mdm.SyncModePartial {
-			req.LastSyncDateTime = spec.deviceLastSyncDateTime
+			iterateOpts = append(iterateOpts, msgraph.WithLastSyncDateTimeGt(spec.deviceLastSyncDateTime))
 		}
 
-		for {
-			page, err := s.getDevicesPage(ctx, req)
+		err := s.msgraph.IterateManagedDevicePages(ctx, func(mds []*msgraph.ManagedDevice) bool {
+			page, err := s.processDevicesPage(ctx, mds)
 			if err != nil {
 				select {
 				case <-ctx.Done():
 				case devicesC <- devicesResp{err: trace.Wrap(err)}:
 				}
-				return
+				return false
 			}
 
 			if len(page.teleportDevices) > 0 {
 				select {
 				case <-ctx.Done():
-					return
+					return false
 				case devicesC <- devicesResp{page: page}:
 				}
 			}
@@ -252,11 +307,13 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 				nextDeviceLastSyncDateTime = page.deviceLastSyncDateTime
 			}
 
-			if page.resp.NextLink == "" {
-				return
+			return true
+		}, iterateOpts...)
+		if err != nil {
+			select {
+			case <-ctx.Done():
+			case devicesC <- devicesResp{err: trace.Wrap(err)}:
 			}
-
-			req.NextLink = page.resp.NextLink
 		}
 	}()
 
@@ -350,7 +407,7 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 }
 
 type devicesPage struct {
-	resp *api.ListManagedDevicesResponse
+	intuneDevices []*msgraph.ManagedDevice
 	// teleportDevices is a filtered version of resp.ManagedDevices. It does not contain any device
 	// which DeviceRegistrationState is different than "registered" and any device that could not be
 	// converted to [devicepb.Device].
@@ -363,16 +420,17 @@ type devicesPage struct {
 	deviceLastSyncDateTime time.Time
 }
 
-func (s *Service) getDevicesPage(ctx context.Context, req *api.ListManagedDevicesRequest) (*devicesPage, error) {
-	resp, err := s.intune.ListManagedDevices(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err, "Intune read failed")
-	}
+const (
+	// deviceRegistrationStateRegistered is DeviceRegistrationState value of [msgraph.ManagedDevice]
+	// set after the device is fully enrolled into Intune.
+	deviceRegistrationStateRegistered = "registered"
+)
 
+func (s *Service) processDevicesPage(ctx context.Context, intuneDevices []*msgraph.ManagedDevice) (*devicesPage, error) {
 	var highLastSyncDateTime time.Time
 	teleportToIntuneIdx := make(map[int]int)
-	devices := make([]*devicepb.Device, 0, len(resp.ManagedDevices))
-	for intuneIdx, intuneDevice := range resp.ManagedDevices {
+	devices := make([]*devicepb.Device, 0, len(intuneDevices))
+	for intuneIdx, intuneDevice := range intuneDevices {
 		if intuneDevice == nil {
 			s.cfg.Logger.DebugContext(ctx, "Skipping nil device")
 			continue
@@ -382,7 +440,7 @@ func (s *Service) getDevicesPage(ctx context.Context, req *api.ListManagedDevice
 		// once per device.
 		logGroup := slog.Group("intune_device", "id", intuneDevice.ID, "serial_number", intuneDevice.SerialNumber)
 
-		if intuneDevice.DeviceRegistrationState != api.DeviceRegistrationStateRegistered {
+		if intuneDevice.DeviceRegistrationState != deviceRegistrationStateRegistered {
 			s.cfg.Logger.DebugContext(ctx, "Skipping Intune device because it is not registered yet",
 				logGroup, slog.String("device_registration_state", intuneDevice.DeviceRegistrationState),
 			)
@@ -424,7 +482,7 @@ func (s *Service) getDevicesPage(ctx context.Context, req *api.ListManagedDevice
 	}
 
 	return &devicesPage{
-		resp:                   resp,
+		intuneDevices:          intuneDevices,
 		teleportDevices:        devices,
 		teleportToIntuneIdx:    teleportToIntuneIdx,
 		deviceLastSyncDateTime: highLastSyncDateTime,
@@ -462,16 +520,16 @@ func (s *Service) confirmMissingDevices(ctx context.Context, missingDevices []*d
 		}
 
 		group.Go(func() error {
-			apiError := &api.Error{}
+			graphError := &msgraph.GraphError{}
 			// Note: this gets a device by ID, but during syncs we skip devices where device registration
 			// state is different than "registered". This means we might keep around devices which
 			// deviceRegistrationState in Intune has changed since they were initially added to Teleport,
 			// e.g., because they were reset in Intune and are yet to be assigned to a new user. This
 			// seems OK for the moment, as devices can be removed by other means (such as `tctl devices
 			// rm`), but it is a point of attention.
-			intuneDevice, err := s.intune.GetManagedDevice(groupCtx, id)
+			intuneDevice, err := s.msgraph.GetManagedDevice(groupCtx, id)
 			switch {
-			case errors.As(err, &apiError) && apiError.StatusCode == http.StatusNotFound:
+			case errors.As(err, &graphError) && graphError.StatusCode == http.StatusNotFound:
 				s.cfg.Logger.DebugContext(ctx, "Device not found in Intune, marking for removal", "device", missingDevice)
 				markForRemoval(missingDevice)
 
@@ -516,8 +574,8 @@ func (s *Service) logSyncResult(ctx context.Context, result *devicepb.SyncInvent
 			var operatingSystem, serialNumber, intuneID string
 			if page != nil {
 				syncType = "upsert"
-				if intuneIdx, found := page.teleportToIntuneIdx[teleportIdx]; found && intuneIdx < len(page.resp.ManagedDevices) {
-					intuneDevice := page.resp.ManagedDevices[intuneIdx]
+				if intuneIdx, found := page.teleportToIntuneIdx[teleportIdx]; found && intuneIdx < len(page.intuneDevices) {
+					intuneDevice := page.intuneDevices[intuneIdx]
 					intuneID = intuneDevice.ID
 					operatingSystem = intuneDevice.OperatingSystem
 					serialNumber = intuneDevice.SerialNumber
@@ -546,4 +604,21 @@ func (s *Service) logSyncResult(ctx context.Context, result *devicepb.SyncInvent
 		"deletes", deletes,
 		"failures", failures,
 	)
+}
+
+// VerifyCredentials checks if the given credentials can be used to authenticate to the Graph API
+// and if they're authorized to list managed devices.
+func VerifyCredentials(ctx context.Context, client *msgraph.Client) error {
+	err := client.VerifyCredentials(ctx, func(ctx context.Context, client *msgraph.Client) error {
+		return client.IterateManagedDevicePages(ctx, func(_ []*msgraph.ManagedDevice) bool {
+			return false
+		}, msgraph.WithTop(1))
+	})
+
+	if errors.Is(err, msgraph.ErrClientUnauthorized) {
+		return trace.Wrap(err,
+			"does the application have the DeviceManagementManagedDevices.Read.All permission "+
+				"and has it been granted by an administrator?")
+	}
+	return trace.Wrap(err)
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/httputil"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/e/lib/intune/api"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 // API holds the implementation details of an HTTP handler for the fake Intune API.
@@ -27,7 +29,7 @@ type API struct {
 	mu                    sync.Mutex
 	apps                  []*api.AppCredentials
 	unauthorizedClientIDs []string
-	managedDevices        []*api.ManagedDevice
+	managedDevices        []*msgraph.ManagedDevice
 	issuedTokens          map[string]*accessToken // key is [accessToken.token]
 	simulatePagingGaps    bool
 }
@@ -43,7 +45,7 @@ func New(config Config) *API {
 	return &API{
 		config:         config,
 		issuedTokens:   make(map[string]*accessToken),
-		managedDevices: []*api.ManagedDevice{},
+		managedDevices: []*msgraph.ManagedDevice{},
 	}
 }
 
@@ -64,9 +66,9 @@ func (a *API) SetUnauthorizedClientIDs(clientIDs []string) {
 }
 
 // SetManagedDevices copies provided devices and sets it as the inventory in the fake API.
-func (a *API) SetManagedDevices(devices []*api.ManagedDevice) {
+func (a *API) SetManagedDevices(devices []*msgraph.ManagedDevice) {
 	a.mu.Lock()
-	a.managedDevices = make([]*api.ManagedDevice, 0, len(devices))
+	a.managedDevices = make([]*msgraph.ManagedDevice, 0, len(devices))
 	for _, d := range devices {
 		if d == nil {
 			a.managedDevices = append(a.managedDevices, nil)
@@ -116,6 +118,13 @@ type rootHandler struct {
 // hosts that handle auth requests and regular API requests, but this fake handler processes both
 // types of requests.
 func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	dump, err := httputil.DumpRequest(req, true /* body, for token requests */)
+	if err != nil {
+		a.config.Logger.DebugContext(req.Context(), "Could not dump request", "error", err)
+	} else {
+		a.config.Logger.DebugContext(req.Context(), "Incoming request", "req", dump)
+	}
+
 	// Handle access token endpoint.
 	//
 	// In the actual Intune API, token requests are sent to login.microsoftonline.com and API requests
@@ -124,6 +133,37 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	//
 	// https://learn.microsoft.com/en-us/graph/auth-v2-service?tabs=http#token-request
 	const oauthTokenSuffix = "/oauth2/v2.0/token"
+	const openIDconfigSuffix = "/v2.0/.well-known/openid-configuration"
+	const oauthAuthorizeSuffix = "/oauth2/v2.0/authorize"
+
+	// This is the endpoint azidentity.ClientSecretCredential sends a request to if
+	// DisableInstanceDiscovery is false (which is the default). The response is based on the response
+	// from an actual endpoint that the Azure SDK sends a request to.
+	// https://login.microsoftonline.com/common/discovery/instance?api-version=1.1&authorization_endpoint=https%3A%2F%2Flogin.microsoftonline.com%2Fexample.onmicrosoft.com%2Foauth2%2Fv2.0%2Fauthorize
+	if strings.HasSuffix(req.URL.Path, "/common/discovery/instance") {
+		authorizationEndpoint := req.URL.Query().Get("authorization_endpoint")
+		tenantBaseURL := strings.TrimSuffix(authorizationEndpoint, oauthAuthorizeSuffix)
+		a.replyJSON(w, 200, map[string]string{
+			// This seems to be the only field needed by the SDK to proceed.
+			"tenant_discovery_endpoint": tenantBaseURL + openIDconfigSuffix,
+		})
+		return
+	}
+
+	if tenantRaw, isOpenIDConfigPath := strings.CutSuffix(req.URL.Path, openIDconfigSuffix); isOpenIDConfigPath {
+		tenant := strings.Trim(tenantRaw, "/")
+		tenantBaseURL := "https://" + req.Host + "/" + tenant
+		a.replyJSON(w, 200, map[string]string{
+			// Based on a response from an actual endpoint that the Azure SDK sends a request to.
+			// This is the minimal set of fields needed for the SDK to not complain about missing values.
+			// https://login.microsoftonline.com/example.onmicrosoft.com/v2.0/.well-known/openid-configuration
+			"token_endpoint":         tenantBaseURL + oauthTokenSuffix,
+			"authorization_endpoint": tenantBaseURL + oauthAuthorizeSuffix,
+			"issuer":                 tenantBaseURL + "/v2.0",
+		})
+		return
+	}
+
 	if tenantRaw, isOauthPath := strings.CutSuffix(req.URL.Path, oauthTokenSuffix); isOauthPath {
 		tenant := strings.Trim(tenantRaw, "/")
 		a.postAccessToken(w, req, tenant)
@@ -132,7 +172,7 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	_, ok := a.isAuthorized(req)
 	if !ok {
-		a.replyError(w, 401, api.GraphErrorResource{
+		a.replyError(w, 401, graphErrorResource{
 			Code:    "InvalidAuthenticationToken",
 			Message: "invalid authentication token",
 		})
@@ -157,7 +197,7 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if handler == nil {
-		a.replyError(w, 400, api.GraphErrorResource{
+		a.replyError(w, 400, graphErrorResource{
 			Code:    "BadRequest",
 			Message: fmt.Sprintf("Resource not found for %s %q", req.Method, req.URL.Path),
 		})
@@ -210,18 +250,8 @@ const (
 func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant string) {
 	const invalidRequest = "invalid_request"
 
-	// Require a specific Content-Type. This is a fake only check.
-	if ct := req.Header.Get("Content-Type"); ct != "application/x-www-form-urlencoded" {
-		a.replyJSON(w, 400, api.LoginErrorResponse{
-			Error:            invalidRequest,
-			ErrorDescription: "wrong content type",
-		})
-		return
-	}
-
-	// Parse form from body. This is a fake only check.
 	if err := req.ParseForm(); err != nil {
-		a.replyJSON(w, 400, api.LoginErrorResponse{
+		a.replyJSON(w, 400, loginErrorResponse{
 			Error:            invalidRequest,
 			ErrorDescription: "could not parse request body",
 		})
@@ -229,28 +259,20 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 	}
 
 	if grantType := req.PostForm.Get("grant_type"); grantType != "client_credentials" {
-		a.replyJSON(w, 400, api.LoginErrorResponse{
+		a.replyJSON(w, 400, loginErrorResponse{
 			Error:            "unsupported_grant_type",
 			ErrorDescription: "unsupported grant type",
 		})
 		return
 	}
 
-	if scope := req.PostForm.Get("scope"); scope != "https://graph.microsoft.com/.default" {
-		a.replyJSON(w, 400, api.LoginErrorResponse{
-			Error:            invalidRequest,
-			ErrorDescription: "missing or invalid scope",
-		})
-		return
-	}
-
 	tenants := a.getTenants()
 	if _, ok := tenants[tenant]; !ok {
-		a.replyJSON(w, 400, api.LoginErrorResponse{
+		a.replyJSON(w, 400, loginErrorResponse{
 			// https://login.microsoftonline.com/error?code=90002
 			Error:            invalidRequest,
 			ErrorDescription: "tenant not found",
-			ErrorCodes:       []int{api.DiagCodeTenantNotFound},
+			ErrorCodes:       []int{msgraph.DiagCodeTenantNotFound},
 		})
 		return
 	}
@@ -269,7 +291,7 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 				match = true
 				break
 			}
-			a.replyJSON(w, 401, api.LoginErrorResponse{
+			a.replyJSON(w, 401, loginErrorResponse{
 				// https://login.microsoftonline.com/error?code=7000215
 				Error:            "invalid_client",
 				ErrorDescription: "invalid client secret provided",
@@ -278,7 +300,7 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 		}
 	}
 	if !match {
-		a.replyJSON(w, 400, api.LoginErrorResponse{
+		a.replyJSON(w, 400, loginErrorResponse{
 			// https://login.microsoftonline.com/error?code=700016
 			Error:            "unauthorized_client",
 			ErrorDescription: "app not found",
@@ -287,9 +309,9 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 	}
 
 	if token := a.issueAuthTokenLocked(w, clientID); token != nil {
-		a.replyJSON(w, 200, api.AccessToken{
-			AccessToken: token.token,
-			ExpiresIn:   int(AccessTokenExpiryPeriod.Seconds()),
+		a.replyJSON(w, 200, map[string]any{
+			"access_token": token.token,
+			"expires_in":   int(AccessTokenExpiryPeriod.Seconds()),
 		})
 	}
 }
@@ -298,7 +320,7 @@ func (a *API) issueAuthTokenLocked(w http.ResponseWriter, clientID string) *acce
 	token, err := a.newAuthToken(clientID)
 	if err != nil {
 		// Error not observed in practice.
-		a.replyJSON(w, 500, api.LoginErrorResponse{
+		a.replyJSON(w, 500, loginErrorResponse{
 			Error:            "auth_token_error",
 			ErrorDescription: err.Error(),
 		})
@@ -327,8 +349,8 @@ func (a *API) newAuthToken(clientID string) (*accessToken, error) {
 	}, nil
 }
 
-func (a *API) replyError(w http.ResponseWriter, code int, error api.GraphErrorResource) {
-	a.replyJSON(w, code, api.GraphErrorResponse{Error: error})
+func (a *API) replyError(w http.ResponseWriter, code int, error graphErrorResource) {
+	a.replyJSON(w, code, graphErrorResponse{Error: error})
 }
 
 func (a *API) replyJSON(w http.ResponseWriter, code int, resp any) {
@@ -355,17 +377,17 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 		// In the fake API, this is the only supported filter.
 		rawLastSync, found := strings.CutPrefix(rawFilter, "lastSyncDateTime gt ")
 		if !found {
-			a.replyError(w, 400, api.GraphErrorResource{Code: "BadRequest", Message: "Invalid $filter clause: unrecognized property"})
+			a.replyError(w, 400, graphErrorResource{Code: "BadRequest", Message: "Invalid $filter clause: unrecognized property"})
 			return
 		}
 		lastSync, err := time.Parse(time.RFC3339, rawLastSync)
 		if err != nil {
-			a.replyError(w, 400, api.GraphErrorResource{
+			a.replyError(w, 400, graphErrorResource{
 				Code: "BadRequest", Message: fmt.Sprintf("Invalid $filter clause: invalid time %s", rawLastSync)})
 			return
 		}
 
-		devices = []*api.ManagedDevice{}
+		devices = []*msgraph.ManagedDevice{}
 		for _, device := range a.managedDevices {
 			if device.LastSyncDateTime.After(lastSync) {
 				devices = append(devices, device)
@@ -377,7 +399,7 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 	if rawTop := q.Get("$top"); rawTop != "" && len(devices) > 0 {
 		top, err := strconv.Atoi(rawTop)
 		if err != nil || top < 1 {
-			a.replyError(w, 400, api.GraphErrorResource{
+			a.replyError(w, 400, graphErrorResource{
 				Code: "BadRequest", Message: fmt.Sprintf("Invalid $top value %q", rawTop)})
 			return
 		}
@@ -386,7 +408,7 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 		lastDeviceID := q.Get("$skipToken")
 		skippedDevicesCount := 0
 		keepSkipping := lastDeviceID != ""
-		var devicePage []*api.ManagedDevice
+		var devicePage []*msgraph.ManagedDevice
 
 		for _, device := range devices {
 			// If $skipToken is present, keep skipping devices until one is found that matches $skipToken.
@@ -405,7 +427,7 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if keepSkipping {
-			a.replyError(w, 400, api.GraphErrorResource{
+			a.replyError(w, 400, graphErrorResource{
 				Code: "BadRequest", Message: "Could not find the device with the ID from $skipToken"})
 			return
 		}
@@ -428,9 +450,9 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 		devices = devices[1:]
 	}
 
-	a.replyJSON(w, 200, &api.ListManagedDevicesResponse{
-		ManagedDevices: devices,
-		NextLink:       nextLink,
+	a.replyJSON(w, 200, map[string]any{
+		"value":           devices,
+		"@odata.nextLink": nextLink,
 	})
 }
 
@@ -439,12 +461,12 @@ func (a *API) getManagedDevice(id string) http.HandlerFunc {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 
-		idx := slices.IndexFunc(a.managedDevices, func(md *api.ManagedDevice) bool {
+		idx := slices.IndexFunc(a.managedDevices, func(md *msgraph.ManagedDevice) bool {
 			return md.ID == id
 		})
 
 		if idx < 0 {
-			a.replyError(w, 404, api.GraphErrorResource{
+			a.replyError(w, 404, graphErrorResource{
 				Code:    "ResourceNotFound",
 				Message: "Resource not found",
 			})
@@ -454,4 +476,32 @@ func (a *API) getManagedDevice(id string) http.HandlerFunc {
 		device := a.managedDevices[idx]
 		a.replyJSON(w, 200, device)
 	}
+}
+
+// loginErrorResponse is the JSON shape returned by requests sent to LoginEndpoint of [Config].
+// https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes
+type loginErrorResponse struct {
+	// Error is the code string for the error, e.g. "invalid_client".
+	Error string `json:"error"`
+	// ErrorDescription is the detailed description of the error.
+	ErrorDescription string `json:"error_description"`
+	// ErrorCodes are codes returned by the security token service which map to specific reasons
+	// as to why a request have failed.
+	// https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes#aadsts-error-codes
+	ErrorCodes []int `json:"error_codes"`
+}
+
+// graphErrorResponse is the JSON shape returned by requests sent to GraphEndpoint of [Config].
+// https://learn.microsoft.com/en-us/graph/errors#json-representation
+type graphErrorResponse struct {
+	Error graphErrorResource `json:"error"`
+}
+
+// graphErrorResource is the nested error resource within [graphErrorResponse].
+// https://learn.microsoft.com/en-us/graph/errors#json-representation
+type graphErrorResource struct {
+	// Code is the code for the error, e.g. "UnknownError", "BadRequest".
+	Code string `json:"code"`
+	// Message is the detailed description of the error.
+	Message string `json:"message"`
 }

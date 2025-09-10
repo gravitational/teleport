@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/intune/api"
 	"github.com/gravitational/teleport/e/lib/intune/testenv"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 var devicesCmpOpts = []cmp.Option{
@@ -47,7 +48,7 @@ func TestRun_fullSync(t *testing.T) {
 	t1 := clock.Now()
 	clock.Advance(24 * time.Hour)
 
-	intuneDevices := []*api.ManagedDevice{
+	intuneDevices := []*msgraph.ManagedDevice{
 		// A complete device.
 		{
 			ID:                      "1",
@@ -166,7 +167,7 @@ func TestRun_partialSync(t *testing.T) {
 	t0 := clock.Now()
 	t1 := advanceNow()
 
-	intuneDevices := []*api.ManagedDevice{
+	intuneDevices := []*msgraph.ManagedDevice{
 		{
 			ID:                      "1",
 			LastSyncDateTime:        t0,
@@ -219,7 +220,7 @@ func TestRun_partialSync(t *testing.T) {
 	intuneDevices[0].OSVersion = "14.0.0 (22F83)"
 	intuneDevices[0].LastSyncDateTime = t2
 	intuneDevices[1].OSVersion = "14.0.0 (22F83)"
-	intuneDevices = append(intuneDevices, &api.ManagedDevice{
+	intuneDevices = append(intuneDevices, &msgraph.ManagedDevice{
 		ID:                      "3",
 		LastSyncDateTime:        t2,
 		DeviceRegistrationState: "registered",
@@ -266,7 +267,7 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	t0 := clock.Now()
 
 	// Create only a single device in Intune.
-	intuneDevices := []*api.ManagedDevice{
+	intuneDevices := []*msgraph.ManagedDevice{
 		{
 			ID:                      "1",
 			LastSyncDateTime:        t0,
@@ -298,7 +299,7 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	// version in Teleport shouldn't get updated. Add a new device.
 	t1 := advanceNow()
 	intuneDevices[0].OSVersion = "14.0.0 (22F83)"
-	intuneDevices = append(intuneDevices, &api.ManagedDevice{
+	intuneDevices = append(intuneDevices, &msgraph.ManagedDevice{
 		ID:                      "2",
 		LastSyncDateTime:        t1,
 		DeviceRegistrationState: "registered",
@@ -331,7 +332,7 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	// Update lastSyncDateTime of the og device and add another device.
 	t2 := advanceNow()
 	intuneDevices[0].LastSyncDateTime = t2
-	intuneDevices = append(intuneDevices, &api.ManagedDevice{
+	intuneDevices = append(intuneDevices, &msgraph.ManagedDevice{
 		ID:                      "3",
 		LastSyncDateTime:        t2,
 		DeviceRegistrationState: "registered",
@@ -373,7 +374,7 @@ func TestRun_deviceConfirmation(t *testing.T) {
 
 	t0 := clock.Now()
 
-	intuneDevices := []*api.ManagedDevice{
+	intuneDevices := []*msgraph.ManagedDevice{
 		{
 			ID:                      "1",
 			LastSyncDateTime:        t0,
@@ -494,7 +495,7 @@ func serviceFromEnv(t *testing.T, env *testenv.Env, syncPeriods syncPeriods) *Se
 		syncImmediately:   true,
 		syncPeriodPartial: syncPeriods.syncPeriodPartial,
 		syncPeriodFull:    syncPeriods.syncPeriodFull,
-		APIConfig:         api.Config{AppCredentials: *testenv.DefaultApps[0]},
+		APIConfig:         APIConfig{AppCredentials: *testenv.DefaultApps[0]},
 		DevicesClient:     env.DevicesClient,
 		HTTPClient:        env.HTTPClient,
 		StatusSink:        &integration.FakeStatusSink{},
@@ -514,4 +515,59 @@ func mustBulkCreateDevices(t *testing.T, devicesClient devicepb.DeviceTrustServi
 	for i, s := range resp.Devices {
 		require.Equal(t, codes.OK, codes.Code(s.GetStatus().GetCode()), "device #%v has non-OK status: %+v", i, s)
 	}
+}
+
+func TestAuthFailures(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	env := testenv.MustNew(t, &testenv.Config{
+		Clock:          clock,
+		DeviceTrustEnv: true,
+	})
+	statusSink := &integration.FakeStatusSink{}
+	serviceConfig := &Config{
+		Logger:        env.Logger,
+		HTTPClient:    env.HTTPClient,
+		Clock:         env.Clock,
+		DevicesClient: env.DevicesClient,
+		StatusSink:    statusSink,
+	}
+
+	t.Run("invalid tenant", func(t *testing.T) {
+		config := *serviceConfig
+		config.APIConfig = APIConfig{
+			AppCredentials: api.AppCredentials{Tenant: "foo", ClientID: "invalid", ClientSecret: "not a secret"},
+		}
+		_, err := NewService(t.Context(), config)
+		require.ErrorIs(t, err, msgraph.ErrTenantNotFound)
+	})
+
+	t.Run("invalid client ID", func(t *testing.T) {
+		config := *serviceConfig
+		config.APIConfig = APIConfig{
+			AppCredentials: api.AppCredentials{Tenant: testenv.DefaultApps[0].Tenant, ClientID: "invalid", ClientSecret: "not a secret"},
+		}
+		_, err := NewService(t.Context(), config)
+		require.ErrorIs(t, err, msgraph.ErrInvalidCredentials)
+	})
+
+	t.Run("invalid client secret", func(t *testing.T) {
+		config := *serviceConfig
+		config.APIConfig = APIConfig{
+			AppCredentials: api.AppCredentials{Tenant: testenv.DefaultApps[0].Tenant, ClientID: testenv.DefaultApps[0].ClientID, ClientSecret: "not a secret"},
+		}
+		_, err := NewService(t.Context(), config)
+		require.ErrorIs(t, err, msgraph.ErrInvalidCredentials)
+	})
+
+	t.Run("app lacking permissions", func(t *testing.T) {
+		env.API.SetUnauthorizedClientIDs([]string{testenv.DefaultApps[0].ClientID})
+		defer env.API.SetUnauthorizedClientIDs([]string{})
+
+		config := *serviceConfig
+		config.APIConfig = APIConfig{
+			AppCredentials: *testenv.DefaultApps[0],
+		}
+		_, err := NewService(t.Context(), config)
+		require.ErrorIs(t, err, msgraph.ErrClientUnauthorized)
+	})
 }

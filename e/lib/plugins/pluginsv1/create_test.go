@@ -17,8 +17,9 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	intunetestenv "github.com/gravitational/teleport/e/lib/intune/testenv"
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
-	"github.com/gravitational/teleport/e/lib/jamf/testenv"
+	jamftestenv "github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
@@ -404,7 +405,7 @@ func TestPluginCreateDelete(t *testing.T) {
 func TestService_CreatePlugin_jamf(t *testing.T) {
 	t.Parallel()
 
-	jamfEnv := testenv.NewUsingT(t, nil /* opts */)
+	jamfEnv := jamftestenv.NewUsingT(t, nil /* opts */)
 
 	const username = "llama"
 	const password = "secret"
@@ -536,5 +537,125 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 			})
 			assert.NoError(t, err, "DeletePlugin")
 		})
+	}
+}
+
+func TestService_CreatePlugin_intune(t *testing.T) {
+	t.Parallel()
+
+	env := intunetestenv.MustNew(t, &intunetestenv.Config{})
+
+	suite := createSuite(t)
+	suite.setRules([]types.Rule{
+		{Resources: []string{types.KindPlugin}, Verbs: services.RW()},
+	})
+	service := suite.svc
+	service.httpClient = env.HTTPClient
+	creds := intunetestenv.DefaultApps[0]
+
+	plugin := &types.PluginV1{
+		SubKind: types.PluginSubkindMDM,
+		Metadata: types.Metadata{
+			Name: types.PluginTypeIntune,
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Intune{
+				Intune: &types.PluginIntuneSettings{
+					Tenant: creds.Tenant,
+				},
+			},
+		},
+	}
+	oauthSecret := &types.PluginStaticCredentialsV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "intune-static-credentials",
+			},
+		},
+		Spec: &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+				OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+					ClientId:     creds.ClientID,
+					ClientSecret: creds.ClientSecret,
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		plugin       *types.PluginV1
+		staticCreds  *types.PluginStaticCredentialsV1
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:         "ok",
+			plugin:       plugin,
+			staticCreds:  oauthSecret,
+			errAssertion: require.NoError,
+		},
+		{
+			name: "bad tenant",
+			plugin: func() *types.PluginV1 {
+				cp := proto.Clone(plugin).(*types.PluginV1)
+				cp.Spec.GetIntune().Tenant = "badtenant"
+				return cp
+			}(),
+			staticCreds:  oauthSecret,
+			errAssertion: errorContains("tenant not found"),
+		},
+		{
+			name:   "bad credentials",
+			plugin: plugin,
+			staticCreds: func() *types.PluginStaticCredentialsV1 {
+				cp := proto.Clone(oauthSecret).(*types.PluginStaticCredentialsV1)
+				cp.Spec.GetOAuthClientSecret().ClientId = "badclient"
+				return cp
+			}(),
+			errAssertion: errorContains("invalid Graph API credentials"),
+		},
+		{
+			name: "bad login endpoint",
+			plugin: func() *types.PluginV1 {
+				cp := proto.Clone(plugin).(*types.PluginV1)
+				cp.Spec.GetIntune().LoginEndpoint = "https://example.com"
+				return cp
+			}(),
+			errAssertion: errorContains("expected login endpoint to be one of"),
+		},
+		{
+			name: "bad Graph endpoint",
+			plugin: func() *types.PluginV1 {
+				cp := proto.Clone(plugin).(*types.PluginV1)
+				cp.Spec.GetIntune().GraphEndpoint = "https://example.com"
+				return cp
+			}(),
+			errAssertion: errorContains("expected graph endpoint to be one of"),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.CreatePlugin(t.Context(), &pluginspb.CreatePluginRequest{
+				Plugin:            test.plugin,
+				StaticCredentials: test.staticCreds,
+			})
+			test.errAssertion(t, err)
+			if err != nil {
+				return
+			}
+
+			// Delete plugin after tests. Makes consecutive test cases simpler, but
+			// otherwise this isn't part of the test scenario.
+			_, err = service.DeletePlugin(t.Context(), &pluginspb.DeletePluginRequest{
+				Name: test.plugin.GetName(),
+			})
+			require.NoError(t, err, "DeletePlugin")
+		})
+	}
+}
+
+func errorContains(contains string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, _ ...any) {
+		require.ErrorContains(t, err, contains)
 	}
 }

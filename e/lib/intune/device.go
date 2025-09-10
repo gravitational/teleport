@@ -6,7 +6,7 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/e/lib/intune/api"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 // managedDeviceToDevice converts an Intune device to a Teleport device.
@@ -14,7 +14,7 @@ import (
 // If the Intune device has an unrecognized OS, managedDeviceToDevice returns a nil error and an
 // empty Device struct rather than an error. This lets the service avoid emitting a warning in such
 // a scenario, as customers might have hundreds of devices with OSes not supported by Device Trust.
-func managedDeviceToDevice(md *api.ManagedDevice) (*devicepb.Device, error) {
+func managedDeviceToDevice(md *msgraph.ManagedDevice) (*devicepb.Device, error) {
 	if md == nil {
 		// This is rather unexpected, but let's guard against it anyway.
 		return nil, trace.BadParameter("managed device is nil")

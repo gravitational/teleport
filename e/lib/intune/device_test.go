@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/e/lib/intune/api"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 func TestOperatingSystemToOSType(t *testing.T) {
@@ -113,13 +113,13 @@ func TestOSVersionToVersionAndBuild(t *testing.T) {
 func TestManagedDeviceToDevice(t *testing.T) {
 	tests := []struct {
 		name     string
-		md       *api.ManagedDevice
-		check    func(*testing.T, *api.ManagedDevice, *devicepb.Device)
+		md       *msgraph.ManagedDevice
+		check    func(*testing.T, *msgraph.ManagedDevice, *devicepb.Device)
 		errCheck func(*testing.T, error)
 	}{
 		{
 			name: "valid device",
-			md: &api.ManagedDevice{
+			md: &msgraph.ManagedDevice{
 				ID:                      "id-1234",
 				LastSyncDateTime:        time.Unix(1685468902, 0), // 2023-05-30T17:48:02+00:00
 				DeviceRegistrationState: "registered",
@@ -128,7 +128,7 @@ func TestManagedDeviceToDevice(t *testing.T) {
 				OperatingSystem:         "macOS",
 				OSVersion:               "15.5 (24F74)",
 			},
-			check: func(t *testing.T, md *api.ManagedDevice, d *devicepb.Device) {
+			check: func(t *testing.T, md *msgraph.ManagedDevice, d *devicepb.Device) {
 				assert.Equal(t, md.ID, d.Profile.ExternalId)
 				assert.Equal(t, devicepb.OSType_OS_TYPE_MACOS, d.OsType)
 				assert.Equal(t, md.SerialNumber, d.AssetTag)
@@ -146,17 +146,17 @@ func TestManagedDeviceToDevice(t *testing.T) {
 		},
 		{
 			name: "unspecified OS returns empty device",
-			md: &api.ManagedDevice{
+			md: &msgraph.ManagedDevice{
 				OperatingSystem: "foobar",
 				SerialNumber:    "1234",
 			},
-			check: func(t *testing.T, _ *api.ManagedDevice, d *devicepb.Device) {
+			check: func(t *testing.T, _ *msgraph.ManagedDevice, d *devicepb.Device) {
 				require.Equal(t, &devicepb.Device{}, d)
 			},
 		},
 		{
 			name: "no serial number",
-			md:   &api.ManagedDevice{},
+			md:   &msgraph.ManagedDevice{},
 			errCheck: func(t *testing.T, err error) {
 				require.ErrorContains(t, err, "no serial number")
 			},

@@ -14,6 +14,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/e/lib/intune/api"
@@ -21,7 +22,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest" //nolint:depguard // This is a test package.
-	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // DefaultApps are the app credentials added by default to the fake Intune API.
@@ -73,8 +73,7 @@ func MustNew(t *testing.T, config *Config) *Env {
 
 	level := slog.LevelError + 1 // Silence logging by default.
 	if testing.Verbose() {
-		// The API client logs requests only in trace level.
-		level = log.TraceLevel
+		level = slog.LevelDebug
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 
@@ -82,7 +81,7 @@ func MustNew(t *testing.T, config *Config) *Env {
 
 	api := intunefake.New(intunefake.Config{
 		Clock:  config.Clock,
-		Logger: logger,
+		Logger: logger.With(teleport.ComponentKey, "fakeintune"),
 	})
 	api.SetApps(DefaultApps)
 
@@ -137,22 +136,4 @@ func (e *Env) Close() error {
 		return e.deviceEnv.Close()
 	}
 	return nil
-}
-
-// MustNewClient returns a new Intune client that connects to the fake API served by [Env].
-func (e *Env) MustNewClient(t *testing.T) *api.Client {
-	client, err := api.NewClient(t.Context(), api.ClientConfig{
-		APIConfig: api.Config{
-			AppCredentials: api.AppCredentials{
-				ClientID:     DefaultApps[0].ClientID,
-				ClientSecret: DefaultApps[0].ClientSecret,
-				Tenant:       DefaultApps[0].Tenant,
-			},
-		},
-		Clock:      e.Clock,
-		Logger:     e.Logger,
-		HTTPClient: e.HTTPClient,
-	})
-	require.NoError(t, err)
-	return client
 }
