@@ -216,7 +216,8 @@ func TestCachingTokenValidator(t *testing.T) {
 			name:     "single validator",
 			audience: defaultAudience,
 			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				val := v.GetValidator(idp.issuer(), defaultAudience)
+				val, err := v.GetValidator(idp.issuer(), defaultAudience)
+				require.NoError(t, err)
 
 				token := idp.issueToken(t, defaultAudience, "a", time.Hour)
 				claims, err := val.ValidateToken(t.Context(), token)
@@ -239,8 +240,10 @@ func TestCachingTokenValidator(t *testing.T) {
 			name:     "multiple validators",
 			audience: defaultAudience,
 			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				v1 := v.GetValidator(idp.issuer(), "a.teleport.sh")
-				v2 := v.GetValidator(idp.issuer(), "b.teleport.sh")
+				v1, err := v.GetValidator(idp.issuer(), "a.teleport.sh")
+				require.NoError(t, err)
+				v2, err := v.GetValidator(idp.issuer(), "b.teleport.sh")
+				require.NoError(t, err)
 
 				token := idp.issueToken(t, "a.teleport.sh", "a", time.Hour)
 				claims, err := v1.ValidateToken(t.Context(), token)
@@ -272,11 +275,12 @@ func TestCachingTokenValidator(t *testing.T) {
 			name:     "expired config",
 			audience: defaultAudience,
 			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				val := v.GetValidator(idp.issuer(), defaultAudience)
+				val, err := v.GetValidator(idp.issuer(), defaultAudience)
+				require.NoError(t, err)
 				val.verifierFn = minimalValidator()
 
 				token := idp.issueToken(t, defaultAudience, "a", time.Hour)
-				_, err := val.ValidateToken(t.Context(), token)
+				_, err = val.ValidateToken(t.Context(), token)
 				require.NoError(t, err)
 
 				require.EqualValues(t, 1, idp.configRequests.Load())
@@ -295,7 +299,8 @@ func TestCachingTokenValidator(t *testing.T) {
 			name:     "stale config",
 			audience: defaultAudience,
 			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				val := v.GetValidator(idp.issuer(), defaultAudience)
+				val, err := v.GetValidator(idp.issuer(), defaultAudience)
+				require.NoError(t, err)
 				val.verifierFn = minimalValidator()
 				require.False(t, val.IsStale())
 
@@ -305,7 +310,7 @@ func TestCachingTokenValidator(t *testing.T) {
 				require.True(t, val.IsStale())
 
 				token := idp.issueToken(t, defaultAudience, "a", time.Hour)
-				_, err := val.ValidateToken(t.Context(), token)
+				_, err = val.ValidateToken(t.Context(), token)
 				require.NoError(t, err)
 
 				// This validation attempt should fetch both the config and JWKS
@@ -330,7 +335,8 @@ func TestCachingTokenValidator(t *testing.T) {
 			name:     "changed jwks uri",
 			audience: defaultAudience,
 			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				val := v.GetValidator(idp.issuer(), defaultAudience)
+				val, err := v.GetValidator(idp.issuer(), defaultAudience)
+				require.NoError(t, err)
 				val.verifierFn = minimalValidator()
 				require.False(t, val.IsStale())
 
@@ -338,7 +344,7 @@ func TestCachingTokenValidator(t *testing.T) {
 				require.True(t, val.IsStale())
 
 				token := idp.issueToken(t, defaultAudience, "a", time.Hour)
-				_, err := val.ValidateToken(t.Context(), token)
+				_, err = val.ValidateToken(t.Context(), token)
 				require.NoError(t, err)
 
 				// This validation attempt should fetch both the config and JWKS
@@ -363,28 +369,46 @@ func TestCachingTokenValidator(t *testing.T) {
 			name:     "validator recycling",
 			audience: defaultAudience,
 			execute: func(t *testing.T, idp *fakeIDP, v *CachingTokenValidator[*oidc.TokenClaims]) {
-				valOld := v.GetValidator(idp.issuer(), "a")
+				valOld, err := v.GetValidator(idp.issuer(), "a")
+				require.NoError(t, err)
 
 				// After just 1 hour, it should return the same pointer
 				idp.clock.Advance(time.Hour + time.Minute)
-				require.Same(t, valOld, v.GetValidator(idp.issuer(), "a"))
 
-				// But after 48 hours, it should be pruned and a new instance
+				valTemp, err := v.GetValidator(idp.issuer(), "a")
+				require.NoError(t, err)
+				require.Same(t, valOld, valTemp)
+
+				// After 48 hours, make the request again. It's now past its
+				// expiration, but is marked as fresh since it's the next
+				// GetValidator() call and pruning happens after.
+				idp.clock.Advance(validatorTTL + time.Minute)
+				valNew, err := v.GetValidator(idp.issuer(), "a")
+				require.NoError(t, err)
+				require.Same(t, valNew, valOld)
+
+				// Try again after 48 hours, but with an intermediate call to
+				// another validator. It should be pruned and a new instance
 				// should be returned.
 				idp.clock.Advance(validatorTTL + time.Minute)
-				valNew := v.GetValidator(idp.issuer(), "a")
+				_, err = v.GetValidator(idp.issuer(), "b")
+				require.NoError(t, err)
+
+				valNew, err = v.GetValidator(idp.issuer(), "a")
+				require.NoError(t, err)
 				require.NotSame(t, valNew, valOld)
 
 				// Next, fake making a request at the midpoint of this
 				// validator's lifecycle - this should mark it as "fresh" and
 				// extend the TTL.
 				idp.clock.Advance(validatorTTL / 2)
-				_, err := valNew.getKeySet(t.Context())
+				_, err = valNew.getKeySet(t.Context())
 				require.NoError(t, err)
 
 				// After the full TTL, it should not be pruned
 				idp.clock.Advance(validatorTTL/2 + time.Hour)
-				require.Same(t, valNew, v.GetValidator(idp.issuer(), "a"))
+				valTemp, err = v.GetValidator(idp.issuer(), "a")
+				require.Same(t, valNew, valTemp)
 			},
 		},
 	}

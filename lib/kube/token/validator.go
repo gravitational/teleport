@@ -382,7 +382,10 @@ func (v *KubernetesOIDCTokenValidator) ValidateToken(
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	validator := v.validator.GetValidator(issuerURL, clusterName)
+	validator, err := v.validator.GetValidator(issuerURL, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	claims, err := validator.ValidateToken(ctx, token)
 	if err != nil {
