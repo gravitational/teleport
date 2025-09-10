@@ -7014,7 +7014,7 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	joinServiceServer := legacyjoinservice.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
 
-	joinv1.RegisterProxyForwardingJoinServiceServer(server, conn.Client.GRPCConn())
+	joinv1.RegisterProxyForwardingJoinServiceServer(server, conn.Client.JoinV1Client())
 
 	accessGraphProxySvc, err := secretsscannerproxy.New(
 		secretsscannerproxy.ServiceConfig{

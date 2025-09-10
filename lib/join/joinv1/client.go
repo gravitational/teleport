@@ -34,10 +34,10 @@ type Client struct {
 	grpcClient joinv1.JoinServiceClient
 }
 
-// NewClient returns a new [Client] from a gRPC client connection.
-func NewClient(cc *grpc.ClientConn) *Client {
+// NewClient returns a new [Client] wrapping the plain gRPC client.
+func NewClient(grpcClient joinv1.JoinServiceClient) *Client {
 	return &Client{
-		grpcClient: joinv1.NewJoinServiceClient(cc),
+		grpcClient: grpcClient,
 	}
 }
 

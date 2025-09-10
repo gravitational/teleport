@@ -37,6 +37,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	joinv1proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -288,7 +289,7 @@ func newFakeProxy(auth *fakeAuthService) *fakeProxy {
 func (p *fakeProxy) join(t *testing.T) {
 	unauthenticatedAuthClt, err := p.auth.NewClient(authtest.TestNop())
 	require.NoError(t, err)
-	joinClient := joinv1.NewClient(unauthenticatedAuthClt.GRPCConn())
+	joinClient := joinv1.NewClient(unauthenticatedAuthClt.JoinV1Client())
 
 	stream, err := joinClient.Join(t.Context())
 	require.NoError(t, err)
@@ -328,7 +329,7 @@ func (p *fakeProxy) runGRPCServer(t *testing.T, l net.Listener) {
 	grpcServer := grpc.NewServer(
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
-	joinv1.RegisterProxyForwardingJoinServiceServer(grpcServer, authenticatedAuthClientConn)
+	joinv1.RegisterProxyForwardingJoinServiceServer(grpcServer, joinv1proto.NewJoinServiceClient(authenticatedAuthClientConn))
 
 	testutils.RunTestBackgroundTask(t.Context(), t, &testutils.TestBackgroundTask{
 		Name: "proxy gRPC server",
@@ -368,7 +369,7 @@ func (n *fakeNode) join(
 		return nil, trace.Wrap(err)
 	}
 	defer conn.Close()
-	joinClient := joinv1.NewClient(conn)
+	joinClient := joinv1.NewClient(joinv1proto.NewJoinServiceClient(conn))
 
 	stream, err := joinClient.Join(ctx)
 	if err != nil {

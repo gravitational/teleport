@@ -46,9 +46,9 @@ type forwardingServer struct {
 
 // RegisterProxyForwardingJoinServiceServer registers the Join gRPC service for
 // use on the Proxy, it will forward the client's IP address and Teleport version.
-func RegisterProxyForwardingJoinServiceServer(s grpc.ServiceRegistrar, cc *grpc.ClientConn) {
+func RegisterProxyForwardingJoinServiceServer(s grpc.ServiceRegistrar, grpcClient joinv1.JoinServiceClient) {
 	joinv1.RegisterJoinServiceServer(s, &forwardingServer{
-		grpcClient: joinv1.NewJoinServiceClient(cc),
+		grpcClient: grpcClient,
 	})
 }
 
