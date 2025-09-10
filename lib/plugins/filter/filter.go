@@ -72,7 +72,8 @@ type MatchParam[T any] struct {
 // Empty [filters] implies a default match.
 func Matches[T any](item T, filters Filters, param MatchParam[T]) bool {
 	if len(filters) == 0 {
-		return false
+		// Empty filter is considerd a wildcard match.
+		return true
 	}
 	hasInclude := false
 	for _, filter := range filters {

@@ -74,10 +74,10 @@ func TestMatches(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name:     "No Filters",
+			name:     "No Filters (matches all)",
 			items:    items,
 			filters:  Filters{},
-			expected: nil,
+			expected: items,
 		},
 		{
 			name:  "Multiple Filters",
