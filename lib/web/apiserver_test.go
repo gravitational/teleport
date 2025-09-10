@@ -8121,8 +8121,6 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 }
 
 type WebPackOptions struct {
-	// Number of proxies to set up (default: 1)
-	numProxies      int
 	proxyOptions    []proxyOption
 	enableAuthCache bool
 }
@@ -8135,30 +8133,14 @@ func withWebPackProxyOptions(opts ...proxyOption) webPackOptions {
 	}
 }
 
-func withWebPackNumProxies(numProxies int) webPackOptions {
-	return func(cfg *WebPackOptions) {
-		cfg.numProxies = numProxies
-	}
-}
-
 func withWebPackAuthCacheEnabled(enable bool) webPackOptions {
 	return func(cfg *WebPackOptions) {
 		cfg.enableAuthCache = enable
 	}
 }
 
-func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
-	return newWebPackWithOptions(
-		t,
-		withWebPackProxyOptions(opts...),
-		withWebPackNumProxies(numProxies),
-	)
-}
-
-func newWebPackWithOptions(t *testing.T, opts ...webPackOptions) *webPack {
-	options := &WebPackOptions{
-		numProxies: 1,
-	}
+func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
+	options := &WebPackOptions{}
 
 	for _, opt := range opts {
 		opt(options)
@@ -8284,7 +8266,7 @@ func newWebPackWithOptions(t *testing.T, opts ...webPackOptions) *webPack {
 	})
 
 	var proxies []*testProxy
-	for p := range options.numProxies {
+	for p := range numProxies {
 		proxyID := fmt.Sprintf("proxy%v", p)
 		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.proxyOptions...))
 	}
@@ -8293,11 +8275,11 @@ func newWebPackWithOptions(t *testing.T, opts ...webPackOptions) *webPack {
 	for start := time.Now(); ; {
 		proxies, err := proxies[0].client.GetProxies()
 		require.NoError(t, err)
-		if len(proxies) == options.numProxies {
+		if len(proxies) == numProxies {
 			break
 		}
 		if time.Since(start) > 5*time.Second {
-			t.Fatalf("Proxies didn't register within 5s after startup; registered: %d, want: %d", len(proxies), options.numProxies)
+			t.Fatalf("Proxies didn't register within 5s after startup; registered: %d, want: %d", len(proxies), numProxies)
 		}
 	}
 

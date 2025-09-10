@@ -170,7 +170,7 @@ func TestListWorkloadIdentitiesSorting(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
-	env := newWebPackWithOptions(t, withWebPackAuthCacheEnabled(true))
+	env := newWebPack(t, 1, withWebPackAuthCacheEnabled(true))
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
 	clusterName := env.server.ClusterName()
