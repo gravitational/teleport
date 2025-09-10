@@ -2972,6 +2972,75 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 	return a.authServer.GetAccessCapabilities(ctx, req)
 }
 
+// GetRemoteAccessCapabilities computes and returns what remote roles the user
+// needs to assume in order access resources in this cluster. In order to do so,
+// the method will:
+//   - maps the supplied remote search_as roles into local roles,
+//   - computes which subset of the local search_as roles are required to access
+//     the target resources, and finally
+//   - maps the required local roles *back* onto a subset of the supplied remote
+//     roles
+func (a *ServerWithRoles) GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	if !authz.IsRemoteUser(a.context) {
+		return nil, trace.AccessDenied("only remote users can invoke GetRemoteAccessCapabilities")
+	}
+
+	localIdentity := a.context.Identity.GetIdentity()
+	remoteIdentity := a.context.UnmappedIdentity.GetIdentity()
+
+	if req.User == "" {
+		req.User = remoteIdentity.Username
+	}
+	if req.User != remoteIdentity.Username {
+		return nil, trace.AccessDenied("users may only query their own access")
+	}
+
+	remoteCluster, err := a.authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: localIdentity.RouteToCluster,
+	}, false /* do not load keys */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	localSearchAsRoles, err := services.MapRoles(remoteCluster.GetRoleMap(), req.SearchAsRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(localSearchAsRoles) == 0 {
+		return &types.RemoteAccessCapabilities{ApplicableRolesForResources: []string{}}, nil
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Mapped search_as roles",
+		"remote_roles", req.SearchAsRoles,
+		"local_roles", localSearchAsRoles)
+
+	localAccessRoles, err := services.PruneMappedSearchAsRoles(ctx, a.authServer.clock, a.authServer, a.context.User, localSearchAsRoles, req.ResourceIDs, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Pruned search_as roles",
+		"remote_roles", req.SearchAsRoles,
+		"local_roles", localSearchAsRoles,
+		"local_access_roles", localAccessRoles)
+
+	remoteAccessRoles, err := services.UnmapRoles(remoteCluster.GetRoleMap(), req.SearchAsRoles, localAccessRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Mapped local access roles to remote access roles",
+		"local_access_roles", localAccessRoles,
+		"remote_access_roles", remoteAccessRoles)
+
+	caps := &types.RemoteAccessCapabilities{
+		ApplicableRolesForResources: remoteAccessRoles,
+	}
+	return caps, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {
