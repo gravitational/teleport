@@ -486,7 +486,14 @@ func (a *Server) GenerateHostCertsForJoin(
 	var systemRoles types.SystemRoles
 	if params.SystemRole == types.RoleInstance {
 		systemRolesSet := make(map[types.SystemRole]struct{})
-		for _, r := range slices.Concat(provisionToken.GetRoles(), params.AuthenticatedSystemRoles) {
+		for _, r := range provisionToken.GetRoles() {
+			if r.IsLocalService() {
+				systemRolesSet[r] = struct{}{}
+			} else {
+				a.logger.WarnContext(ctx, "Omitting non-service system role from instance cert", "system_role", string(r))
+			}
+		}
+		for _, r := range params.AuthenticatedSystemRoles {
 			if r.IsLocalService() {
 				systemRolesSet[r] = struct{}{}
 			} else {
