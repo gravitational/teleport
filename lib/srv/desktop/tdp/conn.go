@@ -212,18 +212,18 @@ type Interceptor func(message Message) (Message, error)
 type ReadWriteInterceptor struct {
 	// The underlying read/writer to intercept messages on
 	src MessageReadWriteCloser
+	// The interceptor to run in the readInterceptor path (allowed to be nil)
+	readInterceptor Interceptor
 	// The interceptor to run in the read path (allowed to be nil)
-	read Interceptor
-	// The interceptor to run in the read path (allowed to be nil)
-	write Interceptor
+	writeInterceptor Interceptor
 }
 
 // NewReadWriteInterceptor creates a new 'ReadWriteInterceptor' that intercepts messages on 'src'.
-func NewReadWriteInterceptor(src MessageReadWriteCloser, readIntercept, writeIntercept Interceptor) *ReadWriteInterceptor {
+func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeInterceptor Interceptor) *ReadWriteInterceptor {
 	return &ReadWriteInterceptor{
-		src:   src,
-		read:  readIntercept,
-		write: writeIntercept,
+		src:              src,
+		readInterceptor:  readInterceptor,
+		writeInterceptor: writeInterceptor,
 	}
 }
 
@@ -232,13 +232,13 @@ func NewReadWriteInterceptor(src MessageReadWriteCloser, readIntercept, writeInt
 // writer.
 func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
 	var err error
-	if i.write != nil {
-		m, err = i.write(m)
+	if i.writeInterceptor != nil {
+		m, err = i.writeInterceptor(m)
 		if err != nil {
 			return err
 		}
 	}
-	// The interceptor is allowed to return a nil message
+	// The interceptor is allowed to return a nil message.
 	if m != nil {
 		return i.src.WriteMessage(m)
 	}
@@ -253,8 +253,8 @@ func (i *ReadWriteInterceptor) ReadMessage() (Message, error) {
 	var err error
 	for m == nil && err == nil {
 		m, err = i.src.ReadMessage()
-		if err == nil && i.read != nil {
-			m, err = i.read(m)
+		if err == nil && i.readInterceptor != nil {
+			m, err = i.readInterceptor(m)
 		}
 	}
 	return m, err
@@ -281,7 +281,7 @@ func messageCopy(dst MessageWriter, src MessageReader) error {
 	if errors.Is(err, io.EOF) {
 		err = nil
 	}
-	return nil
+	return err
 }
 
 // ConnProxy handles bi-directional copying of messages from server <-> client.
