@@ -185,7 +185,8 @@ Notice that in the role spec above, the `app_labels` defines a `'teleport.dev/or
 label. This is the default resource label which Teleport assigns to the SAML service 
 provider resource created for the AWS IAM Identity Center. 
 
-Grant this role to the users who need access to the AWS console. 
+Grant this role to the users so they can log in to the AWS Console. Note that users
+still needs access to the AWS account and permission set, which is explained below. 
 
 ### Configure access to the AWS account and permission set
 
