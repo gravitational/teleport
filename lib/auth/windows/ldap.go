@@ -168,14 +168,11 @@ func extractReferrals(ldapErr *ldap.Error) []string {
 
 	out := make([]string, 0, len(referrals))
 	for _, referral := range referrals {
-		referralValue := referral.Value.(string)
-		//value is in form of ldaps://my.domain.example.com/DC=my,DC=domain,DC=example,DC=com
-		// we have to remove everything after the last /
-		last := strings.LastIndex(referralValue, "/")
-		if last >= 0 {
-			referralValue = referralValue[:last]
+		referralValue, ok := referral.Value.(string)
+		// we only support LDAPS connections
+		if ok && strings.HasPrefix(referralValue, "ldaps://") {
+			out = append(out, referralValue)
 		}
-		out = append(out, referralValue)
 	}
 
 	return out
@@ -244,7 +241,14 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 		referrals := extractReferrals(ldapErr)
 		for i := 0; i < len(referrals); i++ {
 			c.Logger.DebugContext(ctx, "Trying connection to referral", "referral", referrals[i])
-			if conn, err := c.connectionCreator(referrals[i]); err == nil {
+			slash := strings.LastIndexByte(referrals[i], '/')
+			if slash < len("ldaps://") {
+				c.Logger.DebugContext(ctx, "Referral format is invalid", "referral", referrals[i])
+				continue
+			}
+			addr := referrals[i][:slash]
+			if conn, err := c.connectionCreator(addr); err == nil {
+				req.BaseDN = referrals[i][slash+1:]
 				res, err := conn.SearchWithPaging(req, searchPageSize)
 				if err == nil {
 					return res.Entries, nil
@@ -339,8 +343,8 @@ func (c *LDAPClient) Update(dn string, replaceAttrs map[string][]string) error {
 }
 
 // CombineLDAPFilters joins the slice of filters using given operator (e.g. &,|)
-func CombineLDAPFilters(operator string, filters []string) string {
-	return "(" + operator + strings.Join(filters, "") + ")"
+func CombineLDAPFilters(filters []string) string {
+	return "(&" + strings.Join(filters, "") + ")"
 }
 
 func crlContainerDN(domain string, caType types.CertAuthType) string {

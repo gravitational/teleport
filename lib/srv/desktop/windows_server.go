@@ -1324,51 +1324,46 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	var activeDirectorySID string
 	var distinguishedName string
 	if !desktop.NonAD() {
-		domain := s.cfg.LDAPConfig.Domain
 		username := username
+		domain := s.cfg.LDAPConfig.Domain
 		if strings.Contains(username, "@") {
 			parts := strings.SplitN(username, "@", 2)
 			username = parts[0]
 			domain = parts[1]
 		}
 
-		// Find the user's SID
-		filter := windows.CombineLDAPFilters("&", []string{
-			fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
-			windows.CombineLDAPFilters("|", []string{
-				//sAMAAccountName is limited to 20 characters by AD
-				fmt.Sprintf("(%s=%s)", attrSAMAccountName, ldap.EscapeFilter(username)),
-				fmt.Sprintf("(%s=%s)", attrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain)),
-			}),
-		})
-		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
-
-		domainDN := windows.DomainDN(domain)
-		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
-		// if LDAP-based desktop discovery is not enabled, there may not be enough
-		// traffic to keep the connection open. Attempt to open a new LDAP connection
-		// in this case.
-		if trace.IsConnectionProblem(err) {
-			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
-		}
+		//Try to get SID with user principal name, use configured baseDN
+		filter := fmt.Sprintf("(%s=%s)", attrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
+		entries, err := s.queryLDAP(ctx, filter, username, windows.DomainDN(s.cfg.LDAPConfig.Domain))
 
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
-
-		} else {
-			if len(entries) == 0 {
-				return nil, nil, trace.NotFound("could not find Windows account %q", username)
-			} else if len(entries) > 1 {
-				s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
+		}
+		if len(entries) == 0 {
+			//No users found using UPN, assume the baseDN is the same as the UPN suffix and try again using sAMAccountName
+			if len(username) > 20 {
+				s.cfg.Logger.WarnContext(ctx, "username used for querying sAMAccountName is longer than 20 characters, results might be invalid", "username", username)
+				username = username[:20]
 			}
-			activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
+			filter := fmt.Sprintf("(%s=%s)", attrSAMAccountName, ldap.EscapeFilter(username))
+			entries, err = s.queryLDAP(ctx, filter, username, windows.DomainDN(domain))
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
-			distinguishedName = entries[0].DN
+			if len(entries) == 0 {
+				return nil, nil, trace.NotFound("could not find Windows account %q", username)
+			}
 		}
+		if len(entries) > 1 {
+			s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
+		}
+		activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
+		distinguishedName = entries[0].DN
+
 	}
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
@@ -1379,6 +1374,24 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		createUser:         createUsers,
 		groups:             groups,
 	})
+}
+
+func (s *WindowsService) queryLDAP(ctx context.Context, filter string, username string, domainDN string) ([]*ldap.Entry, error) {
+	filter = windows.CombineLDAPFilters([]string{
+		fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
+		filter,
+	})
+	s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter, "domain", domainDN)
+
+	entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+	// if LDAP-based desktop discovery is not enabled, there may not be enough
+	// traffic to keep the connection open. Attempt to open a new LDAP connection
+	// in this case.
+	if trace.IsConnectionProblem(err) {
+		s.initializeLDAP() // ignore error, this is a best effort attempt
+		entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+	}
+	return entries, err
 }
 
 // generateCredentialsRequest are the request parameters for generating a windows cert/key pair
