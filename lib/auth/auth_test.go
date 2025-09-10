@@ -4586,9 +4586,9 @@ func TestCleanupNotifications(t *testing.T) {
 		assert.Len(collectT, states, expectedStatesCount)
 	}
 
-	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Expect 8 user notifications, 4 global notifications, and 16 states.
-		verifyNotificationCounts(collectT, 8, 4, 16)
+		verifyNotificationCounts(t, 8, 4, 16)
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// Advance clock to make half of the notifications expire.
@@ -4596,9 +4596,9 @@ func TestCleanupNotifications(t *testing.T) {
 	// Run CleanupNotifications.
 	srv.Auth().CleanupNotifications(ctx)
 
-	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Half of each should have been deleted.
-		verifyNotificationCounts(collectT, 4, 2, 8)
+		verifyNotificationCounts(t, 4, 2, 8)
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// Advance clock to make the remaining notifications expire.
@@ -4606,9 +4606,9 @@ func TestCleanupNotifications(t *testing.T) {
 	// Run CleanupNotifications again.
 	srv.Auth().CleanupNotifications(ctx)
 
-	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// No notifications nor states should remain.
-		verifyNotificationCounts(collectT, 0, 0, 0)
+		verifyNotificationCounts(t, 0, 0, 0)
 	}, 3*time.Second, 100*time.Millisecond)
 }
 

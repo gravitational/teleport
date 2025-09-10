@@ -7632,8 +7632,8 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 			command:   []string{"echo", "hello", ">", "test.txt"},
 			assertRun: assert.NoError,
 			assertCommandEffect: func(t *testing.T, testFile string) bool {
-				return assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-					assert.FileExists(collect, testFile)
+				return assert.EventuallyWithT(t, func(t *assert.CollectT) {
+					assert.FileExists(t, testFile)
 				}, 3*time.Second, 100*time.Millisecond)
 			},
 		},

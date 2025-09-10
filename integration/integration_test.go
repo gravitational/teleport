@@ -1136,12 +1136,12 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 			}()
 
 			var sessionID string
-			require.EventuallyWithT(t, func(c *assert.CollectT) {
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				trackers, err := authSrv.GetActiveSessionTrackers(ctx)
-				if !assert.NoError(c, err) {
+				if !assert.NoError(t, err) {
 					return
 				}
-				if !assert.Len(c, trackers, 1) {
+				if !assert.Len(t, trackers, 1) {
 					return
 				}
 				sessionID = trackers[0].GetSessionID()
