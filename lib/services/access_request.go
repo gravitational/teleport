@@ -183,6 +183,7 @@ type DynamicAccess interface {
 // actors with limited privileges.
 type DynamicAccessOracle interface {
 	GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error)
+	GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error)
 }
 
 func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.AccessCapabilitiesRequest) (bool, error) {
@@ -254,6 +255,34 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	caps.AutoRequest = v.autoRequestOnLogin
 
 	return &caps, nil
+}
+
+// PruneMappedSearchAsRoles calculates the roles required to access the given
+// resources based on the supplied set of `search_as` roles.
+func PruneMappedSearchAsRoles(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, mappedUser UserState, mappedSearchAsRoles []string, resources []types.ResourceID, loginHint string) ([]string, error) {
+	clusterNameResource, err := getter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	localClusterName := clusterNameResource.GetClusterName()
+
+	hasRemoteResources := slices.ContainsFunc(resources,
+		func(rID types.ResourceID) bool { return rID.ClusterName != localClusterName })
+	if hasRemoteResources {
+		return nil, trace.BadParameter("request must only contain resources in local cluster")
+	}
+
+	rv, err := NewRequestValidatorForUser(ctx, clock, getter, mappedUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := rv.pruneResourceRequestRoles(ctx, resources, loginHint, mappedSearchAsRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return roles, nil
 }
 
 func (v *RequestValidator) calcRequireReasonCap(ctx context.Context, req types.AccessCapabilitiesRequest, caps types.AccessCapabilities) (requireReason bool, err error) {
@@ -1099,12 +1128,19 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		return RequestValidator{}, trace.Wrap(err)
 	}
 
-	m := RequestValidator{
-		logger:    slog.With(teleport.ComponentKey, "request.validator"),
-		clock:     clock,
-		getter:    getter,
-		userState: uls,
+	v, err := NewRequestValidatorForUser(ctx, clock, getter, uls, opts...)
+	if err != nil {
+		return RequestValidator{}, trace.Wrap(err)
+	}
+	return v, nil
+}
 
+func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, user UserState, opts ...ValidateRequestOption) (RequestValidator, error) {
+	m := RequestValidator{
+		logger:               slog.With(teleport.ComponentKey, "request.validator"),
+		clock:                clock,
+		getter:               getter,
+		userState:            user,
 		requiringReasonRoles: make(map[string]struct{}),
 	}
 	for _, opt := range opts {
