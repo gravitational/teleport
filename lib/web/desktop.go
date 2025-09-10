@@ -586,6 +586,9 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 	}
 
+	// Run joins and returns any read, write, or close errors from each side of the
+	// connection proxy. We can inspect this singular error chain for any "real"
+	// network errors (as opposed to errors that are expected from a normal teardown).
 	err = proxy.Run()
 	if utils.IsOKNetworkError(err) {
 		err = nil
