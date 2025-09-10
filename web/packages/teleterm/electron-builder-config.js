@@ -144,6 +144,8 @@ module.exports = {
       },
     ].filter(Boolean),
   },
+  // Copy the tray icon to resources.
+  extraResources: ['build_resources/icon-macTemplate@2x.png'],
   dmg: {
     artifactName: '${productName}-${version}-${arch}.${ext}',
     // Turn off blockmaps since we don't support automatic updates.
@@ -206,6 +208,8 @@ module.exports = {
         from: env.CONNECT_MSGFILE_DLL_PATH,
         to: './bin/msgfile.dll',
       },
+      // Copy the tray icon to resources.
+      'build_resources/icon-win.ico',
     ].filter(Boolean),
   },
   nsis: {
@@ -245,6 +249,8 @@ module.exports = {
         from: 'build_resources/linux/apparmor-profile',
         to: './apparmor-profile',
       },
+      // Copy the tray icon to resources.
+      'build_resources/icon-linux/tray.png',
     ].filter(Boolean),
   },
   directories: {

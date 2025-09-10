@@ -133,8 +133,21 @@ export class FramesRenderer extends TimelineCanvasRenderer {
       const calculatedWidth = Math.ceil(this.frameHeight * frameAspectRatio);
       const frameWidth = Math.min(calculatedWidth, this.maxFrameWidth);
 
-      const position =
+      let position =
         (frame.startOffset / this.duration) * this.timelineWidth + LEFT_PADDING;
+
+      const isLast = i === this.frames.length - 1;
+      if (isLast && i > 0) {
+        const lastFrameWithPosition =
+          framesWithPositions[framesWithPositions.length - 1];
+        // If the last frame has space to fit, shift it left so it's fully visible.
+        if (
+          lastFrameWithPosition.position + lastFrameWithPosition.width <
+          position
+        ) {
+          position = position - frameWidth + LEFT_PADDING / 2;
+        }
+      }
 
       framesWithPositions.push({
         ...frame,
@@ -150,14 +163,13 @@ export class FramesRenderer extends TimelineCanvasRenderer {
     for (const [index, frame] of framesWithPositions.entries()) {
       if (index === 0) {
         framesAtZoom.push(frame);
-
         continue;
       }
 
       const lastFrame = framesAtZoom[framesAtZoom.length - 1];
       const lastFrameEnd = lastFrame.position + lastFrame.width;
 
-      if (frame.isEnd || frame.position >= lastFrameEnd - 1) {
+      if (frame.position >= lastFrameEnd - 1) {
         framesAtZoom.push(frame);
       }
     }
@@ -268,30 +280,6 @@ export class FramesRenderer extends TimelineCanvasRenderer {
 
     for (let i = startIndex; i < this.framesAtCurrentZoom.length; i++) {
       const frame = this.framesAtCurrentZoom[i];
-
-      if (frame.isEnd) {
-        // check if the end frame is within the visible area + its width
-        if (frame.position < visibleEnd + frame.width) {
-          // check if there's a gap between the last visible frame and where the end frame would be pinned
-          // if so, pin the end frame to the right edge of the visible area
-          // this is because the position of the end frame would always position it off the end of the timeline
-          // as it starts at the end of the recording
-          const frameBefore = frames.find(
-            f => f.position + f.width > visibleEnd - frame.width
-          );
-
-          if (!frameBefore) {
-            frames.push({
-              ...frame,
-              position: visibleEnd - frame.width,
-            });
-          }
-
-          break;
-        }
-
-        break;
-      }
 
       if (frame.position > visibleEnd) {
         break;

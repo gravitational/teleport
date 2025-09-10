@@ -1,7 +1,7 @@
 ---
 title: Teleport Upcoming Releases
 description: A timeline of upcoming Teleport releases.
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -81,6 +81,17 @@ Teleport will support database access for GCP AlloyDB databases.
 Web UI session player will receive a massive design overhaul with ability to
 view AI generated session summary as well as enhanced timeline view and
 scrubbing capabilities.
+
+#### Improved Access Lists performance
+
+Teleport will be able to handle large numbers (on the order of 50K) of Access Lists 
+without significant impact to the cluster's operations or web UI performance.
+
+#### AWS IAM Roles Anywhere integration
+
+Teleport will integrate with AWS IAM Roles Anywhere which will provide agentless
+AWS Console and CLI access governance with full compatibility with external AWS
+tooling (e.g. terraform).
 
 ## Teleport Cloud
 

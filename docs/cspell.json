@@ -348,6 +348,7 @@
     "awsic",
     "awskms",
     "awsoidc",
+    "awsra",
     "awsuser",
     "azblob",
     "azidentity",
