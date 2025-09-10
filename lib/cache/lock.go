@@ -36,9 +36,12 @@ func newLockCollection(upstream services.Access, w types.WatchKind) (*collection
 	}
 
 	return &collection[types.Lock, lockIndex]{
-		store: newStore(map[lockIndex]func(types.Lock) string{
-			lockNameIndex: types.Lock.GetName,
-		}),
+		store: newStore(
+			types.KindLock,
+			types.Lock.Clone,
+			map[lockIndex]func(types.Lock) string{
+				lockNameIndex: types.Lock.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Lock, error) {
 			locks, err := upstream.GetLocks(ctx, false)
 			return locks, trace.Wrap(err)
@@ -71,7 +74,6 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 			lock, err := c.Config.Access.GetLock(ctx, name)
 			return lock, trace.Wrap(err)
 		},
-		clone: types.Lock.Clone,
 	}
 	out, err := getter.get(ctx, types.MetaNameAutoUpdateConfig)
 	if trace.IsNotFound(err) && !upstreamRead {
@@ -108,13 +110,13 @@ func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types
 		}
 		// If no targets specified, return all of the found/in-force locks.
 		if len(targets) == 0 {
-			locks = append(locks, lock)
+			locks = append(locks, lock.Clone())
 			continue
 		}
 		// Otherwise, use the targets as filters.
 		for _, target := range targets {
 			if target.Match(lock) {
-				locks = append(locks, lock)
+				locks = append(locks, lock.Clone())
 				break
 			}
 		}

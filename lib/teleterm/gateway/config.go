@@ -106,7 +106,7 @@ type OnExpiredCertFunc func(context.Context, Gateway) (tls.Certificate, error)
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
-	if !(c.TargetURI.IsDB() || c.TargetURI.IsKube() || c.TargetURI.IsApp()) {
+	if !c.TargetURI.IsDB() && !c.TargetURI.IsKube() && !c.TargetURI.IsApp() {
 		return trace.BadParameter("unsupported gateway target %v", c.TargetURI)
 	}
 

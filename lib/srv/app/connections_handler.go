@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -54,6 +53,7 @@ import (
 	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
+	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -113,6 +113,9 @@ type ConnectionsHandlerConfig struct {
 
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
+
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -175,6 +178,7 @@ type ConnectionsHandler struct {
 	httpServer *http.Server
 	tlsConfig  *tls.Config
 	tcpServer  *tcpServer
+	mcpServer  *mcp.Server
 
 	// cache holds sessionChunk objects for in-flight app sessions.
 	cache *utils.FnCache
@@ -192,7 +196,7 @@ type ConnectionsHandler struct {
 	gcpHandler   http.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
-	authMiddleware *auth.Middleware
+	authMiddleware *authz.Middleware
 
 	proxyPort string
 
@@ -272,6 +276,19 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 	c.tcpServer = tcpServer
+
+	// Handle MCP servers.
+	c.mcpServer, err = mcp.NewServer(mcp.ServerConfig{
+		Emitter:          c.cfg.Emitter,
+		ParentContext:    c.closeContext,
+		HostID:           c.cfg.HostID,
+		AccessPoint:      c.cfg.AccessPoint,
+		EnableDemoServer: c.cfg.MCPDemoServer,
+		CipherSuites:     c.cfg.CipherSuites,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
@@ -469,6 +486,12 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 		Issuer:      app.GetPublicAddr(),
 		ExternalID:  app.GetAWSExternalID(),
 		Integration: app.GetIntegration(),
+		RolesAnywhereMetadata: awsconfig.RolesAnywhereMetadata{
+			ProfileARN:                    app.GetAWSRolesAnywhereProfileARN(),
+			ProfileAcceptsRoleSessionName: app.GetAWSRolesAnywhereAcceptRoleSessionName(),
+			RoleARN:                       identity.RouteToApp.AWSRoleARN,
+			IdentityUsername:              identity.Username,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -539,10 +562,12 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 		app,
 		state,
 		matchers...); {
-	case errors.Is(err, services.ErrTrustedDeviceRequired):
-		// Let the trusted device error through for clarity.
-		return nil, nil, trace.Wrap(services.ErrTrustedDeviceRequired)
+	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
+		// When access is denied due to trusted device or session MFA requirements, these specific errors
+		// are returned directly to provide clarity to the client about the additional authentication steps needed.
+		return nil, nil, trace.Wrap(err)
 	case err != nil:
+		// Other access denial errors are wrapped and obfuscated to prevent leaking sensitive details.
 		c.log.WarnContext(c.closeContext, "Access denied to application.",
 			"app", app.GetName(),
 			"error", err,
@@ -579,14 +604,19 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
 	// 1. If the application is a TCP application, error out immediately as expected.
-	// 2. If the application is an HTTP application, store the error and let the HTTP handler
+	// 2. If the application is an MCP application, let the MCP server handler
+	//    returns the error on first request.
+	// 3. If the application is an HTTP application, store the error and let the HTTP handler
 	//    serve the error directly so that it's properly converted to an HTTP status code.
 	//    This will ensure users will get a 403 when authorization fails.
 	if err != nil {
-		if !app.IsTCP() {
-			c.setConnAuth(tlsConn, err)
-		} else {
+		switch {
+		case app.IsTCP():
 			return nil, trace.Wrap(err)
+		case app.IsMCP():
+			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, err))
+		default:
+			c.setConnAuth(tlsConn, err)
 		}
 	} else {
 		// Monitor the connection an update the context.
@@ -602,17 +632,28 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 
 	// Application access supports plain TCP connections which are handled
 	// differently than HTTP requests from web apps.
-	if app.IsTCP() {
+	switch {
+	case app.IsTCP():
 		identity := authCtx.Identity.GetIdentity()
 		defer cancel(nil)
 		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
-	}
 
-	cleanup := func() {
-		cancel(nil)
-		c.deleteConnAuth(tlsConn)
+	case app.IsMCP():
+		defer cancel(nil)
+		sessionCtx := mcp.SessionCtx{
+			ClientConn: tlsConn,
+			AuthCtx:    authCtx,
+			App:        app,
+		}
+		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
+
+	default:
+		cleanup := func() {
+			cancel(nil)
+			c.deleteConnAuth(tlsConn)
+		}
+		return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
 	}
-	return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
 }
 
 // handleHTTPApp handles connection for an HTTP application.
@@ -647,11 +688,11 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
 
-	c.authMiddleware = &auth.Middleware{
+	c.authMiddleware = &authz.Middleware{
 		ClusterName:   clusterName,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
+		Handler:       c,
 	}
-	c.authMiddleware.Wrap(c)
 
 	return &http.Server{
 		// Note: read/write timeouts *should not* be set here because it will
@@ -681,18 +722,21 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		c.log.WarnContext(c.closeContext, "Failed to serve request", "error", err)
 
-		// Covert trace error type to HTTP and write response, make sure we close the
+		// Convert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
 
 		var text string
-		if errors.Is(err, services.ErrTrustedDeviceRequired) {
-			// Return a nicer error message for device trust errors.
-			text = `Access to this app requires a trusted device.
+		switch {
+		case errors.Is(err, services.ErrTrustedDeviceRequired):
+			text = `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
 
 See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
 `
-		} else {
+		case errors.Is(err, services.ErrSessionMFARequired):
+			text = authclient.ErrNoMFADevices.Error()
+
+		default:
 			text = http.StatusText(code)
 		}
 
@@ -712,7 +756,7 @@ func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Con
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
 	}
 
-	user, err := c.authMiddleware.GetUser(tlsConn.ConnectionState())
+	user, err := c.authMiddleware.GetUser(ctx, tlsConn.ConnectionState())
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

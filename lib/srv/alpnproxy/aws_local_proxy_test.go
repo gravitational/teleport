@@ -19,6 +19,7 @@
 package alpnproxy
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/xml"
 	"net/http"
@@ -69,6 +70,33 @@ func TestAWSAccessMiddleware(t *testing.T) {
 	t.Run("request signed by local proxy credentials", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		require.False(t, m.HandleRequest(recorder, stsRequestByLocalProxyCred))
+		require.Equal(t, http.StatusOK, recorder.Code)
+	})
+
+	t.Run("request with body", func(t *testing.T) {
+		body := []byte("body")
+		req := httptest.NewRequest(http.MethodPost, "http://sts.us-east-2.amazonaws.com", bytes.NewReader(body))
+		payloadHash, err := awsutils.GetV4PayloadHash(req)
+		require.NoError(t, err)
+		awsutils.NewSigner("sts").SignHTTP(t.Context(), localCred, req, payloadHash, "sts", "us-east-2", time.Now())
+
+		recorder := httptest.NewRecorder()
+		require.False(t, m.HandleRequest(recorder, req))
+		require.Equal(t, http.StatusOK, recorder.Code)
+	})
+
+	t.Run("request with body but Content-Length not signed", func(t *testing.T) {
+		rawRequest := `POST http://sts.us-east-2.amazonaws.com HTTP/1.1
+Authorization: AWS4-HMAC-SHA256 Credential=local-proxy/20250723/us-east-2/sts/aws4_request, SignedHeaders=host;x-amz-date, Signature=ba02b2b46d9a90ddc85e1d5a8b64c92a4800fc9efc2faf2ea8ca146fd54a5185
+X-Amz-Date: 20250723T193337Z
+Content-Length: 4
+
+body`
+		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBufferString(rawRequest)))
+		require.NoError(t, err)
+
+		recorder := httptest.NewRecorder()
+		require.False(t, m.HandleRequest(recorder, req))
 		require.Equal(t, http.StatusOK, recorder.Code)
 	})
 

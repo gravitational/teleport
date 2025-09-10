@@ -43,31 +43,6 @@ export class ResourcesService {
 
   constructor(private tshClient: TshdClient) {}
 
-  // TODO(ravicious): Refactor it to use logic similar to that in the Web UI.
-  // https://github.com/gravitational/teleport/blob/2a2b08dbfdaf71706a5af3812d3a7ec843d099b4/lib/web/apiserver.go#L2471
-  async getServerByHostname(
-    clusterUri: uri.ClusterUri,
-    hostname: string
-  ): Promise<types.Server | undefined> {
-    const query = `name == "${hostname}"`;
-    const {
-      response: { agents: servers },
-    } = await this.tshClient.getServers(
-      makeGetResourcesParamsRequest({
-        clusterUri,
-        query,
-        limit: 2,
-        sort: null,
-      })
-    );
-
-    if (servers.length > 1) {
-      throw new AmbiguousHostnameError(hostname);
-    }
-
-    return servers[0];
-  }
-
   async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
     const { response } = await this.tshClient.listDatabaseUsers({ dbUri });
     return response.users;
@@ -197,13 +172,6 @@ export class ResourcesService {
   }
 }
 
-export class AmbiguousHostnameError extends Error {
-  constructor(hostname: string) {
-    super(`Ambiguous hostname "${hostname}"`);
-    this.name = 'AmbiguousHostname';
-  }
-}
-
 export class ResourceSearchError extends Error {
   constructor(
     public clusterUri: uri.ClusterUri,
@@ -281,19 +249,6 @@ export type SearchResultResource<Kind extends SearchResult['kind']> =
           : Kind extends 'windows_desktop'
             ? SearchResultWindowsDesktop['resource']
             : never;
-
-function makeGetResourcesParamsRequest(params: types.GetResourcesParams) {
-  return {
-    ...params,
-    search: params.search || '',
-    query: params.query || '',
-    searchAsRoles: params.searchAsRoles || '',
-    startKey: params.startKey || '',
-    sortBy: params.sort
-      ? `${params.sort.fieldName}:${params.sort.dir.toLowerCase()}`
-      : '',
-  };
-}
 
 export type UnifiedResourceResponse =
   | { kind: 'server'; resource: types.Server; requiresRequest: boolean }

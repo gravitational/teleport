@@ -101,7 +101,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 				"automatic_review": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"decision": {
-							Description: "decision specifies the proposed state of the access review. This can be either 'approved' or 'denied'.",
+							Description: "decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -111,7 +111,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "automatic_review defines automatic review configurations for access requests. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
+					Description: "automatic_review defines automatic review configurations for Access Requests. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
 				},
 				"condition": {
@@ -120,7 +120,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"desired_state": {
-					Description: "desired_state defines the desired state of the subject. For access request subjects, the desired_state may be set to `reviewed` to indicate that the access request should be automatically reviewed.",
+					Description: "desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},

@@ -90,7 +90,7 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 
 	// List Database Services
 	listDBServicesEndpoint := strings.Join([]string{"sites", "$site", "databaseservices"}, "/")
-	respStatusCode, respBody := webPack.DoRequest(t, http.MethodGet, listDBServicesEndpoint, nil)
+	respStatusCode, respBody := webPack.DoWebAPIRequest(t, http.MethodGet, listDBServicesEndpoint, nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	var listResp listDatabaseServicesResp

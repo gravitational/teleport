@@ -34,7 +34,7 @@ jobs:
     name: Test UI
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
       # See https://github.com/gravitational/teleport/blob/2aaa3ec9a129213db8a18083d5b4681f86328d34/web/packages/teleterm/src/agentCleanupDaemon/agentCleanupDaemon.test.ts#L82-L89
       # for the original impetus for adding --init.
       options: --init

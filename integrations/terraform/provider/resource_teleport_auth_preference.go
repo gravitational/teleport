@@ -86,7 +86,7 @@ func (r resourceTeleportAuthPreference) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 
-	err = r.p.Client.SetAuthPreference(ctx, authPreference)
+	_, err = r.p.Client.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
@@ -94,11 +94,27 @@ func (r resourceTeleportAuthPreference) Create(ctx context.Context, req tfsdk.Cr
 
 	var authPreferenceI apitypes.AuthPreference
 
+	// Try getting the resource until it exists and is different than the previous ones.
+	// There are two types of singleton resources:
+	// - the ones who can deleted and return a trace.NotFoundErr
+	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		authPreferenceI, err = r.p.Client.GetAuthPreference(ctx)
+		if trace.IsNotFound(err) {
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
+				return
+			}
+			if tries >= r.p.RetryConfig.MaxTries {
+				diagMessage := fmt.Sprintf("Error reading AuthPreference (tried %d times) - state outdated, please import resource", tries)
+				resp.Diagnostics.AddError(diagMessage, "cluster_auth_preference")
+				return
+			}
+			continue
+		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 			return
@@ -210,7 +226,7 @@ func (r resourceTeleportAuthPreference) Update(ctx context.Context, req tfsdk.Up
 		return
 	}
 
-	err = r.p.Client.SetAuthPreference(ctx, authPreference)
+	_, err = r.p.Client.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return

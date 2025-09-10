@@ -19,10 +19,15 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"iter"
+	"net"
 	"net/url"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -39,12 +44,16 @@ import (
 type AppGetter interface {
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
 
-// Apps defines an interface for managing application resources.
-type Apps interface {
+// Applications defines an interface for managing application resources.
+type Applications interface {
 	// AppGetter provides methods for fetching application resources.
 	AppGetter
 	// CreateApp creates a new application resource.
@@ -55,6 +64,43 @@ type Apps interface {
 	DeleteApp(ctx context.Context, name string) error
 	// DeleteAllApps removes all database resources.
 	DeleteAllApps(context.Context) error
+}
+
+// ValidateApp validates the Application resource.
+func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
+	// Prevent routing conflicts and session hijacking by ensuring the application's public address does not match the
+	// public address of any proxy. If an application shares a public address with a proxy, requests intended for the
+	// proxy could be misrouted to the application, compromising security.
+	if app.GetPublicAddr() != "" {
+		proxyServers, err := proxyGetter.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, proxyServer := range proxyServers {
+			proxyAddrs, err := utils.ParseAddrs(proxyServer.GetPublicAddrs())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if slices.ContainsFunc(
+				proxyAddrs,
+				func(proxyAddr utils.NetAddr) bool {
+					return app.GetPublicAddr() == proxyAddr.Host()
+				},
+			) {
+				return trace.BadParameter(
+					"Application %q public address %q conflicts with the Teleport Proxy public address. "+
+						"Configure the application to use a unique public address that does not match the proxy's public addresses. "+
+						"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.",
+					app.GetName(),
+					app.GetPublicAddr(),
+				)
+			}
+		}
+	}
+
+	return nil
 }
 
 // MarshalApp marshals Application resource to JSON.
@@ -183,9 +229,12 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 	}
 
 	app, err := types.NewAppV3(types.Metadata{
-		Name:        appName,
-		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
-		Labels:      labels,
+		Name: appName,
+		Description: cmp.Or(
+			getDescription(service.GetAnnotations()),
+			fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
+		),
+		Labels: labels,
 	}, types.AppSpecV3{
 		URI:                appURI,
 		Rewrite:            rewriteConfig,
@@ -213,7 +262,7 @@ func GetServiceFQDN(service corev1.Service) string {
 func buildAppURI(protocol, serviceFQDN, path string, port int32) string {
 	return (&url.URL{
 		Scheme: protocol,
-		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
+		Host:   net.JoinHostPort(serviceFQDN, strconv.Itoa(int(port))),
 		Path:   path,
 	}).String()
 }
@@ -233,6 +282,10 @@ func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) 
 	}
 
 	return &rw, nil
+}
+
+func getDescription(annotations map[string]string) string {
+	return annotations[types.DiscoveryDescription]
 }
 
 func getPublicAddr(annotations map[string]string) string {

@@ -176,7 +176,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 			ExternalID:  sessCtx.App.GetAWSExternalID(),
 			SessionName: sessCtx.Identity.Username,
 		}),
-		awsconfig.WithCredentialsMaybeIntegration(sessCtx.App.GetIntegration()),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: sessCtx.App.GetIntegration()}),
 	)
 	if err != nil {
 		return trace.Wrap(err)

@@ -62,7 +62,7 @@ const (
 // short-lived certificates.
 type SSOLoginConsoleReq struct {
 	RedirectURL string `json:"redirect_url"`
-	SSOUserPublicKeys
+	UserPublicKeys
 	CertTTL       time.Duration `json:"cert_ttl"`
 	ConnectorID   string        `json:"connector_id"`
 	Compatibility string        `json:"compatibility,omitempty"`
@@ -72,6 +72,10 @@ type SSOLoginConsoleReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	// PKCEVerifier is used to verify a generated code challenge.
+	PKCEVerifier string
+	// ClientVersion specifies version of the client that is sending SSO request.
+	ClientVersion string `json:"client_version,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
@@ -82,15 +86,21 @@ func (r *SSOLoginConsoleReq) CheckAndSetDefaults() error {
 	case r.ConnectorID == "":
 		return trace.BadParameter("missing ConnectorID")
 	}
-	if err := r.SSOUserPublicKeys.CheckAndSetDefaults(); err != nil {
+	if err := r.UserPublicKeys.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// SSOLoginConsoleResponse is a response to SSO console request
+// SSOLoginConsoleResponse is a response to SSO console request.
+// Only one of the RedirectURL or PostForm field will contain a value.
+// If the preferred_request_binding field in SAMLConnectorSpecV2
+// is configured with "http-post" value, PostForm field will be populated.
+// In any other case, RedirectURL field will be populated.
 type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
+	// PostForm is an auto submittable HTML form.
+	PostForm string `json:"post_form"`
 }
 
 // MFAChallengeRequest is a request from the client for a MFA challenge from the
@@ -110,7 +120,7 @@ type MFAChallengeResponse struct {
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
 	// SSOResponse is a response from an SSO MFA flow.
 	SSOResponse *SSOResponse `json:"sso_response"`
-	// TODO(Joerger): DELETE IN v19.0.0, WebauthnResponse used instead.
+	// TODO(Joerger): DELETE IN v20.0.0, WebauthnResponse used instead.
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
@@ -231,20 +241,12 @@ func (r *HeadlessLoginReq) CheckAndSetDefaults() error {
 	if r.HeadlessAuthenticationID == "" {
 		return trace.BadParameter("missing headless authentication id for headless login")
 	}
-
-	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
+	return nil
 }
 
 // UserPublicKeys holds user-submitted public keys and attestation statements
 // used in local login requests.
 type UserPublicKeys struct {
-	// PubKey is a public key the user wants as the subject of their SSH and TLS
-	// certificates. It must be in SSH authorized_keys format.
-	//
-	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
-	// TODO(nklaassen): DELETE IN 18.0.0 when all clients should be using
-	// separate keys.
-	PubKey []byte `json:"pub_key,omitempty"`
 	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
 	// certificate. It must be in SSH authorized_keys format.
 	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
@@ -252,12 +254,6 @@ type UserPublicKeys struct {
 	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
 	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 
-	// AttestationStatement is an attestation statement associated with the given public key.
-	//
-	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
-	// TODO(nklaassen): DELETE IN 18.0.0 when all clients should be using
-	// separate keys.
-	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
 	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
@@ -268,79 +264,8 @@ type UserPublicKeys struct {
 
 // CheckAndSetDefaults checks and sets default values.
 func (k *UserPublicKeys) CheckAndSetDefaults() error {
-	switch {
-	case len(k.PubKey) > 0 && len(k.SSHPubKey) > 0:
-		return trace.BadParameter("'pub_key' and 'ssh_pub_key' cannot both be set")
-	case len(k.PubKey) > 0 && len(k.TLSPubKey) > 0:
-		return trace.BadParameter("'pub_key' and 'tls_pub_key' cannot both be set")
-	case len(k.PubKey)+len(k.SSHPubKey)+len(k.TLSPubKey) == 0:
+	if len(k.SSHPubKey) == 0 && len(k.TLSPubKey) == 0 {
 		return trace.BadParameter("'ssh_pub_key' or 'tls_pub_key' must be set")
-	case k.AttestationStatement != nil && k.SSHAttestationStatement != nil:
-		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
-	case k.AttestationStatement != nil && k.TLSAttestationStatement != nil:
-		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
-	}
-	var err error
-	k.SSHPubKey, k.TLSPubKey, err = authclient.UserPublicKeys(k.PubKey, k.SSHPubKey, k.TLSPubKey)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	k.SSHAttestationStatement, k.TLSAttestationStatement = authclient.UserAttestationStatements(k.AttestationStatement, k.SSHAttestationStatement, k.TLSAttestationStatement)
-	k.PubKey = nil
-	k.AttestationStatement = nil
-	return nil
-}
-
-// SSOUserPublicKeys holds user-submitted public keys and attestation statements
-// used in SSO login requests. This is identical to UserPublicKeys except for
-// the JSON tag on PublicKey, which is deprecated.
-//
-// TODO(nklaassen): DELETE IN 18.0.0 and replace with UserPublicKeys.
-type SSOUserPublicKeys struct {
-	// PublicKey is a public key the user wants as the subject of their SSH and TLS
-	// certificates. It must be in SSH authorized_keys format.
-	//
-	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
-	PublicKey []byte `json:"public_key,omitempty"`
-	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
-	// certificate. It must be in SSH authorized_keys format.
-	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
-	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
-	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
-	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
-
-	// AttestationStatement is an attestation statement associated with the given public key.
-	//
-	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
-	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
-	// SSHAttestationStatement is an attestation statement associated with the
-	// given SSH public key.
-	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
-	// TLSAttestationStatement is an attestation statement associated with the
-	// given TLS public key.
-	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
-}
-
-// CheckAndSetDefaults checks and sets default values.
-func (k *SSOUserPublicKeys) CheckAndSetDefaults() error {
-	userPublicKeys := UserPublicKeys{
-		PubKey:                  k.PublicKey,
-		SSHPubKey:               k.SSHPubKey,
-		TLSPubKey:               k.TLSPubKey,
-		AttestationStatement:    k.AttestationStatement,
-		SSHAttestationStatement: k.SSHAttestationStatement,
-		TLSAttestationStatement: k.TLSAttestationStatement,
-	}
-	if err := userPublicKeys.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	*k = SSOUserPublicKeys{
-		PublicKey:               userPublicKeys.PubKey,
-		SSHPubKey:               userPublicKeys.SSHPubKey,
-		TLSPubKey:               userPublicKeys.TLSPubKey,
-		AttestationStatement:    userPublicKeys.AttestationStatement,
-		SSHAttestationStatement: userPublicKeys.SSHAttestationStatement,
-		TLSAttestationStatement: userPublicKeys.TLSAttestationStatement,
 	}
 	return nil
 }
@@ -651,11 +576,6 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "headless", "login"), req)
-	if trace.IsNotFound(err) {
-		// fallback to deprecated headless login endpoint
-		// TODO(Joerger): DELETE IN v18.0.0
-		re, err = clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), req)
-	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -899,20 +819,15 @@ type CreateWebSessionResponse struct {
 	// TokenExpiresIn sets seconds before this token is not valid
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
-	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	SessionExpires time.Time `json:"sessionExpires"`
 	// SessionInactiveTimeoutMS specifies how long in milliseconds
 	// a user WebUI session can be left idle before being logged out
 	// by the server. A zero value means there is no idle timeout set.
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
-// SSHAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
-func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
+// sshAgentLoginWebCreateSession takes an existing client and login details and attempts to create a web session using OTP token
+func sshAgentLoginWebCreateSession(ctx context.Context, clt *WebClient, login SSHLoginDirect) (types.WebSession, error) {
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(&CreateWebSessionReq{
@@ -932,10 +847,25 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 		return clt.HTTPClient().Do(req)
 	}))
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	session, err := GetSessionFromResponse(resp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
+// sshAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
+func sshAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	session, err := sshAgentLoginWebCreateSession(ctx, clt, login)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -943,10 +873,10 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 	return clt, session, nil
 }
 
-// SSHAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
+// sshAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
-func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
+func sshAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -960,23 +890,35 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 	challengeResp := AuthenticateWebUserRequest{
 		User: login.User,
 	}
+
+	var session types.WebSession
 	// Convert back from auth gRPC proto response.
 	switch r := mfaResp.Response.(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		// If TOTP is configured we have to fallback on direct login
+		session, err = sshAgentLoginWebCreateSession(ctx, clt, SSHLoginDirect{
+			User:     login.User,
+			Password: login.Password,
+			OTPToken: r.TOTP.Code,
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnAssertionResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
+		loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		session, err = GetSessionFromResponse(loginRespJSON)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	default:
-		// No challenge was sent, so we send back just username/password.
+		return nil, nil, trace.NotImplemented("unsupported MFA challenge for web session login (%T)", r)
 	}
 
-	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	session, err := GetSessionFromResponse(loginRespJSON)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 	return clt, session, nil
 }
 

@@ -1,7 +1,7 @@
 {
   "access": {
     "kind": "role",
-    "version": "v8",
+    "version": "v7",
     "metadata": {
       "name": "access",
       "description": "Access cluster resources",
@@ -145,14 +145,19 @@
               "{{internal.github_orgs}}"
             ]
           }
-        ]
+        ],
+        "mcp": {
+          "tools": [
+            "{{internal.mcp_tools}}"
+          ]
+        }
       },
       "deny": {}
     }
   },
   "auditor": {
     "kind": "role",
-    "version": "v8",
+    "version": "v7",
     "metadata": {
       "name": "auditor",
       "description": "Review cluster events and replay sessions",
@@ -276,7 +281,7 @@
   },
   "editor": {
     "kind": "role",
-    "version": "v8",
+    "version": "v7",
     "metadata": {
       "name": "editor",
       "description": "Edit cluster configuration",
@@ -1073,6 +1078,78 @@
           {
             "resources": [
               "health_check_config"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "sigstore_policy"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "workload_identity_x509_issuer_override"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "workload_identity_x509_issuer_override_csr"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "inference_model"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "inference_secret"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "inference_policy"
             ],
             "verbs": [
               "list",

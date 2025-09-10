@@ -42,13 +42,23 @@ export function RoleEditorDialog({
   resources,
   onSave,
   roleDiffProps,
+  forceProcessingStatus = false,
 }: {
   open: boolean;
   onClose(): void;
   resources: ResourcesState;
   onSave(role: Partial<RoleWithYaml>): Promise<void>;
+  /**
+   * Forces this dialog to remain in the processing state while
+   * whatever required processing outside of this dialog finishes.
+   *
+   * eg: Clicking on a role label triggers rendering this dialog
+   * and fetching the role resource at the same time. The fetching
+   * can still be in progress.
+   */
+  forceProcessingStatus?: boolean;
 } & RolesProps) {
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
   return (
     <CSSTransition
       in={open}
@@ -63,6 +73,7 @@ export function RoleEditorDialog({
         resources={resources}
         onSave={onSave}
         roleDiffProps={roleDiffProps}
+        forceProcessingStatus={forceProcessingStatus}
       />
     </CSSTransition>
   );
@@ -74,26 +85,39 @@ const DialogInternal = forwardRef<
     onClose(): void;
     resources: ResourcesState;
     onSave(role: Partial<RoleWithYaml>): Promise<void>;
+    forceProcessingStatus?: boolean;
   } & RolesProps
->(({ onClose, resources, onSave, roleDiffProps }, ref) => {
-  return (
-    <Dialog
-      modalCss={() => modalCss}
-      disableEscapeKeyDown={false}
-      open={true}
-      modalRef={ref}
-      BackdropProps={{ className: 'backdrop' }}
-      className="dialog"
-    >
-      <RoleEditorAdapter
-        resources={resources}
-        onSave={onSave}
-        onCancel={onClose}
-        roleDiffProps={roleDiffProps}
-      />
-    </Dialog>
-  );
-});
+>(
+  (
+    {
+      onClose,
+      resources,
+      onSave,
+      roleDiffProps,
+      forceProcessingStatus = false,
+    },
+    ref
+  ) => {
+    return (
+      <Dialog
+        modalCss={() => modalCss}
+        disableEscapeKeyDown={false}
+        open={true}
+        modalRef={ref}
+        BackdropProps={{ className: 'backdrop' }}
+        className="dialog"
+      >
+        <RoleEditorAdapter
+          resources={resources}
+          onSave={onSave}
+          onCancel={onClose}
+          roleDiffProps={roleDiffProps}
+          forceProcessingStatus={forceProcessingStatus}
+        />
+      </Dialog>
+    );
+  }
+);
 
 const modalCss = css`
   & .dialog {

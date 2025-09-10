@@ -106,7 +106,7 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	var hardwareKeyAgentServer *libhwk.Server
 	if cfg.HardwareKeyAgent {
-		hardwareKeyAgentServer, err = libhwk.NewAgentServer(ctx, hwks, libhwk.DefaultAgentDir())
+		hardwareKeyAgentServer, err = libhwk.NewAgentServer(ctx, hwks, libhwk.DefaultAgentDir(), storage.ClientStore.KnownHardwareKey)
 		if err != nil {
 			slog.WarnContext(ctx, "failed to create the hardware key agent server", "err", err)
 		} else {

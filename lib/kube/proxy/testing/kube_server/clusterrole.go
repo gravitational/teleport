@@ -39,9 +39,9 @@ var clusterRoleList = authv1.ClusterRoleList{
 		ResourceVersion: "1231415",
 	},
 	Items: []authv1.ClusterRole{
-		newClusterRole("nginx-1"),
-		newClusterRole("nginx-2"),
-		newClusterRole("test"),
+		newClusterRole("cr-nginx-1"),
+		newClusterRole("cr-nginx-2"),
+		newClusterRole("cr-test"),
 	},
 }
 

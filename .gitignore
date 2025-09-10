@@ -112,3 +112,9 @@ yarn.lock
 # mockServiceWorker.js is generated on each start of Storybook instead of being vendored into the
 # repo, see web/scripts/run-storybook.sh.
 web/.storybook/public/mockServiceWorker.js
+
+# Directory used to compile msgfile.dll, see lib/utils/log/eventlog/README.md
+msgfile/
+
+# Dockerized builds generate .pnpm-store in the root, so ignore it
+.pnpm-store

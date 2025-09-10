@@ -252,7 +252,7 @@ func (w *WriterEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audi
 // Teleport Cloud treats this as a no-op.
 func NewLoggingEmitter(cloud bool) *LoggingEmitter {
 	return &LoggingEmitter{
-		emit: !(modules.GetModules().Features().Cloud || cloud),
+		emit: !modules.GetModules().Features().Cloud && !cloud,
 	}
 }
 

@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -36,29 +38,15 @@ func newReverseTunnelCollection(upstream services.Presence, w types.WatchKind) (
 	}
 
 	return &collection[types.ReverseTunnel, reverseTunnelIndex]{
-		store: newStore(map[reverseTunnelIndex]func(types.ReverseTunnel) string{
-			reverseTunnelNameIndex: func(r types.ReverseTunnel) string {
-				return r.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindReverseTunnel,
+			types.ReverseTunnel.Clone,
+			map[reverseTunnelIndex]func(types.ReverseTunnel) string{
+				reverseTunnelNameIndex: types.ReverseTunnel.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ReverseTunnel, error) {
-			var out []types.ReverseTunnel
-			var nextToken string
-			for {
-				var page []types.ReverseTunnel
-				var err error
-
-				const defaultPageSize = 0
-				page, nextToken, err = upstream.ListReverseTunnels(ctx, defaultPageSize, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
-			}
-			return out, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListReverseTunnels))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.ReverseTunnel {
 			return &types.ReverseTunnelV2{
@@ -86,7 +74,6 @@ func (c *Cache) ListReverseTunnels(ctx context.Context, pageSize int, pageToken 
 		nextToken: func(t types.ReverseTunnel) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.ReverseTunnel.Clone,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)

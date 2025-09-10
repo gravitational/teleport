@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 )
@@ -124,11 +125,13 @@ func (g *TermManager) writeToClients(p []byte) {
 		// writeToClients is called with the lock held, so we need to release it
 		// before calling OnWriteError to avoid a deadlock if OnWriteError
 		// calls DeleteWriter/DeleteReader.
-		g.mu.Unlock()
-		for _, deleteWriter := range toDelete {
-			g.OnWriteError(deleteWriter.key, deleteWriter.err)
-		}
-		g.mu.Lock()
+		func() {
+			g.mu.Unlock()
+			defer g.mu.Lock()
+			for _, deleteWriter := range toDelete {
+				g.OnWriteError(deleteWriter.key, deleteWriter.err)
+			}
+		}()
 	}
 }
 
@@ -254,19 +257,15 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				return
 			}
 
-			for _, b := range buf[:n] {
-				// This is the ASCII control code for CTRL+C.
-				if b == 0x03 {
-					g.mu.Lock()
-					if g.state == dataFlowOff && !g.isClosed() {
-						select {
-						case g.terminateNotifier <- struct{}{}:
-						default:
-						}
+			if slices.Contains(buf[:n], 0x03) {
+				g.mu.Lock()
+				if g.state == dataFlowOff && !g.isClosed() {
+					select {
+					case g.terminateNotifier <- struct{}{}:
+					default:
 					}
-					g.mu.Unlock()
-					break
 				}
+				g.mu.Unlock()
 			}
 
 			g.mu.Lock()

@@ -47,12 +47,13 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 
 	os.Exit(m.Run())
 }
@@ -98,10 +99,16 @@ func (c *echoConn) Close() error {
 }
 
 // fakeDialer implements [Dialer] with a static map of
-// site and host to connections.
+// site, host and desktops to connections.
 type fakeDialer struct {
-	siteConns map[string]net.Conn
-	hostConns map[string]net.Conn
+	siteConns           map[string]net.Conn
+	hostConns           map[string]net.Conn
+	windowsDesktopConns map[windowsDesktopConnKey]net.Conn
+}
+
+type windowsDesktopConnKey struct {
+	clusterName string
+	desktopName string
 }
 
 func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
@@ -113,11 +120,24 @@ func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcA
 	return conn, nil
 }
 
-func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, err error) {
+func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
 		return nil, trace.NotFound("%s", key)
+	}
+
+	return conn, nil
+}
+
+func (f fakeDialer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error) {
+	key := windowsDesktopConnKey{
+		clusterName: cluster,
+		desktopName: desktopName,
+	}
+	conn, ok := f.windowsDesktopConns[key]
+	if !ok {
+		return nil, trace.NotFound("%+v", key)
 	}
 
 	return conn, nil
@@ -252,12 +272,11 @@ func TestService_GetClusterDetails(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			srv := newServer(t, ServerConfig{
 				Dialer:            fakeDialer{},
-				Logger:            utils.NewSlogLoggerForTests(),
+				Logger:            logtest.NewLogger(),
 				FIPS:              test.FIPS,
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
@@ -328,7 +347,6 @@ func TestService_ProxyCluster(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -340,7 +358,7 @@ func TestService_ProxyCluster(t *testing.T) {
 						cluster: conn,
 					},
 				},
-				Logger:            utils.NewSlogLoggerForTests(),
+				Logger:            logtest.NewLogger(),
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
@@ -492,7 +510,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				},
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				Logger:            utils.NewSlogLoggerForTests(),
+				Logger:            logtest.NewLogger(),
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
 					checker, err := test.checkerFn(info)
@@ -555,11 +573,11 @@ func TestService_ProxySSH(t *testing.T) {
 	srv := newServer(t, ServerConfig{
 		Dialer:            sshSrv,
 		SignerFn:          fakeSigner,
-		Logger:            utils.NewSlogLoggerForTests(),
+		Logger:            logtest.NewLogger(),
 		LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 		ConnectionMonitor: fakeMonitor{},
-		agentGetterFn: func(rw io.ReadWriter) teleagent.Getter {
-			return func() (teleagent.Agent, error) {
+		agentGetterFn: func(rw io.ReadWriter) sshagent.ClientGetter {
+			return func() (sshagent.Client, error) {
 				srw, ok := rw.(*streamutils.ReadWriter)
 				if !ok {
 					return nil, trace.BadParameter("rw must be a streamutils.ReadWriter")
@@ -662,6 +680,162 @@ func TestService_ProxySSH(t *testing.T) {
 	keys, err := agent.NewClient(agentRW).List()
 	require.NoError(t, err)
 	require.Len(t, keys, 2)
+}
+
+// TestService_ProxyWindowsDesktopSession tests:
+// * if the stream is terminated if various error conditions occur,
+// * if raw messages are proxied over the stream.
+func TestService_ProxyWindowsDesktopSession(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		checkerFn func(info credentials.AuthInfo) (services.AccessChecker, error)
+		fn        func(t *testing.T, stream transportv1pb.TransportService_ProxyWindowsDesktopSessionClient, conn *echoConn)
+	}{
+		{
+			name: "missing dial target terminates stream",
+			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
+				return fakeChecker{}, nil
+			},
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyWindowsDesktopSessionClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{}))
+
+				resp, err := stream.Recv()
+				require.True(t, trace.IsBadParameter(err))
+				require.Nil(t, resp)
+			},
+		},
+		{
+			name: "no access checker terminates stream",
+			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
+				return nil, trace.AccessDenied("no access checker")
+			},
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyWindowsDesktopSessionClient, conn *echoConn) {
+				err := stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{DialTarget: &transportv1pb.TargetWindowsDesktop{
+					DesktopName: "win_desktop",
+					Cluster:     "test",
+				}})
+				switch {
+				// The server will attempt to get the authz context prior to receiving the first
+				// message from the client which may terminate the stream and result in an EOF.
+				case errors.Is(err, io.EOF):
+					return
+				default:
+					require.NoError(t, err)
+				}
+
+				resp, err := stream.Recv()
+				require.Nil(t, resp)
+				switch {
+				// The server will attempt to get the authz context prior to receiving the first
+				// message from the client which may terminate the stream and result in an EOF.
+				case errors.Is(err, io.EOF):
+				// The client send may be completed prior to the server getting the authz context
+				// which will result in the client actually receiving the error from getting the
+				// authz context instead of an EOF.
+				case errors.Is(err, trace.AccessDenied("no access checker")):
+				// All other errors indicate that something went wrong
+				default:
+					t.Fatalf("expected either EOF or Access Denied, got %v", err)
+				}
+			},
+		},
+		{
+			name: "terminated connection ends stream",
+			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
+				return fakeChecker{}, nil
+			},
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyWindowsDesktopSessionClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{DialTarget: &transportv1pb.TargetWindowsDesktop{
+					DesktopName: "win_desktop",
+					Cluster:     "test",
+				}}))
+
+				require.NoError(t, conn.Close())
+				msg := []byte("hello")
+				require.NoError(t, stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{Data: msg}))
+
+				resp, err := stream.Recv()
+				require.Error(t, err)
+				require.ErrorIs(t, err, io.EOF)
+				require.Nil(t, resp)
+
+				require.NoError(t, stream.CloseSend())
+			},
+		},
+		{
+			name: "error while dialing windows desktop service terminates stream",
+			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
+				return fakeChecker{}, nil
+			},
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyWindowsDesktopSessionClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{DialTarget: &transportv1pb.TargetWindowsDesktop{
+					DesktopName: "nonexisting",
+					Cluster:     "test",
+				}}))
+				resp, err := stream.Recv()
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+				require.Nil(t, resp)
+			},
+		},
+		{
+			name: "raw messages are proxied",
+			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
+				return fakeChecker{}, nil
+			},
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyWindowsDesktopSessionClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{DialTarget: &transportv1pb.TargetWindowsDesktop{
+					DesktopName: "win_desktop",
+					Cluster:     "test",
+				}}))
+
+				msg := []byte("hello")
+				err := stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{Data: msg})
+				require.NoError(t, err)
+
+				resp, err := stream.Recv()
+				require.NoError(t, err)
+				// The mocked server implementation echoes the message.
+				require.Equal(t, msg, resp.Data)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := newEchoConn()
+
+			srv := newServer(t, ServerConfig{
+				Dialer: fakeDialer{
+					windowsDesktopConns: map[windowsDesktopConnKey]net.Conn{
+						windowsDesktopConnKey{
+							clusterName: "test",
+							desktopName: "win_desktop",
+						}: conn,
+					},
+				},
+				SignerFn:          fakeSigner,
+				ConnectionMonitor: fakeMonitor{},
+				Logger:            logtest.NewLogger(),
+				LocalAddr:         utils.MustParseAddr("127.0.0.1:4243"),
+				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
+					checker, err := test.checkerFn(info)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					return &authz.Context{Checker: checker}, nil
+				},
+			})
+
+			stream, err := srv.Client.ProxyWindowsDesktopSession(context.Background())
+			require.NoError(t, err)
+
+			test.fn(t, stream, conn)
+		})
+	}
 }
 
 func TestGetDestinationAddress(t *testing.T) {
@@ -780,7 +954,7 @@ func (s *sshServer) DialSite(ctx context.Context, clusterName string, clientSrcA
 // nil and is of type testAgent, then the server will serve its keyring
 // over the underlying [streamutils.ReadWriter] so that tests can exercise
 // ssh agent multiplexing.
-func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, err error) {
+func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	conn, err := s.dial()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -805,6 +979,11 @@ func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr n
 	}()
 
 	return conn, nil
+}
+
+// DialWindowsDesktop returns a connection to the windows desktop.
+func (s *sshServer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error) {
+	return nil, nil
 }
 
 func (s *sshServer) Run() {

@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
@@ -233,7 +234,7 @@ func (e *Engine) maybeHandleFirstHello() {
 }
 
 // sendToClient sends a command to connected Redis client.
-func (e *Engine) sendToClient(vals interface{}) error {
+func (e *Engine) sendToClient(vals any) error {
 	if vals == nil {
 		return nil
 	}
@@ -302,40 +303,18 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		return nil, trace.Wrap(err)
 	}
 
-	// Set default mode. Default mode can be overridden by URI parameters.
-	defaultMode := connection.Standalone
-	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeElastiCache:
-		if sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
-			defaultMode = connection.Cluster
-		}
-
-	case types.DatabaseTypeMemoryDB:
-		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
-			defaultMode = connection.Cluster
-		}
-
-	case types.DatabaseTypeAzure:
-		// "OSSCluster" requires client to use the OSS Cluster mode.
-		//
-		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
-		if sessionCtx.Database.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
-			defaultMode = connection.Cluster
-		}
-	}
-
-	connectionOptions, err := connection.ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
+	connectionOptions, err := getConnectionOptions(sessionCtx.Database)
 	if err != nil {
-		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
+		return nil, trace.Wrap(err)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
-		credenialsProvider, err := e.createCredentialsProvider(ctx, sessionCtx, username, password)
+		credentialsProvider, err := e.createCredentialsProvider(ctx, sessionCtx, username, password)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, credenialsProvider)
+		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, credentialsProvider)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -408,6 +387,10 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 	dbUser := sessionCtx.DatabaseUser
 	ok, err := e.checkUserIAMAuthIsEnabled(ctx, sessionCtx, dbUser)
 	if err != nil {
+		if sessionCtx.Database.GetType() == types.DatabaseTypeElastiCacheServerless {
+			e.Log.DebugContext(e.Context, "Assuming IAM auth is enabled for user", "user", dbUser, "error", err)
+			return true
+		}
 		e.Log.DebugContext(e.Context, "Assuming IAM auth is not enabled for user.", "user", dbUser, "error", err)
 		return false
 	}
@@ -423,6 +406,8 @@ func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
 		return iam.CheckElastiCacheSupportsIAMAuth(database)
 	case types.DatabaseTypeMemoryDB:
 		return iam.CheckMemoryDBSupportsIAMAuth(database)
+	case types.DatabaseTypeElastiCacheServerless:
+		return true, nil
 	default:
 		return false, nil
 	}
@@ -432,7 +417,7 @@ func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
 // user has IAM auth enabled.
 func (e *Engine) checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *common.Session, username string) (bool, error) {
 	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeElastiCache:
+	case types.DatabaseTypeElastiCache, types.DatabaseTypeElastiCacheServerless:
 		return e.checkElastiCacheUserIAMAuthIsEnabled(ctx, sessionCtx.Database.GetAWS(), username)
 	case types.DatabaseTypeMemoryDB:
 		return e.checkMemoryDBUserIAMAuthIsEnabled(ctx, sessionCtx.Database.GetAWS(), username)
@@ -545,7 +530,7 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	val, ok := cmd.Val().([]interface{})
+	val, ok := cmd.Val().([]any)
 	if !ok {
 		return nil, trace.BadParameter("failed to cast Redis value to a slice, got %T", cmd.Val())
 	}
@@ -557,7 +542,7 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 // "terminal" errors as second value (connection should be terminated when this happens)
 // or returns error/value as the first value. Then value should be sent back to
 // the client without terminating the connection.
-func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session) (interface{}, error) {
+func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session) (any, error) {
 	value, cmdErr := cmd.Result()
 	if err == nil {
 		// If the server didn't return any error use cmd.Err() as server error.
@@ -640,4 +625,53 @@ func init() {
 	redis.SetLogger(&driverLogger{
 		Logger: slog.With(teleport.ComponentKey, "go-redis"),
 	})
+}
+
+func getConnectionOptions(db types.Database) (*connection.Options, error) {
+	// Set default mode. Default mode can be overridden by URI parameters.
+	defaultMode := connection.Standalone
+	switch db.GetType() {
+	case types.DatabaseTypeElastiCache:
+		if db.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
+			defaultMode = connection.Cluster
+		}
+
+	case types.DatabaseTypeElastiCacheServerless:
+		defaultMode = connection.Cluster
+
+	case types.DatabaseTypeMemoryDB:
+		if db.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
+			defaultMode = connection.Cluster
+		}
+
+	case types.DatabaseTypeAzure:
+		// "OSSCluster" requires client to use the OSS Cluster mode.
+		//
+		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
+		if db.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
+			defaultMode = connection.Cluster
+		}
+	}
+
+	connOpts, err := connection.ParseRedisAddressWithDefaultMode(db.GetURI(), defaultMode)
+	if err != nil {
+		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", db.GetURI(), err)
+	}
+	return connOpts, nil
+}
+
+func getHostPort(connOpts *connection.Options) string {
+	return net.JoinHostPort(connOpts.Address, connOpts.Port)
+}
+
+// NewEndpointsResolver resolves an endpoint from DB URI.
+func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	connOpts, err := getConnectionOptions(db)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostPort := getHostPort(connOpts)
+	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
+		return []string{hostPort}, nil
+	}), nil
 }

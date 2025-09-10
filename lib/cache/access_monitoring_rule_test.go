@@ -37,7 +37,7 @@ func TestAccessMonitoringRules(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*accessmonitoringrulesv1.AccessMonitoringRule]{
+	testResources153(t, p, testFuncs[*accessmonitoringrulesv1.AccessMonitoringRule]{
 		newResource: func(name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 			return newAccessMonitoringRule(t), nil
 		},
@@ -50,7 +50,7 @@ func TestAccessMonitoringRules(t *testing.T) {
 			return results, err
 		},
 		cacheGet: p.cache.GetAccessMonitoringRule,
-		cacheList: func(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 			results, _, err := p.cache.ListAccessMonitoringRules(ctx, 0, "")
 			return results, err
 		},
@@ -59,7 +59,7 @@ func TestAccessMonitoringRules(t *testing.T) {
 			return err
 		},
 		deleteAll: p.accessMonitoringRules.DeleteAllAccessMonitoringRules,
-	})
+	}, withSkipPaginationTest())
 }
 
 func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
@@ -81,7 +81,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
 					},
@@ -103,7 +103,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: "automaticReviewIntegration",
 						Decision:    types.RequestState_APPROVED.String(),
@@ -126,7 +126,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
 					},
@@ -153,7 +153,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
 					},
@@ -179,7 +179,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: types.BuiltInAutomaticReview,
 						Decision:    types.RequestState_APPROVED.String(),

@@ -38,8 +38,6 @@ type UserTasks interface {
 	UpdateUserTask(context.Context, *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 	// DeleteUserTask deletes the user tasks resource by name.
 	DeleteUserTask(context.Context, string) error
-	// DeleteAllUserTasks deletes all user tasks.
-	DeleteAllUserTasks(context.Context) error
 }
 
 // MarshalUserTask marshals the UserTask object into a JSON byte array.

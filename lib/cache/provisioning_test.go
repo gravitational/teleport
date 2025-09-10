@@ -25,8 +25,9 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 const testDownstreamID = services.DownstreamID("weyland-yutani")
@@ -50,34 +51,14 @@ func newProvisioningPrincipalState(id string) *provisioningv1.PrincipalState {
 	}
 }
 
-// TestProvisioningState asserts that a ProvisioningPrincipalState can be cached
+// TestProvisioningPrincipalState asserts that a ProvisioningPrincipalState can be cached
 func TestProvisioningPrincipalState(t *testing.T) {
-
 	t.Parallel()
 
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
 
-	collect := func(ctx context.Context, src provisioningStateGetter) ([]*provisioningv1.PrincipalState, error) {
-		var result []*provisioningv1.PrincipalState
-		var pageToken pagination.PageRequestToken
-		for {
-			page, nextPage, err := src.ListProvisioningStatesForAllDownstreams(ctx, 0, &pageToken)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			result = append(result, page...)
-
-			if nextPage == pagination.EndOfList {
-				break
-			}
-
-			pageToken.Update(nextPage)
-		}
-		return result, nil
-	}
-
-	testResources153(t, fixturePack, testFuncs153[*provisioningv1.PrincipalState]{
+	testResources153(t, fixturePack, testFuncs[*provisioningv1.PrincipalState]{
 		newResource: func(s string) (*provisioningv1.PrincipalState, error) {
 			return newProvisioningPrincipalState(s), nil
 		},
@@ -90,7 +71,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
-			return collect(ctx, fixturePack.provisioningStates)
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.provisioningStates.ListProvisioningStatesForAllDownstreams2))
 		},
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteProvisioningState(
@@ -99,13 +80,13 @@ func TestProvisioningPrincipalState(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteAllProvisioningStates(ctx))
 		},
-		cacheList: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
-			return collect(ctx, fixturePack.cache.provisioningStatesCache)
+		cacheList: func(ctx context.Context, _ int) ([]*provisioningv1.PrincipalState, error) {
+			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListProvisioningStatesForAllDownstreams2))
 		},
 		cacheGet: func(ctx context.Context, id string) (*provisioningv1.PrincipalState, error) {
 			r, err := fixturePack.provisioningStates.GetProvisioningState(
 				ctx, testDownstreamID, services.ProvisioningStateID(id))
 			return r, trace.Wrap(err)
 		},
-	})
+	}, withSkipPaginationTest())
 }

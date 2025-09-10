@@ -77,6 +77,9 @@ export type WindowsDesktopUri =
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
 export type GatewayTargetUri = DatabaseUri | KubeUri | AppUri;
 
+/** General type for desktop URI. */
+export type DesktopUri = WindowsDesktopUri;
+
 /*
  * Document URIs
  * These are for documents (tabs) within the app.
@@ -354,6 +357,10 @@ export function isServerUri(uri: string): uri is ServerUri {
 
 export function isKubeUri(uri: string): uri is KubeUri {
   return !!routing.parseKubeUri(uri);
+}
+
+export function isWindowsDesktopUri(uri: string): uri is WindowsDesktopUri {
+  return !!routing.parseWindowsDesktopUri(uri);
 }
 
 export type Params = {

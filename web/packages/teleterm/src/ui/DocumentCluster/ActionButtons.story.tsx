@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { Box, Flex, Text } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
@@ -288,7 +288,7 @@ function WindowsDesktop() {
   return (
     <ConnectWindowsDesktopActionButton
       windowsDesktop={makeWindowsDesktop({
-        uri: `${testCluster.uri}/windowsDesktops/bar`,
+        uri: `${testCluster.uri}/windows_desktops/bar`,
       })}
     />
   );

@@ -39,11 +39,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -51,7 +53,6 @@ import (
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func registerFakeEnterpriseDBEngines(t *testing.T) {
@@ -72,8 +73,8 @@ func TestTshDB(t *testing.T) {
 	// will fail. The fake engine registered are not functional. But other
 	// Enterprise features like Access Request can still be tested.
 	registerFakeEnterpriseDBEngines(t)
-	modules.SetTestModules(t,
-		&modules.TestModules{
+	modulestest.SetTestModules(t,
+		modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -86,9 +87,26 @@ func TestTshDB(t *testing.T) {
 	// this speeds up test suite setup substantially, which is where
 	// tests spend the majority of their time, especially when leaf
 	// clusters are setup.
-	testenv.WithResyncInterval(t, 0)
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = 100 * time.Millisecond
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
+
 	// Proxy uses self-signed certificates in tests.
-	testenv.WithInsecureDevMode(t, true)
+	originalValue := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithInsecureDevMode", "1")
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(originalValue)
+	})
 	t.Run("Login", testDatabaseLogin)
 	t.Run("List", testListDatabase)
 	t.Run("DatabaseSelection", testDatabaseSelection)
@@ -418,7 +436,6 @@ func testDatabaseLogin(t *testing.T) {
 	// to enable parallel test runs.
 	// Copying the profile dir is faster than sequential login for each database.
 	for _, test := range testCases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			tmpHomePath := mustCloneTempDir(t, tmpHomePath)
@@ -549,8 +566,7 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 }
 
 func TestLocalProxyRequirement(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 	alice, err := types.NewUser("alice@example.com")
@@ -1404,8 +1420,7 @@ func TestChooseOneDatabase(t *testing.T) {
 			wantErrContains: `database "my-db" with labels "foo=bar" with query (hasPrefix(name, "my-db")) matches multiple databases`,
 		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			cf := &CLIConf{
@@ -1651,7 +1666,6 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, tt := range tests {
-			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1820,7 +1834,6 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, test := range tests {
-			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1897,7 +1910,6 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, test := range tests {
-			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1986,7 +1998,6 @@ func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			test.checkOutput(t, shouldRetryGetDatabaseUsingSearchAsRoles(test.cf, test.tc, test.inputError))

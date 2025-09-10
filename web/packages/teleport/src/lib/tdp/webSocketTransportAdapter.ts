@@ -95,7 +95,11 @@ async function waitToOpen(socket: WebSocket): Promise<void> {
 
     const handleError = (event: Event) => {
       cleanup();
-      reject(event);
+      reject(
+        new Error(
+          `WebSocket error (type=${event.type}, readyState=${socket.readyState})`
+        )
+      );
     };
 
     function cleanup() {

@@ -34,7 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	libauth "github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/plugin"
 )
@@ -43,11 +44,11 @@ import (
 // It starts an Auth server and a TLS server. This is not a full-featured
 // Teleport process.
 type MinimalAuthHelper struct {
-	server *libauth.TestTLSServer
+	server *authtest.TLSServer
 	// dir is where we put identity files, and start the auth server
 	// (unless AuthConfig.Dir is manually set).
 	dir            string
-	AuthConfig     libauth.TestAuthServerConfig
+	AuthConfig     authtest.AuthServerConfig
 	PluginRegistry plugin.Registry
 }
 
@@ -70,15 +71,15 @@ func (a *MinimalAuthHelper) StartServer(t *testing.T) *client.Client {
 		}
 	}
 
-	authServer, err := libauth.NewTestAuthServer(a.AuthConfig)
+	authServer, err := authtest.NewAuthServer(a.AuthConfig)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		require.NoError(t, authServer.Close())
 	})
 
-	server, err := libauth.NewTestTLSServer(libauth.TestTLSServerConfig{
-		APIConfig: &libauth.APIConfig{
+	server, err := authtest.NewTestTLSServer(authtest.TLSServerConfig{
+		APIConfig: &auth.APIConfig{
 			AuthServer:     authServer.AuthServer,
 			Authorizer:     authServer.Authorizer,
 			AuditLog:       authServer.AuditLog,
@@ -95,7 +96,7 @@ func (a *MinimalAuthHelper) StartServer(t *testing.T) *client.Client {
 		require.NoError(t, server.Close())
 	})
 
-	authClient, err := server.NewClient(libauth.TestAdmin())
+	authClient, err := server.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, authClient.Close())
@@ -126,9 +127,9 @@ type userCerts struct {
 // - the Authorized-key formatted SSH cert
 // - the PEM-encoded TLS cert
 func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCerts {
-	auth := a.server.Auth()
+	authServer := a.server.Auth()
 
-	clusterName, err := auth.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName(context.TODO())
 	require.NoError(t, err)
 	// Get user certs
 	userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -137,7 +138,7 @@ func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCert
 	require.NoError(t, err)
 	tlsPub, err := keys.MarshalPublicKey(userKey.Public())
 	require.NoError(t, err)
-	testCertsReq := libauth.GenerateUserTestCertsRequest{
+	testCertsReq := auth.GenerateUserTestCertsRequest{
 		SSHPubKey:      ssh.MarshalAuthorizedKey(sshPub),
 		TLSPubKey:      tlsPub,
 		Username:       user.GetName(),
@@ -145,7 +146,7 @@ func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCert
 		Compatibility:  constants.CertificateFormatStandard,
 		RouteToCluster: clusterName.GetClusterName(),
 	}
-	sshCert, tlsCert, err := auth.GenerateUserTestCerts(testCertsReq)
+	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(testCertsReq)
 	require.NoError(t, err)
 
 	// Build credentials from the certs
@@ -229,6 +230,6 @@ func (a *MinimalAuthHelper) SignIdentityForUser(t *testing.T, ctx context.Contex
 	return path
 }
 
-func (a *MinimalAuthHelper) Auth() *libauth.Server {
+func (a *MinimalAuthHelper) Auth() *auth.Server {
 	return a.server.Auth()
 }

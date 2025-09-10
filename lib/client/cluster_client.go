@@ -252,6 +252,11 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			PrivateKey: newUserKeys.kube,
 			Cert:       certs.TLS,
 		}
+	case proto.UserCertsRequest_WindowsDesktop:
+		keyRing.WindowsDesktopTLSCredentials[params.RouteToWindowsDesktop.WindowsDesktop] = TLSCredential{
+			PrivateKey: newUserKeys.windowsDesktop,
+			Cert:       certs.TLS,
+		}
 	}
 
 	return keyRing, nil
@@ -277,28 +282,66 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		return sshConfig, nil
 	}
 
-	keyRing, err := c.tc.localAgent.GetKeyRing(target.Cluster, WithAllCerts...)
+	newKeyRing, completedMFA, err := c.SessionSSHKeyRing(ctx, user, target)
 	if err != nil {
-		return nil, trace.Wrap(MFARequiredUnknown(err))
+		return nil, trace.Wrap(err)
+	}
+	if !completedMFA {
+		// The caller relies on this function returning an error if
+		// target.MFACheck is nil and session MFA was not actually required.
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	}
+
+	am, err := newKeyRing.AsAuthMethod()
+	if err != nil {
+		return nil, trace.Wrap(ceremonyFailedErr{err})
+	}
+
+	sshConfig.Auth = []ssh.AuthMethod{am}
+	return sshConfig, nil
+}
+
+// SessionSSHKeyRing returns a KeyRing valid for an SSH session to the target.
+// If per session MFA is required to establish the connection, then the MFA
+// ceremony will be performed. If per session MFA is not required, the user's
+// base KeyRing for the cluster will be returned.
+func (c *ClusterClient) SessionSSHKeyRing(ctx context.Context, user string, target NodeDetails) (keyRing *KeyRing, completedMFA bool, err error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/SessionSSHKeyRing",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", c.tc.SiteName),
+		),
+	)
+	defer span.End()
+
+	baseKeyRing, err := c.tc.localAgent.GetKeyRing(target.Cluster, WithSSHCerts{})
+	if err != nil {
+		return nil, false, trace.Wrap(MFARequiredUnknown(err))
+	}
+
+	if target.MFACheck != nil && !target.MFACheck.Required {
+		return baseKeyRing, false, nil
 	}
 
 	// Always connect to root for getting new credentials, but attempt to reuse
 	// the existing client if possible.
-	rootClusterName, err := keyRing.RootClusterName()
+	rootClusterName, err := baseKeyRing.RootClusterName()
 	if err != nil {
-		return nil, trace.Wrap(MFARequiredUnknown(err))
+		return nil, false, trace.Wrap(MFARequiredUnknown(err))
 	}
 
 	mfaClt := c
 	if target.Cluster != rootClusterName {
 		cfg, err := c.ProxyClient.ClientConfig(ctx, rootClusterName)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, false, trace.Wrap(err)
 		}
 
 		authClient, err := authclient.NewClient(cfg)
 		if err != nil {
-			return nil, trace.Wrap(MFARequiredUnknown(err))
+			return nil, false, trace.Wrap(MFARequiredUnknown(err))
 		}
 
 		mfaClt = &ClusterClient{
@@ -321,20 +364,19 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
-		keyRing,
+		baseKeyRing.Copy(),
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if errors.Is(err, services.ErrSessionMFANotRequired) {
+			log.DebugContext(ctx, "Session MFA was not required, returning original KeyRing")
+			return baseKeyRing, false, nil
+		}
+		log.DebugContext(ctx, "Error performing session MFA ceremony", "error", err)
+		return nil, false, trace.Wrap(err)
 	}
 
 	log.DebugContext(ctx, "Issued single-use user certificate after an MFA check")
-	am, err := result.KeyRing.AsAuthMethod()
-	if err != nil {
-		return nil, trace.Wrap(ceremonyFailedErr{err})
-	}
-
-	sshConfig.Auth = []ssh.AuthMethod{am}
-	return sshConfig, nil
+	return result.KeyRing, true, nil
 }
 
 // prepareUserCertsRequest creates a [proto.UserCertsRequest] with the fields
@@ -380,6 +422,12 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 			return nil, nil, trace.Wrap(err)
 		}
 		newUserKeys.db = tlsSubjectKey
+	case proto.UserCertsRequest_WindowsDesktop:
+		tlsSubjectKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserTLS)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		newUserKeys.windowsDesktop = tlsSubjectKey
 	default:
 		// Assume we're reissuing the base SSH and TLS certs, reuse the existing
 		// private keys.
@@ -424,6 +472,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		DropAccessRequests:               params.DropAccessRequests,
 		RouteToDatabase:                  params.RouteToDatabase,
 		RouteToApp:                       params.RouteToApp,
+		RouteToWindowsDesktop:            params.RouteToWindowsDesktop,
 		NodeName:                         params.NodeName,
 		Usage:                            params.usage(),
 		Format:                           c.tc.CertificateFormat,
@@ -459,6 +508,8 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Database", params.RouteToDatabase.ServiceName))
 	case params.RouteToApp.Name != "":
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
+	case params.RouteToWindowsDesktop.WindowsDesktop != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop))
 	}
 
 	result, err := PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
@@ -678,7 +729,7 @@ type PerformSessionMFACeremonyParams struct {
 }
 
 type newUserKeys struct {
-	ssh, tls, app, db, kube *keys.PrivateKey
+	ssh, tls, app, db, kube, windowsDesktop *keys.PrivateKey
 }
 
 // PerformSessionMFACeremonyResult contains the result of a successful
@@ -750,11 +801,11 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		return nil, trace.Wrap(err)
 	}
 
-	// If mfaResp is nil, the ceremony was a no-op (no devices registered).
-	// TODO(Joerger): CreateAuthenticateChallenge, should return
-	// this error directly instead of an empty challenge, without
-	// regressing https://github.com/gravitational/teleport/issues/36482.
-	if mfaResp == nil {
+	// If mfaResp.GetResponse() is nil, the ceremony was a no-op (no devices
+	// registered). TODO(Joerger): CreateAuthenticateChallenge, should return
+	// this error directly instead of an empty challenge, without regressing
+	// https://github.com/gravitational/teleport/issues/36482.
+	if mfaResp.GetResponse() == nil {
 		return nil, trace.Wrap(authclient.ErrNoMFADevices)
 	}
 
@@ -814,6 +865,14 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			keyRing.AppTLSCredentials[certsReq.RouteToApp.Name] = TLSCredential{
 				Cert:       newCerts.TLS,
 				PrivateKey: params.newUserKeys.app,
+			}
+		case proto.UserCertsRequest_WindowsDesktop:
+			if keyRing.WindowsDesktopTLSCredentials == nil {
+				keyRing.WindowsDesktopTLSCredentials = make(map[string]TLSCredential)
+			}
+			keyRing.WindowsDesktopTLSCredentials[certsReq.RouteToWindowsDesktop.WindowsDesktop] = TLSCredential{
+				Cert:       newCerts.TLS,
+				PrivateKey: params.newUserKeys.windowsDesktop,
 			}
 		default:
 			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)

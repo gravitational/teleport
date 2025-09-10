@@ -78,7 +78,7 @@ export type ButtonProps<E extends React.ElementType> =
 
       size?: ButtonSize;
       children?: React.ReactNode;
-      setRef?: React.ForwardedRef<HTMLButtonElement>;
+      ref?: React.ForwardedRef<HTMLButtonElement>;
 
       /** If defined, changes the underlying component type. */
       as?: E;
@@ -95,7 +95,7 @@ export type ButtonSize = 'extra-large' | 'large' | 'medium' | 'small';
  */
 export const Button = <E extends React.ElementType = 'button'>({
   children,
-  setRef = undefined,
+  ref,
   size = 'medium',
   intent = 'primary',
   fill = 'filled',
@@ -104,7 +104,7 @@ export const Button = <E extends React.ElementType = 'button'>({
   return (
     <StyledButton
       {...otherProps}
-      ref={setRef}
+      ref={ref}
       size={size}
       intent={intent}
       fill={fill}
@@ -468,6 +468,9 @@ const StyledButton = styled.button.withConfig({
 export const ButtonPrimary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="primary" {...props} />;
+export const ButtonPrimaryBorder = <E extends React.ElementType = 'button'>(
+  props: ButtonProps<E>
+) => <Button fill="border" intent="primary" {...props} />;
 export const ButtonSecondary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="neutral" {...props} />;

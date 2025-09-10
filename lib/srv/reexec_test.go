@@ -44,11 +44,11 @@ import (
 	"github.com/gravitational/teleport"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 type stubUser struct {
@@ -176,7 +176,6 @@ func TestStartNewParker(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			osPack, assertExpected := tt.newOsPack(t)
@@ -216,9 +215,9 @@ func TestNetworkingCommand(t *testing.T) {
 // for a user different than the one running a node (which we need to run
 // as root to create).
 func TestRootNetworkingCommand(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 
-	login := utils.GenerateLocalUsername(t)
+	login := testutils.GenerateLocalUsername(t)
 	_, err := host.UserAdd(login, nil, host.UserOpts{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -316,18 +315,16 @@ func testAgentForward(ctx context.Context, t *testing.T, proc *networking.Proces
 	err = keyring.Add(testKey)
 	require.NoError(t, err)
 
-	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(keyring), nil
-	})
+	agentServer := sshagent.NewServer(sshagent.NewStaticClientGetter(keyring))
 
 	// Forward the agent over the networking process.
 	listener, err := proc.ListenAgent(ctx)
 	require.NoError(t, err)
-	teleAgent.SetListener(listener)
+	agentServer.SetListener(listener)
 
-	go teleAgent.Serve()
+	go agentServer.Serve()
 	t.Cleanup(func() {
-		teleAgent.Close()
+		agentServer.Close()
 	})
 
 	agentConn, err := net.Dial(listener.Addr().Network(), listener.Addr().String())
@@ -350,7 +347,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	}
 	require.NoError(t, err)
 
-	cred, err := getCmdCredential(localUser)
+	cred, err := host.GetHostUserCredential(localUser)
 	require.NoError(t, err)
 
 	// Create a temporary xauth file path belonging to the user.
@@ -417,7 +414,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 }
 
 func TestRootCheckHomeDir(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 
 	tmp := t.TempDir()
 	require.NoError(t, os.Chmod(filepath.Dir(tmp), 0777))
@@ -433,7 +430,7 @@ func TestRootCheckHomeDir(t *testing.T) {
 	_, err := os.Create(file)
 	require.NoError(t, err)
 
-	login := utils.GenerateLocalUsername(t)
+	login := testutils.GenerateLocalUsername(t)
 	_, err = host.UserAdd(login, nil, host.UserOpts{Home: home})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -486,7 +483,7 @@ func changeHomeDir(t *testing.T, username, home string) {
 }
 
 func TestRootOpenFileAsUser(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	euid := os.Geteuid()
 	egid := os.Getegid()
 

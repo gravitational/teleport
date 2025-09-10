@@ -1,6 +1,9 @@
 ---
 title: Networking
 description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
+tags:
+ - conceptual
+ - platform-wide
 ---
 
 A Teleport cluster is a distributed system that may comprise a number of
@@ -239,7 +242,7 @@ agents to the public internet.
 ### Direct connections to agents
 
 If you run a self-hosted Teleport cluster, you can join an agent [directly to
-the Teleport Auth Service](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
+the Teleport Auth Service](../enroll-resources/agents/join-token.mdx).
 In this setup, certain Teleport services open their own listeners rather than
 accepting connections via reverse tunnel. The Proxy Service connects to these
 agent services by dialing them directly.

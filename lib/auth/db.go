@@ -28,6 +28,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 // GenerateDatabaseCert generates client certificate used by a database
@@ -154,14 +156,28 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		Subject:   csr.Subject,
 		NotAfter:  a.clock.Now().UTC().Add(req.TTL.Get()),
 	}
+
 	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
 		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
 		// and SubjectAltName (which we need for otherName SAN, not supported
 		// out of the box in crypto/x509) extensions only.
-		certReq.ExtraExtensions = filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName)
+		certReq.ExtraExtensions = filterExtensions(a.CloseContext(), a.logger, csr.Extensions, oidExtKeyUsage, oidSubjectAltName, oidADUserMapping)
 		certReq.KeyUsage = x509.KeyUsageDigitalSignature
-		// CRL is required for Windows smartcard certs.
-		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
+		// CRL Distribution Points (CDP) are required for Windows smartcard certs.
+		// The CDP is computed here by the auth server issuing the cert and not provided
+		// by the client because the CDP is based on the identity of the issuer, which is
+		// necessary in order to support clusters with multiple issuing certs (HSMs).
+		// If there's only 1 active key we don't include SKID in CDP for backward compatibility.
+		if req.CRLDomain != "" {
+			includeSKID := len(ca.GetActiveKeys().TLS) > 1
+			cdp := winpki.CRLDistributionPoint(req.CRLDomain, types.DatabaseClientCA, tlsCA, includeSKID)
+			certReq.CRLDistributionPoints = []string{cdp}
+		} else if req.CRLEndpoint != "" {
+			// legacy clients will specify CRL endpoint instead of CRL domain
+			// DELETE IN v20 (zmb3)
+			certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
+			a.logger.DebugContext(ctx, "Generating Database cert with legacy CDP")
+		}
 	} else {
 		// Include provided server names as SANs in the certificate, CommonName
 		// has been deprecated since Go 1.15:
@@ -169,7 +185,7 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		certReq.DNSNames = getServerNames(req)
 
 		// The windows smartcard cert req already does the same in
-		// lib/auth/windows/windows.go, along with another ExtKeyUsage for
+		// lib/winpki/windows.go, along with another ExtKeyUsage for
 		// smartcard logon that we don't want to override above.
 		switch ca.GetType() {
 		case types.DatabaseCA:
@@ -399,22 +415,29 @@ func getSnowflakeJWTParams(ctx context.Context, accountName, userName string, pu
 	return subject, issuer
 }
 
-func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
+func filterExtensions(ctx context.Context, logger *slog.Logger, extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
 	filtered := make([]pkix.Extension, 0, len(oids))
 	for _, e := range extensions {
+		matched := false
 		for _, id := range oids {
 			if e.Id.Equal(id) {
-				filtered = append(filtered, e)
+				matched = true
 			}
+		}
+		if matched {
+			filtered = append(filtered, e)
+		} else {
+			logger.WarnContext(ctx, "filtering out unexpected certificate extension; this may indicate Teleport bug", "oid", e.Id.String(), "value", e.Value, "critical", e.Critical)
 		}
 	}
 	return filtered
 }
 
-// TODO(gavin): move OIDs from here and in lib/auth/windows to tlsca package.
+// TODO(gavin): move OIDs from here and in lib/winpki to lib/tlsca package.
 var (
 	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
 	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
+	oidADUserMapping  = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2}
 
 	oidExtKeyUsageServerAuth       = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1}
 	oidExtKeyUsageClientAuth       = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}

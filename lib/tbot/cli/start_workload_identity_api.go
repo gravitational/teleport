@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
 // WorkloadIdentityAPICommand implements `tbot start workload-identity-api` and
@@ -78,7 +79,7 @@ func (c *WorkloadIdentityAPICommand) ApplyConfig(cfg *config.BotConfig, l *slog.
 		return trace.Wrap(err)
 	}
 
-	svc := &config.WorkloadIdentityAPIService{
+	svc := &workloadidentity.WorkloadAPIConfig{
 		Listen: c.Listen,
 	}
 

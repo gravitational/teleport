@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -188,13 +189,7 @@ func (e *wsStreamClient) Stream(options clientremotecommand.StreamOptions) error
 	defer conn.Close()
 	streamingProto := conn.Subprotocol()
 
-	found := false
-	for _, p := range supportedProtocols {
-		if p == streamingProto {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(supportedProtocols, streamingProto)
 	if !found {
 		return fmt.Errorf("unsupported streaming protocol: %q", streamingProto)
 	}
@@ -218,13 +213,7 @@ func (e *wsStreamClient) ForwardPorts() error {
 	defer conn.Close()
 	streamingProto := conn.Subprotocol()
 
-	found := false
-	for _, p := range supportedProtocols {
-		if p == streamingProto {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(supportedProtocols, streamingProto)
 	if !found {
 		return fmt.Errorf("unsupported streaming protocol: %q", streamingProto)
 	}
@@ -342,7 +331,7 @@ func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecomma
 				}
 				e.mu.Lock()
 				// the stdout and stderr streams receive the last stdin input and we must trim it.
-				s := strings.Replace(string(buf[1:]), e.cacheBuff.String(), "", -1)
+				s := strings.ReplaceAll(string(buf[1:]), e.cacheBuff.String(), "")
 				e.mu.Unlock()
 				_, err = w.Write([]byte(s))
 				if err != nil {

@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -180,10 +179,7 @@ func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
 	// If configured with a server ID, then acquire a semaphore prior to completing uploads.
 	// This is used for auth's upload completer and ensures that multiple auth servers do not
 	// attempt to complete the same uploads at the same time.
-	// TODO(zmb3): remove the env var check once the semaphore is proven to be reliable
-	if u.cfg.Semaphores != nil && os.Getenv("TELEPORT_DISABLE_UPLOAD_COMPLETER_SEMAPHORE") == "" {
-		u.log.DebugContext(ctx, "acquiring semaphore in order to complete uploads", "server_id", u.cfg.ServerID)
-
+	if u.cfg.ServerID != "" && u.cfg.Semaphores != nil {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
@@ -372,7 +368,7 @@ loop:
 				desktopSessionEnd.Code = DesktopSessionEndCode
 				desktopSessionEnd.ClusterName = e.ClusterName
 				desktopSessionEnd.StartTime = e.Time
-				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, e.User)
+				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
 				desktopSessionEnd.Recorded = true
 				desktopSessionEnd.UserMetadata = e.UserMetadata
 				desktopSessionEnd.SessionMetadata = e.SessionMetadata
@@ -396,10 +392,10 @@ loop:
 				sshSessionEnd.InitialCommand = e.InitialCommand
 				sshSessionEnd.SessionRecording = e.SessionRecording
 				sshSessionEnd.Interactive = e.TerminalSize != ""
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
 
 			case *events.SessionJoin:
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
 			}
 
 		case err := <-errors:
@@ -443,4 +439,14 @@ loop:
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func transformedUsername(u events.UserMetadata, localCluster string) string {
+	return services.UsernameForCluster(
+		services.UsernameForClusterConfig{
+			User:              u.User,
+			OriginClusterName: u.UserClusterName,
+			LocalClusterName:  localCluster,
+		},
+	)
 }

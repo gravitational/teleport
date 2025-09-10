@@ -77,7 +77,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
 	scope := p.cfg.Extensions.GetScope()
 	// No prompt to run, no-op.
-	if !(promptOTP || promptWebauthn || promptSSO) {
+	if !promptOTP && !promptWebauthn && !promptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 

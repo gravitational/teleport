@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
 
@@ -59,7 +60,7 @@ type connector struct {
 
 // Connect connects to the target SQL Server with Kerberos authentication.
 func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, loginPacket *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
-	host, port, err := net.SplitHostPort(sessionCtx.Database.GetURI())
+	host, port, err := getHostPort(sessionCtx.Database)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -135,7 +136,7 @@ func (c *connector) getKerberosConnector(ctx context.Context, sessionCtx *common
 		return nil, trace.Wrap(err)
 	}
 
-	return mssql.NewConnectorConfig(dsnConfig, dbAuth), nil
+	return mssql.NewConnectorConfigCustomAuth(dsnConfig, dbAuth), nil
 }
 
 // getAzureConnector generates a connector that authenticates using Azure AD.
@@ -164,4 +165,26 @@ func (c *connector) getAccessTokenConnector(ctx context.Context, sessionCtx *com
 	return mssql.NewSecurityTokenConnector(dsnConfig, func(ctx context.Context) (string, error) {
 		return c.DBAuth.GetRDSAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 	})
+}
+
+// getHostPort returns the host and port of the database URI.
+// The URI must specify a port.
+func getHostPort(db types.Database) (string, string, error) {
+	host, port, err := net.SplitHostPort(db.GetURI())
+	if err != nil {
+		return "", "", trace.Wrap(err, "failed to parse database URI")
+	}
+	return host, port, nil
+}
+
+// NewEndpointsResolver returns an endpoint resolver.
+func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	host, port, err := getHostPort(db)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	addr := net.JoinHostPort(host, port)
+	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
+		return []string{addr}, nil
+	}), nil
 }

@@ -23,3 +23,4 @@ export {
   type BitmapFrame,
 } from './client';
 export * from './codec';
+export * from './sharedDirectoryAccess';

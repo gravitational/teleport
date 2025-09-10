@@ -289,12 +289,12 @@ func Test_PluginOktaSyncSettings_SetUserSyncSource(t *testing.T) {
 		syncSettings := &PluginOktaSyncSettings{}
 
 		// OktaUserSyncSourceUnknown is returned for empty value
-		require.Equal(t, "", syncSettings.UserSyncSource)
+		require.Empty(t, syncSettings.UserSyncSource)
 		require.Equal(t, OktaUserSyncSourceUnknown, syncSettings.GetUserSyncSource())
 
 		// When "asdf" is set, it doesn't change empty value
 		syncSettings.SetUserSyncSource("asdf")
-		require.Equal(t, "", syncSettings.UserSyncSource)
+		require.Empty(t, syncSettings.UserSyncSource)
 		require.Equal(t, OktaUserSyncSourceUnknown, syncSettings.GetUserSyncSource())
 
 		// When "asdf" is set, it doesn't change set value
@@ -313,6 +313,8 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.False(t, syncSettings.GetEnableAppGroupSync())
 		require.False(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
+		require.False(t, syncSettings.GetEnableSystemLogExport())
+		require.False(t, syncSettings.GetAssignDefaultRoles())
 	})
 
 	t.Run("on empty settings", func(t *testing.T) {
@@ -322,6 +324,8 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.False(t, syncSettings.GetEnableAppGroupSync())
 		require.False(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
+		require.False(t, syncSettings.GetEnableSystemLogExport())
+		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
 
 	t.Run("on user sync enabled", func(t *testing.T) {
@@ -332,41 +336,52 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.True(t, syncSettings.GetEnableUserSync())
 		require.True(t, syncSettings.GetEnableAppGroupSync()) // true by default
 		require.False(t, syncSettings.GetEnableAccessListSync())
-		require.False(t, syncSettings.GetEnableBidirectionalSync())
+		require.True(t, syncSettings.GetEnableBidirectionalSync())
+		require.False(t, syncSettings.GetEnableSystemLogExport())
+		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
 
 	t.Run("on user sync enabled with disabled app and group sync", func(t *testing.T) {
 		syncSettings := &PluginOktaSyncSettings{
-			SyncUsers:            true,
-			DisableSyncAppGroups: true,
+			SyncUsers:                 true,
+			DisableAssignDefaultRoles: true,
+			DisableSyncAppGroups:      true,
 		}
 
 		require.True(t, syncSettings.GetEnableUserSync())
 		require.False(t, syncSettings.GetEnableAppGroupSync())
 		require.False(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
+		require.False(t, syncSettings.GetAssignDefaultRoles())
 	})
 
 	t.Run("on access list sync enabled", func(t *testing.T) {
 		syncSettings := &PluginOktaSyncSettings{
+			SyncUsers:       true,
 			SyncAccessLists: true,
 		}
 
-		require.False(t, syncSettings.GetEnableUserSync())
-		require.False(t, syncSettings.GetEnableAppGroupSync())
+		require.True(t, syncSettings.GetEnableUserSync())
+		require.True(t, syncSettings.GetEnableAppGroupSync())
 		require.True(t, syncSettings.GetEnableAccessListSync())
 		require.True(t, syncSettings.GetEnableBidirectionalSync()) // true by default
+		require.False(t, syncSettings.GetEnableSystemLogExport())
+		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
 
 	t.Run("on access list sync enabled with bidirectional sync disabled", func(t *testing.T) {
 		syncSettings := &PluginOktaSyncSettings{
+			SyncUsers:                true,
 			SyncAccessLists:          true,
 			DisableBidirectionalSync: true,
+			EnableSystemLogExport:    true,
 		}
 
-		require.False(t, syncSettings.GetEnableUserSync())
-		require.False(t, syncSettings.GetEnableAppGroupSync())
+		require.True(t, syncSettings.GetEnableUserSync())
+		require.True(t, syncSettings.GetEnableAppGroupSync())
 		require.True(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
+		require.True(t, syncSettings.GetEnableSystemLogExport())
+		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
 }

@@ -34,8 +34,7 @@ import (
 func TestWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	app1, err := types.NewAppV3(types.Metadata{Name: "app1"}, types.AppSpecV3{Cloud: types.CloudAWS})
 	require.NoError(t, err)
@@ -89,8 +88,7 @@ func TestWatcher(t *testing.T) {
 func TestWatcherWithDynamicFetchers(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	app1, err := types.NewAppV3(types.Metadata{Name: "app1"}, types.AppSpecV3{Cloud: types.CloudAWS})
 	require.NoError(t, err)

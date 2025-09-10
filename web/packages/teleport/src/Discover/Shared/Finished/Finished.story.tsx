@@ -52,6 +52,18 @@ export const FinishedWithAutoEnroll = () => (
   />
 );
 
+export const FinishedWithMessageProps = () => (
+  <Component
+    {...props}
+    title="Resource Added Custom Message"
+    resourceText="Custom completion details"
+    primaryButtonText="Custom primary button"
+    primaryButtonAction={() => console.info('primary action')}
+    secondaryButtonText="Custom secondary button"
+    secondaryButtonAction={() => console.info('secondary action')}
+  />
+);
+
 const props: AgentStepProps = {
   agentMeta: { resourceName: 'some-resource-name', agentMatcherLabels: [] },
   updateAgentMeta: () => null,

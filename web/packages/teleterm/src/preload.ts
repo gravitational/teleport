@@ -34,7 +34,11 @@ import {
 } from 'teleterm/services/grpcCredentials';
 import { createFileLoggerService } from 'teleterm/services/logger';
 import { createPtyService } from 'teleterm/services/pty/ptyService';
-import { createTshdClient, createVnetClient } from 'teleterm/services/tshd';
+import {
+  createTshdClient,
+  createVnetClient,
+  TshdClient,
+} from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { createTshdEventsServer } from 'teleterm/services/tshdEvents';
 import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
@@ -67,7 +71,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     channelCredentials: credentials.tshd,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
   });
-  const tshClient = createTshdClient(tshdTransport);
+  const tshClient = withoutInsecureTshdMethods(createTshdClient(tshdTransport));
   const vnetClient = createVnetClient(tshdTransport);
   const ptyServiceClient = createPtyService(
     addresses.shared,
@@ -163,4 +167,23 @@ async function withErrorLogging<ReturnValue>(
     logger.error(e);
     throw e;
   }
+}
+
+/**
+ * Returns a copy of `TshdClient` with insecure methods disabled
+ * to prevent access from the untrusted renderer process.
+ *
+ * As a result, disabled methods are inaccessible in the renderer process
+ * since the prototype of tshdClient is not shared with the renderer process.
+ * The renderer process also does not receive the ability to start a new arbitrary client,
+ * which could then be used to circumvent this protection.
+ */
+function withoutInsecureTshdMethods(client: TshdClient): TshdClient {
+  return {
+    ...client,
+    setSharedDirectoryForDesktopSession: () => {
+      // Prevent the renderer process from sharing directories at arbitrary paths.
+      throw new Error('This method is not permitted in the renderer process.');
+    },
+  };
 }

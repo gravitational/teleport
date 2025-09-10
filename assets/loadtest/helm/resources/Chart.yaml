@@ -1,0 +1,9 @@
+apiVersion: v2
+name: resources
+description: Deploys a batch job that creates a given number of resources.
+
+type: application
+
+version: 0.1.0
+
+appVersion: "18.1.8"

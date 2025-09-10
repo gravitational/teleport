@@ -49,6 +49,51 @@ type IntegrationAWSOIDCSpec struct {
 	Audience string `json:"audience,omitempty"`
 }
 
+// IntegrationAWSRASpec contain the specific fields for the `aws-ra` subkind integration.
+type IntegrationAWSRASpec struct {
+	// TrustAnchorARN is the IAM Roles Anywhere Trust Anchor ARN associated with the integration.
+	TrustAnchorARN string `json:"trustAnchorARN"`
+
+	// ProfileSyncConfig contains the Profile sync configuration.
+	ProfileSyncConfig AWSRAProfileSync `json:"profileSyncConfig"`
+}
+
+// AWSRAProfileSync contains the configuration for the AWS Roles Anywhere Profile Sync.
+type AWSRAProfileSync struct {
+	// Enabled indicates if the Profile Sync is enabled.
+	Enabled bool `json:"enabled"`
+
+	// ProfileARN is the ARN of the IAM Roles Anywhere Profile that is used to sync profiles.
+	ProfileARN string `json:"profileArn"`
+
+	// RoleARN is the ARN of the IAM Role that is used to sync profiles.
+	RoleARN string `json:"roleArn"`
+
+	// ProfileNameFilters are the filters applied to the profiles.
+	// Only matching profiles will be synchronized as application servers.
+	// If empty, no filtering is applied.
+	//
+	// Filters can be globs, for example:
+	//
+	//	profile*
+	//	*name*
+	//
+	// Or regexes if they're prefixed and suffixed with ^ and $, for example:
+	//
+	//	^profile.*$
+	//	^.*name.*$
+	ProfileNameFilters []string `json:"filters"`
+}
+
+// CheckAndSetDefaults for the aws oidc integration spec.
+func (r *IntegrationAWSRASpec) CheckAndSetDefaults() error {
+	if r.TrustAnchorARN == "" {
+		return trace.BadParameter("missing awsra.trustAnchorArn field")
+	}
+
+	return nil
+}
+
 // IntegrationGitHub contains the specific fields for the `github` subkind integration.
 type IntegrationGitHub struct {
 	Organization string `json:"organization"`
@@ -74,11 +119,14 @@ type IntegrationWithSummary struct {
 	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration.
 	UnresolvedUserTasks int `json:"unresolvedUserTasks"`
 	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
-	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
+	AWSEC2 ResourceTypeSummary `json:"awsec2"`
 	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
-	AWSRDS ResourceTypeSummary `json:"awsrds,omitempty"`
+	AWSRDS ResourceTypeSummary `json:"awsrds"`
 	// AWSEKS contains the summary for the AWS EKS resources for this integration.
-	AWSEKS ResourceTypeSummary `json:"awseks,omitempty"`
+	AWSEKS ResourceTypeSummary `json:"awseks"`
+
+	// RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
+	RolesAnywhereProfileSync *RolesAnywhereProfileSync `json:"rolesAnywhereProfileSync,omitempty"`
 }
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
@@ -103,6 +151,26 @@ type ResourceTypeSummary struct {
 	// ECSDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
 	// Only applicable for AWS RDS resource summary.
 	ECSDatabaseServiceCount int `json:"ecsDatabaseServiceCount,omitempty"`
+}
+
+// RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
+type RolesAnywhereProfileSync struct {
+	// Enabled indicates whether the profile sync is enabled.
+	Enabled bool `json:"enabled"`
+
+	// Status is the string representation of the profile sync status.
+	// Either ERROR or SUCCESS.
+	Status string `json:"status,omitempty"`
+	// ErrorMessage is the error message from the last sync when the Status is ERROR.
+	ErrorMessage string `json:"errorMessage,omitempty"`
+
+	// SyncedProfiles is the number of profiles that were imported into Teleport.
+	SyncedProfiles int `json:"syncedProfiles,omitempty"`
+
+	// SyncStartTime is the time when the profile sync started.
+	SyncStartTime time.Time `json:"syncStartTime,omitempty"`
+	// SyncEndTime is the time when the profile sync ended.
+	SyncEndTime time.Time `json:"syncEndTime,omitempty"`
 }
 
 // IntegrationDiscoveryRule describes a discovery rule associated with an integration.
@@ -138,6 +206,8 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// AWSRA contains the fields for `aws-ra` subkind integration.
+	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
 	// GitHub contains the fields for `github` subkind integration.
 	GitHub *IntegrationGitHub `json:"github,omitempty"`
 }
@@ -166,6 +236,10 @@ func (r *Integration) CheckAndSetDefaults() error {
 		}
 		if err := types.ValidateGitHubOrganizationName(r.GitHub.Organization); err != nil {
 			return trace.Wrap(err)
+		}
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		if r.AWSRA == nil {
+			return trace.BadParameter("missing spec for AWS Roles Anywhere integration")
 		}
 	}
 
@@ -198,6 +272,22 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 			return trace.BadParameter("missing OAuth secret for GitHub integration")
 		}
 	}
+	if r.SubKind == types.IntegrationSubKindAWSRolesAnywhere {
+		if r.AWSRA == nil {
+			return trace.BadParameter("missing awsra field")
+		}
+		if r.AWSRA.TrustAnchorARN == "" {
+			return trace.BadParameter("missing awsra.trustAnchorArn field")
+		}
+		if r.AWSRA.ProfileSyncConfig.Enabled {
+			if r.AWSRA.ProfileSyncConfig.ProfileARN == "" {
+				return trace.BadParameter("missing awsra.profileSync.profileArn field")
+			}
+			if r.AWSRA.ProfileSyncConfig.RoleARN == "" {
+				return trace.BadParameter("missing awsra.profileSync.roleArn field")
+			}
+		}
+	}
 	return nil
 }
 
@@ -205,6 +295,8 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// AWSRA contains the fields for `aws-ra` subkind integration.
+	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
 	// OAuth contains OAuth settings.
 	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
 }
@@ -213,6 +305,11 @@ type UpdateIntegrationRequest struct {
 func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if r.AWSRA != nil {
+		if err := r.AWSRA.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -286,6 +383,21 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 		}
 		ret.GitHub = &IntegrationGitHub{
 			Organization: spec.Organization,
+		}
+
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		spec := ig.GetAWSRolesAnywhereIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing spec for AWS Roles Anywhere integrations")
+		}
+		ret.AWSRA = &IntegrationAWSRASpec{
+			TrustAnchorARN: spec.TrustAnchorARN,
+			ProfileSyncConfig: AWSRAProfileSync{
+				Enabled:            spec.ProfileSyncConfig.Enabled,
+				ProfileARN:         spec.ProfileSyncConfig.ProfileARN,
+				RoleARN:            spec.ProfileSyncConfig.RoleARN,
+				ProfileNameFilters: spec.ProfileSyncConfig.ProfileNameFilters,
+			},
 		}
 	}
 
@@ -595,4 +707,46 @@ type AWSOIDCPingRequest struct {
 type AWSOIDCCreateAWSAppAccessRequest struct {
 	// Labels added to the app server resource that will be created.
 	Labels map[string]string `json:"labels"`
+}
+
+// AWSRolesAnywherePingRequest contains ping request fields.
+type AWSRolesAnywherePingRequest struct {
+	// TrustAnchorARN is the ARN of the IAM Roles Anywhere Trust Anchor.
+	TrustAnchorARN string `json:"trustAnchorArn"`
+	// SyncProfileARN is the ARN of the IAM Roles Anywhere Profile that is used to sync profiles.
+	SyncProfileARN string `json:"syncProfileArn"`
+	// SyncRoleARN is the ARN of the IAM Role that is used to sync profiles.
+	SyncRoleARN string `json:"syncRoleArn"`
+}
+
+// AWSRolesAnywherePingResponse contains the result of the Ping request.
+// This response contains meta information about the current state of the Integration.
+type AWSRolesAnywherePingResponse struct {
+	// ProfileCount is the number of IAM Roles Anywhere Profiles that can be accessed by the Integration.
+	// Profiles that are disabled or don't have any IAM Role associated with them are not counted.
+	ProfileCount int `json:"profileCount"`
+	// AccountID number of the account that owns or contains the calling entity.
+	AccountID string `json:"accountId"`
+	// ARN associated with the calling entity.
+	ARN string `json:"arn"`
+	// UserID is the unique identifier of the calling entity.
+	UserID string `json:"userId"`
+}
+
+// AWSRolesAnywhereListProfilesRequest contains the request to list Roles Anywhere Profiles.
+type AWSRolesAnywhereListProfilesRequest struct {
+	// Filters are the filters applied to the profiles.
+	// Only matching profiles will be synchronized as application servers.
+	// If empty, no filtering is applied.
+	//
+	// Filters can be globs, for example:
+	//
+	//	profile*
+	//	*name*
+	//
+	// Or regexes if they're prefixed and suffixed with ^ and $, for example:
+	//
+	//	^profile.*$
+	//	^.*name.*$
+	Filters []string `json:"filters"`
 }

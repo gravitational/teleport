@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func Test_transport_rewriteRedirect(t *testing.T) {
@@ -84,8 +85,8 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 			identity:    identity,
 			servers:     []types.AppServer{server},
 
-			cipherSuites: utils.DefaultCipherSuites(),
-			proxyClient:  &mockProxyClient{},
+			cipherSuites:  utils.DefaultCipherSuites(),
+			clusterGetter: &mockClusterGetter{},
 			accessPoint: &mockAuthClient{
 				caKey:       caKey,
 				caCert:      caCert,
@@ -217,20 +218,20 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 }
 
 type fakeTunnel struct {
-	reversetunnelclient.Tunnel
+	reversetunnelclient.ClusterGetter
 
-	fakeSite *reversetunnelclient.FakeRemoteSite
-	err      error
+	fakeCluster *reversetunnelclient.FakeCluster
+	err         error
 }
 
-func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.RemoteSite, error) {
-	return f.fakeSite, f.err
+func (f fakeTunnel) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return f.fakeCluster, f.err
 }
 
 func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 	tp := transport{
 		c: &transportConfig{
-			proxyClient: fakeTunnel{
+			clusterGetter: fakeTunnel{
 				err: trace.ConnectionProblem(errors.New(reversetunnelclient.NoApplicationTunnel), ""),
 			},
 			identity: &tlsca.Identity{},
@@ -239,7 +240,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 			},
-			log: utils.NewSlogLoggerForTests(),
+			log: logtest.NewLogger(),
 		},
 	}
 
@@ -252,7 +253,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 	count := len(tp.c.servers) + 1
 	resC := make(chan dialRes, count)
 
-	for i := 0; i < count; i++ {
+	for range count {
 		go func() {
 			conn, err := tp.DialContext(ctx, "", "")
 			resC <- dialRes{
@@ -262,7 +263,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < count; i++ {
+	for range count {
 		res := <-resC
 		require.Error(t, res.err)
 		require.Nil(t, res.conn)
@@ -304,9 +305,9 @@ func Test_transport_rewriteRequest(t *testing.T) {
 				AzureIdentity: "azure-identity",
 			},
 		},
-		servers:      []types.AppServer{azureAppServer},
-		cipherSuites: utils.DefaultCipherSuites(),
-		proxyClient:  &mockProxyClient{},
+		servers:       []types.AppServer{azureAppServer},
+		cipherSuites:  utils.DefaultCipherSuites(),
+		clusterGetter: &mockClusterGetter{},
 		accessPoint: &mockAuthClient{
 			caKey:       caKey,
 			caCert:      caCert,
@@ -480,9 +481,9 @@ func Test_transport_with_integration(t *testing.T) {
 				AWSRoleARN:  "MyAWSRole",
 			},
 		},
-		servers:      []types.AppServer{awsAppServer},
-		cipherSuites: utils.DefaultCipherSuites(),
-		proxyClient:  &mockProxyClient{},
+		servers:       []types.AppServer{awsAppServer},
+		cipherSuites:  utils.DefaultCipherSuites(),
+		clusterGetter: &mockClusterGetter{},
 		accessPoint: &mockAuthClient{
 			caKey:       caKey,
 			caCert:      caCert,

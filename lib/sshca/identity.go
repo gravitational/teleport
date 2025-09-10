@@ -28,9 +28,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -66,6 +68,11 @@ type Identity struct {
 
 	// Username is teleport username
 	Username string
+
+	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+	// set, the Roles field must not be set.
+	ScopePin *scopesv1.Pin
+
 	// Impersonator is set when a user requests certificate for another user
 	Impersonator string
 	// PermitX11Forwarding permits X11 forwarding for this cert
@@ -116,6 +123,8 @@ type Identity struct {
 	// BotInstanceID is the unique identifier for the bot instance, if this is a
 	// Machine ID bot. It is empty for human users.
 	BotInstanceID string
+	// JoinToken is the name of the join token used by the bot to join, if any.
+	JoinToken string
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs []types.ResourceID
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
@@ -180,6 +189,14 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 
 	// --- user extensions ---
 
+	if i.ScopePin != nil {
+		pin, err := protojson.Marshal(i.ScopePin)
+		if err != nil {
+			return nil, trace.Errorf("failed to marshal scope pin for ssh cert encoding: %w", err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionScopePin] = string(pin)
+	}
+
 	if i.PermitX11Forwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitX11Forwarding] = ""
 	}
@@ -215,6 +232,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if i.BotInstanceID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionBotInstanceID] = i.BotInstanceID
+	}
+	if i.JoinToken != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionJoinToken] = i.JoinToken
 	}
 	if len(i.AllowedResourceIDs) != 0 {
 		requestedResourcesStr, err := types.ResourceIDsToString(i.AllowedResourceIDs)
@@ -332,6 +352,11 @@ func (i *Identity) GetValidBefore() time.Time {
 	return validBefore
 }
 
+// IsBot returns whether this identity belongs to a bot.
+func (id *Identity) IsBot() bool {
+	return id.BotName != ""
+}
+
 // DecodeIdentity decodes an ssh certificate into an identity.
 func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident := &Identity{
@@ -378,6 +403,14 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 
 	// --- user extensions ---
 
+	if v, ok := takeExtension(teleport.CertExtensionScopePin); ok {
+		var pin scopesv1.Pin
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(v), &pin); err != nil {
+			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as scope pin: %v", v, teleport.CertExtensionScopePin, err)
+		}
+		ident.ScopePin = &pin
+	}
+
 	ident.PermitX11Forwarding = takeBool(teleport.CertExtensionPermitX11Forwarding)
 	ident.PermitAgentForwarding = takeBool(teleport.CertExtensionPermitAgentForwarding)
 	ident.PermitPortForwarding = takeBool(teleport.CertExtensionPermitPortForwarding)
@@ -406,6 +439,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 
 	ident.BotName = takeValue(teleport.CertExtensionBotName)
 	ident.BotInstanceID = takeValue(teleport.CertExtensionBotInstanceID)
+	ident.JoinToken = takeValue(teleport.CertExtensionJoinToken)
 
 	if v, ok := takeExtension(teleport.CertExtensionAllowedResources); ok {
 		resourceIDs, err := types.ResourceIDsFromString(v)

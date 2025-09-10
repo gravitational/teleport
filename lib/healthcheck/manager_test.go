@@ -33,19 +33,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -100,13 +102,14 @@ func TestNewManager(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			mgr, err := NewManager(test.cfg)
+			mgr, err := NewManager(context.Background(), test.cfg)
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 				require.Nil(t, mgr)
 				return
 			}
 			require.NoError(t, err)
+			require.NoError(t, mgr.Close())
 			require.NotNil(t, mgr)
 		})
 	}
@@ -131,21 +134,25 @@ func TestManager(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	eventsCh := make(chan testEvent, 1024)
-	mgr, err := NewManager(ManagerConfig{
-		Component:               "test",
+	mgr, err := NewManager(ctx, ManagerConfig{
+		Component:               teleport.ComponentDatabase,
 		Events:                  local.NewEventsService(bk),
 		HealthCheckConfigReader: healthConfigSvc,
 		Clock:                   clock,
 	})
 	require.NoError(t, err)
 	require.NoError(t, mgr.Start(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, mgr.Close())
+	})
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	{
 		mgr := mgr.(*manager)
 		mgr.mu.RLock()
-		defer mgr.mu.RUnlock()
-		assert.Len(t, mgr.configs, 1)
-	}, 5*time.Second, 100*time.Millisecond, "waiting for manager config watcher to observe the health check config")
+		configs := mgr.configs[:]
+		mgr.mu.RUnlock()
+		require.Len(t, configs, 1, "starting the manager should have blocked until configs were initialized")
+	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
@@ -173,7 +180,7 @@ func TestManager(t *testing.T) {
 
 	var endpointMu sync.Mutex
 	prodDialer := fakeDialer{}
-	err = mgr.AddTarget(ctx, Target{
+	err = mgr.AddTarget(Target{
 		GetResource: func() types.ResourceWithLabels {
 			endpointMu.Lock()
 			defer endpointMu.Unlock()
@@ -191,11 +198,14 @@ func TestManager(t *testing.T) {
 		onConfigUpdate: func() {
 			eventsCh <- configUpdateTestEvent(prodDB.GetName())
 		},
+		onClose: func() {
+			eventsCh <- closedTestEvent(prodDB.GetName())
+		},
 	})
 	require.NoError(t, err)
 
 	devDialer := fakeDialer{}
-	err = mgr.AddTarget(ctx, Target{
+	err = mgr.AddTarget(Target{
 		GetResource: func() types.ResourceWithLabels {
 			endpointMu.Lock()
 			defer endpointMu.Unlock()
@@ -213,11 +223,14 @@ func TestManager(t *testing.T) {
 		onConfigUpdate: func() {
 			eventsCh <- configUpdateTestEvent(devDB.GetName())
 		},
+		onClose: func() {
+			eventsCh <- closedTestEvent(devDB.GetName())
+		},
 	})
 	require.NoError(t, err)
 
 	t.Run("duplicate target is an error", func(t *testing.T) {
-		err = mgr.AddTarget(ctx, Target{
+		err = mgr.AddTarget(Target{
 			GetResource: func() types.ResourceWithLabels { return devDB },
 			ResolverFn:  func(ctx context.Context) ([]string, error) { return nil, nil },
 		})
@@ -225,7 +238,7 @@ func TestManager(t *testing.T) {
 		require.IsType(t, trace.AlreadyExists(""), err)
 	})
 	t.Run("unsupported target resource is an error", func(t *testing.T) {
-		err = mgr.AddTarget(ctx, Target{
+		err = mgr.AddTarget(Target{
 			GetResource: func() types.ResourceWithLabels { return &fakeResource{kind: "node"} },
 			ResolverFn:  func(ctx context.Context) ([]string, error) { return nil, nil },
 		})
@@ -250,7 +263,7 @@ func TestManager(t *testing.T) {
 		denyAll(devDB.GetName()),
 	)
 	requireTargetHealth(t, devDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
-	requireTargetHealth(t, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonInit)
+	requireTargetHealth(t, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// another check should reach the prodHCC configured threshold.
 	awaitTestEvents(t, eventsCh, clock,
@@ -291,7 +304,7 @@ func TestManager(t *testing.T) {
 		expect(devFail, prodFail),
 		deny(prodPass, devPass),
 	)
-	requireTargetHealth(t, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonInit)
+	requireTargetHealth(t, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// the next dev check should update health status because the unhealthy threshold was met
 	awaitTestEvents(t, eventsCh, clock,
@@ -382,6 +395,14 @@ func TestManager(t *testing.T) {
 
 	// prodDB should still be disabled
 	requireTargetHealth(t, prodDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
+	err = mgr.RemoveTarget(prodDB)
+	require.NoError(t, err)
+
+	// make sure the workers have stopped.
+	awaitTestEvents(t, eventsCh, clock,
+		advanceByHCC(prodHCC, devHCC),
+		expect(closedTestEvent(devDB.GetName()), closedTestEvent(prodDB.GetName())),
+	)
 }
 
 func healthCheckConfigFixture(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
@@ -389,7 +410,10 @@ func healthCheckConfigFixture(t *testing.T, name string) *healthcheckconfigv1.He
 	out, err := healthcheckconfig.NewHealthCheckConfig(name,
 		&healthcheckconfigv1.HealthCheckConfigSpec{
 			Match: &healthcheckconfigv1.Matcher{
-				DbLabelsExpression: `labels["*"] == "*"`,
+				DbLabels: []*labelv1.Label{{
+					Name:   types.Wildcard,
+					Values: []string{types.Wildcard},
+				}},
 			},
 			Interval:           durationpb.New(apidefaults.HealthCheckInterval),
 			Timeout:            durationpb.New(apidefaults.HealthCheckTimeout),
@@ -543,10 +567,18 @@ type testEvent struct {
 type testEventName string
 
 const (
+	closed         testEventName = "closed"
 	configUpdate   testEventName = "configUpdate"
 	lastResultPass testEventName = "lastResultPass"
 	lastResultFail testEventName = "lastResultFail"
 )
+
+func closedTestEvent(targetName string) testEvent {
+	return testEvent{
+		name:   closed,
+		target: targetName,
+	}
+}
 
 func configUpdateTestEvent(targetName string) testEvent {
 	return testEvent{

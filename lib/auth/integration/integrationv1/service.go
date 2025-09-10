@@ -28,7 +28,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -38,8 +37,11 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/awscommon"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Cache is the subset of the cached resources that the Service queries.
@@ -69,6 +71,9 @@ type KeyStoreManager interface {
 	NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error)
 	// GetSSHSignerFromKeySet selects a usable SSH keypair from the provided key set.
 	GetSSHSignerFromKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error)
+	// GetTLSCertAndSigner selects a usable TLS keypair from the given CA
+	// and returns the PEM-encoded TLS certificate and a [crypto.Signer].
+	GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error)
 }
 
 // Backend defines the interface for all the backend services that the
@@ -89,6 +94,11 @@ type ServiceConfig struct {
 	Logger          *slog.Logger
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
+
+	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
+	// This is used to allow mocking in tests, because the real implementation does
+	// If not set, the default implementation is used.
+	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -136,6 +146,8 @@ type Service struct {
 	logger          *slog.Logger
 	clock           clockwork.Clock
 	emitter         apievents.Emitter
+
+	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -152,6 +164,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		backend:         cfg.Backend,
 		clock:           cfg.Clock,
 		emitter:         cfg.Emitter,
+
+		awsRolesAnywhereCreateSessionFn: cfg.awsRolesAnywhereCreateSessionFn,
 	}, nil
 }
 
@@ -233,12 +247,13 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.IntegrationSubKindAWSOIDC:
-		// AWS OIDC Integration can be used as source of credentials to access AWS Web/CLI.
-		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
-		// Instead of failing when the integration is already created, it fails at creation time.
-		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
-			return nil, trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
+	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
+		if err := awscommon.ValidIntegratioName(req.Integration.GetName()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := validateAWSRolesAnywhereProfileFilters(req.Integration); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -288,6 +303,10 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
+	if err := validateAWSRolesAnywhereProfileFilters(req.Integration); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := s.maybeUpdateStaticCredentials(ctx, req.Integration); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -325,6 +344,24 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 	}
 
 	return igV1, nil
+}
+
+func validateAWSRolesAnywhereProfileFilters(ig types.Integration) error {
+	rolesAnywhereSpec := ig.GetAWSRolesAnywhereIntegrationSpec()
+	if rolesAnywhereSpec == nil {
+		return nil
+	}
+
+	if rolesAnywhereSpec.ProfileSyncConfig == nil {
+		return nil
+	}
+
+	for _, profileNameFilter := range rolesAnywhereSpec.ProfileSyncConfig.ProfileNameFilters {
+		if _, err := utils.CompileExpression(profileNameFilter); err != nil {
+			return trace.BadParameter("invalid filter %q, use glob-like matching or regex by adding the anchors (eg, ^regex$): %v", profileNameFilter, err)
+		}
+	}
+	return nil
 }
 
 // DeleteIntegration removes the specified Integration resource.
@@ -414,9 +451,9 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 		igMeta.GitHub = &apievents.GitHubIntegrationMetadata{
 			Organization: ig.GetGitHubIntegrationSpec().Organization,
 		}
-	case types.IntegrationSubKindAWSRA:
+	case types.IntegrationSubKindAWSRolesAnywhere:
 		igMeta.AWSRA = &apievents.AWSRAIntegrationMetadata{
-			TrustAnchorARN: ig.GetAWSRAIntegrationSpec().TrustAnchorARN,
+			TrustAnchorARN: ig.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN,
 		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)
@@ -443,12 +480,17 @@ func (s *Service) ensureNoAssociatedResources(ctx context.Context, ig types.Inte
 
 func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig types.Integration) error {
 	s.logger.DebugContext(ctx, "Checking GitHub integration associated resources", "integration", ig.GetName())
-	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
+	for server, err := range clientutils.Resources(ctx, s.backend.ListGitServers) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		if server.GetGitHub() != nil && server.GetGitHub().Integration == ig.GetName() {
 			return trace.BadParameter("git servers associated with integration %s must be deleted first", ig.GetName())
 		}
-		return nil
-	}))
+	}
+
+	return nil
 }
 
 func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
@@ -471,10 +513,15 @@ func (s *Service) deleteGitHubAssociatedResources(ctx context.Context, authCtx *
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
-		if server.GetGitHub() == nil || server.GetGitHub().Integration != ig.GetName() {
-			return nil
+	for server, err := range clientutils.Resources(ctx, s.backend.ListGitServers) {
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(s.backend.DeleteGitServer(ctx, server.GetName()))
-	}))
+
+		if server.GetGitHub() != nil && server.GetGitHub().Integration == ig.GetName() {
+			return trace.Wrap(s.backend.DeleteGitServer(ctx, server.GetName()))
+		}
+	}
+
+	return nil
 }

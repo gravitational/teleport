@@ -23,4 +23,10 @@ export type YamlEditorModel = {
    * content were modified
    */
   isDirty: boolean;
+  /**
+   * Indicates if the user interacted with the YAML editor. It's different from
+   * {@link YamlEditorModel.isDirty} by not taking into consideration if the
+   * content is different from the original.
+   */
+  isTouched: boolean;
 };

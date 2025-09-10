@@ -53,6 +53,7 @@ import 'teleport/services/resources';
 import { Info } from 'design/Alert/Alert';
 import { collectKeys } from 'shared/utils/collectKeys';
 
+import auth from 'teleport/services/auth';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import {
@@ -211,9 +212,15 @@ export const UpsertJoinTokenDialog = ({
 
   const [createTokenAttempt, runCreateTokenAttempt] = useAsync(
     async (req: CreateJoinTokenRequest, isEdit: boolean) => {
+      // The edit and create endpoint each call other endpoints
+      // that require re-authenticating. Providing a reusable mfaResponse
+      // is required for multple internal validations to succeed.
+      const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(
+        true /* allow re-use */
+      );
       const token = isEdit
-        ? await ctx.joinTokenService.editJoinToken(req)
-        : await ctx.joinTokenService.createJoinToken(req);
+        ? await ctx.joinTokenService.editJoinToken(req, mfaResponse)
+        : await ctx.joinTokenService.createJoinToken(req, mfaResponse);
       updateTokenList(token);
       onClose();
     }

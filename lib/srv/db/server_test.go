@@ -20,29 +20,55 @@ package db
 
 import (
 	"context"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 )
+
+func registerTestEndpointResolver(t *testing.T, builder endpoints.ResolverBuilder, names ...string) {
+	// prevent parallel tests from running with the modified endpoint resolver.
+	t.Setenv("registerTestEndpointResolver", "NO PARALLEL ALLOWED")
+	origBuilders, err := endpoints.GetResolverBuilders(names...)
+	require.NoError(t, err, "trying to override a resolver that isn't registered")
+	endpoints.RegisterResolver(builder, names...)
+	t.Cleanup(func() {
+		for name, origBuilder := range origBuilders {
+			endpoints.RegisterResolver(origBuilder, name)
+		}
+	})
+}
 
 // TestDatabaseServerStart validates that started database server updates its
 // dynamic labels and heartbeats its presence to the auth server.
@@ -132,7 +158,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		})
 
 		// Connect the maximum allowed number of clients.
-		for i := int64(0); i < connLimit; i++ {
+		for range connLimit {
 			pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
 			require.NoError(t, err)
 
@@ -156,7 +182,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 			}
 		})
 		// Connect the maximum allowed number of clients.
-		for i := int64(0); i < connLimit; i++ {
+		for range connLimit {
 			mysqlConn, err := testCtx.mysqlClient(user, "mysql", dbUser)
 			require.NoError(t, err)
 
@@ -181,7 +207,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		})
 		// Mongo driver behave different from MySQL and Postgres. In this case we just want to hit the limit
 		// by creating some DB connections.
-		for i := int64(0); i < 2*connLimit; i++ {
+		for range 2 * connLimit {
 			mongoConn, err := testCtx.mongoClient(ctx, user, "mongo", dbUser)
 
 			if err == nil {
@@ -234,7 +260,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 
 	// advance clock several times, perform query.
 	// the activity should update the idle activity timer.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		advanceInSteps(testCtx.clock, clientIdleTimeout/2)
 		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
 		require.NoErrorf(t, err, "failed on iteration %v", i+1)
@@ -313,8 +339,9 @@ func TestHeartbeatEvents(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var heartbeatEvents int64
 			heartbeatRecorder := func(err error) {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				atomic.AddInt64(&heartbeatEvents, 1)
+				assert.LessOrEqual(t, atomic.LoadInt64(&heartbeatEvents), expectedHeartbeatCount(test.staticDatabases))
 			}
 
 			testCtx := setupTestContext(ctx, t)
@@ -425,7 +452,6 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -499,7 +525,7 @@ func TestTrackActiveConnections(t *testing.T) {
 
 	// Create a few connections, increasing the active connections. Keep track
 	// of the closer functions, so we can close them later.
-	for i := 0; i < numActiveConnections; i++ {
+	for i := range numActiveConnections {
 		expectedActiveConnections := int32(i + 1)
 		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
 		require.NoError(t, err)
@@ -514,7 +540,7 @@ func TestTrackActiveConnections(t *testing.T) {
 	}
 
 	// For each connection we close, the active connections should drop too.
-	for i := 0; i < numActiveConnections; i++ {
+	for i := range numActiveConnections {
 		expectedActiveConnections := int32(numActiveConnections - (i + 1))
 		require.NoError(t, closeFuncs[i]())
 
@@ -635,4 +661,165 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 	}()
 
 	return testCtx.server, connErrCh, cancelConn
+}
+
+func TestHealthCheck(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	user := "alice"
+	testCtx := setupTestContext(ctx, t)
+	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	hcc := newHealthCheckConfig(t, "match-all")
+	_, err := testCtx.authServer.CreateHealthCheckConfig(ctx, hcc)
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := testCtx.authServer.GetHealthCheckConfig(ctx, "match-all")
+		assert.NoError(t, err)
+	}, time.Second, time.Millisecond*100, "waiting for health check config")
+
+	// Generate ephemeral cert returned from mock GCP API.
+	ephemeralCert, err := common.MakeTestClientTLSCert(common.TestClientConfig{
+		AuthClient: testCtx.authClient,
+		AuthServer: testCtx.authServer,
+		Cluster:    testCtx.clusterName,
+		Username:   user,
+	})
+	require.NoError(t, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: ephemeralCert.Certificate[0],
+	})
+
+	databases := []types.Database{
+		withCassandra("cassandra")(t, ctx, testCtx),
+		withClickhouseHTTP("clickhouse-http")(t, ctx, testCtx),
+		withClickhouseNative("clickhouse-native")(t, ctx, testCtx),
+		withCloudSQLMySQLTLS("cloudsql-mysql", user, cloudSQLPassword)(t, ctx, testCtx),
+		withCloudSQLPostgres("cloudsql-postgres", cloudSQLAuthToken)(t, ctx, testCtx),
+		withDynamoDB("dynamodb")(t, ctx, testCtx),
+		withElasticsearch("self-hosted-elasticsearch")(t, ctx, testCtx),
+		withOpenSearch("self-hosted-opensearch")(t, ctx, testCtx),
+		withSelfHostedMongo("self-hosted-mongo")(t, ctx, testCtx),
+		withSelfHostedMySQL("self-hosted-mysql")(t, ctx, testCtx),
+		withSelfHostedPostgres("self-hosted-postgres")(t, ctx, testCtx),
+		withSpanner("cloud-spanner", "cloud-spanner-auth-token")(t, ctx, testCtx),
+		withSQLServer("sqlserver")(t, ctx, testCtx),
+		withAzureRedis("redis-azure", azureRedisToken)(t, ctx, testCtx),
+		withElastiCacheRedis("redis-elasticache", elastiCacheRedisToken, "7.0.0")(t, ctx, testCtx),
+		withElastiCacheServerlessRedis("redis-serverless-elasticache", elastiCacheServerlessRedisToken, "8.0.0")(t, ctx, testCtx),
+		withMemoryDBRedis("redis-memorydb", memorydbToken, "7.0")(t, ctx, testCtx),
+		withSelfHostedRedis("redis-self-hosted")(t, ctx, testCtx),
+		withSnowflake("snowflake")(t, ctx, testCtx),
+	}
+	for _, db := range databases {
+		if db.GetProtocol() == defaults.ProtocolMySQL {
+			require.False(t, endpoints.IsRegistered(db), "health checks for MySQL protocol should be disabled")
+			continue
+		}
+		require.True(t, endpoints.IsRegistered(db), "database %v does not have a registered endpoint resolver", db.GetName())
+	}
+	dynamoListenAddr := net.JoinHostPort("localhost", testCtx.dynamodb["dynamodb"].db.Port())
+	dynamoResolver := &fakeEndpointResolver{
+		t:       t,
+		builder: dynamodb.NewEndpointsResolver,
+		rewrite: map[string]string{
+			"123456789012.ddb.us-west-1.amazonaws.com:443": dynamoListenAddr,
+			"streams.dynamodb.us-west-1.amazonaws.com:443": dynamoListenAddr,
+		},
+	}
+	snowflakeListenAddr := net.JoinHostPort("localhost", testCtx.snowflake["snowflake"].db.Port())
+	snowflakeResolver := &fakeEndpointResolver{
+		t:       t,
+		builder: snowflake.NewEndpointsResolver,
+		rewrite: map[string]string{
+			testCtx.snowflake["snowflake"].resource.GetURI(): snowflakeListenAddr,
+		},
+	}
+	registerTestEndpointResolver(t, dynamoResolver.build, defaults.ProtocolDynamoDB)
+	registerTestEndpointResolver(t, snowflakeResolver.build, defaults.ProtocolSnowflake)
+
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: databases,
+		GCPSQL: &mocks.GCPSQLAdminClientMock{
+			EphemeralCert: string(certPEM),
+			DatabaseInstance: &sqladmin.DatabaseInstance{
+				Settings: &sqladmin.Settings{
+					IpConfiguration: &sqladmin.IpConfiguration{
+						RequireSsl: true,
+					},
+				},
+			},
+		},
+	})
+
+	go testCtx.startHandlingConnections()
+	for _, db := range databases {
+		t.Run(db.GetName(), func(t *testing.T) {
+			t.Parallel()
+			dbServer, err := testCtx.server.getServerInfo(ctx, db)
+			require.NoError(t, err)
+			if db.GetProtocol() == defaults.ProtocolMySQL {
+				require.Equal(t, "unknown", dbServer.GetTargetHealth().Status)
+				require.Equal(t, "disabled", dbServer.GetTargetHealth().TransitionReason)
+				require.Equal(t, `endpoint health checks for database protocol "mysql" are not supported`, dbServer.GetTargetHealth().Message)
+				return
+			}
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				assert.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
+			}, 30*time.Second, time.Millisecond*250, "waiting for database %s to become healthy", db.GetName())
+		})
+	}
+}
+
+func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
+	t.Helper()
+	out, err := healthcheckconfig.NewHealthCheckConfig(name,
+		&healthcheckconfigv1.HealthCheckConfigSpec{
+			Match: &healthcheckconfigv1.Matcher{
+				DbLabels: []*labelv1.Label{{
+					Name:   types.Wildcard,
+					Values: []string{types.Wildcard},
+				}},
+			},
+			Interval:           durationpb.New(apidefaults.HealthCheckInterval),
+			Timeout:            durationpb.New(apidefaults.HealthCheckTimeout),
+			HealthyThreshold:   1,
+			UnhealthyThreshold: 1,
+		},
+	)
+	require.NoError(t, err)
+	return out
+}
+
+type fakeEndpointResolver struct {
+	t *testing.T
+	// builder is the builder that this fake resolver wraps.
+	builder endpoints.ResolverBuilder
+	// rewrite is a map of host:port addresses to rewrite.
+	// The resolver asserts an error if an address is not found in this map.
+	rewrite map[string]string
+}
+
+func (f *fakeEndpointResolver) build(ctx context.Context, db types.Database, cfg endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	f.t.Helper()
+	resolver, err := f.builder(ctx, db, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
+		f.t.Helper()
+		addrs, err := resolver.Resolve(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out := make([]string, 0, len(addrs))
+		for _, addr := range addrs {
+			if assert.Contains(f.t, f.rewrite, addr, "the real endpoint resolver resolved an unexpected address") {
+				out = append(out, f.rewrite[addr])
+			}
+		}
+		return out, nil
+	}), nil
 }

@@ -131,8 +131,8 @@ type HostUsersBackend interface {
 	LookupGroup(group string) (*user.Group, error)
 	// LookupGroupByID retrieves a group by its ID.
 	LookupGroupByID(gid string) (*user.Group, error)
-	// SetUserGroups sets a user's groups, replacing their existing groups.
-	SetUserGroups(name string, groups []string) error
+	// UpdateUser sets a user's groups and default shell, replacing their existing groups.
+	UpdateUser(name string, groups []string, defaultShell string) error
 	// CreateGroup creates a group on a host.
 	CreateGroup(group string, gid string) error
 	// CreateUser creates a user on a host.
@@ -143,6 +143,8 @@ type HostUsersBackend interface {
 	CreateHomeDirectory(userHome string, uid, gid string) error
 	// GetDefaultHomeDirectory returns the default home directory path for the given user
 	GetDefaultHomeDirectory(name string) (string, error)
+	// IsUsingShell returns whether or not the given user is currently using the given shell.
+	IsUsingShell(username, shell string) (bool, error)
 	// RemoveExpirations removes any sort of password or account expiration from the user
 	// that may have been placed by password policies.
 	RemoveExpirations(name string) error
@@ -283,11 +285,11 @@ func (u *HostSudoersManagement) RemoveSudoers(name string) error {
 	return nil
 }
 
-// unmanagedUserErr is returned when attempting to modify or interact with a user that is not managed by Teleport.
-var unmanagedUserErr = errors.New("user not managed by teleport")
+// errUnmanagedUser is returned when attempting to modify or interact with a user that is not managed by Teleport.
+var errUnmanagedUser = errors.New("user not managed by teleport")
 
-// staticConversionErr is returned when attempting to convert a managed host user to or from a static host user
-var staticConversionErr = errors.New("managed host users can not be converted to or from a static host user")
+// errStaticConversion is returned when attempting to convert a managed host user to or from a static host user
+var errStaticConversion = errors.New("managed host users can not be converted to or from a static host user")
 
 func (u *HostUserManagement) updateUser(hostUser HostUser, ui *decisionpb.HostUsersInfo) error {
 	ctx := u.ctx
@@ -315,7 +317,7 @@ func (u *HostUserManagement) updateUser(hostUser HostUser, ui *decisionpb.HostUs
 	}
 
 	return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
-		return trace.Wrap(u.backend.SetUserGroups(hostUser.Name, ui.Groups))
+		return trace.Wrap(u.backend.UpdateUser(hostUser.Name, ui.Groups, ui.Shell))
 	}))
 }
 
@@ -455,13 +457,13 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 	log.DebugContext(u.ctx, "Resolving groups for user")
 	groups, err := ResolveGroups(log, hostUser, ui, options.takeOwnership)
 	if err != nil {
-		if errors.Is(err, staticConversionErr) {
+		if errors.Is(err, errStaticConversion) {
 			log.DebugContext(u.ctx, "Aborting host user creation, can't convert between auto-provisioned and static host users.",
 				"login", name)
 
 		}
 
-		if errors.Is(err, unmanagedUserErr) {
+		if errors.Is(err, errUnmanagedUser) {
 			log.DebugContext(u.ctx, "Aborting host user creation, can't update unmanaged user unless explicitly migrating.",
 				"login", name)
 		}
@@ -495,10 +497,26 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 		return closer, nil
 	}
 
-	if groups != nil {
-		if err := u.updateUser(*hostUser, ui); err != nil {
-			return nil, trace.Wrap(err)
+	// nothing to update
+	if groups == nil && ui.Shell == "" {
+		return closer, nil
+	}
+
+	if groups == nil {
+		// only bother checking the user's current shell if we aren't already
+		// updating their groups
+		usingShell, err := u.backend.IsUsingShell(name, ui.Shell)
+		if err != nil {
+			log.WarnContext(u.ctx, "Failed to check user's default shell", "error", err)
 		}
+
+		if usingShell {
+			return closer, nil
+		}
+	}
+
+	if err := u.updateUser(*hostUser, ui); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// attempt to remove password expirations from managed users if they've been added
@@ -767,11 +785,11 @@ func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostU
 		inStaticMode := ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
 
 		if (inStaticMode && managedUser) || (!inStaticMode && staticUser) {
-			return nil, trace.Wrap(staticConversionErr)
+			return nil, trace.Wrap(errStaticConversion)
 		}
 
-		if !(managedUser || staticUser || migrateStaticUser || migrateKeepUser) {
-			return nil, trace.Wrap(unmanagedUserErr)
+		if !managedUser && !staticUser && !migrateStaticUser && !migrateKeepUser {
+			return nil, trace.Wrap(errUnmanagedUser)
 		}
 
 		groups[teleportGroup] = struct{}{}

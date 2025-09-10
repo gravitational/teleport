@@ -29,6 +29,7 @@ export const KeysEnum = {
   ACCESS_GRAPH_SEARCH_MODE: 'grv_teleport_access_graph_search_mode',
   ACCESS_GRAPH_QUERY: 'grv_teleport_access_graph_query',
   ACCESS_GRAPH_ENABLED: 'grv_teleport_access_graph_enabled',
+  ACCESS_GRAPH_IAC_ENABLED: 'grv_teleport_access_graph_iac_enabled',
   ACCESS_GRAPH_SQL_ENABLED: 'grv_teleport_access_graph_sql_enabled',
   ACCESS_GRAPH_ROLE_TESTER_ENABLED:
     'grv_teleport_access_graph_role_tester_enabled',
@@ -41,6 +42,21 @@ export const KeysEnum = {
   LOCAL_NOTIFICATION_STATES: 'grv_teleport_notification_states',
   RECENT_HISTORY: 'grv_teleport_sidenav_recent_history',
   LOGIN_TIME: 'grv_teleport_login_time',
+  REMEMBERED_SSO_USERNAME: 'grv_teleport_remembered_sso_username',
+  SESSION_RECORDINGS_VIEW_MODE: 'grv_teleport_session_recordings_view_mode',
+  SESSION_RECORDINGS_DENSITY: 'grv_teleport_session_recordings_density',
+  SESSION_RECORDINGS_DISMISSED_CTA:
+    'grv_teleport_session_recordings_dismissed_cta',
+  SESSION_RECORDINGS_DISMISSED_SETUP:
+    'grv_teleport_session_recordings_dismissed_setup',
+  SESSION_RECORDING_SIDEBAR_HIDDEN:
+    'grv_teleport_session_recording_sidebar_hidden',
+  SESSION_RECORDING_TIMELINE_HEIGHT:
+    'grv_teleport_session_recording_timeline_height',
+  SESSION_RECORDING_TIMELINE_HIDDEN:
+    'grv_teleport_session_recording_timeline_hidden',
+  SESSION_RECORDING_TIMELINE_SHOW_ABSOLUTE_TIME:
+    'grv_teleport_session_recording_timeline_show_absolute_time',
 
   // TODO(bl-nero): Remove once the new role editor is in acceptable state.
   USE_NEW_ROLE_EDITOR: 'grv_teleport_use_new_role_editor',

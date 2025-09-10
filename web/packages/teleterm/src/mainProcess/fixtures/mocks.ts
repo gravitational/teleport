@@ -173,6 +173,35 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 
   refreshClusterList() {}
+
+  async selectDirectoryForDesktopSession() {
+    return '';
+  }
+
+  supportsAppUpdates() {
+    return true;
+  }
+  async changeAppUpdatesManagingCluster() {}
+  async maybeRemoveAppUpdatesManagingCluster() {}
+  async checkForAppUpdates() {}
+  async downloadAppUpdate() {}
+  async cancelAppUpdateDownload() {}
+  async quitAndInstallAppUpdate() {}
+  subscribeToAppUpdateEvents(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  subscribeToOpenAppUpdateDialog(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  subscribeToIsInBackgroundMode(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
 }
 
 export const makeRuntimeSettings = (

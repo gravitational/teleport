@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -129,6 +130,13 @@ type server struct {
 	// gitKeyManager manages keys for git proxies.
 	gitKeyManager *git.KeyManager
 }
+
+// EICESigner is a function that is used to obatin an [ssh.Signer] for an EICE instance. The
+// [ssh.Signer] is required for clients to be able to connect to the instance.
+type EICESigner func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error)
+
+// EICEDialer is a function that is used to dial and obtain a connection to an EICE instance.
+type EICEDialer func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error)
 
 // Config is a reverse tunnel server configuration
 type Config struct {
@@ -227,6 +235,11 @@ type Config struct {
 
 	// PROXYSigner is used to sign PROXY headers to securely propagate client IP information.
 	PROXYSigner multiplexer.PROXYHeaderSigner
+
+	// EICEDialer is used to open a connection to an EICE instance.
+	EICEDialer EICEDialer
+	// EICESigner is used to generate and upload credentials to an EICE instance.
+	EICESigner EICESigner
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -285,6 +298,13 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
+
+	if cfg.EICEDialer == nil {
+		return trace.BadParameter("missing parameter EICEDialer")
+	}
+	if cfg.EICESigner == nil {
+		return trace.BadParameter("missing parameter EICESigner")
 	}
 	return nil
 }
@@ -397,7 +417,7 @@ func (s *server) disconnectClusters(connectedRemoteClusters []*remoteSite, remot
 	for _, cluster := range connectedRemoteClusters {
 		if _, ok := remoteMap[cluster.GetName()]; !ok {
 			s.logger.InfoContext(s.ctx, "Remote cluster has been deleted, disconnecting it from the proxy", "remote_cluster", cluster.GetName())
-			if err := s.onSiteTunnelClose(&alwaysClose{RemoteSite: cluster}); err != nil {
+			if err := s.onSiteTunnelClose(&alwaysClose{Cluster: cluster}); err != nil {
 				s.logger.DebugContext(s.ctx, "Failure closing cluster", "remote_cluster", cluster.GetName(), "error", err)
 			}
 			remoteClustersStats.DeleteLabelValues(cluster.GetName())
@@ -449,7 +469,7 @@ func (s *server) periodicFunctions() {
 // fetchClusterPeers pulls back all proxies that have registered themselves
 // (created a services.TunnelConnection) in the backend and compares them to
 // what was found in the previous iteration and updates the in-memory cluster
-// peer map. This map is used later by GetSite(s) to return either local or
+// peer map. This map is used later by Cluster(s) to return either local or
 // remote site, or if no match, a cluster peer.
 func (s *server) fetchClusterPeers() error {
 	conns, err := s.LocalAccessPoint.GetAllTunnelConnections()
@@ -1047,10 +1067,10 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 	return site, remoteConn, nil
 }
 
-func (s *server) GetSites() ([]reversetunnelclient.RemoteSite, error) {
+func (s *server) Clusters(context.Context) ([]reversetunnelclient.Cluster, error) {
 	s.RLock()
 	defer s.RUnlock()
-	out := make([]reversetunnelclient.RemoteSite, 0, len(s.remoteSites)+len(s.clusterPeers)+1)
+	out := make([]reversetunnelclient.Cluster, 0, len(s.remoteSites)+len(s.clusterPeers)+1)
 	out = append(out, s.localSite)
 
 	haveLocalConnection := make(map[string]bool)
@@ -1076,15 +1096,15 @@ func (s *server) getRemoteClusters() []*remoteSite {
 	return out
 }
 
-// GetSite returns a RemoteSite. The first attempt is to find and return a
-// remote site and that is what is returned if a remote agent has
+// Cluster returns the Cluster with the matching name. The first attempt
+// is to find and return a remote site and that is what is returned if a remote agent has
 // connected to this proxy. Next we loop over local sites and try and try and
 // return a local site. If that fails, we return a cluster peer. This happens
 // when you hit proxy that has never had an agent connect to it. If you end up
 // with a cluster peer your best bet is to wait until the agent has discovered
 // all proxies behind a load balancer. Note, the cluster peer is a
 // services.TunnelConnection that was created by another proxy.
-func (s *server) GetSite(name string) (reversetunnelclient.RemoteSite, error) {
+func (s *server) Cluster(_ context.Context, name string) (reversetunnelclient.Cluster, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.localSite.GetName() == name {
@@ -1111,7 +1131,7 @@ func (s *server) GetProxyPeerClient() *peer.Client {
 // alwaysClose forces onSiteTunnelClose to remove and close
 // the site by always returning false from HasValidConnections.
 type alwaysClose struct {
-	reversetunnelclient.RemoteSite
+	reversetunnelclient.Cluster
 }
 
 func (a *alwaysClose) HasValidConnections() bool {

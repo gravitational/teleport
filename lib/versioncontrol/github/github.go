@@ -243,7 +243,7 @@ func parseReleaseNoteLabels(notes string) map[string]string {
 			continue
 		}
 		l = strings.TrimPrefix(l, labelPrefix)
-		for _, kv := range strings.Split(l, ",") {
+		for kv := range strings.SplitSeq(l, ",") {
 			if !strings.Contains(kv, "=") {
 				logger.DebugContext(context.Background(), "Skipping invalid release label keypair", "label", kv)
 				continue

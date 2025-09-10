@@ -18,10 +18,13 @@ package cache
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -30,36 +33,31 @@ type userGroupIndex string
 
 const userGroupNameIndex userGroupIndex = "name"
 
-func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collection[types.UserGroup, userGroupIndex], error) {
-	if u == nil {
+func newUserGroupCollection(upstream services.UserGroups, w types.WatchKind) (*collection[types.UserGroup, userGroupIndex], error) {
+	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter UserGroups")
 	}
 
 	return &collection[types.UserGroup, userGroupIndex]{
-		store: newStore(map[userGroupIndex]func(types.UserGroup) string{
-			userGroupNameIndex: func(r types.UserGroup) string {
-				return r.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindUserGroup,
+			types.UserGroup.Clone,
+			map[userGroupIndex]func(types.UserGroup) string{
+				userGroupNameIndex: types.UserGroup.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.UserGroup, error) {
-			var startKey string
-			var groups []types.UserGroup
-			for {
-				resp, startKey, err := u.ListUserGroups(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				groups = append(groups, resp...)
-				if startKey == "" {
-					break
-				}
-			}
-			return groups, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListUserGroups))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.UserGroup {
 			return &types.UserGroupV1{
-				ResourceHeader: *hdr,
+				ResourceHeader: types.ResourceHeader{
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
+					Metadata: types.Metadata{
+						Name: hdr.Metadata.Name,
+					},
+				},
 			}
 		},
 		watch: w,
@@ -81,6 +79,9 @@ func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string
 		group, nextKey, err := c.Config.UserGroups.ListUserGroups(ctx, pageSize, nextKey)
 		return group, nextKey, trace.Wrap(err)
 	}
+
+	// TODO(tross): DELETE IN V20.0.0
+	nextKey = strings.TrimPrefix(nextKey, "/")
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > local.GroupMaxPageSize {
@@ -116,5 +117,8 @@ func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup,
 	}
 
 	group, err := rg.store.get(userGroupNameIndex, name)
-	return group.Clone(), trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return group.Clone(), nil
 }

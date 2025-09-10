@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-func Test_newWorker(t *testing.T) {
+func Test_newUnstartedWorker(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -56,6 +56,7 @@ func Test_newWorker(t *testing.T) {
 		desc       string
 		cfg        workerConfig
 		wantHealth types.TargetHealth
+		wantErr    string
 	}{
 		{
 			desc: "disabled",
@@ -91,6 +92,7 @@ func Test_newWorker(t *testing.T) {
 						return []string{db.GetURI()}, nil
 					},
 				},
+				getTargetHealthTimeout: time.Millisecond,
 			},
 			wantHealth: types.TargetHealth{
 				Address:          "",
@@ -100,10 +102,31 @@ func Test_newWorker(t *testing.T) {
 				Message:          "Health checker initialized",
 			},
 		},
+		{
+			desc: "invalid target",
+			cfg: workerConfig{
+				HealthCheckCfg: &healthCheckConfig{
+					interval:           time.Minute,
+					timeout:            time.Minute,
+					healthyThreshold:   10,
+					unhealthyThreshold: 10,
+				},
+				Target: Target{
+					ResolverFn: func(ctx context.Context) ([]string, error) {
+						return []string{db.GetURI()}, nil
+					},
+				},
+			},
+			wantErr: "missing target resource getter",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			w, err := newWorker(ctx, test.cfg)
+			w, err := newUnstartedWorker(ctx, test.cfg)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, w.Close()) })
 			require.Empty(t, cmp.Diff(test.wantHealth, *w.GetTargetHealth(),

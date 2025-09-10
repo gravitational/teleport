@@ -3,6 +3,9 @@ title: User Types
 description: Describes the different types of Teleport users and their properties.
 keywords: [user,idp,sso]
 tocDepth: 3
+tags:
+ - conceptual
+ - zero-trust
 ---
 
 This guide explains the different kinds of users in Teleport, how they are
@@ -23,7 +26,7 @@ one-time passwords.
 
 Local user login can be disabled via `cluster_auth_preference` or `teleport.yaml`.
 Disabling local authentication is required for [FIPS/FedRAMP compliance
-](../admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
+](../zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ### Special case: Bots
 
@@ -36,7 +39,7 @@ Unlike human users, who use a password, MFA, or SSO, bot users join
 the cluster as Teleport services using [a join method](./join-methods.mdx). They
 can still join even if local auth is disabled. 
 
-See the [Machine ID introduction](../enroll-resources/machine-id/introduction.mdx) for more information.
+See the [Machine ID introduction](../machine-workload-identity/machine-id/introduction.mdx) for more information.
 
 ## SSO users
 
@@ -68,7 +71,7 @@ and automatically expire. The expiry is dynamically computed based on the IdP
 answer validity, the max session duration allowed by the user roles, and cannot
 exceed 30 hours. Those users cannot be edited via `tctl`, only deleted.
 
-See the [SSO setup guides](../admin-guides/access-controls/sso/sso.mdx) to learn how to setup an
+See the [SSO setup guides](../zero-trust-access/sso/sso.mdx) to learn how to setup an
 authentication connector and allow user to log in via an IdP.
 
 ### Synced users

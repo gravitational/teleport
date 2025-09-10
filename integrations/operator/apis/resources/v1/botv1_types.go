@@ -39,10 +39,10 @@ func init() {
 // TeleportBotV1 holds the kubernetes custom resources for Bot
 type TeleportBotV1 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   *TeleportBotV1Spec `json:"spec,omitempty"`
-	Status resources.Status   `json:"status,omitempty"`
+	Status resources.Status   `json:"status"`
 }
 
 // TeleportBotV1Spec defines the desired state of TeleportBotV1
@@ -53,7 +53,7 @@ type TeleportBotV1Spec machineidv1.BotSpec
 // TeleportBotV1List contains a list of TeleportBotV1
 type TeleportBotV1List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportBotV1 `json:"items"`
 }
 

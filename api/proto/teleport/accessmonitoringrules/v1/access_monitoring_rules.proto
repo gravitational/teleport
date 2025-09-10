@@ -55,7 +55,7 @@ message AccessMonitoringRuleSpec {
   reserved 5;
   reserved "automatic_approval";
 
-  // automatic_review defines automatic review configurations for access requests.
+  // automatic_review defines automatic review configurations for Access Requests.
   // Both notification and automatic_review may be set within the same
   // access_monitoring_rule. If both fields are set, the rule will trigger
   // both notifications and automatic reviews for the same set of access events.
@@ -63,9 +63,9 @@ message AccessMonitoringRuleSpec {
   // set.
   AutomaticReview automatic_review = 6;
 
-  // desired_state defines the desired state of the subject. For access request
+  // desired_state defines the desired state of the subject. For Access Request
   // subjects, the desired_state may be set to `reviewed` to indicate that the
-  // access request should be automatically reviewed.
+  // Access Request should be automatically reviewed.
   string desired_state = 7;
 }
 
@@ -83,7 +83,7 @@ message AutomaticReview {
   // the rule. Set this value to `builtin` to monitor the rule with Teleport.
   string integration = 1;
   // decision specifies the proposed state of the access review. This can be
-  // either 'approved' or 'denied'.
+  // either 'APPROVED' or 'DENIED'.
   string decision = 2;
 }
 

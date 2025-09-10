@@ -33,15 +33,18 @@ const userLoginStateNameIndex userLoginStateIndex = "name"
 
 func newUserLoginStateCollection(upstream services.UserLoginStates, w types.WatchKind) (*collection[*userloginstate.UserLoginState, userLoginStateIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter UserTasks")
+		return nil, trace.BadParameter("missing parameter UserLoginStates")
 	}
 
 	return &collection[*userloginstate.UserLoginState, userLoginStateIndex]{
-		store: newStore(map[userLoginStateIndex]func(*userloginstate.UserLoginState) string{
-			userLoginStateNameIndex: func(r *userloginstate.UserLoginState) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.KindUserLoginState,
+			(*userloginstate.UserLoginState).Clone,
+			map[userLoginStateIndex]func(*userloginstate.UserLoginState) string{
+				userLoginStateNameIndex: func(r *userloginstate.UserLoginState) string {
+					return r.GetMetadata().Name
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*userloginstate.UserLoginState, error) {
 			out, err := upstream.GetUserLoginStates(ctx)
 			return out, trace.Wrap(err)
@@ -99,9 +102,6 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 			upstreamRead = true
 			state, err := c.Config.UserLoginStates.GetUserLoginState(ctx, name)
 			return state, trace.Wrap(err)
-		},
-		clone: func(uls *userloginstate.UserLoginState) *userloginstate.UserLoginState {
-			return uls.Clone()
 		},
 	}
 	out, err := getter.get(ctx, name)

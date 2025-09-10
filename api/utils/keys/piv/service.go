@@ -25,7 +25,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/go-piv/piv-go/piv"
+	"github.com/go-piv/piv-go/v2/piv"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -118,6 +118,8 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 	}
 
 	// If PIN is required, check that PIN and PUK are not the defaults.
+	// This also caches the PIN in the PIV connection, similar to a call
+	// to [hardwarekey.Signer.WarmupHardwareKey].
 	if config.Policy.PINRequired {
 		if err := y.checkOrSetPIN(ctx, s.getPrompt(), config.ContextualKeyInfo, config.PINCacheTTL); err != nil {
 			return nil, trace.Wrap(err)
@@ -129,26 +131,37 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return hardwarekey.NewSigner(s, ref, config.ContextualKeyInfo), nil
+
+		signer := hardwarekey.NewSigner(s, ref, config.ContextualKeyInfo)
+		if config.Policy.TouchRequired {
+			// Warmup the hardware key with a touch prompt now rather than later. This is intended
+			// to avoid prompting for PIV touch directly after a WebAuthn touch prompt, which
+			// can delay the PIV signature and beyond the expected [sigsignTouchPromptDelay].
+			if err := signer.WarmupHardwareKey(ctx); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return signer, nil
 	}
 
 	// If a custom slot was not specified, check for a key in the
 	// default slot for the given policy and generate a new one if needed.
 	if config.CustomSlot == "" {
-		switch cert, err := y.getCertificate(pivSlot); {
-		case errors.Is(err, piv.ErrNotFound):
+		switch err := y.checkCertificate(pivSlot); {
+		case trace.IsNotFound(err):
+			return generatePrivateKey()
+
+		// Unknown cert found, this slot could be in use by a non-teleport client.
+		// Prompt the user before we overwrite the slot.
+		case errors.As(err, &nonTeleportCertError{}):
+			if err := s.promptOverwriteSlot(ctx, err.Error(), config.ContextualKeyInfo); err != nil {
+				return nil, trace.Wrap(err)
+			}
 			return generatePrivateKey()
 
 		case err != nil:
 			return nil, trace.Wrap(err)
-
-		// Unknown cert found, this slot could be in use by a non-teleport client.
-		// Prompt the user before we overwrite the slot.
-		case !isTeleportMetadataCertificate(cert):
-			if err := s.promptOverwriteSlot(ctx, nonTeleportCertificateMessage(pivSlot, cert), config.ContextualKeyInfo); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return generatePrivateKey()
 		}
 	}
 
@@ -177,7 +190,17 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		return generatePrivateKey()
 	}
 
-	return hardwarekey.NewSigner(s, keyRef, config.ContextualKeyInfo), nil
+	signer := hardwarekey.NewSigner(s, keyRef, config.ContextualKeyInfo)
+	if config.Policy.TouchRequired {
+		// Warmup the hardware key with a touch prompt now rather than later. This is intended
+		// to avoid prompting for PIV touch directly after a WebAuthn touch prompt, which
+		// can delay the PIV signature and beyond the expected [sigsignTouchPromptDelay].
+		if err := signer.WarmupHardwareKey(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return signer, nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
@@ -188,8 +211,31 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
-	s.signMu.Lock()
-	defer s.signMu.Unlock()
+	pivSlot, err := parsePIVSlot(ref.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check that the public key in the slot matches our record.
+	publicKey, err := y.getPublicKey(pivSlot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !publicKey.Equal(ref.PublicKey) {
+		return nil, trace.CompareFailed("public key mismatch on PIV slot 0x%x", pivSlot.Key)
+	}
+
+	// If the sign request is for an unknown agent key, ensure that the requested PIV slot was
+	// configured with a self-signed Teleport metadata certificate.
+	if keyInfo.AgentKeyInfo.UnknownAgentKey {
+		switch err := y.checkCertificate(pivSlot); {
+		case trace.IsNotFound(err), errors.As(err, &nonTeleportCertError{}):
+			return nil, trace.Wrap(err, agentRequiresTeleportCertMessage)
+		case err != nil:
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	return y.sign(ctx, ref, keyInfo, s.getPrompt(), rand, digest, opts)
 }

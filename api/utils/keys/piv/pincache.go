@@ -1,3 +1,5 @@
+//go:build piv || pivtest
+
 // Copyright 2025 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,14 +17,10 @@
 package piv
 
 import (
-	"context"
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 // pinCache is a PIN cache that supports consumers with varying required TTLs.
@@ -46,38 +44,14 @@ func newPINCache() *pinCache { //nolint:unused // used in yubikey.go with piv bu
 	}
 }
 
-// PromptOrGetPIN retrieves the cached PIN if set. Otherwise it prompts for the PIN and caches it.
-func (p *pinCache) PromptOrGetPIN(ctx context.Context, prompt hardwarekey.Prompt, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
-	// If the provided ttl is 0, it doesn't support caching, so we just prompt.
-	if pinCacheTTL == 0 {
-		return prompt.AskPIN(ctx, requirement, keyInfo)
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if pin := p.getPIN(pinCacheTTL); pin != "" {
-		return pin, nil
-	}
-
-	// Add a timeout to prevent an unanswered PIN prompt from holding the lock.
-	const pinPromptTimeout = time.Minute
-	ctx, cancel := context.WithTimeout(ctx, pinPromptTimeout)
-	defer cancel()
-
-	pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	p.setPIN(pin, pinCacheTTL)
-	return pin, nil
-}
-
 // getPIN retrieves the cached PIN. If the PIN was cached before by an amount of
 // time equal to the provided TTL, the PIN will not be returned.
 // Must be called under [p.mu] lock.
 func (p *pinCache) getPIN(ttl time.Duration) string {
+	if ttl == 0 {
+		return ""
+	}
+
 	if p.pin == "" {
 		return ""
 	}
@@ -105,6 +79,10 @@ func (p *pinCache) getPIN(ttl time.Duration) string {
 // TTL would exceed that expiration.
 // Must be called under [p.mu] lock.
 func (p *pinCache) setPIN(pin string, ttl time.Duration) {
+	if ttl == 0 {
+		return
+	}
+
 	now := p.clock.Now()
 	expiry := now.Add(ttl)
 

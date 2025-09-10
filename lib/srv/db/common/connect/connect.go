@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net"
+	"slices"
 	"sort"
 	"strings"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // DatabaseServersGetter is an interface for retrieving information about
@@ -67,8 +69,6 @@ func GetDatabaseServers(ctx context.Context, params GetDatabaseServersParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	params.Logger.DebugContext(ctx, "Available database servers.", "cluster", params.ClusterName, "servers", servers)
-
 	// Find out which database servers proxy the database a user is
 	// connecting to using routing information from identity.
 	var result []types.DatabaseServer
@@ -77,6 +77,11 @@ func GetDatabaseServers(ctx context.Context, params GetDatabaseServersParams) ([
 			result = append(result, server)
 		}
 	}
+
+	params.Logger.DebugContext(ctx, "Available database servers",
+		"cluster", params.ClusterName,
+		"servers", logutils.StringerSliceAttr(result),
+	)
 
 	if len(result) != 0 {
 		return result, nil
@@ -300,10 +305,14 @@ func Connect(ctx context.Context, params ConnectParams) (net.Conn, ConnectStats,
 		return nil, stats, trace.Wrap(err)
 	}
 
+	// group the servers by target health, shuffle each group, and then iterate
+	// over the concatenated groups in order ascending order of health.
+	params.ShuffleFunc(params.Servers)
+	groups := types.GroupByTargetHealthStatus(params.Servers)
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
-	for _, server := range params.ShuffleFunc(params.Servers) {
+	for _, server := range slices.Concat(groups.Healthy, groups.Unknown, groups.Unhealthy) {
 		stats.attemptedServers++
 		params.Logger.DebugContext(ctx, "Dialing to database service.", "server", server)
 		tlsConfig, err := GetServerTLSConfig(ctx, ServerTLSConfigParams{

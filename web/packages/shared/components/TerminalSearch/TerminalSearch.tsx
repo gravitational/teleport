@@ -45,7 +45,7 @@ export const TerminalSearch = ({
   isSearchKeyboardEvent(e: KeyboardEvent): boolean;
 }) => {
   const theme = useTheme();
-  const searchInputRef = useRef<HTMLInputElement>();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchValue, setSearchValue] = useState('');
   const [searchResults, setSearchResults] = useState<{
     resultIndex: number;

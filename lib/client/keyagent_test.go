@@ -293,7 +293,7 @@ func (s *KeyAgentTestSuite) generateCA(t *testing.T, keygen *testauthority.Keyge
 
 		// retry until we get a unique keypair
 		attempts := 20
-		for i := 0; i < attempts; i++ {
+		for i := range attempts {
 			if i == attempts-1 {
 				require.FailNowf(t, "could not find a unique keypair", "made %d attempts", i)
 			}

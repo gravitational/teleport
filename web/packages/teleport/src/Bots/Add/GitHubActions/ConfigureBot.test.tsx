@@ -113,6 +113,7 @@ describe('configureBot Component', () => {
       status: '',
       subKind: '',
       version: '',
+      max_session_ttl: { seconds: 43200 },
     });
 
     const botNameInput = screen.getByPlaceholderText('github-actions-cd');

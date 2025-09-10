@@ -245,6 +245,7 @@ enum CTA {
   CTA_OKTA_USER_SYNC = 11;
   CTA_ENTRA_ID = 12;
   CTA_OKTA_SCIM = 13;
+  CTA_IDENTITY_SECURITY = 14;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
@@ -409,7 +410,12 @@ message UIDiscoverCompletedEvent {
 message UICreateNewRoleClickEvent {}
 
 // UICreateNewRoleSaveClickEvent is an event that can be triggered during custom role creation
-message UICreateNewRoleSaveClickEvent {}
+message UICreateNewRoleSaveClickEvent {
+  bool standard_used = 1;
+  bool yaml_used = 2;
+  string mode_when_saved = 3;
+  repeated string fields_with_conversion_errors = 4;
+}
 
 // UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleCancelClickEvent {}

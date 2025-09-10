@@ -16,10 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { IconTooltip } from '../Tooltip';
 import { SyncStamp } from './SyncStamp';
 
 export default {
   title: 'Design/SyncStamp',
 };
 
-export const Story = () => <SyncStamp date={new Date()} />;
+export const Story = () => (
+  <>
+    <SyncStamp date={new Date()} />
+    <SyncStamp date={new Date('2019-08-30T00:00:00.00Z')} />
+    <SyncStamp date={new Date()}>
+      <IconTooltip kind="error">Failed</IconTooltip>
+    </SyncStamp>
+  </>
+);

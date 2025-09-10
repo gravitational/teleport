@@ -22,6 +22,9 @@ import (
 	"crypto/x509"
 	"maps"
 	"regexp"
+	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -55,7 +58,11 @@ type WindowsDesktopConfig struct {
 	KDCAddr string
 
 	// Discovery configures automatic desktop discovery via LDAP.
-	Discovery LDAPDiscoveryConfig
+	Discovery         []LDAPDiscoveryConfig
+	DiscoveryInterval time.Duration
+
+	// PublishCRLInterval determines how often CRLs should be published.
+	PublishCRLInterval time.Duration
 
 	// StaticHosts is an optional list of static Windows hosts to expose through this
 	// service.
@@ -97,6 +104,8 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string
+	// RDPPort is the RDP port to register for each host discovered with this configuration.
+	RDPPort int
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
@@ -142,10 +151,22 @@ type HostLabelRule struct {
 	Labels map[string]string
 }
 
+type LocateServer struct {
+	// Enabled will automatically locate the LDAP server using DNS SRV records.
+	// When enabled, Domain must be set, Addr will be ignored
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool
+	// Site is an LDAP site to locate servers from a specific logical site.
+	Site string
+}
+
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the address:port of the LDAP server (typically port 389).
 	Addr string
+	// LocateServer automatically locates the LDAP server using DNS SRV records.
+	// https://ldap.com/dns-srv-records-for-ldap/
+	LocateServer LocateServer
 	// Domain is the ActiveDirectory domain name.
 	Domain string
 	// Username for LDAP authentication.
@@ -158,4 +179,23 @@ type LDAPConfig struct {
 	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
+}
+
+// CheckAndSetDefaults verifies this LDAPConfig
+func (cfg *LDAPConfig) CheckAndSetDefaults() error {
+	if cfg.Addr == "" && !cfg.LocateServer.Enabled {
+		return trace.BadParameter("Addr is required if locate_server is false in LDAPConfig")
+	}
+	if cfg.Domain == "" {
+		return trace.BadParameter("missing Domain in LDAPConfig")
+	}
+	if cfg.Username == "" {
+		return trace.BadParameter("missing Username in LDAPConfig")
+	}
+
+	return nil
+}
+
+func (cfg *LDAPConfig) Enabled() bool {
+	return cfg.Addr != "" || cfg.LocateServer.Enabled
 }

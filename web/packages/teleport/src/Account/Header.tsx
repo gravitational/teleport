@@ -31,10 +31,16 @@ import {
 
 export interface HeaderProps {
   title: React.ReactNode;
-  description?: string;
+  description?: React.ReactNode;
   icon: React.ReactNode;
   showIndicator?: boolean;
   actions: React.ReactNode;
+  /**
+   * Position of the action element in the Header component.
+   * - 'top' - action is aligned to the top of the header
+   * - 'center' - action is vertically aligned to the center of the Header (default)
+   */
+  actionPosition?: 'top' | 'center';
 }
 
 export function Header({
@@ -43,8 +49,10 @@ export function Header({
   icon,
   showIndicator,
   actions,
+  actionPosition = 'center',
 }: HeaderProps) {
   const theme = useTheme();
+
   return (
     <Flex alignItems="center" gap={3}>
       {/* lineHeight=0 prevents the icon background from being larger than
@@ -54,25 +62,32 @@ export function Header({
         lineHeight={0}
         p={2}
         borderRadius={3}
+        alignSelf={'flex-start'}
       >
         {icon}
       </Box>
-      <Box flex="1">
-        <H2>{title}</H2>
-        <Subtitle2 color={theme.colors.text.slightlyMuted}>
-          {description}
-        </Subtitle2>
-      </Box>
-      {/* Indicator is always in the layout so that the description text doesn't
-          reflow if visibility changes. */}
-      <Box
-        lineHeight={0}
-        style={{ visibility: showIndicator ? 'visible' : 'hidden' }}
-        data-testid="indicator-wrapper"
-      >
-        <Indicator size={40} />
-      </Box>
-      <Box flex="0 0 auto">{actions}</Box>
+      <ContentFlex>
+        <Box flex="1">
+          <H2>{title}</H2>
+          <Subtitle2 color={theme.colors.text.slightlyMuted}>
+            {description}
+          </Subtitle2>
+        </Box>
+        <ActionFlex actionPosition={actionPosition}>
+          {/* Indicator is always in the layout so that the description text doesn't
+              reflow if visibility changes. */}
+          <Box
+            lineHeight={0}
+            style={{ visibility: showIndicator ? 'visible' : 'hidden' }}
+            data-testid="indicator-wrapper"
+            height={40}
+            width={40}
+          >
+            <Indicator size={40} delay="none" />
+          </Box>
+          <ActionBox>{actions}</ActionBox>
+        </ActionFlex>
+      </ContentFlex>
     </Flex>
   );
 }
@@ -89,4 +104,41 @@ export const ActionButtonSecondary = styled(ButtonSecondary)`
 
 export const ActionButtonPrimary = styled(ButtonPrimary)`
   ${actionButtonStyles}
+`;
+
+const ActionBox = styled(Box)`
+  flex: 0 0 auto;
+
+  @media (max-width: ${props => props.theme.breakpoints.medium}) {
+    flex: 1 1 100% !important;
+  }
+`;
+
+const ContentFlex = styled(Flex)`
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: ${props => props.theme.space[3]}px;
+  flex: 1 1 auto;
+
+  @media (max-width: ${props => props.theme.breakpoints.medium}) {
+    & > * {
+      flex: 1 1 100% !important;
+    }
+  }
+`;
+
+const ActionFlex = styled(Flex)<{
+  actionPosition?: HeaderProps['actionPosition'];
+}>`
+  flex-direction: row;
+  align-self: ${props =>
+    props.actionPosition === 'top' ? 'flex-start' : 'center'};
+  align-items: ${props =>
+    props.actionPosition === 'top' ? 'flex-start' : 'center'};
+  gap: ${props => props.theme.space[2]}px;
+  flex: 0 0 auto;
+
+  @media (max-width: ${props => props.theme.breakpoints.medium}) {
+    flex-direction: row-reverse;
+  }
 `;

@@ -29,19 +29,28 @@ export const StyledDateRange = styled(Flex)`
 
   // This is to prevent jumping from resize when day picker is used
   // inside a dialog from longer months vs shorter months
-  height: 336px;
+  height: 342px;
 
-  .rdp {
+  .rdp-root {
+    /* color of the next/previous month buttons */
+    .rdp-chevron {
+      fill: ${p => p.theme.colors.text.main};
+    }
+    --rdp-disabled-opacity: 0.25;
+    padding-left: ${p => p.theme.space[3]}px;
+    padding-right: ${p => p.theme.space[3]}px;
     /* Accent color for the background of selected days. */
     --rdp-accent-color: ${p => p.theme.colors.spotBackground[2]};
+    --rdp-today-color: ${p => p.theme.colors.text.main};
+    --rdp-accent-background-color: ${p => p.theme.colors.spotBackground[2]};
 
-    /* Background color for the hovered/focused elements. */
-    --rdp-background-color: ${p => p.theme.colors.spotBackground[0]};
-
-    /* Color of selected day text */
-    --rdp-selected-color: ${p => p.theme.colors.text.main};
-
-    --rdp-outline: 2px solid var(--rdp-accent-color); /* Outline border for focused elements */
-    --rdp-outline-selected: 3px solid var(--rdp-accent-color); /* Outline border for focused _and_ selected elements */
+    /* color of the bar between from and to */
+    --rdp-range_middle-background-color: ${p =>
+      p.theme.colors.spotBackground[2]};
+    --rdp-range_start-date-background-color: ${p =>
+      p.theme.colors.spotBackground[2]};
+    --rdp-range_start-end-background-color: ${p =>
+      p.theme.colors.spotBackground[2]};
+    --rdp-selected-border: 2px solid ${p => p.theme.colors.spotBackground[2]};
   }
 `;

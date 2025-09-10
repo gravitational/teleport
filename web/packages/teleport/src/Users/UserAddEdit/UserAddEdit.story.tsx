@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { StoryObj } from '@storybook/react';
+import type { StoryObj } from '@storybook/react-vite';
 import { delay } from 'msw';
 
 import type { TraitsOption } from 'shared/components/TraitsEditor';
@@ -40,6 +40,7 @@ export const Create: StoryObj = {
       isNew: true,
       name: '',
       fetchRoles: async () => [],
+      modifyFetchedData: () => null,
       selectedRoles: [],
       user: {
         name: '',
@@ -125,6 +126,7 @@ const props = {
     name: 'lester',
     roles: ['editor'],
   },
+  modifyFetchedData: () => null,
   isNew: false,
   onChangeName() {},
   onChangeRoles() {},

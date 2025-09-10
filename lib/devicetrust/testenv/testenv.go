@@ -223,7 +223,7 @@ func NewSelfSignedSSHCert() ([]byte, crypto.Signer, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	sshCert := &ssh.Certificate{Key: sshSigner.PublicKey(), SignatureKey: sshSigner.PublicKey(), Serial: 1, CertType: ssh.UserCert}
+	sshCert := &ssh.Certificate{Key: sshSigner.PublicKey(), Serial: 1, CertType: ssh.UserCert}
 	if err := sshCert.SignCert(rand.Reader, sshSigner); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

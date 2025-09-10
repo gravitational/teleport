@@ -42,10 +42,10 @@ func TestClone(t *testing.T) {
 	itemCount := 11111
 	items := make([]backend.Item, itemCount)
 
-	for i := 0; i < itemCount; i++ {
+	for i := range itemCount {
 		item := backend.Item{
 			Key:   backend.NewKey(fmt.Sprintf("key-%05d", i)),
-			Value: []byte(fmt.Sprintf("value-%d", i)),
+			Value: fmt.Appendf(nil, "value-%d", i),
 		}
 		_, err := src.Put(ctx, item)
 		require.NoError(t, err)
@@ -78,10 +78,10 @@ func TestCloneForce(t *testing.T) {
 	itemCount := 100
 	items := make([]backend.Item, itemCount)
 
-	for i := 0; i < itemCount; i++ {
+	for i := range itemCount {
 		item := backend.Item{
 			Key:   backend.NewKey(fmt.Sprintf("key-%05d", i)),
-			Value: []byte(fmt.Sprintf("value-%d", i)),
+			Value: fmt.Appendf(nil, "value-%d", i),
 		}
 		_, err := src.Put(ctx, item)
 		require.NoError(t, err)

@@ -490,7 +490,7 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 	)
 
 	wg.Add(s.cfg.noOfWorkers)
-	for i := 0; i < s.cfg.noOfWorkers; i++ {
+	for i := range s.cfg.noOfWorkers {
 		go func(i int) {
 			defer wg.Done()
 			for {
@@ -904,7 +904,7 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 	var wg sync.WaitGroup
 
 	// Start the worker goroutines
-	for i := 0; i < noOfWorkers; i++ {
+	for range noOfWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -935,10 +935,7 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 
 	// Batch the receipt handles and send them to the worker pool.
 	for i := 0; i < len(handles); i += maxDeleteBatchSize {
-		end := i + maxDeleteBatchSize
-		if end > len(handles) {
-			end = len(handles)
-		}
+		end := min(i+maxDeleteBatchSize, len(handles))
 		workerCh <- handles[i:end]
 	}
 	close(workerCh)

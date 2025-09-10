@@ -51,7 +51,7 @@ export default function DocumentSshWrapper(props: PropTypes) {
 function DocumentSsh({ doc, visible }: PropTypes) {
   const ctx = useConsoleContext();
   const hasFileTransferAccess = ctx.storeUser.hasFileTransferAccess();
-  const terminalRef = useRef<TerminalRef>();
+  const terminalRef = useRef<TerminalRef>(undefined);
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
 

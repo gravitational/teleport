@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -132,13 +133,7 @@ func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace 
 
 // HasRole checks if the checker includes the role
 func (f *fakeChecker) HasRole(target string) bool {
-	for _, role := range f.roles {
-		if role == target {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(f.roles, target)
 }
 
 type serviceOpt = func(config *usersv1.ServiceConfig)
@@ -496,7 +491,7 @@ func TestListUsers(t *testing.T) {
 
 	// Create addition users to test pagination
 	createdUsers := []*types.UserV2{llama.(*types.UserV2)}
-	for i := 0; i < 22; i++ {
+	for i := range 22 {
 		user, err := types.NewUser(fmt.Sprintf("user_%d", i))
 		require.NoError(t, err, "creating new user %d", i)
 		require.NoError(t, generateUserSecrets(user), "generating user secrets")
@@ -520,7 +515,7 @@ func TestListUsers(t *testing.T) {
 		next = resp.NextPageToken
 	}
 
-	assert.Equal(t, len(createdUsers), len(listedUsers), "expected to eventually retrieve all users from listing")
+	assert.Len(t, createdUsers, len(listedUsers), "expected to eventually retrieve all users from listing")
 	assert.Empty(t, cmp.Diff(createdUsers, listedUsers,
 		cmpopts.SortSlices(func(a, b *types.UserV2) bool { return a.GetName() < b.GetName() }),
 		cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth"),
@@ -538,7 +533,7 @@ func TestListUsers(t *testing.T) {
 		next = resp.NextPageToken
 	}
 
-	assert.Equal(t, len(createdUsers), len(listedUsersWithSecrets), "expected to eventually retrieve all users from listing")
+	assert.Len(t, createdUsers, len(listedUsersWithSecrets), "expected to eventually retrieve all users from listing")
 	assert.Empty(t, cmp.Diff(createdUsers, listedUsersWithSecrets,
 		cmpopts.SortSlices(func(a, b *types.UserV2) bool { return a.GetName() < b.GetName() }),
 	))

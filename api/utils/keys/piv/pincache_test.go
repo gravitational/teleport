@@ -1,3 +1,5 @@
+//go:build pivtest
+
 // Copyright 2025 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,7 +42,7 @@ func TestPINCache(t *testing.T) {
 
 	// Advancing by the small TTL should only expire the pin for the small TTL.
 	clock.Advance(smallTTL)
-	require.Zero(t, pinCache.getPIN(smallTTL))
+	require.Empty(t, pinCache.getPIN(smallTTL))
 	require.Equal(t, testPIN, pinCache.getPIN(mediumTTL))
 	require.Equal(t, testPIN, pinCache.getPIN(largeTTL))
 
@@ -52,7 +54,7 @@ func TestPINCache(t *testing.T) {
 
 	// Advancing by the medium TTL, used to set the initial cache, should expire the PIN cache.
 	clock.Advance(mediumTTL)
-	require.Zero(t, pinCache.getPIN(smallTTL))
-	require.Zero(t, pinCache.getPIN(mediumTTL))
-	require.Zero(t, pinCache.getPIN(largeTTL))
+	require.Empty(t, pinCache.getPIN(smallTTL))
+	require.Empty(t, pinCache.getPIN(mediumTTL))
+	require.Empty(t, pinCache.getPIN(largeTTL))
 }

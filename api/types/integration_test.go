@@ -351,7 +351,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 				return &IntegrationV1{
 					ResourceHeader: ResourceHeader{
 						Kind:    KindIntegration,
-						SubKind: IntegrationSubKindAWSRA,
+						SubKind: IntegrationSubKindAWSRolesAnywhere,
 						Version: V1,
 						Metadata: Metadata{
 							Name:      name,
@@ -361,7 +361,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					Spec: IntegrationSpecV1{
 						SubKindSpec: &IntegrationSpecV1_AWSRA{
 							AWSRA: &AWSRAIntegrationSpecV1{
-								TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+								TrustAnchorARN:    "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+								ProfileSyncConfig: &AWSRolesAnywhereProfileSyncConfig{},
 							},
 						},
 					},
@@ -380,6 +381,88 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 				)
 			},
 			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "aws ra: error when sync is enabled but sync profile is missing",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSRA(
+					Metadata{
+						Name: name,
+					},
+					&AWSRAIntegrationSpecV1{
+						TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+						ProfileSyncConfig: &AWSRolesAnywhereProfileSyncConfig{
+							Enabled: true,
+							RoleARN: "arn:aws:iam::123456789012:role/DevTeams",
+						},
+					},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "aws ra: error when sync is enabled but sync role is missing",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSRA(
+					Metadata{
+						Name: name,
+					},
+					&AWSRAIntegrationSpecV1{
+						TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+						ProfileSyncConfig: &AWSRolesAnywhereProfileSyncConfig{
+							Enabled:    true,
+							ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+						},
+					},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "aws ra: valid sync configuration",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSRA(
+					Metadata{
+						Name: name,
+					},
+					&AWSRAIntegrationSpecV1{
+						TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+						ProfileSyncConfig: &AWSRolesAnywhereProfileSyncConfig{
+							Enabled:                       true,
+							ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+							RoleARN:                       "arn:aws:iam::123456789012:role/DevTeams",
+							ProfileAcceptsRoleSessionName: true,
+						},
+					},
+				)
+			},
+			expectedErrorIs: noErrorFunc,
+			expectedIntegration: func(name string) *IntegrationV1 {
+				return &IntegrationV1{
+					ResourceHeader: ResourceHeader{
+						Kind:    KindIntegration,
+						SubKind: IntegrationSubKindAWSRolesAnywhere,
+						Version: V1,
+						Metadata: Metadata{
+							Name:      name,
+							Namespace: defaults.Namespace,
+						},
+					},
+					Spec: IntegrationSpecV1{
+						SubKindSpec: &IntegrationSpecV1_AWSRA{
+							AWSRA: &AWSRAIntegrationSpecV1{
+								TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+								ProfileSyncConfig: &AWSRolesAnywhereProfileSyncConfig{
+									Enabled:                       true,
+									ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+									RoleARN:                       "arn:aws:iam::123456789012:role/DevTeams",
+									ProfileAcceptsRoleSessionName: true,
+								},
+							},
+						},
+					},
+				}
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

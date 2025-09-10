@@ -37,6 +37,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -61,17 +63,18 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type TestContext struct {
 	HostID               string
 	ClusterName          string
-	TLSServer            *auth.TestTLSServer
+	TLSServer            *authtest.TLSServer
 	AuthServer           *auth.Server
 	AuthClient           *authclient.Client
 	Authz                authz.Authorizer
@@ -124,7 +127,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	kubeConfigLocation := newKubeConfigFile(t, cfg.Clusters...)
 
 	// Create and start test auth server.
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
 		ClusterName: testCtx.ClusterName,
 		Dir:         t.TempDir(),
@@ -140,7 +143,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// the LockWatcher to hit the connection rate limit and fail with an error
 		// different from the expected one. We setup a custom rate limiter to avoid
 		// this issue.
-		auth.WithLimiterConfig(
+		authtest.WithLimiterConfig(
 			&limiter.Config{
 				MaxConnections: 100000,
 			},
@@ -161,12 +164,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// Auth client for Kube service.
-	testCtx.AuthClient, err = testCtx.TLSServer.NewClient(auth.TestServerID(types.RoleKube, testCtx.HostID))
+	testCtx.AuthClient, err = testCtx.TLSServer.NewClient(authtest.TestServerID(types.RoleKube, testCtx.HostID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.AuthClient.Close()) })
 
 	// Auth client, lock watcher and authorizer for Kube proxy.
-	proxyAuthClient, err := testCtx.TLSServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyAuthClient, err := testCtx.TLSServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
@@ -188,7 +191,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
-	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleKube)
+	serverIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleKube)
 	require.NoError(t, err)
 	kubeServiceTLSConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -228,11 +231,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
-		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello{
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return &proto.UpstreamInventoryHello{
 				ServerID: testCtx.HostID,
 				Version:  teleport.Version,
-				Services: []types.SystemRole{types.RoleKube},
+				Services: types.SystemRoles{types.RoleKube}.StringSlice(),
 				Hostname: "test",
 			}, nil
 		})
@@ -280,12 +283,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
-		OnHeartbeat:      func(err error) {},
-		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers: cfg.ResourceMatchers,
-		OnReconcile:      cfg.OnReconcile,
-		Log:              utils.NewSlogLoggerForTests(),
-		InventoryHandle:  inventoryHandle,
+		OnHeartbeat:          func(err error) {},
+		GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers:     cfg.ResourceMatchers,
+		OnReconcile:          cfg.OnReconcile,
+		Log:                  logtest.NewLogger(),
+		InventoryHandle:      inventoryHandle,
+		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 
@@ -304,7 +308,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(kubeServersWatcher.Close)
 
 	// TLS config for kube proxy and Kube service.
-	proxyServerIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleProxy)
+	proxyServerIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleProxy)
 	require.NoError(t, err)
 	proxyTLSConfig, err := proxyServerIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -315,9 +319,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
 			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
-				Sites: []reversetunnelclient.RemoteSite{
-					&fakeRemoteSite{
-						FakeRemoteSite: reversetunnelclient.NewFakeRemoteSite(testCtx.ClusterName, client),
+				FakeClusters: []reversetunnelclient.Cluster{
+					&fakeCluster{
+						FakeCluster: reversetunnelclient.NewFakeCluster(testCtx.ClusterName, client),
 						idToAddr: map[string]string{
 							testCtx.HostID: testCtx.kubeServerListener.Addr().String(),
 						},
@@ -361,11 +365,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
 		},
-		Log:             utils.NewSlogLoggerForTests(),
+		Log:             logtest.NewLogger(),
 		InventoryHandle: inventoryHandle,
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
+		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")
@@ -378,7 +383,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		case sender := <-inventoryHandle.Sender():
 			server, err := testCtx.KubeServer.GetServerInfo(cluster.Name)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
+			require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
 				KubernetesServer: server,
 			}))
 		case <-time.After(20 * time.Second):
@@ -403,7 +408,7 @@ func (c *TestContext) startKubeServices(t *testing.T) {
 	go func() {
 		err := c.KubeServer.Serve(c.kubeServerListener)
 		// ignore server closed error returned when .Close is called.
-		if errors.Is(err, http.ErrServerClosed) {
+		if errors.Is(err, http.ErrServerClosed) || errors.Is(err, net.ErrClosed) {
 			return
 		}
 		assert.NoError(t, err)
@@ -412,7 +417,7 @@ func (c *TestContext) startKubeServices(t *testing.T) {
 	go func() {
 		err := c.KubeProxy.Serve(c.kubeProxyListener)
 		// ignore server closed error returned when .Close is called.
-		if errors.Is(err, http.ErrServerClosed) {
+		if errors.Is(err, http.ErrServerClosed) || errors.Is(err, net.ErrClosed) {
 			return
 		}
 		assert.NoError(t, err)
@@ -450,22 +455,28 @@ type RoleSpec struct {
 
 // CreateUserWithTraitsAndRole creates Teleport user and role with specified names
 func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleSpec RoleSpec) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(
+	return c.CreateUserWithTraitsAndRoleVersion(ctx, t, username, userTraits, types.DefaultRoleVersion, roleSpec)
+}
+
+func (c *TestContext) CreateUserWithTraitsAndRoleVersion(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleVersion string, roleSpec RoleSpec) (types.User, types.Role) {
+	user, role, err := authtest.CreateUserAndRole(
 		c.TLSServer.Auth(),
 		username,
 		[]string{roleSpec.Name},
 		nil,
-		auth.WithUserMutator(func(user types.User) {
+		authtest.WithUserMutator(func(user types.User) {
 			user.SetTraits(userTraits)
 		}),
+		authtest.WithRoleVersion(roleVersion),
 	)
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.KubeUsers)
 	role.SetKubeGroups(types.Allow, roleSpec.KubeGroups)
 	role.SetSessionRequirePolicies(roleSpec.SessionRequire)
 	role.SetSessionJoinPolicies(roleSpec.SessionJoin)
+
 	if roleSpec.SetupRoleFunc == nil {
-		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
+		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: ""}})
 	} else {
 		roleSpec.SetupRoleFunc(role)
 	}
@@ -476,7 +487,12 @@ func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testin
 
 // CreateUserAndRole creates Teleport user and role with specified names
 func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
-	return c.CreateUserWithTraitsAndRole(ctx, t, username, nil, roleSpec)
+	return c.CreateUserAndRoleVersion(ctx, t, username, types.DefaultRoleVersion, roleSpec)
+}
+
+// CreateUserAndRoleVersion creates Teleport user and role with specified names and role version.
+func (c *TestContext) CreateUserAndRoleVersion(ctx context.Context, t *testing.T, username, roleVersion string, roleSpec RoleSpec) (types.User, types.Role) {
+	return c.CreateUserWithTraitsAndRoleVersion(ctx, t, username, nil, roleVersion, roleSpec)
 }
 
 func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
@@ -531,6 +547,12 @@ func WithMFAVerified() GenTestKubeClientTLSCertOptions {
 
 // GenTestKubeClientTLSCert generates a kube client to access kube service
 func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
+	client, _, cfg := c.GenTestKubeClientsTLSCert(t, userName, kubeCluster, opts...)
+	return client, cfg
+}
+
+// GenTestKubeClientsTLSCert generates a "regular" kube client and a dynamic one to access kube service
+func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *dynamic.DynamicClient, *rest.Config) {
 	authServer := c.AuthServer
 	clusterName, err := authServer.GetClusterName(context.TODO())
 	require.NoError(t, err)
@@ -602,7 +624,10 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	client, err := kubernetes.NewForConfig(restConfig)
 	require.NoError(t, err)
 
-	return client, restConfig
+	dynClient, err := dynamic.NewForConfig(restConfig)
+	require.NoError(t, err)
+
+	return client, dynClient, restConfig
 }
 
 // NewJoiningSession creates a new session stream for joining an existing session.
@@ -663,14 +688,14 @@ func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionT
 	}
 }
 
-// fakeRemoteSite is a fake remote site that uses a map to map server IDs to
+// fakeCluster is a fake cluster that uses a map to map server IDs to
 // addresses to simulate reverse tunneling.
-type fakeRemoteSite struct {
-	*reversetunnelclient.FakeRemoteSite
+type fakeCluster struct {
+	*reversetunnelclient.FakeCluster
 	idToAddr map[string]string
 }
 
-func (f *fakeRemoteSite) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
+func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	// The server ID is the first part of the address.
 	addr, ok := f.idToAddr[strings.Split(p.ServerID, ".")[0]]
 	if !ok {

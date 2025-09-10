@@ -504,7 +504,11 @@ func (u *UICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiCreateNewRoleSaveClick{
 			UiCreateNewRoleSaveClick: &prehogv1a.UICreateNewRoleSaveClickEvent{
-				UserName: a.AnonymizeString(u.UserName),
+				UserName:                   a.AnonymizeString(u.UserName),
+				StandardUsed:               u.StandardUsed,
+				YamlUsed:                   u.YamlUsed,
+				ModeWhenSaved:              u.ModeWhenSaved,
+				FieldsWithConversionErrors: u.FieldsWithConversionErrors,
 			},
 		},
 	}
@@ -1426,7 +1430,11 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleSaveClick:
 		return &UICreateNewRoleSaveClickEvent{
-			UserName: userMD.Username,
+			UserName:                   userMD.Username,
+			StandardUsed:               e.UiCreateNewRoleSaveClick.StandardUsed,
+			YamlUsed:                   e.UiCreateNewRoleSaveClick.YamlUsed,
+			ModeWhenSaved:              e.UiCreateNewRoleSaveClick.ModeWhenSaved,
+			FieldsWithConversionErrors: e.UiCreateNewRoleSaveClick.FieldsWithConversionErrors,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleCancelClick:
 		return &UICreateNewRoleCancelClickEvent{

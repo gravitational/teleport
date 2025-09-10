@@ -54,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 const testuser = "teleport-testuser"
@@ -78,7 +80,7 @@ func getUserShells(path string) (map[string]string, error) {
 }
 
 func TestRootHostUsersBackend(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	sudoersTestDir := t.TempDir()
 	usersbk := srv.HostUsersProvisioningBackend{}
 	sudoersbk := srv.HostSudoersProvisioningBackend{
@@ -171,9 +173,9 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, sudoersbk.WriteSudoersFile("user.name", validSudoersEntry))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
 		require.NoError(t, err)
+
 		require.NoError(t, sudoersbk.RemoveSudoersFile("user.name"))
-		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
-		require.True(t, os.IsNotExist(err))
+		require.NoFileExists(t, filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
 	})
 
 	t.Run("Test CreateHomeDirectory does not follow symlinks", func(t *testing.T) {
@@ -238,7 +240,7 @@ func sudoersPath(username, uuid string) string {
 }
 
 func TestRootHostUsers(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	ctx := context.Background()
 	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
 	require.NoError(t, err)
@@ -342,16 +344,14 @@ func TestRootHostUsers(t *testing.T) {
 		// delete the user and ensure the sudoers file got deleted
 		require.NoError(t, closer.Close())
 		require.NoError(t, sudoers.RemoveSudoers(testuser))
-		_, err = os.Stat(sudoersPath(testuser, uuid))
-		require.True(t, os.IsNotExist(err))
+		require.NoFileExists(t, sudoersPath(testuser, uuid))
 
 		// ensure invalid sudoers entries dont get written
 		err = sudoers.WriteSudoers(testuser,
 			[]string{"badsudoers entry!!!"},
 		)
 		require.Error(t, err)
-		_, err = os.Stat(sudoersPath(testuser, uuid))
-		require.True(t, os.IsNotExist(err))
+		require.NoFileExists(t, sudoersPath(testuser, uuid))
 	})
 
 	t.Run("test delete all users in teleport service group", func(t *testing.T) {
@@ -456,7 +456,9 @@ func TestRootHostUsers(t *testing.T) {
 		namedShellUser := "named-shell"
 		absoluteShellUser := "absolute-shell"
 
-		t.Cleanup(func() { cleanupUsersAndGroups([]string{defaultShellUser, namedShellUser, absoluteShellUser}, nil) })
+		t.Cleanup(func() {
+			cleanupUsersAndGroups([]string{defaultShellUser, namedShellUser, absoluteShellUser}, nil)
+		})
 
 		// Create a user with a named shell expected to be available in the PATH
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
@@ -466,17 +468,16 @@ func TestRootHostUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// Create a user with the host default shell (default behavior)
+		_, err = users.UpsertUser(defaultShellUser, &decisionpb.HostUsersInfo{
+			Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+		})
+		require.NoError(t, err)
+
 		// Create a user with an absolute path to a shell
 		_, err = users.UpsertUser(absoluteShellUser, &decisionpb.HostUsersInfo{
 			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Shell: "/usr/bin/bash",
-		})
-		require.NoError(t, err)
-
-		// Create a user with the host default shell (default behavior)
-		_, err = users.UpsertUser(defaultShellUser, &decisionpb.HostUsersInfo{
-			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
-			Shell: "zsh",
 		})
 		require.NoError(t, err)
 
@@ -501,10 +502,24 @@ func TestRootHostUsers(t *testing.T) {
 		assert.Equal(t, expectedShell, userShells[absoluteShellUser])
 		assert.NotEqual(t, expectedShell, userShells[defaultShellUser])
 
-		// User's shell should not be overwritten when updating, only when creating a new host user
+		// User's shell should be overwritten when a different shell
+		// is provided
+		expectedShell = "/usr/bin/sh"
 		_, err = users.UpsertUser(namedShellUser, &decisionpb.HostUsersInfo{
 			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Shell: "sh",
+		})
+		require.NoError(t, err)
+
+		userShells, err = getUserShells("/etc/passwd")
+		require.NoError(t, err)
+		assert.Equal(t, expectedShell, userShells[namedShellUser])
+
+		// Make sure we can change the user's shell back again.
+		expectedShell = "/usr/bin/bash"
+		_, err = users.UpsertUser(namedShellUser, &decisionpb.HostUsersInfo{
+			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+			Shell: "bash",
 		})
 		require.NoError(t, err)
 
@@ -625,7 +640,7 @@ func (u *hostUsersBackendWithExp) CreateUser(name string, groups []string, opts 
 }
 
 func TestRootLoginAsHostUser(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	// Create test instance.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -636,12 +651,12 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	// Create a user that can create a host user.
 	username := "test-user"
-	login := utils.GenerateLocalUsername(t)
+	login := testutils.GenerateLocalUsername(t)
 	groups := []string{"foo", "bar"}
 	role, err := types.NewRole("ssh-host-user", types.RoleSpecV6{
 		Options: types.RoleOptions{
@@ -725,7 +740,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 }
 
 func TestRootStaticHostUsers(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	// Create test instance.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -736,7 +751,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	require.NoError(t, instance.Create(t, nil, false))
@@ -755,7 +770,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 
 	// Create host user resources.
 	groups := []string{"foo", "bar"}
-	goodLogin := utils.GenerateLocalUsername(t)
+	goodLogin := testutils.GenerateLocalUsername(t)
 	goodUser := userprovisioning.NewStaticHostUser(goodLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -770,7 +785,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
-	goodLoginWithShell := utils.GenerateLocalUsername(t)
+	goodLoginWithShell := testutils.GenerateLocalUsername(t)
 	goodUserWithShell := userprovisioning.NewStaticHostUser(goodLoginWithShell, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -785,7 +800,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
-	nonMatchingLogin := utils.GenerateLocalUsername(t)
+	nonMatchingLogin := testutils.GenerateLocalUsername(t)
 	nonMatchingUser := userprovisioning.NewStaticHostUser(nonMatchingLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -799,7 +814,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
-	conflictingLogin := utils.GenerateLocalUsername(t)
+	conflictingLogin := testutils.GenerateLocalUsername(t)
 	conflictingUser := userprovisioning.NewStaticHostUser(conflictingLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -860,15 +875,15 @@ func testStaticHostUsers(t *testing.T, nodeUUID, goodLogin, goodLoginWithShell, 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Check that the user was created.
 		existingUser, err := user.Lookup(goodLogin)
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
 		assert.DirExists(collect, existingUser.HomeDir)
 		// Check that the user has the right groups, including teleport-static.
 		groupIDs, err := existingUser.GroupIds()
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
 		userGroups := make([]string, 0, len(groupIDs))
 		for _, gid := range groupIDs {
 			group, err := user.LookupGroupId(gid)
-			assert.NoError(collect, err)
+			require.NoError(collect, err)
 			userGroups = append(userGroups, group.Name)
 		}
 		assert.Subset(collect, userGroups, groups)
@@ -876,7 +891,7 @@ func testStaticHostUsers(t *testing.T, nodeUUID, goodLogin, goodLoginWithShell, 
 		// Check that the sudoers file was created.
 		assert.FileExists(collect, sudoersPath(goodLogin, nodeUUID))
 		userShells, err := getUserShells("/etc/passwd")
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
 		assert.Equal(collect, "/usr/bin/bash", userShells[goodLoginWithShell])
 	}, 10*time.Second, time.Second)
 

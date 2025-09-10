@@ -202,7 +202,7 @@ func NewHTTP(config HTTPConfig) (*HTTP, error) {
 // BuildURLPath returns a URI with args represented as query params
 // If any supplied argument is not a string, BuildURLPath will use
 // fmt.Sprintf(value) to stringify it.
-func BuildURLPath(args ...interface{}) string {
+func BuildURLPath(args ...any) string {
 	var pathArgs []string
 	for _, a := range args {
 		var str string

@@ -2,6 +2,9 @@
 title: Teleport Authentication
 description: This chapter explains how Teleport uses certificate authorities to authenticate users and services.
 h1: Teleport Authentication with Certificates
+tags:
+ - conceptual
+ - platform-wide
 ---
 
 Teleport handles both authentication and authorization.
@@ -85,7 +88,7 @@ Instead of distributing revocation lists, Teleport relies on time to do the job 
 <Admonition type="tip">
 In some cases, certificate expiration is not fast enough, and all sessions have to be terminated immediately,
 for example during active security incident.
-For those cases, Teleport Proxy can terminate live connections using [session and identity locking](../../admin-guides/access-controls/guides/locking.mdx).
+For those cases, Teleport Proxy can terminate live connections using [session and identity locking](../../identity-governance/locking.mdx).
 </Admonition>
 
 ### Short-lived Certs For Users
@@ -108,7 +111,7 @@ services and rotates SSH and X.509 certificates.
 
 Teleport internal services - the Auth Service, Proxy Service, Agents, and Machine ID Bots - use certificates to identify themselves
 within a cluster. To join services to the cluster and receive certificates, admins should use
-[short-lived tokens or cloud identity services](../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+[short-lived tokens or cloud identity services](../../enroll-resources/agents/join-token.mdx).
 
 Unlike users and services, internal services receive long-lived certificates.
 
@@ -116,14 +119,14 @@ To renew these certificates, admins should use certificate authority rotation, t
 previously-issued certificates for nodes or users regardless of expiry and issuing a new ones,
 using a new certificate authority.
 
-Take a look at the [Certificate Rotation Guide](../../admin-guides/management/operations/ca-rotation.mdx) to
+Take a look at the [Certificate Rotation Guide](../../zero-trust-access/management/operations/ca-rotation.mdx) to
 learn how to do certificate rotation in practice.
 
 <Admonition type="tip">
 To quickly lock out a potentially compromised Auth Service instance, Proxy
 Service instance, or Teleport Agent without rotating the entire cluster
 certificates, use [session and identity
-locking](../../admin-guides/access-controls/guides/locking.mdx).
+locking](../../identity-governance/locking.mdx).
 </Admonition>
 
 ## More concepts

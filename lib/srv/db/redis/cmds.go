@@ -119,20 +119,20 @@ func (e *Engine) processPubSub(ctx context.Context, pubSub *redis.PubSub) error 
 
 		switch msg := msg.(type) {
 		case *redis.Subscription:
-			if err := e.sendToClient([]interface{}{msg.Kind, msg.Channel, msg.Count}); err != nil {
+			if err := e.sendToClient([]any{msg.Kind, msg.Channel, msg.Count}); err != nil {
 				return trace.Wrap(err)
 			}
 		case *redis.Pong:
-			if err := e.sendToClient([]interface{}{msg.Payload}); err != nil {
+			if err := e.sendToClient([]any{msg.Payload}); err != nil {
 				return trace.Wrap(err)
 			}
 		case *redis.Message:
-			var payloadResp []interface{}
+			var payloadResp []any
 			if msg.Pattern != "" {
 				// pattern is only set when the subscription type is pmessage
-				payloadResp = []interface{}{"pmessage", msg.Pattern, msg.Channel}
+				payloadResp = []any{"pmessage", msg.Pattern, msg.Channel}
 			} else {
-				payloadResp = []interface{}{"message", msg.Channel}
+				payloadResp = []any{"message", msg.Channel}
 			}
 
 			if len(msg.PayloadSlice) > 0 {

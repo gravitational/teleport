@@ -48,6 +48,9 @@ var crdDocTmpl string = `---
 title: {{.Title}}
 description: {{.Description}}
 tocDepth: 3
+tags:
+ - reference
+ - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}

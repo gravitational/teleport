@@ -23,9 +23,9 @@ import { Danger } from 'design/Alert';
 import { FeatureBox } from 'teleport/components/Layout';
 import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { Rds } from 'teleport/Integrations/status/AwsOidc/Details/Rds';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 import { IntegrationKind } from 'teleport/services/integrations';
@@ -57,13 +57,13 @@ export function Details() {
   let pendingTasks = unresolvedUserTasks;
   switch (resourceKind) {
     case AwsResource.rds:
-      pendingTasks = awsrds.unresolvedUserTasks;
+      pendingTasks = awsrds.unresolvedUserTasks || 0;
       break;
     case AwsResource.ec2:
-      pendingTasks = awsec2.unresolvedUserTasks;
+      pendingTasks = awsec2.unresolvedUserTasks || 0;
       break;
     case AwsResource.eks:
-      pendingTasks = awseks.unresolvedUserTasks;
+      pendingTasks = awseks.unresolvedUserTasks || 0;
       break;
   }
 

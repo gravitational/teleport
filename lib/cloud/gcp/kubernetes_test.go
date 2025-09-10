@@ -53,7 +53,7 @@ func Test_gcpGKEClient_ListClusters(t *testing.T) {
 		fields        fields
 		args          args
 		want          []GKECluster
-		errValidation func(t require.TestingT, err error, msgAndArgs ...interface{})
+		errValidation func(t require.TestingT, err error, msgAndArgs ...any)
 	}{
 		{
 			name: "list wildcard region",

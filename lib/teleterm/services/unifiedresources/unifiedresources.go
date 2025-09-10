@@ -37,6 +37,7 @@ var supportedResourceKinds = []string{
 	types.KindApp,
 	types.KindSAMLIdPServiceProvider,
 	types.KindWindowsDesktop,
+	types.KindMCP,
 }
 
 func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
@@ -77,8 +78,9 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 			db := r.GetDatabase()
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
-					URI:      cluster.URI.AppendDB(db.GetName()),
-					Database: db,
+					URI:          cluster.URI.AppendDB(db.GetName()),
+					Database:     db,
+					TargetHealth: r.GetTargetHealth(),
 				},
 				RequiresRequest: requiresRequest,
 			})

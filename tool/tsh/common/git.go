@@ -97,7 +97,7 @@ func parseGitSSHURL(originalURL string) (*gitSSHURL, error) {
 		return nil, trace.Wrap(err)
 	}
 	if endpoint.Protocol != "ssh" {
-		return nil, trace.BadParameter("unsupported git ssh URL %s", originalURL)
+		return nil, trace.BadParameter("unsupported protocol %q. Please provide the SSH URL of the repository.", endpoint.Protocol)
 	}
 	s := gitSSHURL(*endpoint)
 	if err := s.check(); err != nil {

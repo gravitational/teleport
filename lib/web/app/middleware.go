@@ -73,13 +73,15 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	}
 
 	if h.c.WebPublicAddr == "" {
-		// The error below tends to be swallowed by the Web UI, so log a warning for
-		// admins as well.
-		const msg = "Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
-			"Please contact your Teleport cluster administrator or refer to " +
-			"https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
-		h.logger.ErrorContext(r.Context(), msg)
-		return trace.BadParameter("public address of the proxy is not set")
+		const errMsg = "Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
+			"Update the Teleport Proxy Service configuration to include a public_addr. " +
+			"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
+
+		// Log the error to warn admins 🚩
+		h.logger.ErrorContext(r.Context(), errMsg)
+
+		// Immediately return an error since this is a critical misconfiguration 🛑
+		return trace.BadParameter(errMsg)
 	}
 
 	addr, err := utils.ParseAddr(r.Host)
@@ -87,7 +89,28 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		return trace.Wrap(err)
 	}
 
-	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), p)
+	proxyPublicAddrs := make([]string, 0, len(h.c.ProxyPublicAddrs))
+
+	for _, proxyAddr := range h.c.ProxyPublicAddrs {
+		if p.publicAddr == proxyAddr.Host() {
+			const errMsg = "Application public address conflicts with the Teleport Proxy public address. " +
+				"Configure the application to use a unique public address that does not match the proxy's public addresses. " +
+				"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
+
+			// Log the error to warn admins 🚩
+			h.logger.ErrorContext(r.Context(), errMsg, "launcher_params", p)
+
+			// Immediately return an error since this is a critical misconfiguration 🛑
+			return trace.BadParameter(errMsg)
+		}
+
+		// Append the full proxy address (host:port) to the list, preserving the port information.
+		// This is necessary to support proxies running on non-standard HTTPS ports and ensure accurate DNS matching.
+		proxyPublicAddrs = append(proxyPublicAddrs, proxyAddr.String())
+	}
+
+	proxyDNSName := utils.FindMatchingProxyDNS(r.Host, proxyPublicAddrs)
+	urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), p)
 	http.Redirect(w, r, urlString, http.StatusFound)
 	return nil
 }
@@ -116,13 +139,15 @@ func makeHandler(handler handlerFunc) http.HandlerFunc {
 // response writer.
 func writeError(w http.ResponseWriter, err error) {
 	code := trace.ErrorToCode(err)
-	http.Error(w, http.StatusText(code), code)
+	http.Error(w, err.Error(), code)
 }
 
 type routerFunc func(http.ResponseWriter, *http.Request, httprouter.Params) error
+
 type routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, *session) error
 
 type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
+
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 
 type launcherURLParams struct {

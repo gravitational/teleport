@@ -168,7 +168,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				proxyAddr:     "file://proxy-from-flag.example.com",
 			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
 				require.Equal(t, "expected --proxy URL with http or https scheme", err.Error())
 			},
@@ -194,7 +194,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				proxyAddr:     "1https://proxy-from-flag.example.com",
 			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "specified --proxy URL is invalid")
 			},
@@ -282,7 +282,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				}},
 				testInsecureSkipVerify: true,
 			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
 				require.Equal(t, `couldn't find leaf cluster named "doesnotexist.example.com"`, err.Error())
 			},
@@ -329,7 +329,6 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			// Generate kubeconfig.
@@ -687,7 +686,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 			outDir:      t.TempDir(),
 			outFileBase: "app-2",
 			appName:     "app-2",
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -965,20 +964,34 @@ func TestGenerateAndSignKeys(t *testing.T) {
 	}
 }
 
-func TestGenerateCRLForCA(t *testing.T) {
+func TestExportCRL(t *testing.T) {
 	ctx := context.Background()
+	name, err := types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "name", ClusterID: "clusterID"})
+	require.NoError(t, err)
+	cas := make([]types.CertAuthority, len(allowedCRLCertificateTypes))
+	for i, certificateType := range allowedCRLCertificateTypes {
+		cas[i], err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        types.CertAuthType(certificateType),
+			ClusterName: "name",
+			ActiveKeys: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					CRL:  []byte{},
+					Cert: []byte{1},
+				}}},
+		})
+		require.NoError(t, err)
+	}
+	authClient := &mockClient{crl: []byte{}, clusterName: name, cas: cas}
 
 	for _, caType := range allowedCRLCertificateTypes {
 		t.Run(caType, func(t *testing.T) {
 			ac := AuthCommand{caType: caType}
-			authClient := &mockClient{crl: []byte{}}
-			require.NoError(t, ac.GenerateCRLForCA(ctx, authClient))
+			require.NoError(t, ac.ExportCRL(ctx, authClient))
 		})
 	}
 
 	t.Run("InvalidCAType", func(t *testing.T) {
 		ac := AuthCommand{caType: "wrong-ca"}
-		authClient := &mockClient{crl: []byte{}}
-		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
+		require.Error(t, ac.ExportCRL(ctx, authClient))
 	})
 }

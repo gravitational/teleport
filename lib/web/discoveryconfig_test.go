@@ -33,7 +33,7 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -126,7 +126,7 @@ func TestDiscoveryConfig(t *testing.T) {
 		})
 
 		t.Run("Read status after an update", func(t *testing.T) {
-			client, err := env.server.NewClient(auth.TestIdentity{
+			client, err := env.server.NewClient(authtest.TestIdentity{
 				I: authz.BuiltinRole{
 					Role:     types.RoleDiscovery,
 					Username: "disc",
@@ -211,7 +211,7 @@ func TestDiscoveryConfig(t *testing.T) {
 
 	t.Run("Create multiple and then list all of them", func(t *testing.T) {
 		listTestCount := 54
-		for i := 0; i < listTestCount; i++ {
+		for i := range listTestCount {
 			resp, err := pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
 				Name:           fmt.Sprintf("dc-%d", i),
 				DiscoveryGroup: "dg01",

@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 
@@ -104,7 +103,7 @@ type clusterClient struct {
 // newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
 func newClient(ctx context.Context, connectionOptions *connection.Options, tlsConfig *tls.Config, credentialsProvider fetchCredentialsFunc) (redis.UniversalClient, error) {
-	connectionAddr := net.JoinHostPort(connectionOptions.Address, connectionOptions.Port)
+	connectionAddr := getHostPort(connectionOptions)
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch connectionOptions.Mode {
 	case connection.Standalone:
@@ -236,7 +235,7 @@ func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fet
 
 func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) (fetchCredentialsFunc, error) {
 	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeElastiCache:
+	case types.DatabaseTypeElastiCache, types.DatabaseTypeElastiCacheServerless:
 		return elasticacheIAMTokenFetchFunc(sessionCtx, auth), nil
 	case types.DatabaseTypeMemoryDB:
 		return memorydbIAMTokenFetchFunc(sessionCtx, auth), nil
@@ -319,7 +318,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 			return trace.BadParameter("wrong number of arguments for 'mget' command")
 		}
 
-		var resultsKeys []interface{}
+		var resultsKeys []any
 
 		keys := cmd.Args()[1:]
 		for _, key := range keys {

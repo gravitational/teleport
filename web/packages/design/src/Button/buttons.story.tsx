@@ -26,6 +26,7 @@ import {
   ButtonBorder,
   ButtonFill,
   ButtonPrimary,
+  ButtonPrimaryBorder,
   ButtonProps,
   ButtonSecondary,
   ButtonText,
@@ -87,6 +88,7 @@ export const Buttons = () => {
       </Table>{' '}
       <Flex gap={3}>
         <ButtonPrimary>Primary</ButtonPrimary>
+        <ButtonPrimaryBorder>Primary (border)</ButtonPrimaryBorder>
         <ButtonSecondary>Secondary</ButtonSecondary>
         <ButtonBorder>Border</ButtonBorder>
         <ButtonWarning>Warning</ButtonWarning>
@@ -186,7 +188,7 @@ export const Buttons = () => {
         <ButtonText>Button Text</ButtonText>
       </Flex>
       <Flex gap={3} flexDirection="column" alignItems="flex-start">
-        {[2, 1, 0].map(size => (
+        {([2, 1, 0] as const).map(size => (
           <Flex gap={3} key={`size-${size}`}>
             <ButtonIcon size={size}>
               <icons.AddUsers />

@@ -20,41 +20,53 @@ package authclient
 
 import (
 	"context"
-	"net/url"
+	"encoding/json"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
 
-// GetClusterName returns a cluster name
-// TODO(noah): DELETE IN 19.0.0
-func (c *Client) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	cn, err := c.APIClient.GetClusterName(ctx)
-	if err == nil {
-		return cn, nil
+// ValidateTrustedCluster is called by the proxy on behalf of a cluster that
+// wishes to join another as a leaf cluster.
+func (c *Client) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	protoReq, err := validateRequest.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(err, "converting native ValidateTrustedClusterRequest to proto")
 	}
-	if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
+	protoResp, err := c.APIClient.ValidateTrustedCluster(ctx, protoReq)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.HTTPClient.validateTrustedCluster(ctx, validateRequest)
+		}
+		return nil, trace.Wrap(err, "calling ValidateTrustedCluster on gRPC client")
 	}
-	return c.getClusterName(ctx)
+	return ValidateTrustedClusterResponseFromProto(protoResp), nil
 }
 
-// getClusterName returns a cluster name
-func (c *HTTPClient) getClusterName(ctx context.Context) (types.ClusterName, error) {
-	out, err := c.Get(ctx, c.Endpoint("configuration", "name"), url.Values{})
+// TODO(noah): DELETE IN 21.0.0
+func (c *HTTPClient) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	validateRequestRaw, err := validateRequest.ToRaw()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cn, err := services.UnmarshalClusterName(out.Bytes())
+	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return cn, err
+	var validateResponseRaw ValidateTrustedClusterResponseRaw
+	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponse, err := validateResponseRaw.ToNative()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return validateResponse, nil
 }

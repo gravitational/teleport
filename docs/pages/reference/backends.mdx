@@ -1,6 +1,9 @@
 ---
 title: Storage Backends
 description: How to configure Teleport deployment for high-availability using storage backends
+tags:
+ - conceptual
+ - platform-wide
 ---
 
 A Teleport cluster stores different types of data in different locations. By
@@ -81,7 +84,7 @@ load balancer you'll need to run Teleport with `--insecure-no-tls`
 </Admonition>
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/readyz` [diagnostics endpoint](../admin-guides/management/diagnostics/monitoring.mdx) on
+`/readyz` [diagnostics endpoint](../zero-trust-access/management/diagnostics/monitoring.mdx) on
 machines running Teleport. This endpoint must be enabled by using the
 `--diag-addr` flag to teleport start:
 
@@ -659,7 +662,7 @@ Service reads these parameters to configure its interactions with S3:
 initiated by the specified set of initiators. This is helpful in scenarios where
 software other than Teleport is initiating multipart uploads in the recordings
 bucket. This should be set to the display name of the initiator(s) you want to
-ignore.
+allow.
 
 ### S3 IAM policy
 
@@ -1002,7 +1005,6 @@ the following Terraform script:
 
 To configure Teleport to use Athena:
 
-- Make sure you are using **Teleport version 14.0.0** or newer.
 - Prepare infrastructure
 - Specify an Athena URL inside the `audit_events_uri` array in your Teleport
   configuration file:
@@ -1105,8 +1107,6 @@ You'll need to replace these values in the policy example below:
                 "s3:ListMultipartUploadParts",
                 "s3:GetObjectVersion",
                 "s3:GetObject",
-                "s3:DeleteObjectVersion",
-                "s3:DeleteObject",
                 "s3:AbortMultipartUpload"
             ],
             "Effect": "Allow",

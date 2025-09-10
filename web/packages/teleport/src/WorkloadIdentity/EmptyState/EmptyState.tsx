@@ -43,7 +43,7 @@ export function EmptyState() {
 
   const PreviewPanel = tabs[currIndex].PreviewPanel;
 
-  const intervalId = useRef<number>();
+  const intervalId = useRef<number>(undefined);
   function handleOnClick(clickedIndex: number) {
     if (intervalId.current !== null) {
       clearInterval(intervalId.current); // Clear the interval if it exists

@@ -291,12 +291,12 @@ func getHTTPTransport(c *roundtrip.Client) (*http.Transport, error) {
 }
 
 // PostJSON is a generic method that issues http POST request to the server
-func (c *HTTPClient) PostJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *HTTPClient) PostJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostJSON(ctx, endpoint, val))
 }
 
 // PutJSON is a generic method that issues http PUT request to the server
-func (c *HTTPClient) PutJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *HTTPClient) PutJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PutJSON(ctx, endpoint, val))
 }
 
@@ -775,29 +775,4 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		response.HostSigners[i] = ca
 	}
 	return &response, nil
-}
-
-func (c *HTTPClient) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	validateRequestRaw, err := validateRequest.ToRaw()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var validateResponseRaw ValidateTrustedClusterResponseRaw
-	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	validateResponse, err := validateResponseRaw.ToNative()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return validateResponse, nil
 }

@@ -53,9 +53,9 @@ const (
 	// under ~/.tsh
 	keyFilePerms os.FileMode = 0600
 
-	// tshConfigFileName is the name of the directory containing the
+	// tshConfigDirName is the name of the directory containing the
 	// tsh config file.
-	tshConfigFileName = "config"
+	tshConfigDirName = "config"
 
 	// tshAzureDirName is the name of the directory containing the
 	// az cli app-specific profiles.
@@ -474,19 +474,21 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	ignoreDirs := map[string]struct{}{tshConfigFileName: {}, tshAzureDirName: {}, tshBin: {}}
 	for _, file := range files {
-		// Don't delete 'config', 'azure' and 'bin' directories.
-		// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
-		if _, ok := ignoreDirs[file.Name()]; ok && file.IsDir() {
-			continue
-		}
 		if file.IsDir() {
-			err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
-			if err != nil {
-				return trace.ConvertSystemError(err)
+			switch file.Name() {
+			case tshConfigDirName, tshAzureDirName, tshBin:
+				// Don't delete 'config', 'azure' and 'bin' directories.
+				// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
+				continue
 			}
-			continue
+		} else {
+			switch file.Name() {
+			case keypaths.VNetClientSSHKey, keypaths.VNetClientSSHKeyPub:
+				// Don't delete VNet client SSH keys on logout in case a user wants to
+				// set these to their own key compatible with their third-party SSH client.
+				continue
+			}
 		}
 		err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
 		if err != nil {
@@ -658,7 +660,7 @@ type CertOption interface {
 }
 
 // WithAllCerts lists all known CertOptions.
-var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}}
+var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}, WithDesktopCerts{}}
 
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
@@ -772,6 +774,38 @@ func (o WithAppCerts) deleteFromKeyRing(keyRing *KeyRing) {
 	keyRing.AppTLSCredentials = make(map[string]TLSCredential)
 }
 
+// WithDesktopCerts is a CertOption for handling Windows desktop access certificates.
+type WithDesktopCerts struct {
+	desktopName string
+}
+
+func (o WithDesktopCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, opts ...keys.ParsePrivateKeyOpt) error {
+	credentialDir := keypaths.WindowsDesktopCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	credsByName, err := getCredentialsByName(credentialDir, opts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	keyRing.WindowsDesktopTLSCredentials = credsByName
+	return nil
+}
+
+func (o WithDesktopCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
+	if idx.ClusterName == "" {
+		return []string{keypaths.WindowsDesktopDir(keyDir, idx.ProxyHost, idx.Username)}
+	}
+	if o.desktopName == "" {
+		return []string{keypaths.WindowsDesktopCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+	}
+	return []string{
+		keypaths.WindowsDesktopCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.desktopName),
+		keypaths.WindowsDesktopKeyPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.desktopName),
+	}
+}
+
+func (o WithDesktopCerts) deleteFromKeyRing(keyRing *KeyRing) {
+	keyRing.WindowsDesktopTLSCredentials = make(map[string]TLSCredential)
+}
+
 type MemKeyStore struct {
 	// keyRings is a three-dimensional map indexed by [proxyHost][username][clusterName]
 	keyRings keyRingMap
@@ -850,6 +884,8 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts 
 			retKeyRing.DBTLSCredentials = keyRing.DBTLSCredentials
 		case WithAppCerts:
 			retKeyRing.AppTLSCredentials = keyRing.AppTLSCredentials
+		case WithDesktopCerts:
+			retKeyRing.WindowsDesktopTLSCredentials = keyRing.WindowsDesktopTLSCredentials
 		}
 	}
 

@@ -43,4 +43,5 @@ type Client interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 }

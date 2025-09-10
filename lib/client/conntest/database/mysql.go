@@ -21,9 +21,9 @@ package database
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/go-mysql-org/go-mysql/client"
@@ -60,7 +60,7 @@ func (p *MySQLPinger) Ping(ctx context.Context, params PingParams) error {
 	}
 
 	var nd net.Dialer
-	addr := fmt.Sprintf("%s:%d", params.Host, params.Port)
+	addr := net.JoinHostPort(params.Host, strconv.Itoa(params.Port))
 	conn, err := client.ConnectWithDialer(ctx, "tcp", addr,
 		params.Username,
 		"", // no password, we're dialing into a tunnel.

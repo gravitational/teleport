@@ -25,6 +25,7 @@ import { Tags, Warning } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 
 import { CopyButton } from '../shared/CopyButton';
@@ -35,6 +36,7 @@ import {
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
+import { shouldWarnResourceStatus } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
 
 export function ResourceListItem({
@@ -70,7 +72,7 @@ export function ResourceListItem({
   }, [expandAllLabels]);
 
   const showLabelsButton = labels.length > 0 && (hovered || showLabels);
-  const hasUnhealthyStatus = status && status !== 'healthy';
+  const shouldDisplayStatusWarning = shouldWarnResourceStatus(status);
 
   // Determines which column the resource type text should end at.
   // We do this because if there is no address, or the labels button
@@ -90,7 +92,7 @@ export function ResourceListItem({
     <RowContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      hasUnhealthyStatus={hasUnhealthyStatus}
+      shouldDisplayWarning={shouldDisplayStatusWarning}
       showingStatusInfo={showingStatusInfo}
     >
       <RowInnerContainer
@@ -98,17 +100,18 @@ export function ResourceListItem({
         alignItems="start"
         pinned={pinned}
         selected={selected}
-        hasUnhealthyStatus={hasUnhealthyStatus}
+        shouldDisplayWarning={shouldDisplayStatusWarning}
         showingStatusInfo={showingStatusInfo}
       >
         {/* checkbox */}
-        <HoverTooltip
-          css={`
-            grid-area: checkbox;
-          `}
-          tipContent={selected ? 'Deselect' : 'Select'}
-        >
-          <CheckboxInput checked={selected} onChange={selectResource} />
+        <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
+          <CheckboxInput
+            checked={selected}
+            onChange={selectResource}
+            css={`
+              grid-area: checkbox;
+            `}
+          />
         </HoverTooltip>
 
         {/* pin button */}
@@ -182,51 +185,51 @@ export function ResourceListItem({
           <ResTypeIconBox mr={1}>
             <SecondaryIcon size={18} />
           </ResTypeIconBox>
-          <HoverTooltip
-            tipContent={resourceType}
-            css={`
-              // Required for text-overflow: ellipsis to work. This is because a flex child won't shrink unless
-              // its min-width is explicitly set.
-              min-width: 0;
-            `}
-            showOnlyOnOverflow
-          >
-            <Text fontSize="14px" fontWeight={300} color="text.slightlyMuted">
+          <HoverTooltip tipContent={resourceType} showOnlyOnOverflow>
+            <Text
+              fontSize="14px"
+              fontWeight={300}
+              color="text.slightlyMuted"
+              css={`
+                // Required for text-overflow: ellipsis to work. This is because a flex child won't shrink unless
+                // its min-width is explicitly set.
+                min-width: 0;
+              `}
+            >
               {resourceType}
             </Text>
           </HoverTooltip>
         </Flex>
 
         {/* address */}
-        <HoverTooltip
-          tipContent={addr}
-          showOnlyOnOverflow
-          css={`
-            grid-area: address;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            // If the labels button isn't showing, let this column take up the extra space.
-            ${!showLabelsButton ? 'grid-column-end: labels-btn;' : ''}
-          `}
-        >
-          <Text fontSize="14px" fontWeight={300} color="text.muted">
+        <HoverTooltip tipContent={addr} showOnlyOnOverflow>
+          <Text
+            fontSize="14px"
+            fontWeight={300}
+            color="text.muted"
+            css={`
+              grid-area: address;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              // If the labels button isn't showing, let this column take up the extra space.
+              ${!showLabelsButton ? 'grid-column-end: labels-btn;' : ''}
+            `}
+          >
             {addr}
           </Text>
         </HoverTooltip>
 
         {/* show labels button */}
         {showLabelsButton && (
-          <HoverTooltip
-            tipContent={showLabels ? 'Hide labels' : 'Show labels'}
-            css={`
-              grid-area: labels-btn;
-            `}
-          >
+          <HoverTooltip tipContent={showLabels ? 'Hide labels' : 'Show labels'}>
             <HoverIconButton
               size={1}
               onClick={() => setShowLabels(prevState => !prevState)}
               className={showLabels ? 'active' : ''}
+              css={`
+                grid-area: labels-btn;
+              `}
             >
               <Tags size={18} color={showLabels ? 'text.main' : 'text.muted'} />
             </HoverIconButton>
@@ -234,15 +237,16 @@ export function ResourceListItem({
         )}
 
         {/* warning icon if status is unhealthy */}
-        {hasUnhealthyStatus && (
-          <HoverTooltip
-            tipContent={'Show Connection Issue'}
-            css={`
-              grid-area: warning-icon;
-              cursor: pointer;
-            `}
-          >
-            <HoverIconButton size={1} onClick={onShowStatusInfo}>
+        {shouldDisplayStatusWarning && (
+          <HoverTooltip tipContent={'Show Connection Issue'}>
+            <HoverIconButton
+              size={1}
+              onClick={onShowStatusInfo}
+              css={`
+                grid-area: warning-icon;
+                cursor: pointer;
+              `}
+            >
               <Warning size={18} />
             </HoverIconButton>
           </HoverTooltip>
@@ -304,14 +308,14 @@ const ResTypeIconBox = styled(Box)`
 `;
 
 const RowContainer = styled(Box)<{
-  hasUnhealthyStatus: boolean;
+  shouldDisplayWarning: boolean;
   showingStatusInfo: boolean;
 }>`
   transition: all 150ms;
   position: relative;
 
   ${p =>
-    p.hasUnhealthyStatus &&
+    p.shouldDisplayWarning &&
     css`
       background-color: ${getStatusBackgroundColor({
         showingStatusInfo: p.showingStatusInfo,
@@ -325,7 +329,7 @@ const RowContainer = styled(Box)<{
     background-color: ${props => props.theme.colors.levels.surface};
 
     ${p =>
-      p.hasUnhealthyStatus &&
+      p.shouldDisplayWarning &&
       css`
         background-color: ${getStatusBackgroundColor({
           showingStatusInfo: p.showingStatusInfo,

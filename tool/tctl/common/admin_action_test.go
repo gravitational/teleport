@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -52,11 +51,12 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -1050,7 +1050,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	t.Helper()
 	ctx := context.Background()
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -1071,7 +1071,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	authPref.SetOrigin(types.OriginDefaults)
 
 	var proxyPublicAddr utils.NetAddr
-	process := testserver.MakeTestServer(t,
+	process, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			proxyPublicAddr = cfg.Proxy.WebAddr
@@ -1079,6 +1079,11 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{proxyPublicAddr}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	authAddr, err := process.AuthAddr()
 	require.NoError(t, err)
 	s.authServer = process.GetAuthServer()
@@ -1174,11 +1179,9 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
-	require.NoError(t, err)
-	localAdmin, err := storage.ReadLocalIdentity(
+	localAdmin, err := storage.ReadLocalIdentityForRole(
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
-		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+		types.RoleAdmin,
 	)
 	require.NoError(t, err)
 	localAdminTLS, err := localAdmin.TLSConfig(nil)
@@ -1186,7 +1189,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	s.localAdminClient, err = authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
 		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         utils.NewSlogLoggerForTests(),
+		Log:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 

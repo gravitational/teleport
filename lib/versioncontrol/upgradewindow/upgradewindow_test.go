@@ -51,12 +51,11 @@ func (b *fakeKubeBackend) Put(ctx context.Context, item backend.Item) (*backend.
 func TestKubeControllerDriver(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk := newFakeKubeBackend()
 
-	driver, err := NewKubeControllerDriver(KubeControllerDriverConfig{
+	driver, err := NewKubeControllerDriver(ctx, KubeControllerDriverConfig{
 		Backend: bk,
 	})
 	require.NoError(t, err)
@@ -85,13 +84,13 @@ func TestKubeControllerDriver(t *testing.T) {
 	err = driver.Reset(ctx)
 	require.NoError(t, err)
 
-	require.Equal(t, "", bk.data[key])
+	require.Empty(t, bk.data[key])
 
 	// verify reset of empty schedule has no effect
 	err = driver.Reset(ctx)
 	require.NoError(t, err)
 
-	require.Equal(t, "", bk.data[key])
+	require.Empty(t, bk.data[key])
 
 	// setup another fake schedule
 	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
@@ -105,15 +104,14 @@ func TestKubeControllerDriver(t *testing.T) {
 	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{})
 	require.NoError(t, err)
 
-	require.Equal(t, "", bk.data[key])
+	require.Empty(t, bk.data[key])
 }
 
 // TestSystemdUnitDriver verifies the basic behavior of the systemd unit export driver.
 func TestSystemdUnitDriver(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// use a sub-directory of a temp dir in order to verify that
 	// driver creates dir when needed.
@@ -156,7 +154,7 @@ func TestSystemdUnitDriver(t *testing.T) {
 
 	sb, err = os.ReadFile(schedPath)
 	require.NoError(t, err)
-	require.Equal(t, "", string(sb))
+	require.Empty(t, string(sb))
 
 	// verify that duplicate resets succeed
 	err = driver.Reset(ctx)
@@ -179,7 +177,7 @@ func TestSystemdUnitDriver(t *testing.T) {
 
 	sb, err = os.ReadFile(schedPath)
 	require.NoError(t, err)
-	require.Equal(t, "", string(sb))
+	require.Empty(t, string(sb))
 }
 
 // fakeDriver is used to inject custom behavior into a dummy Driver instance.
@@ -228,8 +226,7 @@ func (d *fakeDriver) withLock(fn func()) {
 func TestExporterBasics(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	sc := make(chan context.Context)
 

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
@@ -93,8 +93,12 @@ export const MarginAuto = ({ fullWidth }: StoryProps) => (
   </Stack>
 );
 
-const Square = styled(Box)``;
-Square.defaultProps = { width: '150px', height: '150px', p: 2 };
+const Square = styled(Box).attrs(props => ({
+  width: '150px',
+  height: '150px',
+  p: 2,
+  ...props,
+}))``;
 const SmallSquare = styled(Box).attrs({ width: '50px', height: '50px' })``;
 const Para = styled(P2)`
   max-width: 60ch;

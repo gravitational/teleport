@@ -59,13 +59,7 @@ export const Minus = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path
-        d="M3.75 12H20.25"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path stroke="currentColor" d="M3.75 12h16.5" />
     </Icon>
   )
 );

@@ -409,10 +409,11 @@ const auth = {
 };
 
 function checkMfaRequired(
+  clusterId: string,
   params: IsMfaRequiredRequest,
-  abortSignal?
+  abortSignal?: AbortSignal
 ): Promise<IsMfaRequiredResponse> {
-  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
+  return api.post(cfg.getMfaRequiredUrl(clusterId), params, abortSignal);
 }
 
 function base64EncodeUnicode(str: string) {

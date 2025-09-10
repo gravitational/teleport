@@ -82,7 +82,9 @@ test('keyboard handling', async () => {
   render(<TestFieldMultiInput onChange={onChange} />);
 
   await user.click(screen.getByRole('textbox'));
-  await user.keyboard('apples{Enter}oranges');
+  await act(async () => {
+    await user.keyboard('apples{Enter}oranges');
+  });
   expect(onChange).toHaveBeenLastCalledWith(['apples', 'oranges']);
 
   await user.click(screen.getAllByRole('textbox')[0]);

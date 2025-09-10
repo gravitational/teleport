@@ -48,7 +48,7 @@ type ServerInfoAccessPoint interface {
 	GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error)
 	// UpdateLabels updates the labels on an instance over the inventory control
 	// stream.
-	UpdateLabels(ctx context.Context, req proto.InventoryUpdateLabelsRequest) error
+	UpdateLabels(ctx context.Context, req *proto.InventoryUpdateLabelsRequest) error
 	// GetClock returns the server clock.
 	GetClock() clockwork.Clock
 }
@@ -168,7 +168,7 @@ func updateLabelsOnNode(ctx context.Context, ap ServerInfoAccessPoint, node type
 	for _, si := range serverInfos {
 		maps.Copy(newLabels, si.GetNewLabels())
 	}
-	err := ap.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
+	err := ap.UpdateLabels(ctx, &proto.InventoryUpdateLabelsRequest{
 		ServerID: node.GetName(),
 		Kind:     proto.LabelUpdateKind_SSHServerCloudLabels,
 		Labels:   newLabels,

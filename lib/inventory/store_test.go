@@ -50,13 +50,13 @@ func BenchmarkStore(b *testing.B) {
 		store := NewStore()
 		var wg sync.WaitGroup
 
-		for i := 0; i < insertions; i++ {
+		for i := range insertions {
 			wg.Add(1)
 			go func(sn int) {
 				defer wg.Done()
 				serverID := fmt.Sprintf("server-%d", sn%uniqueServers)
 				handle := &upstreamHandle{
-					hello: proto.UpstreamInventoryHello{
+					hello: &proto.UpstreamInventoryHello{
 						ServerID: serverID,
 					},
 				}
@@ -107,10 +107,10 @@ func TestStoreAccess(t *testing.T) {
 	handles := make(map[*upstreamHandle]int)
 
 	// create 1_000 handles across 100 unique server IDs.
-	for i := 0; i < 1_000; i++ {
+	for i := range 1_000 {
 		serverID := fmt.Sprintf("server-%d", i%100)
 		handle := &upstreamHandle{
-			hello: proto.UpstreamInventoryHello{
+			hello: &proto.UpstreamInventoryHello{
 				ServerID: serverID,
 			},
 		}
@@ -125,7 +125,7 @@ func TestStoreAccess(t *testing.T) {
 	}
 
 	// ensure that all handles are visited if we iterate many times
-	for i := 0; i < 1_000; i++ {
+	for range 1_000 {
 		store.UniqueHandles(func(h UpstreamHandle) {
 			ptr := h.(*upstreamHandle)
 			n, ok := handles[ptr]
@@ -160,10 +160,10 @@ func TestAllHandles(t *testing.T) {
 	handles := make(map[*upstreamHandle]int)
 
 	// create 1_000 handles across 100 unique server IDs.
-	for i := 0; i < 1_000; i++ {
+	for i := range 1_000 {
 		serverID := fmt.Sprintf("server-%d", i%100)
 		handle := &upstreamHandle{
-			hello: proto.UpstreamInventoryHello{
+			hello: &proto.UpstreamInventoryHello{
 				ServerID: serverID,
 			},
 		}

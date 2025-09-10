@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -46,11 +47,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -294,7 +295,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				}, nil /* scaleSetAPI */),
 			},
 			errAssertion: require.NoError,
-			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
+			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
 				require.Equal(requireT, identityResourceID(t, "identity"), value)
 			},
 		},
@@ -371,7 +372,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				),
 			},
 			errAssertion: require.NoError,
-			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
+			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
 				require.Equal(requireT, identityResourceID(t, "identity"), value)
 			},
 		},
@@ -662,6 +663,36 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				query := u.Query()
 				require.Equal(t, "connect", query.Get("Action"))
 				require.Equal(t, "some-user", query.Get("User"))
+				require.Empty(t, query.Get("ResourceType"))
+				require.Equal(t, "host", query.Get("X-Amz-SignedHeaders"))
+				require.Equal(t, "token", query.Get("X-Amz-Security-Token"))
+				require.Equal(t, "FAKEACCESSKEYID/20010203/ca-central-1/elasticache/aws4_request",
+					query.Get("X-Amz-Credential"))
+			},
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClient) {
+				t.Helper()
+				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedisRole")
+				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalElastiCacheRedis")
+			},
+		},
+		"ElastiCache Serverless Redis": {
+			checkGetAuthFn: func(t *testing.T, auth Auth) {
+				t.Helper()
+				databaseUser := "some-user"
+				database := newElastiCacheServerlessRedisDatabase(t,
+					withAssumeRole(types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/RedisRole",
+						ExternalID: "externalElastiCacheRedis",
+					}))
+				token, err := auth.GetElastiCacheRedisToken(ctx, database, databaseUser)
+				require.NoError(t, err)
+				u, err := url.Parse(token)
+				require.NoError(t, err)
+				require.Equal(t, "example-serverless/", u.Path)
+				query := u.Query()
+				require.Equal(t, "connect", query.Get("Action"))
+				require.Equal(t, "some-user", query.Get("User"))
+				require.Equal(t, "ServerlessCache", query.Get("ResourceType"))
 				require.Equal(t, "host", query.Get("X-Amz-SignedHeaders"))
 				require.Equal(t, "token", query.Get("X-Amz-Security-Token"))
 				require.Equal(t, "FAKEACCESSKEYID/20010203/ca-central-1/elasticache/aws4_request",
@@ -699,7 +730,6 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	require.NoError(t, err)
 
 	for name, tt := range tests {
-		tt := tt
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			tt.checkGetAuthFn(t, auth)
@@ -901,6 +931,22 @@ func newElastiCacheRedisDatabase(t *testing.T, specOpts ...databaseSpecOpt) type
 	return database
 }
 
+func newElastiCacheServerlessRedisDatabase(t *testing.T, specOpts ...databaseSpecOpt) types.Database {
+	t.Helper()
+	spec := types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "example-serverless-abc123.serverless.cac1.cache.amazonaws.com:6379",
+	}
+	for _, opt := range specOpts {
+		opt(&spec)
+	}
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, spec)
+	require.NoError(t, err)
+	return database
+}
+
 func newRedshiftDatabase(t *testing.T, specOpts ...databaseSpecOpt) types.Database {
 	t.Helper()
 
@@ -1091,4 +1137,43 @@ func (f fakeAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...fu
 
 func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
 	return f.stsClient
+}
+
+func Test_awsRedisIAMTokenRequest(t *testing.T) {
+	ctx := context.Background()
+	at := time.Date(2022, time.December, 22, 22, 22, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(at)
+	cred := credentials.NewStaticCredentialsProvider("FAKEACCESSKEYID", "secret", "token")
+
+	tests := []struct {
+		desc         string
+		isServerless bool
+		want         string
+	}{
+		{
+			desc: "elasticache cluster",
+			want: "test-target-id/?Action=connect&User=test-user&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=FAKEACCESSKEYID%2F20221222%2Fus-east-1%2Felasticache%2Faws4_request&X-Amz-Date=20221222T222200Z&X-Amz-Expires=900&X-Amz-Security-Token=token&X-Amz-SignedHeaders=host&X-Amz-Signature=bfccda7e654c97d44179402051403c94b9ffe84d436cb373813dfbf3ffbf1643",
+		},
+		{
+			desc:         "elasticache serverless",
+			want:         "test-target-id/?Action=connect&ResourceType=ServerlessCache&User=test-user&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=FAKEACCESSKEYID%2F20221222%2Fus-east-1%2Felasticache%2Faws4_request&X-Amz-Date=20221222T222200Z&X-Amz-Expires=900&X-Amz-Security-Token=token&X-Amz-SignedHeaders=host&X-Amz-Signature=3db457acad7e2409be0b6baa722395527e431f4b2bc89087bfaffe9c966cd81b",
+			isServerless: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			tokenReq := awsRedisIAMTokenRequest{
+				userID:       "test-user",
+				targetID:     "test-target-id",
+				serviceName:  "elasticache",
+				region:       "us-east-1",
+				credProvider: cred,
+				clock:        clock,
+				isServerless: test.isServerless,
+			}
+			token, err := tokenReq.toSignedRequestURI(ctx)
+			require.NoError(t, err)
+			require.Equal(t, test.want, token)
+		})
+	}
 }

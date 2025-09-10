@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -61,7 +60,7 @@ type ProxyServer struct {
 	// cfg is the proxy server configuration.
 	cfg ProxyServerConfig
 	// middleware extracts identity information from client certificates.
-	middleware *auth.Middleware
+	middleware *authz.Middleware
 	// closeCtx is closed when the process shuts down.
 	closeCtx context.Context
 	// log is used for logging.
@@ -165,7 +164,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 
 	server := &ProxyServer{
 		cfg: config,
-		middleware: &auth.Middleware{
+		middleware: &authz.Middleware{
 			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
@@ -199,7 +198,7 @@ func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 			defer clientConn.Close()
 			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
 			if err != nil && !utils.IsOKNetworkError(err) {
-				s.log.WarnContext(s.closeCtx, "Failed to handle Postgres client connection.", "error", err)
+				s.log.ErrorContext(s.closeCtx, "Failed to handle Postgres client connection.", "error", err)
 			}
 		}()
 	}
@@ -519,7 +518,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	if params.ClientIP != "" {
 		identity.LoginIP = params.ClientIP
 	}
-	cluster, err := s.cfg.Tunnel.GetSite(identity.RouteToCluster)
+	cluster, err := s.cfg.Tunnel.Cluster(ctx, identity.RouteToCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

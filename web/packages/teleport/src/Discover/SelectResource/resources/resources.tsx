@@ -19,6 +19,8 @@
 import { Platform } from 'design/platform';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
+import cfg from 'teleport/config';
+import { IntegrationKind } from 'teleport/services/integrations';
 import {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,
@@ -68,7 +70,16 @@ export const SERVERS: SelectResourceSpec[] = [
     id: DiscoverGuideId.ServerLinuxRhelCentos,
     name: 'RHEL 8+/CentOS Stream 9+',
     kind: ResourceKind.Server,
-    keywords: [...baseServerKeywords, 'rhel', 'redhat', 'centos', 'linux'],
+    keywords: [
+      ...baseServerKeywords,
+      'rhel',
+      'redhat',
+      'centos',
+      'linux',
+      'rocky',
+      'alma',
+      'almalinux',
+    ],
     icon: 'linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -149,12 +160,21 @@ export const APPLICATIONS: SelectResourceSpec[] = [
   },
   {
     id: DiscoverGuideId.ApplicationAwsCliConsole,
-    name: 'AWS CLI/Console Access',
+    name: 'AWS CLI/Console Access via AWS OIDC IdP',
     kind: ResourceKind.Application,
     keywords: [...awsKeywords, 'application', 'cli', 'console access'],
     icon: 'aws',
     event: DiscoverEventResource.ApplicationAwsConsole,
     appMeta: { awsConsole: true },
+  },
+  {
+    id: DiscoverGuideId.ApplicationAwsRolesAnywhere,
+    name: 'AWS CLI/Console Access via AWS Roles Anywhere',
+    kind: ResourceKind.Application,
+    keywords: [...awsKeywords, 'application', 'cli', 'console access'],
+    icon: 'aws',
+    event: DiscoverEventResource.ApplicationAwsConsole,
+    guidedLink: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa),
   },
 ];
 
@@ -277,7 +297,10 @@ export function getResourcePretitle(r: SelectResourceSpec) {
     case ResourceKind.ConnectMyComputer:
       return 'SSH';
     case ResourceKind.Application:
-      if (r.id === DiscoverGuideId.ApplicationAwsCliConsole) {
+      if (
+        r.id === DiscoverGuideId.ApplicationAwsCliConsole ||
+        r.id === DiscoverGuideId.ApplicationAwsRolesAnywhere
+      ) {
         return 'Amazon Web Services (AWS)';
       }
       if (r.id === DiscoverGuideId.ApplicationWebHttpProxy) {

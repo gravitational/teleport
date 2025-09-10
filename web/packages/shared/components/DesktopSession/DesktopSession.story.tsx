@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import DialogConfirmation from 'design/DialogConfirmation';
 import {
@@ -27,6 +27,7 @@ import {
 import {
   BitmapFrame,
   ClientScreenSpec,
+  selectDirectoryInBrowser,
   TdpClient,
   TdpClientEvent,
 } from 'shared/libs/tdp';
@@ -54,10 +55,10 @@ const meta: Meta = {
 export default meta;
 
 const fakeClient = () => {
-  const client = new TdpClient(() => null);
+  const client = new TdpClient(() => null, selectDirectoryInBrowser);
   // Don't try to connect to a websocket.
-  client.connect = async spec => {
-    emitFrame(client, spec);
+  client.connect = async options => {
+    emitFrame(client, options.screenSpec);
   };
   return client;
 };
@@ -70,6 +71,7 @@ const props: DesktopSessionProps = {
   client: fakeClient(),
   username: 'user',
   desktop: 'windows-11',
+  browserSupportsSharing: true,
   hasAnotherSession: () => Promise.resolve(false),
 };
 
@@ -108,7 +110,7 @@ export const Connected = () => {
 export const DisconnectedWithNoMessage = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TRANSPORT_CLOSE);
+    client.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
   };
 
   return <DesktopSession {...props} client={client} />;
@@ -170,8 +172,8 @@ export const SharingDisabledRbac = () => (
 
 export const Alerts = () => {
   const client = fakeClient();
-  client.connect = async spec => {
-    emitFrame(client, spec);
+  client.connect = async options => {
+    emitFrame(client, options.screenSpec);
     client.emit(
       TdpClientEvent.TDP_WARNING,
       'Potential performance issues detected. Expect possible lag or instability.'

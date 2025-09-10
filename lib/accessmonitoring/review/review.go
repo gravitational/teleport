@@ -29,14 +29,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/accessrequest"
+	"github.com/gravitational/teleport/api/client"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
-)
-
-const (
-	// componentName specifies the access review handler component name used for debugging.
-	componentName = "access_review_handler"
 )
 
 // Client aggregates the parts of Teleport API client interface
@@ -46,6 +43,7 @@ type Client interface {
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	client.ListResourcesClient
 }
 
 // Config specifies access review handler configuration.
@@ -195,63 +193,23 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 		"req_id", req.GetName(),
 		"user", req.GetUser())
 
-	// Automatic reviews are only supported with role requests.
-	if len(req.GetRequestedResourceIDs()) > 0 {
-		return trace.BadParameter("cannot automatically review access requests for resources other than 'roles'")
-	}
-
-	const withSecretsFalse = false
-	user, err := handler.Client.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	env, err := handler.newExpressionEnv(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
-	for _, rule := range handler.rules.Get() {
-		// Check if any access monitoring rule enables automatic review for the access request.
-		conditionMatch, err := accessmonitoring.EvaluateCondition(
-			rule.GetSpec().GetCondition(),
-			getAccessRequestExpressionEnv(req, user.GetTraits()))
-		if err != nil {
-			log.WarnContext(ctx, "Failed to evaluate access monitoring rule",
-				"error", err,
-				"rule", rule.GetMetadata().GetName(),
-			)
-			continue
-		}
-
-		if !conditionMatch {
-			continue
-		}
-
-		if reviewRule == nil {
-			reviewRule = rule
-			continue
-		}
-
-		// Unable to submit review if set of rules contain conflicting
-		// review decisions.
-		if reviewRule.GetSpec().GetAutomaticReview().GetDecision() !=
-			rule.GetSpec().GetAutomaticReview().GetDecision() {
-			log.WarnContext(ctx, "Conflicting automatic review rules found",
-				"rules", []string{
-					reviewRule.GetMetadata().GetName(),
-					rule.GetMetadata().GetName(),
-				},
-			)
-			return trace.BadParameter("conflicting access review rules found")
-		}
-	}
-
-	// Automatic review is not enabled for this access request.
+	reviewRule := handler.getMatchingRule(ctx, env)
 	if reviewRule == nil {
+		// This access request does not match any access monitoring rules.
 		return nil
 	}
 
 	review, err := newAccessReview(
 		req.GetUser(),
 		reviewRule.GetMetadata().GetName(),
-		reviewRule.GetSpec().GetAutomaticReview().GetDecision())
+		reviewRule.GetSpec().GetAutomaticReview().GetDecision(),
+		time.Now(),
+	)
 	if err != nil {
 		return trace.Wrap(err, "failed to create new access review")
 	}
@@ -273,7 +231,41 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 	return nil
 }
 
-func newAccessReview(userName, ruleName, state string) (types.AccessReview, error) {
+// getMatchingRule returns the first access monitoring rule that matches the
+// given access request environment. If multiple rules match, `DENIED` rules
+// take precedence.
+func (handler *Handler) getMatchingRule(
+	ctx context.Context,
+	env accessmonitoring.AccessRequestExpressionEnv,
+) *accessmonitoringrulesv1.AccessMonitoringRule {
+	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
+
+	for _, rule := range handler.rules.Get() {
+		conditionMatch, err := accessmonitoring.EvaluateCondition(rule.GetSpec().GetCondition(), env)
+		if err != nil {
+			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",
+				"error", err,
+				"rule", rule.GetMetadata().GetName(),
+			)
+			continue
+		}
+
+		if !conditionMatch {
+			continue
+		}
+
+		if rule.GetSpec().GetAutomaticReview().GetDecision() == types.RequestState_DENIED.String() {
+			return rule
+		}
+
+		if reviewRule == nil {
+			reviewRule = rule
+		}
+	}
+	return reviewRule
+}
+
+func newAccessReview(userName, ruleName, state string, created time.Time) (types.AccessReview, error) {
 	var proposedState types.RequestState
 	switch state {
 	case types.RequestState_APPROVED.String():
@@ -289,8 +281,8 @@ func newAccessReview(userName, ruleName, state string) (types.AccessReview, erro
 		ProposedState: proposedState,
 		Reason: fmt.Sprintf("Access request has been automatically %[4]s by %[1]q. "+
 			"User %[2]q is %[4]s by access_monitoring_rule %[3]q.",
-			componentName, userName, ruleName, strings.ToLower(state)),
-		Created: time.Now(),
+			teleport.SystemAccessApproverUserName, userName, ruleName, strings.ToLower(state)),
+		Created: created,
 	}, nil
 }
 
@@ -302,16 +294,27 @@ func isAlreadyReviewedError(err error) bool {
 	return trace.IsAlreadyExists(err) || strings.HasSuffix(err.Error(), "has already reviewed this request")
 }
 
-// getAccessRequestExpressionEnv returns the expression env of the access request.
-func getAccessRequestExpressionEnv(req types.AccessRequest, traits map[string][]string) accessmonitoring.AccessRequestExpressionEnv {
+func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, error) {
+	const withSecretsFalse = false
+	user, err := handler.Client.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	if err != nil {
+		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
+	}
+
+	requestedResources, err := accessrequest.GetResourcesByResourceIDs(ctx, handler.Client, req.GetRequestedResourceIDs())
+	if err != nil {
+		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
+	}
+
 	return accessmonitoring.AccessRequestExpressionEnv{
 		Roles:              req.GetRoles(),
+		RequestedResources: requestedResources,
 		SuggestedReviewers: req.GetSuggestedReviewers(),
 		Annotations:        req.GetSystemAnnotations(),
 		User:               req.GetUser(),
 		RequestReason:      req.GetRequestReason(),
 		CreationTime:       req.GetCreationTime(),
 		Expiry:             req.Expiry(),
-		UserTraits:         traits,
-	}
+		UserTraits:         user.GetTraits(),
+	}, nil
 }

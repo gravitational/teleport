@@ -56,6 +56,8 @@ export enum MessageType {
   SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
   SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
   LATENCY_STATS = 35,
+  // MessageType 36 is a server-side only Ping message
+  CLIENT_KEYBOARD_LAYOUT = 37,
   __LAST, // utility value
 }
 
@@ -474,6 +476,20 @@ export default class Codec {
     return this._encodeStringMessage(MessageType.CLIENT_USERNAME, username);
   }
 
+  // encodeClientKeyboardLayout encodes a keyboard layout to use on the remote desktop.
+  // | messsage type (37) | length uint32 | keyboard_layout uint32 |
+  encodeClientKeyboardLayout(keyboardLayout: number): Message {
+    const buffer = new ArrayBuffer(BYTE_LEN + UINT_32_LEN + UINT_32_LEN);
+    const view = new DataView(buffer);
+    let offset = 0;
+    view.setUint8(offset, MessageType.CLIENT_KEYBOARD_LAYOUT);
+    offset += BYTE_LEN;
+    view.setUint32(offset, 4); // length of uint32 keyboard layout
+    offset += UINT_32_LEN;
+    view.setUint32(offset, keyboardLayout);
+    return buffer;
+  }
+
   // encodeMouseWheelScroll encodes a mouse wheel scroll event.
   // on vertical axis, positive delta is up, negative delta is down
   // on horizontal axis, positive delta is left, negative delta is right
@@ -729,7 +745,7 @@ export default class Codec {
   }
 
   // | message type (30) | data_length uint32 | data []byte |
-  encodeRdpResponsePDU(responseFrame: ArrayBuffer): Message {
+  encodeRdpResponsePdu(responseFrame: ArrayBufferLike): Message {
     const bufLen = BYTE_LEN + UINT_32_LEN + responseFrame.byteLength;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
@@ -745,7 +761,7 @@ export default class Codec {
   }
 
   // decodeClipboardData decodes clipboard data
-  decodeClipboardData(buffer: ArrayBuffer): ClipboardData {
+  decodeClipboardData(buffer: ArrayBufferLike): ClipboardData {
     return {
       data: this.decodeStringMessage(buffer),
     };
@@ -756,7 +772,7 @@ export default class Codec {
    * passed in as an ArrayBuffer (this typically would come from a websocket).
    * @throws {Error} on an invalid or unexpected MessageType value
    */
-  decodeMessageType(buffer: ArrayBuffer): MessageType {
+  decodeMessageType(buffer: ArrayBufferLike): MessageType {
     const messageType = new DataView(buffer).getUint8(0);
     if (!(messageType in MessageType) || messageType === MessageType.__LAST) {
       throw new Error(`invalid message type: ${messageType}`);
@@ -766,7 +782,7 @@ export default class Codec {
 
   // decodeErrorMessage decodes a raw tdp Error message and returns it as a string
   // | message type (9) | message_length uint32 | message []byte
-  decodeErrorMessage(buffer: ArrayBuffer): string {
+  decodeErrorMessage(buffer: ArrayBufferLike): string {
     return this.decodeStringMessage(buffer);
   }
 
@@ -775,7 +791,7 @@ export default class Codec {
    * | message type (28) | message_length uint32 | message []byte | severity byte
    * @throws {Error} if an invalid severity is passed
    */
-  decodeAlert(buffer: ArrayBuffer): Alert {
+  decodeAlert(buffer: ArrayBufferLike): Alert {
     const dv = new DataView(buffer);
     let offset = 0;
 
@@ -797,7 +813,7 @@ export default class Codec {
 
   // decodeMfaChallenge decodes a raw tdp MFA challenge message and returns it as a string (of a json).
   // | message type (10) | mfa_type byte | message_length uint32 | json []byte
-  decodeMfaJson(buffer: ArrayBuffer): MfaJson {
+  decodeMfaJson(buffer: ArrayBufferLike): MfaJson {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type
@@ -816,7 +832,7 @@ export default class Codec {
 
   // decodeStringMessage decodes a tdp message of the form
   // | message type (N) | message_length uint32 | message []byte
-  private decodeStringMessage(buffer: ArrayBuffer): string {
+  private decodeStringMessage(buffer: ArrayBufferLike): string {
     const dv = new DataView(buffer);
     let offset = BYTE_LEN; // eat message type
     const msgLength = dv.getUint32(offset);
@@ -829,7 +845,7 @@ export default class Codec {
   // | message type (2) | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
   // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#2---png-frame
   decodePngFrame(
-    buffer: ArrayBuffer,
+    buffer: ArrayBufferLike,
     onload: (pngFrame: PngFrame) => any
   ): PngFrame {
     const dv = new DataView(buffer);
@@ -854,7 +870,7 @@ export default class Codec {
   // decodePng2Frame decodes a raw tdp PNG frame message and returns it as a PngFrame
   // | message type (27) | png_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
   decodePng2Frame(
-    buffer: ArrayBuffer,
+    buffer: ArrayBufferLike,
     onload: (pngFrame: PngFrame) => any
   ): PngFrame {
     const dv = new DataView(buffer);
@@ -878,7 +894,7 @@ export default class Codec {
   }
 
   // | message type (29) | data_length uint32 | data []byte |
-  decodeRdpFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
+  decodeRdpFastPathPdu(buffer: ArrayBufferLike): RdpFastPathPdu {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type
@@ -888,7 +904,9 @@ export default class Codec {
   }
 
   // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-  decodeRdpConnectionActivated(buffer: ArrayBuffer): RdpConnectionActivated {
+  decodeRdpConnectionActivated(
+    buffer: ArrayBufferLike
+  ): RdpConnectionActivated {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type
@@ -907,7 +925,7 @@ export default class Codec {
 
   // | message type (12) | err_code error | directory_id uint32 |
   decodeSharedDirectoryAcknowledge(
-    buffer: ArrayBuffer
+    buffer: ArrayBufferLike
   ): SharedDirectoryAcknowledge {
     const dv = new DataView(buffer);
     let offset = 0;
@@ -924,7 +942,7 @@ export default class Codec {
 
   // | message type (13) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
   decodeSharedDirectoryInfoRequest(
-    buffer: ArrayBuffer
+    buffer: ArrayBufferLike
   ): SharedDirectoryInfoRequest {
     const dv = new DataView(buffer);
     let offset = 0;
@@ -948,7 +966,7 @@ export default class Codec {
 
   // | message type (15) | completion_id uint32 | directory_id uint32 | file_type uint32 | path_length uint32 | path []byte |
   decodeSharedDirectoryCreateRequest(
-    buffer: ArrayBuffer
+    buffer: ArrayBufferLike
   ): SharedDirectoryCreateRequest {
     const dv = new DataView(buffer);
     let offset = 0;
@@ -975,7 +993,7 @@ export default class Codec {
 
   // | message type (17) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
   decodeSharedDirectoryDeleteRequest(
-    buffer: ArrayBuffer
+    buffer: ArrayBufferLike
   ): SharedDirectoryDeleteRequest {
     const dv = new DataView(buffer);
     let offset = 0;
@@ -999,7 +1017,7 @@ export default class Codec {
 
   // | message type (19) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | length uint32 |
   decodeSharedDirectoryReadRequest(
-    buffer: ArrayBuffer
+    buffer: ArrayBufferLike
   ): SharedDirectoryReadRequest {
     const dv = new DataView(buffer);
     let bufOffset = 0;
@@ -1030,7 +1048,7 @@ export default class Codec {
 
   // | message type (21) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | write_data_length uint32 | write_data []byte |
   decodeSharedDirectoryWriteRequest(
-    buffer: ArrayBuffer
+    buffer: ArrayBufferLike
   ): SharedDirectoryWriteRequest {
     const dv = new DataView(buffer);
     let bufOffset = BYTE_LEN; // eat message type
@@ -1062,7 +1080,7 @@ export default class Codec {
 
   // | message type (23) | completion_id uint32 | directory_id uint32 | original_path_length uint32 | original_path []byte | new_path_length uint32 | new_path []byte |
   decodeSharedDirectoryMoveRequest(
-    buffer: ArrayBuffer
+    buffer: ArrayBufferLike
   ): SharedDirectoryMoveRequest {
     const dv = new DataView(buffer);
     let bufOffset = BYTE_LEN; // eat message type
@@ -1094,13 +1112,13 @@ export default class Codec {
 
   // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
   decodeSharedDirectoryListRequest(
-    buffer: ArrayBuffer
+    buffer: ArrayBufferLike
   ): SharedDirectoryListRequest {
     return this.decodeSharedDirectoryInfoRequest(buffer);
   }
 
   decodeSharedDirectoryTruncateRequest(
-    buffer: ArrayBuffer
+    buffer: ArrayBufferLike
   ): SharedDirectoryTruncateRequest {
     const dv = new DataView(buffer);
     let bufOffset = BYTE_LEN; // eat message type
@@ -1124,7 +1142,7 @@ export default class Codec {
     };
   }
 
-  decodeLatencyStats(buffer: ArrayBuffer): LatencyStats {
+  decodeLatencyStats(buffer: ArrayBufferLike): LatencyStats {
     const dv = new DataView(buffer);
     let bufOffset = BYTE_LEN; // eat message type
     const browserLatency = dv.getUint32(bufOffset);
@@ -1139,7 +1157,7 @@ export default class Codec {
   }
 
   // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
-  private asBase64Url(buffer: ArrayBuffer, offset: number): string {
+  private asBase64Url(buffer: ArrayBufferLike, offset: number): string {
     return `data:image/png;base64,${arrayBufferToBase64(buffer.slice(offset))}`;
   }
 }

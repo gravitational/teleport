@@ -149,7 +149,7 @@ func (process *TeleportProcess) assertSystemRoles(rolesToAssert []types.SystemRo
 		}
 
 		err = conn.Client.AssertSystemRole(process.ExitContext(), proto.SystemRoleAssertion{
-			ServerID:    process.Config.HostUUID,
+			ServerID:    conn.HostUUID(),
 			AssertionID: assertionID,
 			SystemRole:  role,
 		})
@@ -578,7 +578,7 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 		}
 	}
 
-	if err := registerServer(process.Config, ctx, conn.Client, mostRecentRotation); err != nil {
+	if err := registerServer(process.Config, ctx, conn, mostRecentRotation); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -599,9 +599,9 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 	return nil
 }
 
-func registerServer(a *servicecfg.Config, ctx context.Context, client authclient.ClientI, lastRotation time.Time) error {
+func registerServer(a *servicecfg.Config, ctx context.Context, conn *Connector, lastRotation time.Time) error {
 	server, err := types.NewServerWithLabels(
-		a.HostUUID,
+		conn.HostUUID(),
 		types.KindNode,
 		types.ServerSpecV2{
 			Addr:     a.OpenSSH.InstanceAddr,
@@ -617,7 +617,7 @@ func registerServer(a *servicecfg.Config, ctx context.Context, client authclient
 	}
 	server.SetSubKind(types.SubKindOpenSSHNode)
 
-	if _, err := client.UpsertNode(ctx, server); err != nil {
+	if _, err := conn.Client.UpsertNode(ctx, server); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1062,7 +1062,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	if clientIdentity.ID.Role != types.RoleInstance {
 		// non-instance roles should wait to see if the instance client can be reused
 		// before acquiring their own client.
-		if instanceConn := process.waitForInstanceConnector(); instanceConn != nil && instanceConn.Client != nil {
+		if instanceConn := process.waitForInstanceConnector(process.ExitContext()); instanceConn != nil && instanceConn.Client != nil {
 			instanceClientIdentity := instanceConn.clientState.Load().identity
 			if instanceClientIdentity.HasSystemRole(clientIdentity.ID.Role) {
 				process.logger.InfoContext(process.ExitContext(), "Reusing Instance client.", "identity", clientIdentity.ID.Role, "additional_system_roles", instanceClientIdentity.SystemRoles)

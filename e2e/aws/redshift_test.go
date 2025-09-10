@@ -186,7 +186,6 @@ func testRedshiftCluster(t *testing.T) {
 			},
 		},
 	} {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			t.Run("connect", func(t *testing.T) {
