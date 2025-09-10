@@ -131,6 +131,19 @@ func (s *ResourceService) GetWorkloadIdentity(
 func (s *ResourceService) ListWorkloadIdentities(
 	ctx context.Context, req *workloadidentityv1pb.ListWorkloadIdentitiesRequest,
 ) (*workloadidentityv1pb.ListWorkloadIdentitiesResponse, error) {
+	return s.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+		PageSize:  req.GetPageSize(),
+		PageToken: req.GetPageToken(),
+	})
+}
+
+// ListWorkloadIdentitiesV2 returns a list of WorkloadIdentity resources. It
+// follows the Google API design guidelines for list pagination. It supports
+// sorting and filtering.
+// Implements teleport.workloadidentity.v1.ResourceService/ListWorkloadIdentitiesV2
+func (s *ResourceService) ListWorkloadIdentitiesV2(
+	ctx context.Context, req *workloadidentityv1pb.ListWorkloadIdentitiesV2Request,
+) (*workloadidentityv1pb.ListWorkloadIdentitiesResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

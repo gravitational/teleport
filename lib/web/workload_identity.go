@@ -54,7 +54,7 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 		sort = &s
 	}
 
-	result, err := clt.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(r.Context(), &workloadidentityv1.ListWorkloadIdentitiesRequest{
+	result, err := clt.WorkloadIdentityResourceServiceClient().ListWorkloadIdentitiesV2(r.Context(), &workloadidentityv1.ListWorkloadIdentitiesV2Request{
 		PageSize:         int32(pageSize),
 		PageToken:        r.URL.Query().Get("page_token"),
 		Sort:             sort,
