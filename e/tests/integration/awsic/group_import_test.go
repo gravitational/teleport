@@ -38,11 +38,11 @@ func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assertSCIMUsers(t.Context(), c, mockSCIM, "alice", "bob")
 
-		accounts, _, err := auth.ListIdentityCenterAccounts2(t.Context(), 0, "")
+		accounts, _, err := auth.ListIdentityCenterAccounts(t.Context(), 0, "")
 		require.NoError(c, err)
 		require.Len(c, mockIC.Accounts, len(accounts))
 
-		permissionSet, _, err := auth.ListPermissionSets2(t.Context(), 0, "")
+		permissionSet, _, err := auth.ListPermissionSets(t.Context(), 0, "")
 		require.NoError(c, err)
 		require.Len(c, mockIC.PermissionSets, len(permissionSet))
 
@@ -57,7 +57,7 @@ func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
 	})
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		accounts, _, err := auth.ListIdentityCenterAccounts2(t.Context(), 0, "")
+		accounts, _, err := auth.ListIdentityCenterAccounts(t.Context(), 0, "")
 		require.NoError(c, err)
 		require.Len(c, accounts, 1)
 

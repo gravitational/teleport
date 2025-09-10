@@ -127,7 +127,7 @@ func checkIdentityCenterResourceDeleteAccess(authCtx *authz.Context) error {
 func listAllIdentityCenterResources(ctx context.Context, icService services.IdentityCenter, provisioningService services.ProvisioningStates) ([]*types.ResourceID, error) {
 	var allResources []*types.ResourceID
 
-	accounts := stream.FilterMap(clientutils.Resources(ctx, icService.ListIdentityCenterAccounts2),
+	accounts := stream.FilterMap(clientutils.Resources(ctx, icService.ListIdentityCenterAccounts),
 		func(a *identitycenterv1.Account) (*types.ResourceID, bool) {
 			return &types.ResourceID{Kind: types.KindIdentityCenterAccount, Name: a.GetMetadata().GetName()}, true
 		})
@@ -137,12 +137,12 @@ func listAllIdentityCenterResources(ctx context.Context, icService services.Iden
 			return &types.ResourceID{Kind: types.KindIdentityCenterAccountAssignment, Name: a.GetMetadata().GetName()}, true
 		})
 
-	principalAssignments := stream.FilterMap(clientutils.Resources(ctx, icService.ListPrincipalAssignments2),
+	principalAssignments := stream.FilterMap(clientutils.Resources(ctx, icService.ListPrincipalAssignments),
 		func(a *identitycenterv1.PrincipalAssignment) (*types.ResourceID, bool) {
 			return &types.ResourceID{Kind: types.KindIdentityCenterPrincipalAssignment, Name: a.GetMetadata().GetName()}, true
 		})
 
-	permissionSets := stream.FilterMap(clientutils.Resources(ctx, icService.ListPermissionSets2),
+	permissionSets := stream.FilterMap(clientutils.Resources(ctx, icService.ListPermissionSets),
 		func(ps *identitycenterv1.PermissionSet) (*types.ResourceID, bool) {
 			return &types.ResourceID{Kind: types.KindIdentityCenterPermissionSet, Name: ps.GetMetadata().GetName()}, true
 		})

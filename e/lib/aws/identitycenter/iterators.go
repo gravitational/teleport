@@ -18,11 +18,11 @@ import (
 )
 
 type permissionSetLister interface {
-	ListPermissionSets2(context.Context, int, string) ([]*identitycenterv1.PermissionSet, string, error)
+	ListPermissionSets(context.Context, int, string) ([]*identitycenterv1.PermissionSet, string, error)
 }
 
 func allPermissionSets(ctx context.Context, src permissionSetLister) iter.Seq2[*identitycenterv1.PermissionSet, error] {
-	return clientutils.Resources(ctx, src.ListPermissionSets2)
+	return clientutils.Resources(ctx, src.ListPermissionSets)
 }
 
 func allAccountAssignments(ctx context.Context, src services.IdentityCenterAccountAssignments) iter.Seq2[*identitycenterv1.AccountAssignment, error] {
@@ -30,7 +30,7 @@ func allAccountAssignments(ctx context.Context, src services.IdentityCenterAccou
 }
 
 func allAccounts(ctx context.Context, src services.IdentityCenterAccounts) iter.Seq2[*identitycenterv1.Account, error] {
-	return clientutils.Resources(ctx, src.ListIdentityCenterAccounts2)
+	return clientutils.Resources(ctx, src.ListIdentityCenterAccounts)
 }
 
 // listTeleportUsers returns a map with a key containing username for each users

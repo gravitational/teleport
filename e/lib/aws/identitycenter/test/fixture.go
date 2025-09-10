@@ -355,7 +355,7 @@ func createAccessListsMembers(t *testing.T, ctx context.Context, accessListClien
 func createICAccount(t *testing.T, ctx context.Context, icService services.IdentityCenter, accountNames []string) {
 	t.Helper()
 	for _, n := range accountNames {
-		_, err := icService.CreateIdentityCenterAccount2(ctx, &identitycenterv1.Account{
+		_, err := icService.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
 			Kind:     types.KindIdentityCenterAccount,
 			Version:  types.V1,
 			Metadata: &headerv1.Metadata{Name: n},
@@ -472,7 +472,7 @@ func CheckAllICResourcesAreConditionallyDeleted(t *testing.T, ctx context.Contex
 		require.ErrorContains(t, err, "doesn't exist")
 		require.Nil(t, i)
 	}
-	accountFromDB, _, err := args.TestClient.ICService.ListIdentityCenterAccounts2(ctx, apidefaults.DefaultChunkSize, "")
+	accountFromDB, _, err := args.TestClient.ICService.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, "")
 	require.NoError(t, err)
 	require.Empty(t, accountFromDB)
 
@@ -480,11 +480,11 @@ func CheckAllICResourcesAreConditionallyDeleted(t *testing.T, ctx context.Contex
 	require.NoError(t, err)
 	require.Empty(t, accountAssignmentFromDB)
 
-	principalAssignmentFromDB, _, err := args.TestClient.ICService.ListPrincipalAssignments2(ctx, apidefaults.DefaultChunkSize, "")
+	principalAssignmentFromDB, _, err := args.TestClient.ICService.ListPrincipalAssignments(ctx, apidefaults.DefaultChunkSize, "")
 	require.NoError(t, err)
 	require.Empty(t, principalAssignmentFromDB)
 
-	permSetsFromDB, _, err := args.TestClient.ICService.ListPermissionSets2(ctx, apidefaults.DefaultChunkSize, "")
+	permSetsFromDB, _, err := args.TestClient.ICService.ListPermissionSets(ctx, apidefaults.DefaultChunkSize, "")
 	require.NoError(t, err)
 	require.Empty(t, permSetsFromDB)
 

@@ -9,9 +9,9 @@ import (
 )
 
 type PrincipalAssignmentLister interface {
-	ListPrincipalAssignments2(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
+	ListPrincipalAssignments(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
 }
 
 func AllPrincipalAssignments(ctx context.Context, src PrincipalAssignmentLister) iter.Seq2[*identitycenterv1.PrincipalAssignment, error] {
-	return clientutils.Resources(ctx, src.ListPrincipalAssignments2)
+	return clientutils.Resources(ctx, src.ListPrincipalAssignments)
 }

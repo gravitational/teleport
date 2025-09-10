@@ -1191,7 +1191,7 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 			ARN:            fmt.Sprintf("arn:aws:iam::%s:account/Account%02d", accountID, i),
 			PermissionSets: slices.Values(permissionSets),
 		}.Build()
-		ceated, err := fixture.Auth.CreateIdentityCenterAccount2(ctx, account)
+		ceated, err := fixture.Auth.CreateIdentityCenterAccount(ctx, account)
 		require.NoError(t, err)
 		accounts[i] = ceated
 
