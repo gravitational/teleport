@@ -251,3 +251,49 @@ func TestConnProxy(t *testing.T) {
 		}
 	})
 }
+
+func TestInterceptor(t *testing.T) {
+	testConn := newMockRWC()
+	fooToBar := func(message Message) (Message, error) {
+		switch string(message.(mockMessage)) {
+		case "foo":
+			return mockMessage("bar"), nil
+		case "omit":
+			return nil, nil
+		}
+		return message, nil
+	}
+
+	interceptedRWC := NewReadWriteInterceptor(&testConn, fooToBar, fooToBar)
+
+	// Test write interceptor
+	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("noreplace")))
+	msg := <-testConn.writeChan
+	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("foo")))
+	msg = <-testConn.writeChan
+	assert.Equal(t, "bar", string(msg.(mockMessage)))
+
+	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("omit")))
+	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("noreplace")))
+	msg = <-testConn.writeChan
+	// "omit" message should be dropped, so the next message is "noreplace"
+	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+
+	// Test read interceptor
+	testConn.readChan <- mockMessage("noreplace")
+	msg, err := interceptedRWC.ReadMessage()
+	require.NoError(t, err)
+	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+
+	testConn.readChan <- mockMessage("foo")
+	msg, err = interceptedRWC.ReadMessage()
+	require.NoError(t, err)
+	assert.Equal(t, "bar", string(msg.(mockMessage)))
+
+	testConn.readChan <- mockMessage("omit")
+	testConn.readChan <- mockMessage("noreplace")
+	// "omit" message should be dropped, so the next message is "noreplace"
+	msg, err = interceptedRWC.ReadMessage()
+	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+}
