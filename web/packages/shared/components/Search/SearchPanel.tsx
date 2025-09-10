@@ -36,8 +36,8 @@ export function SearchPanel({
   hideAdvancedSearch,
   extraChildren,
 }: {
-  updateQuery(s: string): void;
-  updateSearch(s: string): void;
+  updateQuery?: (s: string) => void;
+  updateSearch: (s: string) => void;
   pageIndicators?: { from: number; to: number; total: number };
   filter: ResourceFilter;
   disableSearch: boolean;
@@ -60,11 +60,11 @@ export function SearchPanel({
     setQuery(newQuery);
 
     if (isAdvancedSearch) {
-      updateQuery(newQuery);
+      updateQuery?.(newQuery);
       return;
     }
 
-    updateSearch(newQuery);
+    updateSearch?.(newQuery);
   }
 
   return (
@@ -85,13 +85,13 @@ export function SearchPanel({
             searchValue={query}
             setSearchValue={updateQueryForRefetching}
           >
-            {!hideAdvancedSearch && (
+            {!hideAdvancedSearch ? (
               <AdvancedSearchToggle
                 isToggled={isAdvancedSearch}
                 onToggle={onToggle}
                 px={3}
               />
-            )}
+            ) : undefined}
           </InputSearch>
         </StyledFlex>
       </Flex>
