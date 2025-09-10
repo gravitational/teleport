@@ -218,9 +218,9 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version s
 	// will be included in all supported versions.
 	pkg := autoupdate.DefaultPackage
 	if runtime.GOOS == constants.DarwinOS &&
-		(semVersion.Major == 17 && semVersion.Compare(*semver.New("17.7.2")) >= 0 ||
-			semVersion.Major == 18 && semVersion.Compare(*semver.New("18.1.5")) >= 0 ||
-			semVersion.Major > 18) {
+		(semVersion.Major > 18 ||
+			semVersion.Major == 18 && semVersion.Compare(semver.Version{Major: 18, Minor: 1, Patch: 5}) >= 0 ||
+			semVersion.Major == 17 && semVersion.Compare(semver.Version{Major: 17, Minor: 7, Patch: 2}) >= 0) {
 		pkg = autoupdate.DefaultToolsPackage
 	}
 
