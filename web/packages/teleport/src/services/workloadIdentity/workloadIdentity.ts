@@ -19,6 +19,7 @@
 import cfg from 'teleport/config';
 
 import api from '../api/api';
+import { withGenericUnsupportedError } from '../version/unsupported';
 import { validateListWorkloadIdentitiesResponse } from './consts';
 
 export async function listWorkloadIdentities(
@@ -44,11 +45,16 @@ export async function listWorkloadIdentities(
     qs.set('search', searchTerm);
   }
 
-  const data = await api.get(`${path}?${qs.toString()}`, signal);
+  try {
+    const data = await api.get(`${path}?${qs.toString()}`, signal);
 
-  if (!validateListWorkloadIdentitiesResponse(data)) {
-    throw new Error('failed to validate list workload identities response');
+    if (!validateListWorkloadIdentitiesResponse(data)) {
+      throw new Error('failed to validate list workload identities response');
+    }
+
+    return data;
+  } catch (err) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '19.0.0');
   }
-
-  return data;
 }
