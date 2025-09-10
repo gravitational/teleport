@@ -645,7 +645,6 @@ Below is a list of environment variables supported by Teleport Connect for Node 
 |----------|---------|------------------|-------------|
 | `TELEPORT_MFA_MODE` | `auto` | `auto`, `cross-platform`, `platform`, `otp`, or `sso` | Preferred mode for MFA and Passwordless assertions. |
 | `TELEPORT_ADD_KEYS_TO_AGENT` | `auto` | `auto`, `no`, `yes`, or `only` | Controls how keys are added to a local SSH agent. "auto" adds the keys only if the agent supports SSH certificates, "no" never attempts to add them, "yes" always attempts to add them, "only" always attempts to add the keys to the agent but it does not save them on disk. |
-| `TELEPORT_HEADLESS_SKIP_CONFIRM` | `false` | `true` or `false` | Skips the confirmation prompt for Headless Authentication approval and instead prompts for MFA immediately. | 
 | `TELEPORT_NO_RESUME` | `false` | `true` or `false` | Disables SSH connection resumption. |
 
 For example, instead of settings `ssh.addKeysToAgent=no`, you could set `TELEPORT_ADD_KEYS_TO_AGENT=no` in
