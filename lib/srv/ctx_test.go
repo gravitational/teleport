@@ -46,6 +46,7 @@ func TestCheckSFTPAllowed(t *testing.T) {
 		name                 string
 		nodeAllowFileCopying bool
 		permit               *decisionpb.SSHAccessPermit
+		proxyingPermit       *proxyingPermit
 		sessionPolicies      []*types.SessionRequirePolicy
 		expectedErr          error
 	}{
@@ -78,6 +79,22 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			nodeAllowFileCopying: true,
 			permit: &decisionpb.SSHAccessPermit{
 				SshFileCopy: true,
+			},
+			expectedErr: nil,
+		},
+		{
+			name:                 "proxying role disallowed",
+			nodeAllowFileCopying: true,
+			proxyingPermit: &proxyingPermit{
+				SSHFileCopy: false,
+			},
+			expectedErr: errRoleFileCopyingNotPermitted,
+		},
+		{
+			name:                 "proxying role allowed",
+			nodeAllowFileCopying: true,
+			proxyingPermit: &proxyingPermit{
+				SSHFileCopy: true,
 			},
 			expectedErr: nil,
 		},
@@ -125,6 +142,7 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			)
 
 			ctx.Identity.AccessPermit = tt.permit
+			ctx.Identity.ProxyingPermit = tt.proxyingPermit
 
 			err := ctx.CheckSFTPAllowed(nil)
 			if tt.expectedErr == nil {
