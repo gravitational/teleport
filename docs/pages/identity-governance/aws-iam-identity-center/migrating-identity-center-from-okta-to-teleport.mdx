@@ -2,9 +2,11 @@
 title: Migrating AWS IAM Identity Center from Okta to Teleport
 description: Explains how to migrate an Identity Center instance from Okta control to Teleport control.
 tocDepth: 3
-labels:
+tags:
  - how-to
  - identity-governance
+ - privileged-access
+ - aws
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -180,6 +182,9 @@ During the installation process, Teleport will import all of the Identity Center
 groups that match its allow list (or all of them, if no allow list is defined)
 and create matching Access Lists, preserving the group membership and account
 assignments.
+
+For more installation options, such as disabling the creation of Teleport Roles
+for each Account Assignments, see the [Advanced Options](./advanced-options.mdx) guide.
 
 <Admonition type="warning">
 Individual user account assignments will ***not*** be preserved during import. You
