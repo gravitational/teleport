@@ -81,6 +81,7 @@ import (
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -820,11 +821,6 @@ func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) 
 	return types.DeviceToResource(upserted), nil
 }
 
-// GRPCConn returns the underlying gRPC connection to the Auth service.
-func (c *Client) GRPCConn() *grpc.ClientConn {
-	return c.conn
-}
-
 // ScopedAccessServiceClient returns an unadorned Scoped Access Service client, using the underlying
 // Auth gRPC connection.
 func (c *Client) ScopedAccessServiceClient() scopedaccessv1.ScopedAccessServiceClient {
@@ -926,6 +922,11 @@ func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServi
 // VnetConfigServiceClient returns an unadorned client for the VNet config service.
 func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
+}
+
+// JoinV1Client returns an unadorned gRPC client for the new Join service.
+func (c *Client) JoinV1Client() joinv1.JoinServiceClient {
+	return joinv1.NewJoinServiceClient(c.conn)
 }
 
 // SummarizerServiceClient returns an unadorned client for the session
