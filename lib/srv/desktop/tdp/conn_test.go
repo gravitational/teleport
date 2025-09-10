@@ -89,14 +89,14 @@ func (f fakeTrackingConn) RemoteAddr() net.Addr {
 	return f.remote
 }
 
-func newMockRWC() rwc {
-	return rwc{
+func newMockRWC() mockReadWriterCloser {
+	return mockReadWriterCloser{
 		readChan:  make(chan Message, 10),
 		writeChan: make(chan Message, 10),
 	}
 }
 
-type rwc struct {
+type mockReadWriterCloser struct {
 	closeErr   error
 	readError  error
 	writeError error
@@ -105,14 +105,14 @@ type rwc struct {
 	once       sync.Once
 }
 
-func (r *rwc) ReadMessage() (Message, error) {
+func (r *mockReadWriterCloser) ReadMessage() (Message, error) {
 	if msg, ok := <-r.readChan; ok {
 		return msg, nil
 	}
 	return nil, fmt.Errorf("read failed: %w", r.readError)
 }
 
-func (r *rwc) WriteMessage(m Message) error {
+func (r *mockReadWriterCloser) WriteMessage(m Message) error {
 	if r.writeError != nil {
 		return fmt.Errorf("write failed: %w", r.writeError)
 	}
@@ -123,7 +123,7 @@ func (r *rwc) WriteMessage(m Message) error {
 	panic("invariant violation")
 }
 
-func (r *rwc) Close() error {
+func (r *mockReadWriterCloser) Close() error {
 	r.once.Do(func() {
 		close(r.readChan)
 		close(r.writeChan)
@@ -148,12 +148,12 @@ func TestConnProxy(t *testing.T) {
 	t.Run("error-handling", func(t *testing.T) {
 		tests := []struct {
 			name     string
-			setupFn  func(t *testing.T, client, server *rwc)
+			setupFn  func(t *testing.T, client, server *mockReadWriterCloser)
 			expectFn func(t *testing.T, proxyError error)
 		}{
 			{
 				name: "bidirectional-copy-no-errors",
-				setupFn: func(t *testing.T, clientConn, serverConn *rwc) {
+				setupFn: func(t *testing.T, clientConn, serverConn *mockReadWriterCloser) {
 					// Message copied from client to server
 					clientConn.readChan <- mockMessage("hello server!")
 					msg := <-serverConn.writeChan
@@ -175,7 +175,7 @@ func TestConnProxy(t *testing.T) {
 			},
 			{
 				name: "server-write-error",
-				setupFn: func(t *testing.T, clientConn, serverConn *rwc) {
+				setupFn: func(t *testing.T, clientConn, serverConn *mockReadWriterCloser) {
 					serverConn.writeError = writeError
 					serverConn.readError = io.EOF
 					// Copy from client to server will fail
@@ -190,7 +190,7 @@ func TestConnProxy(t *testing.T) {
 			{
 				// Same as server-write-error, but swapped
 				name: "client-write-error",
-				setupFn: func(t *testing.T, clientConn, serverConn *rwc) {
+				setupFn: func(t *testing.T, clientConn, serverConn *mockReadWriterCloser) {
 					clientConn.writeError = writeError
 					clientConn.readError = io.EOF
 					// Copy from server to client will fail
@@ -205,7 +205,7 @@ func TestConnProxy(t *testing.T) {
 			{
 				// Same as server and client read both fail
 				name: "server-and-client-read-error",
-				setupFn: func(t *testing.T, clientConn, serverConn *rwc) {
+				setupFn: func(t *testing.T, clientConn, serverConn *mockReadWriterCloser) {
 					clientConn.readError = clientReadErr
 					serverConn.readError = serverReadErr
 					clientConn.Close()
@@ -219,7 +219,7 @@ func TestConnProxy(t *testing.T) {
 			{
 				// Same as server and client read both fail
 				name: "close-errors-returned",
-				setupFn: func(t *testing.T, clientConn, serverConn *rwc) {
+				setupFn: func(t *testing.T, clientConn, serverConn *mockReadWriterCloser) {
 					// Both sides return EOF from read, but return errors on clos
 					serverConn.closeErr = serverCloseError
 					clientConn.closeErr = clientCloseError
