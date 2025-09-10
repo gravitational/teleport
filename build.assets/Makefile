@@ -56,6 +56,10 @@ endif
 # $(ARCH) is the target architecture we want to build for.
 REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cross-compile $@ $(ARCH) on $(RUNTIME_ARCH)))
 
+# Determine which version of wasm-bindgen should be installed on build containers
+# responsible for building webassets.
+WASM_BINDGEN_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-wasm-bindgen-version)
+
 # This determines which make target we call in this repo's top level Makefile when
 # make release in this Makefile is called. Currently this supports its default value
 # (release) and release-unix-preserving-webassets. See the release-arm target for
