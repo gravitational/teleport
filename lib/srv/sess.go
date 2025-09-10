@@ -1122,20 +1122,14 @@ func (s *session) emitSessionLeaveEventUnderLock(ctx *ServerContext) {
 		SessionMetadata: s.scx.GetSessionMetadata(),
 		UserMetadata:    ctx.Identity.GetUserMetadata(),
 	}
-	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionLeaveEvent)
-	if err == nil {
-		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
-			s.log.WithError(err).Warn("Failed to record session leave event.")
-		}
-		if err := s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
-			s.log.WithError(err).Warn("Failed to emit session leave event.")
-		}
-	} else {
-		s.log.WithError(err).Warn("Failed to set up session leave event - event will not be recorded")
+	preparedEvent, prepareErr := s.Recorder().PrepareSessionEvent(sessionLeaveEvent)
+	if prepareErr != nil {
+		s.log.WithError(prepareErr).Warn("Failed to set up session leave event - event will not be recorded.")
 	}
-
 	// Notify all members of the party that a new member has left over the
-	// "x-teleport-event" channel.
+	// "x-teleport-event" channel. This has to be done after preparing the event
+	// (to capture any changes by PrepareSessionEvent) but before emitting the
+	// event (to prevent a race on sessionLeaveEvent).
 	for _, p := range s.parties {
 		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
 		if err != nil {
@@ -1151,6 +1145,14 @@ func (s *session) emitSessionLeaveEventUnderLock(ctx *ServerContext) {
 			continue
 		}
 		s.log.Debugf("Sent %v to %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr())
+	}
+	if prepareErr == nil {
+		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
+			s.log.WithError(err).Warn("Failed to record session leave event.")
+		}
+		if err := s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
+			s.log.WithError(err).Warn("Failed to emit session leave event.")
+		}
 	}
 }
 
