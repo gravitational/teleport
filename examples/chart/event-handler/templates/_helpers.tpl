@@ -55,7 +55,7 @@ Create the name of the service account to use
 */}}
 {{- define "event-handler.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "event-handler.fullname" .) .Values.serviceAccount.name }}
+{{- default .Release.Name .Values.serviceAccount.name -}}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
