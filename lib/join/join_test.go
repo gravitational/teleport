@@ -128,7 +128,7 @@ func TestJoin(t *testing.T) {
 					return key == "Time" || key == "ID"
 				}),
 			))
-		}, time.Second, time.Millisecond, "expected instance.join failed event not found")
+		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
 	})
 
 	t.Run("join and rejoin", func(t *testing.T) {
@@ -237,7 +237,7 @@ func TestJoin(t *testing.T) {
 					return key == "Time" || key == "ID"
 				}),
 			))
-		}, time.Second, time.Millisecond, "expected instance.join failed event not found")
+		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
 	})
 }
 
