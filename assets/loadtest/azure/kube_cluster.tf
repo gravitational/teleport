@@ -11,7 +11,7 @@ resource "azurerm_kubernetes_cluster" "kube_cluster" {
 
   default_node_pool {
     name       = "defaultpool"
-    vm_size    = "Standard_D16s_v3" # 16 cpu 64gb ram
+    vm_size    = "Standard_F16as_v7" # 16 cpu 64gb ram
     node_count = 3
   }
 

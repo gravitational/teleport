@@ -77,7 +77,7 @@ resource "helm_release" "teleport" {
     }
 
     "highAvailability" = {
-      "replicaCount" = 3
+      "replicaCount" = 2
       "certManager" = {
         "enabled"    = true
         "issuerName" = kubectl_manifest.issuer.name
