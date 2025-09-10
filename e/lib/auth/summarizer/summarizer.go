@@ -171,12 +171,12 @@ func (s *SessionSummarizer) summarize(
 		return trace.Wrap(err, "failed to build user from event")
 	}
 
-	sessionCtx := &services.Context{
+	matchingCtx := &services.InferencePolicyMatchingContext{
 		User: user,
 	}
-	sessionCtx.ExtendWithSessionEnd(sessionEndEvent, nil) // nil AccessChecker for now
+	matchingCtx.ExtendWithSessionEnd(sessionEndEvent)
 
-	policy, err := s.matchPolicy(ctx, kind, sessionCtx)
+	policy, err := s.matchPolicy(ctx, kind, matchingCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -352,9 +352,9 @@ func (s *SessionSummarizer) findSessionEndEvent(ctx context.Context, sessionID s
 // inference policies. It returns the first matching policy or nil if no policy
 // matches.
 func (s *SessionSummarizer) matchPolicy(
-	ctx context.Context, kind types.SessionKind, sessionCtx *services.Context,
+	ctx context.Context, kind types.SessionKind, matchingCtx *services.InferencePolicyMatchingContext,
 ) (*summarizerv1pb.InferencePolicy, error) {
-	parser, err := services.NewWhereParser(sessionCtx)
+	parser, err := services.NewWhereParser(matchingCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
