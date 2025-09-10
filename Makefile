@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.2.0
+VERSION=18.2.0-dev.julia.kms.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -1227,8 +1227,8 @@ lint-tools: lint-build-tooling lint-backport
 
 #
 # Checks that testing symbols and the testify library is not included in binaries.
-# 
-# 
+#
+#
 .PHONY: lint-test-symbols
 lint-test-symbols: ensure-goda
 	@testing_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
