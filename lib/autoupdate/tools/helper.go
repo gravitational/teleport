@@ -70,8 +70,7 @@ func newUpdater(toolsDir string) (*Updater, error) {
 func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
 	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
 	// so we don't try to read te user home directory, fail, and log warnings.
-	toolsVersion := os.Getenv(teleportToolsVersionEnv)
-	if toolsVersion == teleportToolsVersionEnvDisabled || toolsVersion == teleportToolsVersionEnvDisabledLocal {
+	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled {
 		return nil
 	}
 
@@ -127,7 +126,7 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 func CheckAndUpdateRemote(ctx context.Context, currentProfileName string, insecure bool, reExecArgs []string) error {
 	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
 	// so we don't try to read te user home directory, fail, and log warnings.
-	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled {
+	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled && os.Getenv(teleportToolsVersionReExecEnv) == "" {
 		return nil
 	}
 
