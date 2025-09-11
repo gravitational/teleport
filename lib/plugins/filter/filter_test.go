@@ -37,22 +37,10 @@ func TestMatches(t *testing.T) {
 		{ID: "4", Name: "avocado"},
 	}
 
-	paramFunc := func() MatchParam[TestItem] {
-		return MatchParam[TestItem]{
-			GetName: func(item TestItem) string {
-				return item.Name
-			},
-			GetID: func(item TestItem) string {
-				return item.ID
-			},
-		}
-	}
-
 	tests := []struct {
 		name     string
 		items    []TestItem
 		filters  Filters
-		param    MatchParam[TestItem]
 		expected []TestItem
 	}{
 		{
@@ -147,7 +135,10 @@ func TestMatches(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var filtered []TestItem
 			for _, i := range items {
-				if Matches(i, tt.filters, paramFunc()) {
+				if Matches(tt.filters, MatchParam{
+					ID:   i.ID,
+					Name: i.Name,
+				}) {
 					filtered = append(filtered, i)
 				}
 			}

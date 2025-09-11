@@ -59,18 +59,17 @@ func (f Filters) validate() error {
 }
 
 // MatchParam defines filter matcher parameters.
-// It contains the functions to get the name and ID of an item.
-type MatchParam[T any] struct {
-	// GetName is a function that gets the name of an item.
-	GetName func(T) string
-	// GetID is a function that gets the ID of an item.
-	GetID func(T) string
+type MatchParam struct {
+	// ID of an item to match.
+	ID string
+	// Name of an item to match.
+	Name string
 }
 
 // Matches checks if the given [item] matches with the [filters].
 // Exclude filters gets priority over Include filters.
 // Empty [filters] implies a default match.
-func Matches[T any](item T, filters Filters, param MatchParam[T]) bool {
+func Matches(filters Filters, param MatchParam) bool {
 	if len(filters) == 0 {
 		// Empty filter is considerd a wildcard match.
 		return true
@@ -82,13 +81,13 @@ func Matches[T any](item T, filters Filters, param MatchParam[T]) bool {
 		}
 		switch v := filter.GetExclude().(type) {
 		case *types.PluginSyncFilter_ExcludeId:
-			if param.GetID != nil && param.GetID(item) == v.ExcludeId {
+			if param.ID != "" && param.ID == v.ExcludeId {
 				return false
 			}
 		case *types.PluginSyncFilter_ExcludeNameRegex:
-			if param.GetName != nil {
+			if param.Name != "" {
 				compiledExclude, err := utils.CompileExpression(v.ExcludeNameRegex)
-				if err == nil && compiledExclude.MatchString(param.GetName(item)) {
+				if err == nil && compiledExclude.MatchString(param.Name) {
 					return false
 				}
 			}
@@ -104,13 +103,13 @@ func Matches[T any](item T, filters Filters, param MatchParam[T]) bool {
 		hasInclude = true
 		switch v := filter.GetInclude().(type) {
 		case *types.PluginSyncFilter_Id:
-			if param.GetID != nil && param.GetID(item) == v.Id {
+			if param.ID != "" && param.ID == v.Id {
 				return true
 			}
 		case *types.PluginSyncFilter_NameRegex:
-			if param.GetName != nil {
+			if param.Name != "" {
 				compiledFilter, err := utils.CompileExpression(v.NameRegex)
-				if err == nil && compiledFilter.MatchString(param.GetName(item)) {
+				if err == nil && compiledFilter.MatchString(param.Name) {
 					return true
 				}
 			}
