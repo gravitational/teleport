@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,26 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { FeatureBox } from 'teleport/components/Layout';
-import { Redirect, Route, Switch } from 'teleport/components/Router';
-import cfg from 'teleport/config';
-
-import { BotFlowType } from '../types';
-import GitHubActionsFlow from './GitHubActions';
-
-export function AddBots() {
-  return (
-    <FeatureBox>
-      <Switch>
-        <Route
-          path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
-          component={GitHubActionsFlow}
-        />
-        <Redirect
-          path={cfg.getBotsNewRoute()}
-          to={`${cfg.getIntegrationEnrollRoute()}?tags=bot`}
-        />
-      </Switch>
-    </FeatureBox>
-  );
-}
+export { IntegrationPicker, displayName } from './IntegrationPicker';
+export {
+  type IntegrationTag,
+  type BaseIntegration,
+  isIntegrationTag,
+  integrationTagOptions,
+} from './common';
+export { Tile, IntegrationTileWithSpec } from './Tile';

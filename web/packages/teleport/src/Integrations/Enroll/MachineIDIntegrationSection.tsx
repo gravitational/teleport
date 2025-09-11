@@ -22,6 +22,7 @@ import { P } from 'design/Text/Text';
 import { BotTiles } from 'teleport/Bots/Add/AddBotsPicker';
 import useTeleport from 'teleport/useTeleport';
 
+// TODO(alexhemard): delete in a follow up PR
 export const MachineIDIntegrationSection = () => {
   const ctx = useTeleport();
   return (
