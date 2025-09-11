@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.1-dev.winterrprovider.12"
+const Version = "19.0.1-dev.winterrprovider.13"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 1
-const VersionPreRelease = "dev.winterrprovider.12"
+const VersionPreRelease = "dev.winterrprovider.13"
 const VersionMetadata = ""
