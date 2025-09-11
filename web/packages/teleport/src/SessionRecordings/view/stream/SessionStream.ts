@@ -119,6 +119,10 @@ export class SessionStream<
       return;
     }
 
+    if (this.state === PlayerState.Stopped) {
+      this.seek(0);
+    }
+
     this.setState(PlayerState.Playing);
 
     if (this.pausedTime > 0) {

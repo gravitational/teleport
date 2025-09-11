@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package roles
+package access
 
 import (
 	"iter"
@@ -22,7 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
 )
@@ -47,7 +47,7 @@ const (
 )
 
 // RoleIsAssignableAtScope checks if the given role is assignable at the given scope.
-func RoleIsAssignableAtScope(role *accessv1.ScopedRole, scope string) bool {
+func RoleIsAssignableAtScope(role *scopedaccessv1.ScopedRole, scope string) bool {
 	for assignableScope := range WeakValidatedAssignableScopes(role) {
 		if scopes.Glob(assignableScope).Matches(scope) {
 			return true
@@ -58,7 +58,7 @@ func RoleIsAssignableAtScope(role *accessv1.ScopedRole, scope string) bool {
 }
 
 // WeakValidatedAssignableScopes is a helper for iterating all well formed assignable scopes for a given role.
-func WeakValidatedAssignableScopes(role *accessv1.ScopedRole) iter.Seq[string] {
+func WeakValidatedAssignableScopes(role *scopedaccessv1.ScopedRole) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for _, assignableScope := range role.GetSpec().GetAssignableScopes() {
 			if err := scopes.WeakValidateGlob(assignableScope); err != nil {
@@ -81,7 +81,7 @@ func WeakValidatedAssignableScopes(role *accessv1.ScopedRole) iter.Seq[string] {
 // WeakValidateRole valides a role to ensure it is free of obvious issues that would render it unusable and/or
 // induce serious unintended behavior. Prefer using this function for validating roles loaded from "internal" sources
 // (e.g. backend/control-plane), and [StrongValidateRole] for validating roles loaded from "external" sources (e.g. user input).
-func WeakValidateRole(role *accessv1.ScopedRole) error {
+func WeakValidateRole(role *scopedaccessv1.ScopedRole) error {
 	if err := commonValidateRole(role); err != nil {
 		return trace.Wrap(err)
 	}
@@ -101,7 +101,7 @@ func WeakValidateRole(role *accessv1.ScopedRole) error {
 // StrongValidateRole performs robust validation of a role to ensure it complies with all expected constraints. Prefer
 // using this function for validating roles loaded from "external" sources (e.g. user input), and [WeakValidateRole] for
 // validating roles loaded from "internal" sources (e.g. backend/control-plane).
-func StrongValidateRole(role *accessv1.ScopedRole) error {
+func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	if err := commonValidateRole(role); err != nil {
 		return trace.Wrap(err)
 	}
@@ -143,7 +143,7 @@ func validateRoleName(name string) error {
 }
 
 // commonValidateRole performs the subset of role validation common to both weak and strong validation.
-func commonValidateRole(role *accessv1.ScopedRole) error {
+func commonValidateRole(role *scopedaccessv1.ScopedRole) error {
 	if role.GetMetadata().GetName() == "" {
 		return trace.BadParameter("scoped role is missing metadata.name")
 	}
@@ -176,13 +176,13 @@ func commonValidateRole(role *accessv1.ScopedRole) error {
 }
 
 // WeakValidatedSubAssignments is a helper for iterating all well formed sub-assignments within a given assignment. Note that the concept
-// of a well-formed sub-assignment is distinct from wether or not an assignment is "boken/invalidated" in the sense used when
-// deciding wether or not an access-control check can be performed for a given scope. The only thing that is being filtered out
+// of a well-formed sub-assignment is distinct from whether or not an assignment is "boken/invalidated" in the sense used when
+// deciding whether or not an access-control check can be performed for a given scope. The only thing that is being filtered out
 // by this iterator is sub-assignments that are so obviously misconfigured that we can't reason about them at all. Sub-assignments
 // returned by this iterator may still be broken because they assign a nonexistent role, or to a scope that the target role is not
 // assignable to.
-func WeakValidatedSubAssignments(assignment *accessv1.ScopedRoleAssignment) iter.Seq[*accessv1.Assignment] {
-	return func(yield func(*accessv1.Assignment) bool) {
+func WeakValidatedSubAssignments(assignment *scopedaccessv1.ScopedRoleAssignment) iter.Seq[*scopedaccessv1.Assignment] {
+	return func(yield func(*scopedaccessv1.Assignment) bool) {
 		for _, subAssignment := range assignment.GetSpec().GetAssignments() {
 			if subAssignment.GetRole() == "" {
 				// ignore sub-assignments with missing role
@@ -209,7 +209,7 @@ func WeakValidatedSubAssignments(assignment *accessv1.ScopedRoleAssignment) iter
 // WeakValidateAssignment validates an assignment to ensure it is free of obvious issues that would render it unusable and/or
 // induce serious unintended behavior. Prefer using this function for validating assignments loaded from "internal" sources
 // (e.g. backend/control-plane), and [StrongValidateAssignment] for validating assignments loaded from "external" sources (e.g. user input).
-func WeakValidateAssignment(assignment *accessv1.ScopedRoleAssignment) error {
+func WeakValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) error {
 	if err := commonValidateAssignment(assignment); err != nil {
 		return trace.Wrap(err)
 	}
@@ -228,7 +228,7 @@ func WeakValidateAssignment(assignment *accessv1.ScopedRoleAssignment) error {
 // StrongValidateAssignment performs robust validation of an assignment to ensure it complies with all expected constraints. Prefer
 // using this function for validating assignments loaded from "external" sources (e.g. user input), and [WeakValidateAssignment] for
 // validating assignments loaded from "internal" sources (e.g. backend/control-plane).
-func StrongValidateAssignment(assignment *accessv1.ScopedRoleAssignment) error {
+func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) error {
 	if err := commonValidateAssignment(assignment); err != nil {
 		return trace.Wrap(err)
 	}
@@ -270,7 +270,7 @@ func StrongValidateAssignment(assignment *accessv1.ScopedRoleAssignment) error {
 	return nil
 }
 
-func commonValidateAssignment(assignment *accessv1.ScopedRoleAssignment) error {
+func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) error {
 	if assignment.GetMetadata().GetName() == "" {
 		return trace.BadParameter("scoped role assignment is missing metadata.name")
 	}

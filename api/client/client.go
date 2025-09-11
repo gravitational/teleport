@@ -93,6 +93,7 @@ import (
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -817,6 +818,12 @@ func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) 
 		return nil, trace.Wrap(err)
 	}
 	return types.DeviceToResource(upserted), nil
+}
+
+// ScopedAccessServiceClient returns an unadorned Scoped Access Service client, using the underlying
+// Auth gRPC connection.
+func (c *Client) ScopedAccessServiceClient() scopedaccessv1.ScopedAccessServiceClient {
+	return scopedaccessv1.NewScopedAccessServiceClient(c.conn)
 }
 
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying

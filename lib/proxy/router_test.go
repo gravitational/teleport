@@ -383,10 +383,12 @@ func TestGetServers(t *testing.T) {
 		serverAssertion func(t *testing.T, srv types.Server)
 	}{
 		{
-			name:         "no matches for hostname",
-			site:         testSite{cfg: &unambiguousCfg},
-			host:         "test",
-			errAssertion: require.NoError,
+			name: "no matches for hostname",
+			site: testSite{cfg: &unambiguousCfg},
+			host: "test",
+			errAssertion: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsConnectionProblem(err), "Expected connection error but got %v", err)
+			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
 			},
@@ -795,7 +797,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessSrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.NotNil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 				require.Contains(t, params.Principals, "host")
 				require.Contains(t, params.Principals, "host.test")
@@ -815,7 +816,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.Nil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},
