@@ -62,7 +62,7 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *tracessh.S
 		return trace.Wrap(err)
 	}
 
-	if err := x11.RequestForwarding(sess.Session, ns.spoofedXAuthEntry); err != nil {
+	if err := x11.RequestForwarding(ctx, sess, ns.spoofedXAuthEntry); err != nil {
 		// Notify the user that x11 forwarding request failed regardless of debug level
 		fmt.Fprintln(os.Stderr, "X11 forwarding request failed")
 		slog.DebugContext(ctx, "X11 forwarding request error", "err", err)
