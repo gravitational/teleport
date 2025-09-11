@@ -86,9 +86,20 @@
               "id": "upgrading/agent-managed-updates-v1"
             },
             {
-              "type": "doc",
+              "type": "category",
               "label": "Managed Updates for Agents (v2)",
-              "id": "upgrading/agent-managed-updates"
+              "collapsible": true,
+              "items": [
+                {
+                  "type": "doc",
+                  "label": "Bootstrapping EC2 agents",
+                  "id": "upgrading/agent-managed-updates/bootstrap-ec2-agent"
+                }
+              ],
+              "link": {
+                "type": "doc",
+                "id": "upgrading/agent-managed-updates/agent-managed-updates"
+              }
             },
             {
               "type": "doc",

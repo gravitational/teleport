@@ -10,7 +10,7 @@ tags:
 This document describes Managed Updates for Agents (v2), which replaces Managed Updates v1.
 
 For Managed Updates v1 instructions, see
-[Managed Updates for Agents (v1)](./agent-managed-updates-v1.mdx).
+[Managed Updates for Agents (v1)](../agent-managed-updates-v1.mdx).
 </Admonition>
 
 In Managed Updates v2, a binary called `teleport-update` is distributed in
@@ -70,7 +70,7 @@ Existing agents must be manually enrolled into Managed Updates.
 
 ## Prerequisites
 
-- Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
+- Familiarity with the [Upgrading Compatibility Overview](../overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 - Teleport Agents that are not yet enrolled in Managed Updates.
 - (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -112,7 +112,7 @@ the version provided by the package.
 
 ## Quick setup for new Linux servers
 
-The [Install Script](../installation/linux.mdx) is the
+The [Install Script](../../installation/linux.mdx) is the
 fastest way to onboard new Linux servers. However, you may also use
 `teleport-update` by itself to set up a Teleport Agent manually.
 
@@ -221,7 +221,7 @@ Two update rollout strategies are available:
   for a group, regardless of the status of other groups. This strategy does not
   provide ordering guarantees across groups.
 
-You can find more information in [the Managed Updates v2 resource reference](../reference/managed-updates-v2.mdx)
+You can find more information in [the Managed Updates v2 resource reference](../../reference/managed-updates-v2.mdx)
 
 Except for `autoupdate_config.agents.mode`, changes to `autoupdate_config` fields
 take effect during the next version rollout. A new rollout happens when
@@ -613,4 +613,4 @@ $ sudo teleport-update enable --base-url https://teleport.artifactory.company.lo
 It is safe to re-run `sudo teleport-update enable` to modify the base URL.
 Existing updater settings will be preserved if not explicitly overridden by flags.
 
-More information about flags that can be used with `teleport-update enable` can be found [here](../reference/cli/teleport-update.mdx#teleport-update-enable)
+More information about flags that can be used with `teleport-update enable` can be found [here](../../reference/cli/teleport-update.mdx#teleport-update-enable)
