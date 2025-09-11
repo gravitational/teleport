@@ -32,11 +32,6 @@ import (
 
 var applicationProxyTracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/applicationproxy")
 
-var filteredUpstreamHeaders = map[string]struct{}{
-	"Host":            {},
-	"Accept-Encoding": {},
-}
-
 func ProxyServiceBuilder(
 	cfg *ProxyServiceConfig,
 	connCfg connection.Config,
@@ -104,6 +99,7 @@ func (s *ProxyService) Run(ctx context.Context) error {
 
 	// Initialize the fnCache
 	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		// TODO: More appropriate cache time?
 		TTL: 1 * time.Minute,
 	})
 	if err != nil {
@@ -269,51 +265,29 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	}
 
 	// Build the Application Request
-	upstreamRequest := http.Request{
-		Proto:  "https",
-		Method: req.Method,
-		Body:   req.Body,
-		Host:   s.proxyAddr,
-		URL: &url.URL{
-			Scheme:      "https",
-			Host:        s.proxyAddr,
-			Path:        req.URL.Path,
-			RawQuery:    req.URL.RawQuery,
-			RawFragment: req.URL.RawFragment,
-		},
-		Header: http.Header{},
-	}
+	upstreamReq := req.Clone(req.Context())
+	upstreamReq.Host = s.proxyAddr
+	// TODO: Are there any headers we should override, add, or remove on the
+	// upstream request?
 
-	// Transfer all request headers
-	for header, values := range req.Header {
-		if _, excluded := filteredUpstreamHeaders[http.CanonicalHeaderKey(header)]; excluded {
-			continue // Skip excluded headers
-		}
-		for _, value := range values {
-			upstreamRequest.Header.Add(header, value)
-		}
-	}
-
-	// Execute the Application Request
-	result, err := httpClient.Do(&upstreamRequest)
+	// Execute the upstream request
+	resp, err := httpClient.Do(upstreamReq)
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
-	// Transfer all response headers
-	for key, values := range result.Header {
+	// Prepare and send the response back to the client
+	// Copy headers first.
+	for key, values := range resp.Header {
 		for _, value := range values {
 			w.Header().Set(key, value)
 		}
 	}
-
-	// Write the StatusCode
-	w.WriteHeader(result.StatusCode)
-
-	// Write the Body
-	_, bodyCopyError := io.Copy(w, result.Body)
-	if bodyCopyError != nil {
-		return bodyCopyError
+	// Send status code and then copy the body.
+	w.WriteHeader(resp.StatusCode)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		return err
 	}
 
 	return nil
