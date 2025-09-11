@@ -12,7 +12,7 @@ required mechanisms.
 
 For example:
 
-- Authenticating with [WebAuthn](./webauthn.mdx#set-up-cluster-wide-webauthn) or [SSO MFA](../sso/sso.mdx#allowing-sso-as-an-mfa-method-in-your-cluster) from a remote dev box
+- Authenticating with [WebAuthn](./webauthn.mdx#set-up-cluster-wide-webauthn) or [SSO MFA](../../sso/sso.mdx#allowing-sso-as-an-mfa-method-in-your-cluster) from a remote dev box
 - Authenticating with WebAuthn on a machine without a WebAuthn-compatible browser
 - Authenticating with SSO MFA from a browser that is not supported by your SSO provider
 
@@ -43,8 +43,8 @@ to reduce the impact of exfiltration.
 
 ## Prerequisites
 
-- A Teleport cluster with [WebAuthn](./webauthn.mdx#set-up-cluster-wide-webauthn) or [SSO MFA](../sso/sso.mdx#allowing-sso-as-an-mfa-method-in-your-cluster) configured.
-- Machines for Headless Authentication activities have [Linux](../../installation/installation.mdx), [macOS](../../installation/installation.mdx) or [Windows](../../installation/installation.mdx) `tsh` binary installed.
+- A Teleport cluster with [WebAuthn](./webauthn.mdx#set-up-cluster-wide-webauthn) or [SSO MFA](../../sso/sso.mdx#allowing-sso-as-an-mfa-method-in-your-cluster) configured.
+- Machines for Headless Authentication activities have [Linux](../../../installation/installation.mdx), [macOS](../../../installation/installation.mdx) or [Windows](../../../installation/installation.mdx) `tsh` binary installed.
 - Machines used to approve Headless Authentication requests have a Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) or `tsh` binary installed.
 - Optional: Teleport Connect for [seamless Headless Authentication approval](#optional-teleport-connect).
