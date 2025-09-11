@@ -250,7 +250,6 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		cert, _, err := s.issueCert(ctx, appName)
 		return cert, err
 	})
-
 	if err != nil {
 		return err
 	}
@@ -266,6 +265,11 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 
 	// Build the Application Request
 	upstreamReq := req.Clone(req.Context())
+	// TODO(noah): At a later date, it'd be nice to support fetching the
+	// public_url from the app resource and using that instead relying on the
+	// fact that the Teleport Proxy is going to route based on RouteToApp
+	// certificate extensions. This will ensure if the Teleport Proxy is ever
+	// modified to not route based on certs, this will still work.
 	upstreamReq.Host = s.proxyAddr
 	// TODO: Are there any headers we should override, add, or remove on the
 	// upstream request?
