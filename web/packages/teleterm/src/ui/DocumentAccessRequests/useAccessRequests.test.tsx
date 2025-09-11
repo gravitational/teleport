@@ -44,7 +44,6 @@ test('makeUiAccessRequest', async () => {
     ],
     suggestedReviewers: ['sugested-reviewer-1'],
     thresholdNames: ['default'],
-    resourceIds: [],
     resources: [
       {
         id: {
