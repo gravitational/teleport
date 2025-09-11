@@ -195,6 +195,13 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 			app.GetAWSAccountID())
 	}
 
+	if samlSpec := app.GetSAML(); samlSpec != nil {
+		resultApp.SAMLApp = true
+		resultApp.Description = "SAML Application"
+		resultApp.SAMLAppPreset = cmp.Or(samlSpec.Preset, "unspecified")
+		resultApp.SAMLAppLaunchURLs = makeSAMLAppLaunchURLs(samlSpec.LaunchURLs)
+	}
+
 	if mcpSpec := app.GetMCP(); mcpSpec != nil {
 		resultApp.MCP = &MCP{
 			Command:       mcpSpec.Command,
@@ -221,36 +228,15 @@ func makePermissionSets(src []*types.IdentityCenterPermissionSet) []IdentityCent
 	return dst
 }
 
-// MakeAppTypeFromSAMLApp creates App type from SAMLIdPServiceProvider type for the WebUI.
-// Keep in sync with lib/teleterm/apiserver/handler/handler_apps.go.
-// Note: The SAMLAppPreset field is used in SAML service provider update flow in the
-// Web UI. Thus, this field is currently not available in the Connect App type.
-func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
-	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
-	uiLaunchURLs := func(in []string) []SAMLAppLaunchURL {
-		out := make([]SAMLAppLaunchURL, 0, len(in))
-		for _, u := range in {
-			out = append(out, SAMLAppLaunchURL{
-				URL: u,
-			})
-		}
-		return out
-	}
-	resultApp := App{
-		Kind:              types.KindApp,
-		Name:              app.GetName(),
-		Description:       "SAML Application",
-		PublicAddr:        "",
-		Labels:            labels,
-		ClusterID:         c.AppClusterName,
-		FriendlyName:      types.FriendlyName(app),
-		SAMLApp:           true,
-		SAMLAppPreset:     cmp.Or(app.GetPreset(), "unspecified"),
-		RequiresRequest:   c.RequiresRequest,
-		SAMLAppLaunchURLs: uiLaunchURLs(app.GetLaunchURLs()),
+func makeSAMLAppLaunchURLs(urls []string) []SAMLAppLaunchURL {
+	out := make([]SAMLAppLaunchURL, 0, len(urls))
+	for _, u := range urls {
+		out = append(out, SAMLAppLaunchURL{
+			URL: u,
+		})
 	}
 
-	return resultApp
+	return out
 }
 
 // SAMLAppLaunchURLs contains service provider specific authentication

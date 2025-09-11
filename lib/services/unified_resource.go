@@ -436,9 +436,18 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 		_, ok := kinds[types.KindDatabaseServer]
 		return ok
 	case types.KindSAMLIdPServiceProvider:
+		if _, ok := kinds[types.KindApp]; ok {
+			return ok
+		}
+
 		_, ok := kinds[types.KindSAMLIdPServiceProvider]
 		return ok
 	case types.KindAppServer:
+		if r.GetSubKind() == types.KindSAMLIdPServiceProvider {
+			if _, ok := kinds[types.KindSAMLIdPServiceProvider]; ok {
+				return ok
+			}
+		}
 		if r.GetSubKind() == types.KindIdentityCenterAccount {
 			if _, ok := kinds[types.KindIdentityCenterAccount]; ok {
 				return ok
@@ -1169,8 +1178,8 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 		}
 
 		protoResource = &proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{
-				SAMLIdPServiceProvider: serviceProvider,
+			Resource: &proto.PaginatedResource_AppServer{
+				AppServer: SAMLIdPServiceProviderToAppServer(serviceProvider),
 			},
 			RequiresRequest: requiresRequest,
 		}

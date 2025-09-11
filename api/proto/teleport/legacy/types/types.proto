@@ -1155,6 +1155,17 @@ message AppSpecV3 {
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
   // MCP contains MCP server related configurations.
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
+  // SAML contains SAML IdP Service Provider related configuration.
+  AppSAML SAML = 16 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+}
+
+// AppSAML contains SAML IdP Service Provider related configuration.
+message AppSAML {
+  // Preset is used to define service provider profile that will have a custom behavior
+  // processed by Teleport.
+  string Preset = 1;
+  // LaunchURLs is used to configure custom landing URLs for service provider.
+  repeated string LaunchURLs = 2;
 }
 
 // MCP contains MCP server-related configurations.

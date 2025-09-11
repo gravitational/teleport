@@ -3376,16 +3376,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				RequiresRequest:       enriched.RequiresRequest,
 			})
 			unifiedResources = append(unifiedResources, app)
-		case types.SAMLIdPServiceProvider:
-			// SAMLIdPServiceProvider resources are shown as
-			// "apps" in the UI.
-			app := ui.MakeAppTypeFromSAMLApp(r, ui.MakeAppsConfig{
-				LocalClusterName:  h.auth.clusterName,
-				LocalProxyDNSName: h.proxyDNSName(),
-				AppClusterName:    cluster.GetName(),
-				RequiresRequest:   enriched.RequiresRequest,
-			})
-			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
 			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, enriched.Logins, enriched.RequiresRequest))
 		case types.KubeCluster:
