@@ -88,13 +88,8 @@ export interface AccessRequest {
      */
     thresholdNames: string[];
     /**
-     * TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
-     * a list of resourceIDs requested in the AccessRequest
+     * List of requested resources.
      *
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.ResourceID resource_ids = 12;
-     */
-    resourceIds: ResourceID[];
-    /**
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Resource resources = 13;
      */
     resources: Resource[];
@@ -254,7 +249,6 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
             { no: 9, name: "reviews", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessRequestReview },
             { no: 10, name: "suggested_reviewers", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 11, name: "threshold_names", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 12, name: "resource_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceID },
             { no: 13, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Resource },
             { no: 14, name: "promoted_access_list_title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 15, name: "assume_start_time", kind: "message", T: () => Timestamp },
@@ -276,7 +270,6 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         message.reviews = [];
         message.suggestedReviewers = [];
         message.thresholdNames = [];
-        message.resourceIds = [];
         message.resources = [];
         message.promotedAccessListTitle = "";
         message.reasonMode = "";
@@ -322,9 +315,6 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
                     break;
                 case /* repeated string threshold_names */ 11:
                     message.thresholdNames.push(reader.string());
-                    break;
-                case /* repeated teleport.lib.teleterm.v1.ResourceID resource_ids */ 12:
-                    message.resourceIds.push(ResourceID.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 case /* repeated teleport.lib.teleterm.v1.Resource resources */ 13:
                     message.resources.push(Resource.internalBinaryRead(reader, reader.uint32(), options));
@@ -395,9 +385,6 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         /* repeated string threshold_names = 11; */
         for (let i = 0; i < message.thresholdNames.length; i++)
             writer.tag(11, WireType.LengthDelimited).string(message.thresholdNames[i]);
-        /* repeated teleport.lib.teleterm.v1.ResourceID resource_ids = 12; */
-        for (let i = 0; i < message.resourceIds.length; i++)
-            ResourceID.internalBinaryWrite(message.resourceIds[i], writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         /* repeated teleport.lib.teleterm.v1.Resource resources = 13; */
         for (let i = 0; i < message.resources.length; i++)
             Resource.internalBinaryWrite(message.resources[i], writer.tag(13, WireType.LengthDelimited).fork(), options).join();

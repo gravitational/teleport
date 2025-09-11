@@ -56,10 +56,8 @@ type AccessRequest struct {
 	SuggestedReviewers []string               `protobuf:"bytes,10,rep,name=suggested_reviewers,json=suggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
 	// thresholds specifies minimum amount of approvers or deniers. Defaults to 'default'
 	ThresholdNames []string `protobuf:"bytes,11,rep,name=threshold_names,json=thresholdNames,proto3" json:"threshold_names,omitempty"`
-	// TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
-	// a list of resourceIDs requested in the AccessRequest
-	ResourceIds []*ResourceID `protobuf:"bytes,12,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
-	Resources   []*Resource   `protobuf:"bytes,13,rep,name=resources,proto3" json:"resources,omitempty"`
+	// List of requested resources.
+	Resources []*Resource `protobuf:"bytes,13,rep,name=resources,proto3" json:"resources,omitempty"`
 	// promoted_access_list_title is the title of the access
 	// list that this access request was promoted to.
 	PromotedAccessListTitle string `protobuf:"bytes,14,opt,name=promoted_access_list_title,json=promotedAccessListTitle,proto3" json:"promoted_access_list_title,omitempty"`
@@ -185,13 +183,6 @@ func (x *AccessRequest) GetSuggestedReviewers() []string {
 func (x *AccessRequest) GetThresholdNames() []string {
 	if x != nil {
 		return x.ThresholdNames
-	}
-	return nil
-}
-
-func (x *AccessRequest) GetResourceIds() []*ResourceID {
-	if x != nil {
-		return x.ResourceIds
 	}
 	return nil
 }
@@ -528,7 +519,7 @@ var File_teleport_lib_teleterm_v1_access_request_proto protoreflect.FileDescript
 
 const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcd\a\n" +
+	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x98\a\n" +
 	"\rAccessRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12%\n" +
@@ -541,8 +532,7 @@ const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\areviews\x18\t \x03(\v2-.teleport.lib.teleterm.v1.AccessRequestReviewR\areviews\x12/\n" +
 	"\x13suggested_reviewers\x18\n" +
 	" \x03(\tR\x12suggestedReviewers\x12'\n" +
-	"\x0fthreshold_names\x18\v \x03(\tR\x0ethresholdNames\x12G\n" +
-	"\fresource_ids\x18\f \x03(\v2$.teleport.lib.teleterm.v1.ResourceIDR\vresourceIds\x12@\n" +
+	"\x0fthreshold_names\x18\v \x03(\tR\x0ethresholdNames\x12@\n" +
 	"\tresources\x18\r \x03(\v2\".teleport.lib.teleterm.v1.ResourceR\tresources\x12;\n" +
 	"\x1apromoted_access_list_title\x18\x0e \x01(\tR\x17promotedAccessListTitle\x12F\n" +
 	"\x11assume_start_time\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\x0fassumeStartTime\x12=\n" +
@@ -553,7 +543,7 @@ const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"sessionTtl\x12\x1f\n" +
 	"\vreason_mode\x18\x13 \x01(\tR\n" +
 	"reasonMode\x12%\n" +
-	"\x0ereason_prompts\x18\x14 \x03(\tR\rreasonPrompts\"\xac\x02\n" +
+	"\x0ereason_prompts\x18\x14 \x03(\tR\rreasonPromptsJ\x04\b\f\x10\rR\fresource_ids\"\xac\x02\n" +
 	"\x13AccessRequestReview\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x14\n" +
@@ -600,21 +590,20 @@ var file_teleport_lib_teleterm_v1_access_request_proto_depIdxs = []int32{
 	5,  // 0: teleport.lib.teleterm.v1.AccessRequest.created:type_name -> google.protobuf.Timestamp
 	5,  // 1: teleport.lib.teleterm.v1.AccessRequest.expires:type_name -> google.protobuf.Timestamp
 	1,  // 2: teleport.lib.teleterm.v1.AccessRequest.reviews:type_name -> teleport.lib.teleterm.v1.AccessRequestReview
-	2,  // 3: teleport.lib.teleterm.v1.AccessRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
-	4,  // 4: teleport.lib.teleterm.v1.AccessRequest.resources:type_name -> teleport.lib.teleterm.v1.Resource
-	5,  // 5: teleport.lib.teleterm.v1.AccessRequest.assume_start_time:type_name -> google.protobuf.Timestamp
-	5,  // 6: teleport.lib.teleterm.v1.AccessRequest.max_duration:type_name -> google.protobuf.Timestamp
-	5,  // 7: teleport.lib.teleterm.v1.AccessRequest.request_ttl:type_name -> google.protobuf.Timestamp
-	5,  // 8: teleport.lib.teleterm.v1.AccessRequest.session_ttl:type_name -> google.protobuf.Timestamp
-	5,  // 9: teleport.lib.teleterm.v1.AccessRequestReview.created:type_name -> google.protobuf.Timestamp
-	5,  // 10: teleport.lib.teleterm.v1.AccessRequestReview.assume_start_time:type_name -> google.protobuf.Timestamp
-	2,  // 11: teleport.lib.teleterm.v1.Resource.id:type_name -> teleport.lib.teleterm.v1.ResourceID
-	3,  // 12: teleport.lib.teleterm.v1.Resource.details:type_name -> teleport.lib.teleterm.v1.ResourceDetails
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	4,  // 3: teleport.lib.teleterm.v1.AccessRequest.resources:type_name -> teleport.lib.teleterm.v1.Resource
+	5,  // 4: teleport.lib.teleterm.v1.AccessRequest.assume_start_time:type_name -> google.protobuf.Timestamp
+	5,  // 5: teleport.lib.teleterm.v1.AccessRequest.max_duration:type_name -> google.protobuf.Timestamp
+	5,  // 6: teleport.lib.teleterm.v1.AccessRequest.request_ttl:type_name -> google.protobuf.Timestamp
+	5,  // 7: teleport.lib.teleterm.v1.AccessRequest.session_ttl:type_name -> google.protobuf.Timestamp
+	5,  // 8: teleport.lib.teleterm.v1.AccessRequestReview.created:type_name -> google.protobuf.Timestamp
+	5,  // 9: teleport.lib.teleterm.v1.AccessRequestReview.assume_start_time:type_name -> google.protobuf.Timestamp
+	2,  // 10: teleport.lib.teleterm.v1.Resource.id:type_name -> teleport.lib.teleterm.v1.ResourceID
+	3,  // 11: teleport.lib.teleterm.v1.Resource.details:type_name -> teleport.lib.teleterm.v1.ResourceDetails
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_access_request_proto_init() }

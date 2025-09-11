@@ -40,9 +40,9 @@ message AccessRequest {
   repeated string suggested_reviewers = 10;
   // thresholds specifies minimum amount of approvers or deniers. Defaults to 'default'
   repeated string threshold_names = 11;
-  // TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
-  // a list of resourceIDs requested in the AccessRequest
-  repeated ResourceID resource_ids = 12;
+  reserved "resource_ids";
+  reserved 12;
+  // List of requested resources.
   repeated Resource resources = 13;
   // promoted_access_list_title is the title of the access
   // list that this access request was promoted to.

@@ -175,15 +175,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		}
 	}
 
-	requestedResourceIDs := make([]*api.ResourceID, 0, len(req.GetRequestedResourceIDs()))
-	for _, r := range req.GetRequestedResourceIDs() {
-		requestedResourceIDs = append(requestedResourceIDs, &api.ResourceID{
-			ClusterName:     r.ClusterName,
-			Kind:            r.Kind,
-			Name:            r.Name,
-			SubResourceName: r.SubResourceName,
-		})
-	}
+	requestedResourceIDs := req.GetRequestedResourceIDs()
 	resources := make([]*api.Resource, len(requestedResourceIDs))
 	for i, r := range requestedResourceIDs {
 		details := req.ResourceDetails[resourceIDToString(r)]
@@ -218,7 +210,6 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		Reviews:                 reviews,
 		SuggestedReviewers:      req.GetSuggestedReviewers(),
 		ThresholdNames:          thresholdNames,
-		ResourceIds:             requestedResourceIDs,
 		Resources:               resources,
 		PromotedAccessListTitle: req.GetPromotedAccessListTitle(),
 		AssumeStartTime:         getProtoTimestamp(req.GetAssumeStartTime()),
@@ -231,7 +222,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 }
 
 // resourceIDToString marshals a ResourceID to a string.
-func resourceIDToString(id *api.ResourceID) string {
+func resourceIDToString(id types.ResourceID) string {
 	if id.SubResourceName == "" {
 		return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
 	}
