@@ -25,6 +25,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 const (
@@ -84,28 +86,12 @@ type x11ChannelHandler func(ctx context.Context, nch ssh.NewChannel)
 
 // ServeChannelRequests opens an X11 channel handler and starts a
 // goroutine to serve any channels received with the handler provided.
-func ServeChannelRequests(ctx context.Context, clt *ssh.Client, handler x11ChannelHandler) error {
-	channels := clt.HandleChannelOpen(ChannelRequest)
-	if channels == nil {
-		return trace.Wrap(trace.AlreadyExists("X11 forwarding channel already open"))
-	}
-
-	go func() {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		for {
-			select {
-			case nch := <-channels:
-				if nch == nil {
-					return
-				}
-				go handler(ctx, nch)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	return nil
+func ServeChannelRequests(ctx context.Context, clt *tracessh.Client, handler x11ChannelHandler) error {
+	err := clt.HandleChannelOpen(ctx, ChannelRequest, func(ch ssh.NewChannel) {
+		// TODO: handle error and fix ctx.
+		handler(ctx, ch)
+	})
+	return trace.Wrap(err)
 }
 
 // ServerConfig is a server configuration for X11 forwarding

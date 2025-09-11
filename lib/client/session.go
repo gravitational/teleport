@@ -241,7 +241,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 
 	if targetAgent != nil {
 		log.DebugContext(ctx, "Forwarding Selected Key Agent")
-		err = sshagent.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, targetAgent)
+		err = sshagent.ServeChannelRequests(ctx, ns.nodeClient.Client, targetAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

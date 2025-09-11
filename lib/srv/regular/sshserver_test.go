@@ -1425,7 +1425,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// Handle any x11 channel requests received from the server
 	// and start x11 forwarding to the client display.
-	err = x11.ServeChannelRequests(ctx, clt.Client, func(ctx context.Context, nch ssh.NewChannel) {
+	err = x11.ServeChannelRequests(ctx, clt, func(ctx context.Context, nch ssh.NewChannel) {
 		sch, sin, err := nch.Accept()
 		assert.NoError(t, err)
 		defer sch.Close()
@@ -2845,7 +2845,7 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// register X11 channel handler before requesting forwarding to avoid races
-	xchs := clt.HandleChannelOpen(x11.ChannelRequest)
+	xchs := clt.Client.HandleChannelOpen(x11.ChannelRequest)
 	require.NotNil(t, xchs)
 
 	// Send an X11 forwarding request to the server
