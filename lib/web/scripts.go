@@ -36,7 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
-const insecureParamName = "insecure"
+const (
+	insecureParamName = "insecure"
+	groupParamName    = "group"
+)
 
 // installScriptHandle handles calls for "/scripts/install.sh" and responds with a bash script installing Teleport
 // by downloading and running `teleport-update`. This installation script does not start the agent, join it,
@@ -61,6 +64,9 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 			return nil, trace.BadParameter("failed to parse insecure flag %q: %v", insecure, err)
 		}
 		opts.Insecure = v
+	}
+	if group := r.URL.Query().Get(groupParamName); group != "" {
+		opts.Group = group
 	}
 
 	script, err := scripts.GetInstallScript(r.Context(), opts)
