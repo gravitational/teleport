@@ -235,7 +235,7 @@ func TestRun_partialSync(t *testing.T) {
 	waitSynced(t, devicesClient, 4, "Expected a partial sync to add just one new device")
 
 	// Verify that the right device had its OS version updated.
-	got := listAllDevices(t, devicesClient)
+	got := listAllDevices(t.Context(), t, devicesClient)
 	updatedDeviceIdx := slices.IndexFunc(got, func(d *devicepb.Device) bool {
 		return d.AssetTag == intuneDevices[0].SerialNumber
 	})
@@ -322,7 +322,7 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	// Wait for the partial sync.
 	waitSynced(t, devicesClient, 3, "Expected the partial sync to add one new device and keep the one that's supposed to be deleted on full sync")
 	// Verify that the OS version wasn't updated.
-	got := listAllDevices(t, devicesClient)
+	got := listAllDevices(t.Context(), t, devicesClient)
 	ogDeviceIdx := slices.IndexFunc(got, func(d *devicepb.Device) bool {
 		return d.AssetTag == intuneDevices[0].SerialNumber
 	})
@@ -346,16 +346,16 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	// Wait for the next partial sync.
 	waitSynced(t, devicesClient, 4, "Expected the partial sync to add just one new device")
 	// Verify that the OS version was updated.
-	got = listAllDevices(t, devicesClient)
+	got = listAllDevices(t.Context(), t, devicesClient)
 	ogDeviceIdx = slices.IndexFunc(got, func(d *devicepb.Device) bool {
 		return d.AssetTag == intuneDevices[0].SerialNumber
 	})
 	ogDevice = got[ogDeviceIdx]
 	require.Equal(t, "14.0.0", ogDevice.Profile.OsVersion, "OS version has not changed, indicating that the OG device wasn't updated during a partial sync")
-
+	ctx := t.Context()
 	// Wait for a full sync.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Len(c, listAllDevices(t, devicesClient), 3, "Unexpected number of devices")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.Len(t, listAllDevices(ctx, t, devicesClient), 3, "Unexpected number of devices")
 	}, syncPeriodFull*2, 100*time.Millisecond, "Expected a full sync to happen and remove one device")
 }
 
@@ -444,12 +444,11 @@ func TestRun_deviceConfirmation(t *testing.T) {
 		})
 }
 
-func listAllDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient) []*devicepb.Device {
-	t.Helper()
+func listAllDevices(ctx context.Context, t require.TestingT, devicesClient devicepb.DeviceTrustServiceClient) []*devicepb.Device {
 	var devs []*devicepb.Device
 	var pageToken string
 	for {
-		resp, err := devicesClient.ListDevices(t.Context(), &devicepb.ListDevicesRequest{
+		resp, err := devicesClient.ListDevices(ctx, &devicepb.ListDevicesRequest{
 			PageToken: pageToken,
 			View:      devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
 		})
@@ -464,8 +463,9 @@ func listAllDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClien
 
 func waitSynced(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient, num int, msgAndArgs ...any) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Len(c, listAllDevices(t, devicesClient), num, "Unexpected number of devices")
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.Len(t, listAllDevices(ctx, t, devicesClient), num, "Unexpected number of devices")
 	}, 1*time.Second, 100*time.Millisecond, msgAndArgs...)
 }
 
@@ -475,11 +475,12 @@ func waitForDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClien
 		waitForDeviceSyncTimeout = 5 * time.Second
 		waitForDeviceSyncTick    = 100 * time.Millisecond
 	)
+	ctx := t.Context()
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		got := listAllDevices(t, devicesClient)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		got := listAllDevices(ctx, t, devicesClient)
 		if diff := cmp.Diff(wantDevices, got, devicesCmpOpts...); diff != "" {
-			c.Errorf("Device mismatch (-want +got)\n%s", diff)
+			t.Errorf("Device mismatch (-want +got)\n%s", diff)
 		}
 	}, waitForDeviceSyncTimeout, waitForDeviceSyncTick)
 }

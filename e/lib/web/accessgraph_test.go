@@ -439,11 +439,11 @@ func TestAccessGraphSettings(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				got := unmarshal(t, resp)
 				expectedValue := cmp.Equal(tt.initialSpec.SecretsScanConfig, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
-				assert.Equal(t, expectedValue, got.EnableSecretsScan)
+				require.Equal(t, expectedValue, got.EnableSecretsScan)
 			}, 5*time.Second, 1*time.Second)
 
 			resp, err := webPack.clt.PostJSON(s.ctx, endpoint, accessgraphui.AccessGraphSettings{
@@ -456,10 +456,10 @@ func TestAccessGraphSettings(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				resp, err = webPack.clt.Get(s.ctx, endpoint, url.Values{})
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				got = unmarshal(t, resp)
-				assert.Equal(t, tt.want, got)
+				require.Equal(t, tt.want, got)
 			}, 5*time.Second, 1*time.Second)
 		})
 	}

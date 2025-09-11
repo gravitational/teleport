@@ -123,23 +123,16 @@ func requireFeatures(t *testing.T, fakeClock clocki.FakeClock, backend backend.B
 
 	// Advance the clock so the service fetch and stores features
 	fakeClock.Advance(1 * time.Second)
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		item, err := backend.Get(ctx, featuresBackendKey)
-		if !assert.NoError(c, err) {
-			return
-		}
+		require.NoError(t, err)
 
 		stored := &modules.Features{}
 		err = json.Unmarshal(item.Value, stored)
-		if !assert.NoError(c, err) {
-			return
-		}
+		require.NoError(t, err)
 
 		diff := cmp.Diff(want, *stored)
-		if !assert.Empty(c, diff) {
-			t.Logf("Feature diff (-want +got):\n%s", diff)
-		}
+		require.Empty(t, diff)
 	}, 1*time.Second, time.Millisecond*100)
 }
 

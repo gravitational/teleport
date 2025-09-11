@@ -388,10 +388,10 @@ func TestAccessListOwnerPermissions(t *testing.T) {
 
 		var acl *accesslist.AccessList
 		var members []*accesslist.AccessListMember
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			acl, members = mustGetAccessListAndMembers(t, aliceAccessListClient, testAccessList.GetName())
-			assert.True(collect, isAccessListOwner(acl, "alice"))
-			assert.False(collect, isAccessListMember(members, "alice"))
+			require.True(t, isAccessListOwner(acl, "alice"))
+			require.False(t, isAccessListMember(members, "alice"))
 		}, time.Second, time.Millisecond*100)
 
 		members = append(members, mustCreateMember(t, testAccessList.GetName(), "alice"))

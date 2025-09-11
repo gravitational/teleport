@@ -240,8 +240,8 @@ func TestWorkloadIdentityX509IssuerOverrideCache(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		ca, _, err = c.GetWorkloadIdentityX509CAOverride(ctx, "", blankCA)
-		assert.NoError(t, err)
-		assert.Same(t, blankCA, ca)
+		require.NoError(t, err)
+		require.Same(t, blankCA, ca)
 	}, 5*time.Second, 50*time.Millisecond)
 
 	_, err = storage.CreateX509IssuerOverride(ctx, &workloadidentityv1.X509IssuerOverride{
@@ -255,8 +255,8 @@ func TestWorkloadIdentityX509IssuerOverrideCache(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, _, err = c.GetWorkloadIdentityX509CAOverride(ctx, "", blankCA)
-		assert.ErrorAs(t, err, new(*trace.BadParameterError))
-		assert.ErrorContains(t, err, "\"default\" exists but is missing issuers")
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+		require.ErrorContains(t, err, "\"default\" exists but is missing issuers")
 	}, 5*time.Second, 50*time.Millisecond)
 }
 

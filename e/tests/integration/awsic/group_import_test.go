@@ -35,19 +35,20 @@ func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
 
 	mustSetupAWSIdentityCenterIntegration(t, aliceClient.AuthClient)
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 
-		accounts, _, err := auth.ListIdentityCenterAccounts(t.Context(), 0, "")
-		require.NoError(c, err)
-		require.Len(c, mockIC.Accounts, len(accounts))
+		accounts, _, err := auth.ListIdentityCenterAccounts(ctx, 0, "")
+		require.NoError(t, err)
+		require.Len(t, mockIC.Accounts, len(accounts))
 
-		permissionSet, _, err := auth.ListPermissionSets(t.Context(), 0, "")
-		require.NoError(c, err)
-		require.Len(c, mockIC.PermissionSets, len(permissionSet))
+		permissionSet, _, err := auth.ListPermissionSets(ctx, 0, "")
+		require.NoError(t, err)
+		require.Len(t, mockIC.PermissionSets, len(permissionSet))
 
-		accList, _, err := auth.ListAccessLists(t.Context(), 0, "")
-		require.NoError(c, err)
-		require.Len(c, mockIC.Groups, len(accList))
+		accList, _, err := auth.ListAccessLists(ctx, 0, "")
+		require.NoError(t, err)
+		require.Len(t, mockIC.Groups, len(accList))
 	}, time.Second*3, time.Millisecond*30)
 
 	mustUpdatePlugin(t, aliceClient.AuthClient, func(plugin *types.PluginAWSICSettings) {
@@ -55,15 +56,15 @@ func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
 		plugin.GroupSyncFilters = []*types.AWSICResourceFilter{{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "Group1"}}}
 	})
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		accounts, _, err := auth.ListIdentityCenterAccounts(t.Context(), 0, "")
-		require.NoError(c, err)
-		require.Len(c, accounts, 1)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		accounts, _, err := auth.ListIdentityCenterAccounts(ctx, 0, "")
+		require.NoError(t, err)
+		require.Len(t, accounts, 1)
 
-		accList, _, err := auth.ListAccessLists(t.Context(), 0, "")
-		require.NoError(c, err)
-		require.Len(c, accList, 1)
-		require.Equal(c, "Group1", accList[0].Spec.Title)
+		accList, _, err := auth.ListAccessLists(ctx, 0, "")
+		require.NoError(t, err)
+		require.Len(t, accList, 1)
+		require.Equal(t, "Group1", accList[0].Spec.Title)
 	}, time.Second*3, time.Millisecond*30)
 }
 
@@ -121,10 +122,10 @@ func TestAWSGroupImportCreatesNoAccessListsWhenRoleSyncModeIsNONE(t *testing.T) 
 	// ALSO EXPECT that that when Integration center integration comes online and
 	// runs the AWS group import, the import status is still set to DONE and no
 	// Access Lists are created
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ctx := t.Context()
-		assertImportStatus(ctx, c, auth, groupImportStatusCodeIs(types.AWSICGroupImportStatusCode_DONE))
-		assertSCIMUsers(ctx, c, mockSCIM, "alice")
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assertImportStatus(ctx, t, auth, groupImportStatusCodeIs(types.AWSICGroupImportStatusCode_DONE))
+		assertSCIMUsers(ctx, t, mockSCIM, "alice")
 	}, time.Second*3, time.Millisecond*30)
 	accList, _, err := auth.ListAccessLists(t.Context(), 0, "" /* first page of results */)
 	require.NoError(t, err)
@@ -191,11 +192,11 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 	// EXPECT the plugin to start up, and that eventually
 	//  - all of the IC users are adopted by Teleport, and
 	//  - all of the IC groups are imported into Teleport
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// EXPECT that Teleport has adopted the Identity Center users and correctly
 		// bound them to their corresponding Teleport users
 		for _, icUser := range expectedUsers {
-			assertPrincipalAssignment(ctx, c, auth, principal.GetIDForUserName(icUser.UserName),
+			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName(icUser.UserName),
 				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 				hasExternalID(icUser.ID),
 			)
@@ -205,10 +206,9 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 		// to their corresponding Identity Center groups
 		for _, awsGroup := range expectedGroups {
 			acl, err := getAccessListByTitle(ctx, auth, awsGroup.DisplayName)
-			if !assert.NoError(c, err) {
-				return
-			}
-			assertPrincipalAssignment(ctx, c, auth, principal.GetIDForAccessList(acl),
+			require.NoError(t, err)
+
+			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForAccessList(acl),
 				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 				hasExternalID(awsGroup.ID),
 			)
@@ -221,8 +221,8 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 	})
 
 	// EXPECT that the Teleport Access List representing "Group2" is deleted
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assertAccessLists(ctx, c, auth, "Group1", "Group3")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assertAccessLists(ctx, t, auth, "Group1", "Group3")
 	}, time.Second*3, time.Millisecond*30)
 
 	// EXPECT that the original AWS group was *NOT* deleted, and its member list
@@ -235,12 +235,12 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 	require.NoError(t, auth.DeleteAccessList(ctx, acl.GetName()))
 
 	// EXPECT that the Teleport Access List representing "Group2" is deleted
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assertAccessLists(ctx, c, auth, "Group1")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assertAccessLists(ctx, t, auth, "Group1")
 	}, time.Second*3, time.Millisecond*30)
 
 	// EXPECT that the AWS group "Group3" is also deleted from AWS
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assertSCIMGroupsByDisplayName(ctx, c, mockSCIM, "Group1", "Group2")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assertSCIMGroupsByDisplayName(ctx, t, mockSCIM, "Group1", "Group2")
 	}, time.Second*3, time.Millisecond*30)
 }

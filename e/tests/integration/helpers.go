@@ -28,19 +28,19 @@ func isAccessListMember(members []*accesslist.AccessListMember, user string) boo
 	return found
 }
 
-func mustGetAccessListAndMembers(t *testing.T, client services.AccessLists, name string) (*accesslist.AccessList, []*accesslist.AccessListMember) {
+func mustGetAccessListAndMembers(t require.TestingT, client services.AccessLists, name string) (*accesslist.AccessList, []*accesslist.AccessListMember) {
 	acl := mustGetAccessList(t, client, name)
 	members := mustGetAccessListMembers(t, client, name)
 	return acl, members
 }
 
-func mustGetAccessList(t *testing.T, client services.AccessLists, name string) *accesslist.AccessList {
+func mustGetAccessList(t require.TestingT, client services.AccessLists, name string) *accesslist.AccessList {
 	out, err := client.GetAccessList(context.Background(), name)
 	require.NoError(t, err)
 	return out
 }
 
-func mustGetAccessListMembers(t *testing.T, client services.AccessLists, name string) []*accesslist.AccessListMember {
+func mustGetAccessListMembers(t require.TestingT, client services.AccessLists, name string) []*accesslist.AccessListMember {
 	var out, members []*accesslist.AccessListMember
 	var err error
 	var token string

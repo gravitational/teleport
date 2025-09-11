@@ -105,7 +105,7 @@ func createOktaSetup(t *testing.T, ctx context.Context, oktaClient *mockOktaAPIC
 	return &oktaInfra
 }
 
-func (s *oktaInfraSetup) isUserAssignedToGroup(t *testing.T, userID, groupID string) bool {
+func (s *oktaInfraSetup) isUserAssignedToGroup(t require.TestingT, userID, groupID string) bool {
 	var found bool
 	if slices.Contains(s.getUserGroups(t, userID), groupID) {
 		return true
@@ -113,7 +113,7 @@ func (s *oktaInfraSetup) isUserAssignedToGroup(t *testing.T, userID, groupID str
 	return found
 }
 
-func (s *oktaInfraSetup) isUserAssignedToApp(t *testing.T, userID, appID string) bool {
+func (s *oktaInfraSetup) isUserAssignedToApp(t require.TestingT, userID, appID string) bool {
 	userApps, _, err := s.client.ListApplicationUsers(s.ctx, appID, &query.Params{})
 	require.NoError(t, err)
 	for _, app := range userApps {
@@ -124,7 +124,7 @@ func (s *oktaInfraSetup) isUserAssignedToApp(t *testing.T, userID, appID string)
 	return false
 }
 
-func (s *oktaInfraSetup) getUserGroups(t *testing.T, oktaUserID string) []string {
+func (s *oktaInfraSetup) getUserGroups(t require.TestingT, oktaUserID string) []string {
 	var groups []*okta.Group
 	var err error
 	groups, _, err = s.client.ListUserGroups(s.ctx, oktaUserID)
@@ -139,33 +139,33 @@ func (s *oktaInfraSetup) getUserGroups(t *testing.T, oktaUserID string) []string
 
 func (s *oktaInfraSetup) assertUserWasAssignedToOktaGroup(t *testing.T, userID string, groupID string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		ok := s.isUserAssignedToGroup(t, userID, groupID)
-		assert.True(c, ok)
+		require.True(t, ok)
 	}, time.Second*30, time.Millisecond*250, "User %s was assigned to group %s", userID, groupID)
 }
 
 func (s *oktaInfraSetup) assertUserWasAssignedToOktaApp(t *testing.T, userID string, appID string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		ok := s.isUserAssignedToApp(t, userID, appID)
-		assert.True(c, ok)
+		require.True(t, ok)
 	}, time.Second*30, time.Millisecond*250, "User %s was assigned to app %s", userID, appID)
 }
 
 func (s *oktaInfraSetup) assertUsersIsNotAssignedToOktaApp(t *testing.T, userID, appID string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		ok := s.isUserAssignedToApp(t, userID, appID)
-		assert.False(c, ok)
+		require.False(t, ok)
 	}, time.Second*10, time.Millisecond*250, "User %s is still assigned to app %s", userID, appID)
 }
 
 func (s *oktaInfraSetup) assertUserWasUnassignedFromOktaGroup(t *testing.T, userID, groupID string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		ok := s.isUserAssignedToGroup(t, userID, groupID)
-		assert.False(c, ok)
+		require.False(t, ok)
 	}, time.Second*10, time.Millisecond*250, "User %s is still assigned to group %s", userID, groupID)
 }
 
@@ -290,7 +290,7 @@ func createOktaUser(t *testing.T, ctx context.Context, client *mockOktaAPIClient
 	return oktaUser, email
 }
 
-func mustGetAppIDbyAppLabel(t *testing.T, sut *common.SUT, oktaInfra *oktaInfraSetup) string {
+func mustGetAppIDbyAppLabel(t require.TestingT, sut *common.SUT, oktaInfra *oktaInfraSetup) string {
 	apps, err := sut.Teleport.Process.GetAuthServer().GetApplicationServers(context.Background(), "default")
 	require.NoError(t, err)
 	var appID string

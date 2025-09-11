@@ -404,7 +404,7 @@ func initUACSuite(t testing.TB, ctx context.Context, clock clockwork.Clock) *tes
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.True(t, urc.IsInitialized())
+		require.True(t, urc.IsInitialized())
 	}, 10*time.Second, 100*time.Millisecond)
 
 	ap.uac, err = NewUserAssignmentCreator(UserAssignmentCreatorConfig{

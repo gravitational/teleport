@@ -35,7 +35,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
 		require.NoError(t, err)
 		for _, member := range members {
-			assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
+			require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 		}
 	}, 5*time.Second, 100*time.Millisecond)
 
@@ -49,9 +49,9 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		for _, member := range members {
 			switch member.Spec.Name {
 			case externalMemberWithoutOrigin.GetName():
-				assert.Equal(t, "INELIGIBLE_STATUS_UNSPECIFIED", member.Spec.IneligibleStatus)
+				require.Equal(t, "INELIGIBLE_STATUS_UNSPECIFIED", member.Spec.IneligibleStatus)
 			default:
-				assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
+				require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 			}
 		}
 	}, 5*time.Second, 100*time.Millisecond)
@@ -72,9 +72,9 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		for _, member := range members {
 			switch member.GetName() {
 			case member1:
-				assert.Equal(t, "INELIGIBLE_STATUS_MISSING_REQUIREMENTS", member.Spec.IneligibleStatus)
+				require.Equal(t, "INELIGIBLE_STATUS_MISSING_REQUIREMENTS", member.Spec.IneligibleStatus)
 			default:
-				assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
+				require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 			}
 		}
 	}, 5*time.Second, 100*time.Millisecond)
@@ -89,7 +89,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
 		require.NoError(t, err)
 		for _, member := range members {
-			assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
+			require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 		}
 	}, 5*time.Second, 100*time.Millisecond)
 
@@ -107,9 +107,9 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		for _, member := range members {
 			switch member.Spec.AccessList {
 			case a1.GetName():
-				assert.Equal(t, "INELIGIBLE_STATUS_MISSING_REQUIREMENTS", member.Spec.IneligibleStatus)
+				require.Equal(t, "INELIGIBLE_STATUS_MISSING_REQUIREMENTS", member.Spec.IneligibleStatus)
 			default:
-				assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
+				require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 			}
 		}
 	}, 5*time.Second, 100*time.Millisecond)
@@ -123,9 +123,9 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		al, err := c.testEnv.accessLists.GetAccessList(c.userCtx, a1.GetName())
 		require.NoError(t, err)
-		assert.Len(t, al.Spec.Owners, 4)
+		require.Len(t, al.Spec.Owners, 4)
 		for _, owner := range al.Spec.Owners {
-			assert.Equal(t, "INELIGIBLE_STATUS_MISSING_REQUIREMENTS", owner.IneligibleStatus)
+			require.Equal(t, "INELIGIBLE_STATUS_MISSING_REQUIREMENTS", owner.IneligibleStatus)
 		}
 	}, 5*time.Second, 100*time.Millisecond)
 
@@ -138,9 +138,9 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		for _, member := range members {
 			switch member.Spec.Name {
 			case externalMemberWithIdentityCenterOrigin.GetName():
-				assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
+				require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 			default:
-				assert.Equal(t, "INELIGIBLE_STATUS_EXPIRED", member.Spec.IneligibleStatus)
+				require.Equal(t, "INELIGIBLE_STATUS_EXPIRED", member.Spec.IneligibleStatus)
 			}
 		}
 	}, 5*time.Second, 100*time.Millisecond)

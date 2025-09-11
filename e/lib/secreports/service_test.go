@@ -269,8 +269,8 @@ func TestService(t *testing.T) {
 				Days: 7,
 			})
 			require.NoError(t, err)
-			assert.Equal(t, string(secreports.Ready), statusResp.Spec.State)
-			assert.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Ready), statusResp.Spec.State)
+			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -286,8 +286,8 @@ func TestService(t *testing.T) {
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
 			})
-			assert.NoError(t, err)
-			assert.Equal(t, string(secreports.Failed), statusResp.Spec.State)
+			require.NoError(t, err)
+			require.Equal(t, string(secreports.Failed), statusResp.Spec.State)
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -305,8 +305,8 @@ func TestService(t *testing.T) {
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: uint32(overLimit),
 			})
-			assert.Error(t, err)
-			assert.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -332,8 +332,8 @@ func TestService(t *testing.T) {
 				Days: uint32(overLimit),
 			})
 			require.NoError(t, err)
-			assert.Equal(t, string(secreports.Ready), statusResp.Spec.State)
-			assert.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Ready), statusResp.Spec.State)
+			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -353,8 +353,8 @@ func TestService(t *testing.T) {
 				Days: 7,
 			})
 			require.NoError(t, err)
-			assert.Equal(t, string(secreports.Ready), statusResp.Spec.State)
-			assert.Equal(t, timeFirstRun, statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Ready), statusResp.Spec.State)
+			require.Equal(t, timeFirstRun, statusResp.Spec.UpdatedAt)
 
 		}, time.Second*2, time.Millisecond*100)
 
@@ -403,8 +403,8 @@ func TestService(t *testing.T) {
 				Days: 7,
 			})
 			require.NoError(t, err)
-			assert.Equal(t, string(secreports.Running), statusResp.Spec.State)
-			assert.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Running), statusResp.Spec.State)
+			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
 		}, time.Second*2, time.Millisecond*100)
 
 		clock.Advance(time.Second * 10)
@@ -416,8 +416,8 @@ func TestService(t *testing.T) {
 				Days: 7,
 			})
 			require.NoError(t, err)
-			assert.Equal(t, string(secreports.Ready), statusResp.Spec.State)
-			assert.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Ready), statusResp.Spec.State)
+			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -843,7 +843,7 @@ func mustRunReportAndWaitForAllQueries(t *testing.T, mockAthena *athenaMock, svc
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.Len(t, reports.PrivilegeAccessReport.Queries, int(runQueryCount.Load()))
+		require.Len(t, reports.PrivilegeAccessReport.Queries, int(runQueryCount.Load()))
 	}, time.Second*3, time.Millisecond*100)
 }
 

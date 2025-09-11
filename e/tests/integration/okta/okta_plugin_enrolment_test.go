@@ -221,12 +221,12 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		}
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
 				Name: types.PluginTypeOkta,
 			})
-			assert.NoError(collect, err)
-			assert.Equal(collect, types.PluginStatusCode_RUNNING, oktaPlugin.GetStatus().GetCode())
+			require.NoError(t, err)
+			require.Equal(t, types.PluginStatusCode_RUNNING, oktaPlugin.GetStatus().GetCode())
 		}, time.Second*2, time.Millisecond*100)
 
 		pushSCIMUserCreate(t, sut, oktaInfra.Users[0], scimToken)
@@ -269,16 +269,16 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
-			assert.NoError(t, err)
-			assert.Empty(t, accessLists)
+			require.NoError(t, err)
+			require.Empty(t, accessLists)
 
 			usersGroups, _, err := sut.Teleport.Process.GetAuthServer().ListUserGroups(ctx, 0, "")
-			assert.NoError(t, err)
-			assert.Empty(t, usersGroups)
+			require.NoError(t, err)
+			require.Empty(t, usersGroups)
 
 			apps, err := sut.Teleport.Process.GetAuthServer().GetApps(ctx)
-			assert.NoError(t, err)
-			assert.Empty(t, apps)
+			require.NoError(t, err)
+			require.Empty(t, apps)
 		}, time.Second*2, time.Millisecond*50)
 	})
 
@@ -324,19 +324,19 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		mustWaitForEvent(t, sut, events.OktaGroupsUpdateEvent, withTimeout(time.Second*5), withTimePoint(from))
 		mustWaitForEvent(t, sut, events.OktaApplicationsUpdateEvent, withTimeout(time.Second*10), withTimePoint(from))
 
-		require.EventuallyWithT(t, func(collection *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
-			assert.NoError(collection, err)
-			assert.Empty(collection, accessLists)
+			require.NoError(t, err)
+			require.Empty(t, accessLists)
 			usersGroups, _, err := sut.Teleport.Process.GetAuthServer().ListUserGroups(ctx, 0, "")
-			assert.NoError(collection, err)
-			assert.Len(collection, usersGroups, len(oktaInfra.Groups))
+			require.NoError(t, err)
+			require.Len(t, usersGroups, len(oktaInfra.Groups))
 		}, time.Second*2, time.Millisecond*100)
 	})
 
 	t.Run("enabled full integration by turing on access list sync", func(t *testing.T) {
 		from := time.Now()
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
 				EnableUserSync:            true,
 				DisableAssignDefaultRoles: false,
@@ -377,8 +377,8 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
-			assert.NoError(t, err)
-			assert.Len(t, accessLists, len(oktaInfra.Groups)+1 /* +1 for the SAML app being assigned to all users */)
+			require.NoError(t, err)
+			require.Len(t, accessLists, len(oktaInfra.Groups)+1 /* +1 for the SAML app being assigned to all users */)
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -426,8 +426,8 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*5), withTimePoint(time.Now()))
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
-			assert.NoError(t, err)
-			assert.Len(t, accessLists, 1)
+			require.NoError(t, err)
+			require.Len(t, accessLists, 1)
 		}, time.Second*2, time.Millisecond*100)
 	})
 }

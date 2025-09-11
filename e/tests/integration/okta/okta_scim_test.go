@@ -134,7 +134,7 @@ func testSCIMCRUD(t *testing.T, infraClient *mockOktaAPIClient, client scimsdk.C
 			Type:    "OKTA_GROUP",
 			Profile: &okta.GroupProfile{Name: groupName},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		scimGroups := []*scimsdk.Group{{DisplayName: groupName}}
 		groups := provisionSCIMGroups(t, client, scimGroups)
 		require.Len(t, groups, 1)
@@ -145,10 +145,8 @@ func testSCIMCRUD(t *testing.T, infraClient *mockOktaAPIClient, client scimsdk.C
 	t.Run("Get SCIM Group", func(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			got, err := client.GetGroupByDisplayName(ctx, groupName)
-			if !assert.NoError(t, err) {
-				return
-			}
-			assert.Equal(t, groupName, got.DisplayName)
+			require.NoError(t, err)
+			require.Equal(t, groupName, got.DisplayName)
 		}, time.Second*3, time.Millisecond*50)
 	})
 
@@ -269,11 +267,9 @@ func TestSCIMOktaGroupProvisioning(t *testing.T) {
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			members, _, err := sut.Teleport.Process.GetAuthServer().ListAccessListMembers(ctx, scimGroup.Id, 0, "")
-			assert.NoError(t, err)
-			if !assert.Len(t, members, 1) {
-				return
-			}
-			assert.Equal(t, scimUsers[0].ID, members[0].GetName())
+			require.NoError(t, err)
+			require.Len(t, members, 1)
+			require.Equal(t, scimUsers[0].ID, members[0].GetName())
 		}, 10*time.Second, time.Millisecond*50)
 	})
 
@@ -288,8 +284,8 @@ func TestSCIMOktaGroupProvisioning(t *testing.T) {
 		require.NoError(t, err)
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			members, _, err := sut.Teleport.Process.GetAuthServer().ListAccessListMembers(ctx, scimGroup.Id, 0, "")
-			assert.NoError(t, err)
-			assert.Len(t, members, 2)
+			require.NoError(t, err)
+			require.Len(t, members, 2)
 		}, time.Second, time.Millisecond*50)
 	})
 
@@ -299,7 +295,7 @@ func TestSCIMOktaGroupProvisioning(t *testing.T) {
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			_, err = sut.Teleport.Process.GetAuthServer().GetAccessList(ctx, scimGroup.Id)
-			assert.True(t, trace.IsNotFound(err))
+			require.True(t, trace.IsNotFound(err))
 		}, time.Second, time.Millisecond*50)
 	})
 }
@@ -317,12 +313,11 @@ func testUserDeactivationActivation(t *testing.T, ctx context.Context, sut *comm
 	// and a user lock should be created to kill all teleport active sessions.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		userLocks, err := auth.GetLocks(ctx, false, types.LockTarget{User: user.ID})
-		assert.NoError(t, err)
-		if !assert.Len(t, userLocks, 1) {
-			return
-		}
-		assert.Equal(t, types.OriginOkta, userLocks[0].Origin())
-		assert.Equal(t, libokta.LockReasonDeactivated, userLocks[0].GetAllLabels()[teleport.OktaLockReasonLabel])
+		require.NoError(t, err)
+		require.Len(t, userLocks, 1)
+
+		require.Equal(t, types.OriginOkta, userLocks[0].Origin())
+		require.Equal(t, libokta.LockReasonDeactivated, userLocks[0].GetAllLabels()[teleport.OktaLockReasonLabel])
 	}, time.Second, time.Millisecond*40)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -345,7 +340,7 @@ func testUserDeactivationActivation(t *testing.T, ctx context.Context, sut *comm
 		userLocks, err := sut.Teleport.Process.GetAuthServer().GetLocks(ctx, false, types.LockTarget{
 			User: user.ID,
 		})
-		assert.NoError(t, err)
-		assert.Empty(t, userLocks)
+		require.NoError(t, err)
+		require.Empty(t, userLocks)
 	}, time.Second, time.Millisecond*40)
 }

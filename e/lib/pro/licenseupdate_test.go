@@ -324,21 +324,19 @@ func requireNewLicense(t *testing.T,
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// assert that features got updated and match the new license
-		assert.Equal(t, expectedEntitlements, modules.GetModules().Features().Entitlements)
+		require.Equal(t, expectedEntitlements, modules.GetModules().Features().Entitlements)
 		// assert that licensePath exists and matches the license
 		diskContent, err := os.ReadFile(licensePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// the expected result is the new license full PEM encoded cert plus the anonymization block
 		expected := append(newLicense.GetKeyPair().CertPEM, newLicense.GetKeyPair().KeyPEM...)
 		expected, err = appendAnonymizationKey(expected, []byte(expectedAnonKey))
-		assert.NoError(t, err)
-		assert.Equal(t, expected, diskContent)
+		require.NoError(t, err)
+		require.Equal(t, expected, diskContent)
 		// assert that the permissions matches the expected value
 		info, err := os.Stat(licensePath)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.Equal(t, expectedPerms, info.Mode().Perm())
+		require.NoError(t, err)
+		require.Equal(t, expectedPerms, info.Mode().Perm())
 	}, time.Second*10, time.Millisecond*100)
 }
 

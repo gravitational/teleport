@@ -180,9 +180,9 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 	}
 
 	assertStartStop := func(started, stopped int64, msgAndArgs ...any) {
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			assert.Equal(collect, started, atomic.LoadInt64(&instanceStarted), "Start count")
-			assert.Equal(collect, stopped, atomic.LoadInt64(&instanceStopped), "Stop count")
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			require.Equal(t, started, atomic.LoadInt64(&instanceStarted), "Start count")
+			require.Equal(t, stopped, atomic.LoadInt64(&instanceStopped), "Stop count")
 		}, time.Second, time.Second/100, msgAndArgs...)
 	}
 

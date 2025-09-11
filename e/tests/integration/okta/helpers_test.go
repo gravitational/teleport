@@ -64,11 +64,10 @@ func mustRunTCTLAndGetResultAs(t require.TestingT, tctl *tctlCommand, args []str
 	require.NoError(t, err)
 }
 
-func mustRunTSHAndGetResultAs(t *testing.T, tsh *tshCommand, args []string, v any) {
+func mustRunTSHAndGetResultAs(t require.TestingT, tsh *tshCommand, args []string, v any) {
 	var output bytes.Buffer
 	err := tsh.run(t, args, withStdout(&output))
 	require.NoError(t, err)
-	t.Log("output:", output.String())
 	err = json.Unmarshal(output.Bytes(), v)
 	require.NoError(t, err)
 }
@@ -87,7 +86,7 @@ func mustWaitForEventFrom(t *testing.T, sut *common.SUT, eventType string, from 
 		o(options)
 	}
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		gotEvents, _, err := sut.Teleport.Process.GetAuthServer().SearchEvents(context.Background(), events.SearchEventsRequest{
 			From: options.timePoint,
 			To:   time.Now(),
@@ -95,9 +94,9 @@ func mustWaitForEventFrom(t *testing.T, sut *common.SUT, eventType string, from 
 				eventType,
 			},
 		})
-		assert.NoError(c, err)
+		require.NoError(t, err)
 		ok := len(gotEvents) >= 1
-		assert.True(c, ok)
+		require.True(t, ok)
 	}, options.timeout, options.step, "failed to wait for %s", eventType)
 }
 
@@ -202,12 +201,11 @@ func (c *tshCommand) mockIDPAuthFlow(t *testing.T, username string, groups []str
 	go func() {
 		var url string
 		// Wait for tsh login --auth=okta login and read the URL from the output.
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			re := regexp.MustCompile(`http://[^\s]+/[0-9a-fA-F-]{36}`)
 			urls := re.FindAllString(c.out.String(), -1)
-			if !assert.Len(collect, urls, 1) {
-				return
-			}
+			require.Len(t, urls, 1)
+
 			url = urls[0]
 		}, time.Second*10, time.Millisecond*100)
 
@@ -262,10 +260,10 @@ func (c *tshCommand) run(t require.TestingT, args []string, opts ...cmdOption) e
 
 func waitForOktaFirstOktaAssignment(t *testing.T, sut *common.SUT) {
 	t.Helper()
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assignments, _, err := sut.Teleport.Process.GetAuthServer().ListOktaAssignments(context.Background(), 0, "")
-		assert.NoError(collect, err)
-		assert.NotEmpty(collect, assignments)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, assignments)
 	}, time.Second*10, time.Millisecond*100)
 }
 

@@ -151,12 +151,13 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, mockClient *
 	_, err = oktaClient.CreateIntegration(t.Context(), req)
 	require.NoError(t, err)
 	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		oktaPlugin, err := pluginClient.GetPlugin(t.Context(), &pluginsv1.GetPluginRequest{
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
 			Name: types.PluginTypeOkta,
 		})
-		assert.NoError(collect, err)
-		assert.Equal(collect, types.PluginStatusCode_RUNNING, oktaPlugin.GetStatus().GetCode())
+		require.NoError(t, err)
+		require.Equal(t, types.PluginStatusCode_RUNNING, oktaPlugin.GetStatus().GetCode())
 	}, time.Second*2, time.Millisecond*50)
 	return scimToken
 }

@@ -92,7 +92,8 @@ func createAccessRequest(t *testing.T, sut *common.SUT, resourceName, resourceTy
 func approveAccessRequest(t *testing.T, sut *common.SUT, requestID string, user string) {
 	t.Helper()
 	auth := sut.Teleport.Process.GetAuthServer()
-	r, err := auth.SubmitAccessReview(t.Context(), types.AccessReviewSubmission{
+	ctx := t.Context()
+	r, err := auth.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 		RequestID: requestID,
 		Review: types.AccessReview{
 			Author:        user,
@@ -101,8 +102,8 @@ func approveAccessRequest(t *testing.T, sut *common.SUT, requestID string, user 
 	})
 	require.NoError(t, err)
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		_, err := auth.GetOktaAssignment(t.Context(), r.GetName())
-		assert.NoError(c, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := auth.GetOktaAssignment(ctx, r.GetName())
+		require.NoError(t, err)
 	}, time.Second, time.Millisecond*100)
 }
