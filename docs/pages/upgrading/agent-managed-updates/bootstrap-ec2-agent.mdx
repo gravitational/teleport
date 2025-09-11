@@ -88,21 +88,38 @@ Create a join token with an explicit TTL and the right service type.
 By default, `tctl tokens add` issues short-lived tokens (expiry is 30 minutes if you omit `--ttl` parameter).
 
 ```code
-$ tctl tokens add --type=node --ttl=1h --format=text
+$ tctl tokens add --type=node --ttl=1h
+The invite token: <Var name="place.your.join.token-xxxx" />
+This token will expire in 60 minutes.
+
+Run this on the new node to join the cluster:
+
+> teleport start \
+   --roles=node \
+   --token=<Var name="place.your.join.token-xxxx" /> \
+   --ca-pin=sha256:87c0ab83fb28159d33905fa604093eb0967b4d397d57a9e05113e7f9502af485 \
+   --auth-server=192.168.1.67:3025
+
+Please note:
+
+  - This invitation token will expire in 60 minutes
+  - example.teleport.sh:3025 must be reachable from the new node
 ```
 
-As a result, we obtain a join token, which will be used as <Var name="TELEPORT_TOKEN" /> in example.
+After executing this command, we should receive generated join token name that will be used in the following steps
+of the cloud-init script to generate the Teleport configuration file.
 
-Long-lived option: a token resource with an explicit expiry. If you need something that lasts longer than
-a few hours, prefer a token resource with a concrete `metadata.expires` timestamp instead of cranking
-`--ttl` to very large values. Example (set an appropriate, bounded expiry):
+If you need something that lasts longer than a few hours, prefer to create a token resource with a concrete
+`metadata.expires` timestamp instead of cranking `--ttl` to very large values.
+
+Example (set an appropriate, bounded expiry):
 
 ```yaml
 # token-long-lived.yaml
 kind: token
 version: v2
 metadata:
-  name: node-join-24h
+  name: node-join-end-of-year
   expires: 2025-12-31T23:59:00Z
 spec:
   join_method: token
@@ -111,7 +128,12 @@ spec:
 
 ```code
 $ tctl create -f token-long-lived.yaml
+provision_token "node-join-end-of-year" has been created
 ```
+
+With the token created by the resource configuration, `node-join-end-of-year` is the secret join token
+name that must be used in the next steps with the cloud-init script, instead of the auto-generated token
+created by the `tctl tokens add` command (<Var name="place.your.join.token-xxxx" />).
 
 <Admonition type="note">
     To create a delegated token that allows a cluster to be joined via IAM, read the full guide and examples here:
@@ -150,7 +172,7 @@ runcmd:
     teleport:
       join_params:
         method: token
-        token_name: <Var name="TELEPORT_TOKEN" />
+        token_name: <Var name="place.your.join.token-xxxx" />
       proxy_server: <Var name="example.teleport.sh:443" />
     ssh_service:
       enabled: true
@@ -175,9 +197,9 @@ To do this, follow these steps:
 
    ```code
    $ aws secretsmanager create-secret \
-       --name <Var name="teleport/join-token" /> \
-       --secret-string "<Var name="TELEPORT_TOKEN" />" \
-       --region <Var name="us-west-2" />
+       --name teleport/join-token \
+       --secret-string "<Var name="place.your.join.token-xxxx" />" \
+       --region us-west-2
    ```
 
 1. Create an IAM role with a trust policy that allows EC2 to assume it:
@@ -211,7 +233,7 @@ To do this, follow these steps:
        {
          "Effect": "Allow",
          "Action": "secretsmanager:GetSecretValue",
-         "Resource": "arn:aws:secretsmanager:<Var name="us-west-2" />:${ACCOUNT_ID}:``secret``:<Var name="teleport/join-token" />-*"
+         "Resource": "arn:aws:secretsmanager:us-west-2:${ACCOUNT_ID}:``secret:teleport/join-token-*"
        }
      ]
    }
@@ -247,7 +269,7 @@ To do this, follow these steps:
 
      # Write agent config (join token) before starting the service
      - |
-       TOKEN=$(aws secretsmanager get-secret-value --secret-id <Var name="teleport/join-token" /> --query SecretString --output text --region <Var name="us-west-2" />)
+       TOKEN=$(aws secretsmanager get-secret-value --secret-id teleport/join-token --query SecretString --output text --region us-west-2)
        cat >/etc/teleport.yaml <<EOF
        version: v3
        teleport:
@@ -270,13 +292,13 @@ To do this, follow these steps:
 1. Launch the EC2 instance with the instance profile:
 
    ```code
-   # Specify the AMI image for the instance and a security group that allows at least outbound traffic.
+   # Specify the AMI image ID for the instance and a security group that allows at least outbound traffic.
    $ aws ec2 run-instances \
      --image-id <Var name="ami-xxxx" /> \
      --instance-type t3.micro \
      --iam-instance-profile Name=EC2TeleportInstanceProfile \
      --security-group-ids <Var name="sg-xxxx" /> \
-     --region <Var name="us-west-2" /> \
+     --region us-west-2 \
      --user-data file://cloud-init.yaml
    ```
 
