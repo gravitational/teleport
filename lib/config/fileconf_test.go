@@ -575,26 +575,50 @@ func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		desc  string
-		token string
+		desc      string
+		input     string
+		wantRoles []types.SystemRole
+		wantToken string
+		wantError string
 	}{
-		{desc: "file path on windows", token: `C:\path\to\some\file`},
-		{desc: "literal string", token: "some-literal-token"},
+		{
+			desc:      "file path on windows",
+			input:     `Auth,Node,Proxy:C:\path\to\some\file`,
+			wantToken: `C:\path\to\some\file`,
+			wantRoles: []types.SystemRole{
+				types.RoleAuth, types.RoleNode, types.RoleProxy,
+			},
+		},
+		{
+			desc:      "literal string",
+			input:     "Auth,Node,Proxy:some-literal-token",
+			wantToken: "some-literal-token",
+			wantRoles: []types.SystemRole{
+				types.RoleAuth, types.RoleNode, types.RoleProxy,
+			},
+		},
+		{
+			desc:      "reject bot role",
+			input:     "Bot:some-literal-token",
+			wantError: "role \"Bot\" is not allowed in static token configuration",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			staticToken := StaticToken("Auth,Node,Proxy:" + tt.token)
+			staticToken := StaticToken(tt.input)
 			provisionTokens, err := staticToken.Parse()
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				return
+			}
 			require.NoError(t, err)
 
 			require.Len(t, provisionTokens, 1)
 			provisionToken := provisionTokens[0]
 
 			want := types.ProvisionTokenV1{
-				Roles: []types.SystemRole{
-					types.RoleAuth, types.RoleNode, types.RoleProxy,
-				},
-				Token:   tt.token,
+				Roles:   tt.wantRoles,
+				Token:   tt.wantToken,
 				Expires: provisionToken.Expires,
 			}
 			require.Equal(t, want, provisionToken)
