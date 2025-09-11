@@ -144,8 +144,11 @@ const (
 	sampleConfComment = `#
 # A Sample Teleport configuration file.
 #
-# Things to update:
+#`
+)
+const (
+	licenseToDoConfComment = `# Things to update:
 #  1. license.pem: Retrieve a license from your Teleport account https://teleport.sh
-#     if you are an Enterprise customer.
+#     if you are a self-hosted Enterprise customer.
 #`
 )
