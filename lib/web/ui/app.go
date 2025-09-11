@@ -134,6 +134,9 @@ type MakeAppsConfig struct {
 	// AllowedAWSRolesLookup is a map of AWS IAM Role ARNs available to each App for the logged user.
 	// Only used for AWS Console Apps.
 	AllowedAWSRolesLookup map[string][]string
+	// GrantedAWSRolesLookup is a map of AWS IAM Role ARNs that the logged user has been granted
+	// for each App. Only used for AWS Console Apps.
+	GrantedAWSRolesLookup map[string][]string
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
@@ -198,9 +201,28 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	if app.IsAWSConsole() {
-		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
-		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
-			app.GetAWSAccountID())
+		visible := c.AllowedAWSRolesLookup[app.GetName()]
+		visibleRoles := aws.FilterAWSRoles(visible, app.GetAWSAccountID())
+
+		granted := c.GrantedAWSRolesLookup[app.GetName()]
+		grantedRoles := aws.FilterAWSRoles(granted, app.GetAWSAccountID())
+		grantedSet := make(map[string]struct{}, len(grantedRoles))
+		for _, gr := range grantedRoles {
+			grantedSet[gr.ARN] = struct{}{}
+		}
+
+		uiRoles := make([]aws.Role, 0, len(visibleRoles))
+		for _, r := range visibleRoles {
+			_, isGranted := grantedSet[r.ARN]
+			uiRoles = append(uiRoles, aws.Role{
+				Name:            r.Name,
+				Display:         r.Display,
+				ARN:             r.ARN,
+				AccountID:       r.AccountID,
+				RequiresRequest: !isGranted,
+			})
+		}
+		resultApp.AWSRoles = uiRoles
 	}
 
 	if mcpSpec := app.GetMCP(); mcpSpec != nil {
