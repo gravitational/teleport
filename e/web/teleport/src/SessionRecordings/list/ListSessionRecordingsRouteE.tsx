@@ -1,7 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import cfg from 'e-teleport/config';
+import { RECORDING_TYPES_WITH_SUMMARIES } from 'e-teleport/services/recordings/recordings';
 import { useTeleport } from 'teleport';
+import type { RecordingType } from 'teleport/services/recordings';
 import { storageService } from 'teleport/services/storageService';
 import { ListSessionRecordings } from 'teleport/SessionRecordings/list/ListSessionRecordingsRoute';
 import { SessionSummariesCta } from 'teleport/SessionRecordings/list/SessionSummariesCta';
@@ -16,13 +18,16 @@ export function ListSessionRecordingsRouteE() {
   const hasIdentitySecurity =
     storageService.getAccessGraphEnabled() && flags.accessGraph;
 
-  const actionSlot = useCallback(
-    (sessionId: string) =>
-      cfg.oss.sessionSummarizerEnabled ? (
+  const actionSlot = useMemo(() => {
+    if (!cfg.oss.sessionSummarizerEnabled) {
+      return;
+    }
+
+    return (sessionId: string, type: RecordingType) =>
+      RECORDING_TYPES_WITH_SUMMARIES.includes(type) ? (
         <ViewSummary sessionId={sessionId} />
-      ) : null,
-    []
-  );
+      ) : null;
+  }, []);
 
   const headerSlot = useMemo(() => {
     if (hasIdentitySecurity) {

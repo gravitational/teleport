@@ -1,6 +1,7 @@
 import cfg from 'e-teleport/config';
 import { type SessionRecordingSummary } from 'e-teleport/services/recordings/types';
 import api from 'teleport/services/api';
+import type { RecordingType } from 'teleport/services/recordings';
 
 interface FetchRecordingSummaryVariables {
   clusterId: string;
@@ -20,3 +21,5 @@ export async function fetchRecordingSummary(
 
   return response as SessionRecordingSummary;
 }
+
+export const RECORDING_TYPES_WITH_SUMMARIES: RecordingType[] = ['ssh', 'k8s'];
