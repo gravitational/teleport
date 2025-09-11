@@ -69,8 +69,9 @@ func NewCachingTokenValidator[C oidc.Claims](clock clockwork.Clock) (*CachingTok
 	}
 
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		Clock: clock,
-		TTL:   validatorTTL,
+		Clock:       clock,
+		TTL:         validatorTTL,
+		ReloadOnErr: true,
 	})
 	if err != nil {
 		return nil, err

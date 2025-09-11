@@ -758,7 +758,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
 	if as.k8sOIDCValidator == nil {
-		as.k8sOIDCValidator = kubetoken.NewKubernetesOIDCTokenValidator()
+		validator, err := kubetoken.NewKubernetesOIDCTokenValidator()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.k8sOIDCValidator = validator
 	}
 
 	if as.gcpIDTokenValidator == nil {
