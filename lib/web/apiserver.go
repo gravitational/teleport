@@ -3352,6 +3352,13 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
+			if r.GetSubKind() == types.KindSAMLIdPServiceProvider {
+				if app := h.makeSAMLAppFromAppServer(r, cluster.GetName(), enriched.RequiresRequest); app != nil {
+					unifiedResources = append(unifiedResources, *app)
+					break
+				}
+			}
+
 			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -5463,4 +5470,33 @@ func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
 		}
 		return fn(w, r, p, sctx)
 	})
+}
+
+// makeSAMLAppFromAppServer creates a UI App from an AppServer with SAML IdP service provider subkind.
+func (h *Handler) makeSAMLAppFromAppServer(r types.AppServer, clusterName string, requiresRequest bool) *ui.App {
+	s := r.GetApp().GetSAML()
+	if s == nil {
+		return nil
+	}
+
+	ss := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Kind:     types.KindSAMLIdPServiceProvider,
+			Version:  types.V1,
+			Metadata: r.GetApp().GetMetadata(),
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			Preset:     s.Preset,
+			LaunchURLs: s.LaunchURLs,
+		},
+	}
+
+	app := ui.MakeAppTypeFromSAMLApp(ss, ui.MakeAppsConfig{
+		LocalClusterName:  h.auth.clusterName,
+		LocalProxyDNSName: h.proxyDNSName(),
+		AppClusterName:    clusterName,
+		RequiresRequest:   requiresRequest,
+	})
+
+	return &app
 }

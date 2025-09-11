@@ -106,6 +106,8 @@ type Application interface {
 	GetIdentityCenter() *AppIdentityCenter
 	// GetMCP fetches MCP specific configuration.
 	GetMCP() *MCP
+	// GetSAML fetches a SAML IdP Service Provider for the app, if any.
+	GetSAML() *AppSAML
 }
 
 // NewAppV3 creates a new app resource.
@@ -579,6 +581,11 @@ func (a *AppV3) IsEqual(i Application) bool {
 // GetMCP returns MCP specific configuration.
 func (a *AppV3) GetMCP() *MCP {
 	return a.Spec.MCP
+}
+
+// GetSAML returns SAML IdP Service Provider specific configuration.
+func (a *AppV3) GetSAML() *AppSAML {
+	return a.Spec.SAML
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.

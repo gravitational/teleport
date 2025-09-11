@@ -238,6 +238,32 @@ func ValidateSAMLIdPACSURLAndRelayStateInputs(sp types.SAMLIdPServiceProvider) e
 	return nil
 }
 
+func SAMLIdPServiceProviderToAppServer(sp types.SAMLIdPServiceProvider) *types.AppServerV3 {
+	appServer := &types.AppServerV3{
+		Kind:     types.KindAppServer,
+		SubKind:  types.KindSAMLIdPServiceProvider,
+		Version:  types.V3,
+		Metadata: sp.GetMetadata(),
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Kind:     types.KindApp,
+				SubKind:  types.KindIdentityCenterAccount,
+				Version:  types.V3,
+				Metadata: sp.GetMetadata(),
+				Spec: types.AppSpecV3{
+					SAML: &types.AppSAML{
+						Preset:     sp.GetPreset(),
+						LaunchURLs: sp.GetLaunchURLs(),
+					},
+				},
+			},
+		},
+	}
+
+	return appServer
+}
+
+
 // NewSAMLTestSPMetadata creates a new entity descriptor for tests.
 func NewSAMLTestSPMetadata(entityID, acsURL string) string {
 	return fmt.Sprintf(samlTestSPMetadata, entityID, acsURL)
