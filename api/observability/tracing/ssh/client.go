@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,6 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 // Client is a wrapper around ssh.Client that adds tracing support.
@@ -172,11 +172,11 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 // tracing context so that spans may be correlated properly over the ssh
 // connection. The handling of channel requests from the underlying SSH
 // session can be controlled with chanReqCallback.
-func (c *Client) NewSessionWithRequestCallback(ctx context.Context, chanReqCallback ChannelRequestCallback) (*Session, error) {
+func (c *Client) NewSessionWithRequestCallback(ctx context.Context, chanReqCallback sshutils.ChannelRequestCallback) (*Session, error) {
 	return c.newSession(ctx, chanReqCallback)
 }
 
-func (c *Client) newSession(ctx context.Context, chanReqCallback ChannelRequestCallback) (*Session, error) {
+func (c *Client) newSession(ctx context.Context, chanReqCallback sshutils.ChannelRequestCallback) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 
 	ctx, span := tracer.Start(
@@ -229,13 +229,8 @@ type clientWrapper struct {
 	contexts map[string][]context.Context
 }
 
-// ChannelRequestCallback allows the handling of channel requests
-// to be customized. nil can be returned if you don't want
-// golang/x/crypto/ssh to handle the request.
-type ChannelRequestCallback func(req *ssh.Request) *ssh.Request
-
 // NewSession opens a new Session for this client.
-func (c *clientWrapper) NewSession(callback ChannelRequestCallback) (*Session, error) {
+func (c *clientWrapper) NewSession(callback sshutils.ChannelRequestCallback) (*Session, error) {
 	// create a client that will defer to us when
 	// opening the "session" channel so that we
 	// can add an Envelope to the request
@@ -243,40 +238,9 @@ func (c *clientWrapper) NewSession(callback ChannelRequestCallback) (*Session, e
 		Conn: c,
 	}
 
-	var session *ssh.Session
-	var err error
-	if callback != nil {
-		// open a session manually so we can take ownership of the
-		// requests chan
-		ch, originalReqs, openChannelErr := client.OpenChannel("session", nil)
-		if openChannelErr != nil {
-			return nil, trace.Wrap(openChannelErr)
-		}
-
-		// pass the channel requests to the provided callback and
-		// forward them to another chan so golang.org/x/crypto/ssh
-		// can handle Session exiting correctly
-		reqs := make(chan *ssh.Request, cap(originalReqs))
-		go func() {
-			defer close(reqs)
-
-			for req := range originalReqs {
-				if req := callback(req); req != nil {
-					reqs <- req
-				}
-			}
-		}()
-
-		session, err = newCryptoSSHSession(ch, reqs)
-		if err != nil {
-			_ = ch.Close()
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		session, err = client.NewSession()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	session, err := sshutils.NewSession(client, callback)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// wrap the session so all session requests on the channel
@@ -285,39 +249,6 @@ func (c *clientWrapper) NewSession(callback ChannelRequestCallback) (*Session, e
 		Session: session,
 		wrapper: c,
 	}, nil
-}
-
-// wrappedSSHConn allows an SSH session to be created while also allowing
-// callers to take ownership of the SSH channel requests chan.
-type wrappedSSHConn struct {
-	ssh.Conn
-
-	channelOpened atomic.Bool
-
-	ch   ssh.Channel
-	reqs <-chan *ssh.Request
-}
-
-func (f *wrappedSSHConn) OpenChannel(_ string, _ []byte) (ssh.Channel, <-chan *ssh.Request, error) {
-	if !f.channelOpened.CompareAndSwap(false, true) {
-		panic("wrappedSSHConn OpenChannel called more than once")
-	}
-
-	return f.ch, f.reqs, nil
-}
-
-// newCryptoSSHSession allows callers to take ownership of the SSH
-// channel requests chan and allow callers to handle SSH channel requests.
-// golang.org/x/crypto/ssh.(Client).NewSession takes ownership of all
-// SSH channel requests and doesn't allow the caller to view or reply
-// to them, so this workaround is needed.
-func newCryptoSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request) (*ssh.Session, error) {
-	return (&ssh.Client{
-		Conn: &wrappedSSHConn{
-			ch:   ch,
-			reqs: reqs,
-		},
-	}).NewSession()
 }
 
 // Dial initiates a connection to the addr from the remote host.
