@@ -194,7 +194,13 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	}, nil
 }
 
-func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, handleFn func(ch ssh.NewChannel)) error {
+// HandleChannelOpen starts a goroutine to handle any incoming [ssh.NewChannel] requests matching
+// the provided type using the provided handler. If the type already is being handled,
+// an error is returned.
+//
+// This should be called before NewSession to ensure new channels of this type are
+// not rejected before the handler is registered.
+func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, handleFn func(ctx context.Context, ch ssh.NewChannel)) error {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 	ch := c.Client.HandleChannelOpen(channelType)
 	if ch == nil {
@@ -203,7 +209,7 @@ func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, hand
 
 	go func() {
 		for newCh := range ch {
-			_, span := tracer.Start(
+			ctx, span := tracer.Start(
 				ctx,
 				fmt.Sprintf("ssh.HandleChannelOpen/%s", channelType),
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -211,13 +217,13 @@ func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, hand
 					append(
 						peerAttr(c.Conn.RemoteAddr()),
 						semconv.RPCServiceKey.String("ssh.Client"),
-						semconv.RPCMethodKey.String("NewSession"),
+						semconv.RPCMethodKey.String("OpenChannel"),
 						semconv.RPCSystemKey.String("ssh"),
 					)...,
 				),
 			)
 
-			handleFn(newCh)
+			handleFn(ctx, newCh)
 			span.End()
 		}
 	}()
@@ -230,7 +236,7 @@ func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, hand
 //
 // This should be called before NewSession to ensure requests of this type are
 // not processed before the handler is registered.
-func (c *Client) HandleRequests(ctx context.Context, requestType string, handleFn func(req *ssh.Request)) error {
+func (c *Client) HandleRequests(ctx context.Context, requestType string, handleFn func(ctx context.Context, ch *ssh.Request)) error {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 	ch := c.sessionClient.HandleRequests(requestType)
 	if ch == nil {
@@ -239,7 +245,7 @@ func (c *Client) HandleRequests(ctx context.Context, requestType string, handleF
 
 	go func() {
 		for req := range ch {
-			_, span := tracer.Start(
+			ctx, span := tracer.Start(
 				ctx,
 				fmt.Sprintf("ssh.HandleRequests/%s", requestType),
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -247,13 +253,13 @@ func (c *Client) HandleRequests(ctx context.Context, requestType string, handleF
 					append(
 						peerAttr(c.Conn.RemoteAddr()),
 						semconv.RPCServiceKey.String("ssh.Client"),
-						semconv.RPCMethodKey.String("NewSession"),
+						semconv.RPCMethodKey.String("HandleRequests"),
 						semconv.RPCSystemKey.String("ssh"),
 					)...,
 				),
 			)
 
-			handleFn(req)
+			handleFn(ctx, req)
 			span.End()
 		}
 	}()
