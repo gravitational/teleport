@@ -86,10 +86,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     // fetched from the auth server at the RPC message level.
     if (!this.state.clusters.has(cluster.uri)) {
       this.setState(draft => {
-        draft.clusters.set(
-          cluster.uri,
-          this.removeInternalLoginsFromCluster(cluster)
-        );
+        draft.clusters.set(cluster.uri, cluster);
       });
     }
 
@@ -237,9 +234,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
 
     this.setState(draft => {
-      draft.clusters = new Map(
-        clusters.map(c => [c.uri, this.removeInternalLoginsFromCluster(c)])
-      );
+      draft.clusters = new Map(clusters.map(c => [c.uri, c]));
     });
 
     // Sync root clusters and resume headless watchers for any active login sessions.
@@ -276,10 +271,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
     this.setState(draft => {
       for (const leaf of response.clusters) {
-        draft.clusters.set(
-          leaf.uri,
-          this.removeInternalLoginsFromCluster(leaf)
-        );
+        draft.clusters.set(leaf.uri, leaf);
       }
     });
 
@@ -591,10 +583,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
           assumedRequests,
         },
       });
-      const processCluster = pipe(
-        this.removeInternalLoginsFromCluster,
-        mergeAssumedRequests
-      );
+      const processCluster = pipe(mergeAssumedRequests);
 
       this.setState(draft => {
         draft.clusters.set(clusterUri, processCluster(cluster));
@@ -629,21 +618,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       requestsMap[request.id] = request;
       return requestsMap;
     }, {});
-  }
-
-  // temporary fix for https://github.com/gravitational/webapps.e/issues/294
-  // remove when it will get fixed in `tsh`
-  // alternatively, show only valid logins basing on RBAC check
-  private removeInternalLoginsFromCluster(cluster: Cluster): Cluster {
-    return {
-      ...cluster,
-      loggedInUser: cluster.loggedInUser && {
-        ...cluster.loggedInUser,
-        sshLogins: cluster.loggedInUser.sshLogins.filter(
-          login => !login.startsWith('-')
-        ),
-      },
-    };
   }
 }
 
