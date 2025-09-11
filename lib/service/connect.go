@@ -46,6 +46,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -375,17 +376,8 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 }
 
 func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connector, error) {
-	id := state.IdentityID{
-		Role:     role,
-		HostUUID: process.Config.HostUUID,
-		NodeName: process.Config.Hostname,
-	}
-	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	var identity *state.Identity
-	if process.getLocalAuth() != nil {
+	if localAuth := process.getLocalAuth(); localAuth != nil {
 		// Auth service is on the same host, no need to go though the invitation
 		// procedure.
 		process.logger.DebugContext(process.ExitContext(), "This server has local Auth server started, using it to add role to the cluster.")
@@ -396,7 +388,16 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			systemRoles = process.getInstanceRoles()
 		}
 
-		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals, dnsNames, process.Config.AdvertiseIP, systemRoles)
+		id := state.IdentityID{
+			Role:     role,
+			HostUUID: localAuth.ServerID,
+			NodeName: process.Config.Hostname,
+		}
+		additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role, localAuth.ServerID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		identity, err = auth.LocalRegister(id, localAuth, additionalPrincipals, dnsNames, process.Config.AdvertiseIP, systemRoles)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -415,6 +416,25 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		dataDir := defaults.DataDir
 		if process.Config.DataDir != "" {
 			dataDir = process.Config.DataDir
+		}
+
+		// TODO(nklaassen): Host UUID should be generated and assigned by the
+		// auth service during joining.
+		hostUUID, err := process.storage.ReadOrGenerateHostID(process.ExitContext(), process.Config)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if _, err := uuid.Parse(hostUUID); err != nil && !aws.IsEC2NodeID(hostUUID) {
+			process.Config.Logger.WarnContext(process.ExitContext(), "Host UUID is not a true UUID (not eligible for UUID-based proxying)", "host_uuid", hostUUID)
+		}
+		id := state.IdentityID{
+			Role:     role,
+			HostUUID: hostUUID,
+			NodeName: process.Config.Hostname,
+		}
+		additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role, hostUUID)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		registerParams := join.RegisterParams{
@@ -464,11 +484,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 	process.logger.InfoContext(process.ExitContext(), "Successfully obtained credentials to connect to the cluster.", "identity", role)
 	var connector *Connector
 	if role == types.RoleAdmin || role == types.RoleAuth {
+		var err error
 		connector, err = newConnector(identity, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
+		var err error
 		connector, err = process.getConnector(identity, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -848,7 +870,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 	id := clientIdentity.ID
 	local := localState.Spec.Rotation
 
-	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(id.Role)
+	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(id.Role, id.HostID())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
