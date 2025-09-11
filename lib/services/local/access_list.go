@@ -180,18 +180,16 @@ func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accessli
 		return nil, "", trace.BadParameter("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
 	}
 
-	start, err := services.ParseAccessListNextKey(req.GetPageToken(), "name")
-	if err != nil {
-		return nil, "", trace.BadParameter("invalid nextToken supplied")
-	}
-
-	page, nextItem, err := a.service.ListResourcesReturnNextResourceWithFilter(ctx, int(req.GetPageSize()), start, func(item *accesslist.AccessList) bool {
+	page, nextItem, err := a.service.ListResourcesReturnNextResourceWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
 		return services.MatchAccessList(item, req.GetFilter())
 	})
 
 	nextKey := ""
 	if nextItem != nil {
-		nextKey = services.CreateAccessListNextKey(*nextItem)
+		nextKey, err = services.CreateAccessListNextKey(*nextItem, "name")
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
 	}
 	return page, nextKey, err
 }

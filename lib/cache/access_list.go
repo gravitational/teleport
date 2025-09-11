@@ -38,12 +38,9 @@ type accessListIndex string
 
 const (
 	accessListNameIndex          accessListIndex = "name"
+	accessListTitleIndex         accessListIndex = "title"
 	accessListAuditNextDateIndex accessListIndex = "auditNextDate"
 )
-
-func accessListNameIndexFn(al *accesslist.AccessList) string {
-	return al.GetMetadata().Name
-}
 
 func accessListAuditNextDateIndexFn(al *accesslist.AccessList) string {
 	if al.Spec.Audit.NextAuditDate.IsZero() {
@@ -66,9 +63,11 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
 				// sorted by name
-				accessListNameIndex: accessListNameIndexFn,
+				accessListNameIndex: services.AccessListNameIndexKey,
+				// sorted by title, sanitized.
+				accessListTitleIndex: services.AccessListTitleIndexKey,
 				// sorted by upcoming audit date. lists with no audit dates sorted to the back
-				accessListAuditNextDateIndex: accessListAuditNextDateIndexFn,
+				accessListAuditNextDateIndex: services.AccessListAuditDateIndexKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAccessLists))
@@ -129,8 +128,10 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 			index = accessListNameIndex
 		case "auditNextDate":
 			index = accessListAuditNextDateIndex
+		case "title":
+			index = accessListTitleIndex
 		default:
-			return nil, "", trace.BadParameter("unsupported sort %q but expected name or auditNextDate", sortBy.Field)
+			return nil, "", trace.BadParameter("unsupported sort %q but expected name, title or auditNextDate", sortBy.Field)
 		}
 	}
 	lister := genericLister[*accesslist.AccessList, accessListIndex]{
@@ -146,14 +147,13 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 			return services.MatchAccessList(al, req.GetFilter())
 		},
 		nextToken: func(al *accesslist.AccessList) string {
-			return services.CreateAccessListNextKey(al)
+			// ignore error because CreateAccessListNextKey only errors
+			// if the index is invalid, which we already check above
+			nextKey, _ := services.CreateAccessListNextKey(al, string(index))
+			return nextKey
 		},
 	}
-	nextKey, err := services.ParseAccessListNextKey(req.PageToken, string(index))
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	out, next, err := lister.list(ctx, int(req.GetPageSize()), nextKey)
+	out, next, err := lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
 	return out, next, trace.Wrap(err)
 }
 
