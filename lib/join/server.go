@@ -103,13 +103,9 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	}()
 
 	// Receive the first message from the client, which must always be ClientInit.
-	msg, err := stream.Recv()
+	clientInit, err := messages.RecvRequest[*messages.ClientInit](stream)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	clientInit, ok := msg.(*messages.ClientInit)
-	if !ok {
-		return trace.BadParameter("first message on join stream was not ClientInit, got %T", msg)
 	}
 	// Set any diagnostic info we can get from the ClientInit message.
 	diag.Set(func(i *diagnostic.Info) {
