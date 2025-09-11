@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
@@ -57,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
@@ -325,6 +327,203 @@ func TestDatabaseServiceResource(t *testing.T) {
 		require.Contains(t, outputString, "env=[prod]")
 		require.Contains(t, outputString, randomDBServiceName)
 	})
+}
+
+func TestScopedRoleAndAssignmentResource(t *testing.T) {
+	const scopedRoleYAML = `kind: scoped_role
+metadata:
+  name: some-role
+scope: "/"
+spec:
+  assignable_scopes: ["/foo"]
+version: v1
+`
+	const scopedRoleAssignmentYAML = `kind: scoped_role_assignment
+scope: "/"
+spec:
+  user: "bob"
+  assignments:
+    - role: some-role
+      scope: /foo
+version: v1
+`
+
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+
+	scopedRoleYAMLPath := filepath.Join(t.TempDir(), "some-role.yaml")
+	require.NoError(t, os.WriteFile(scopedRoleYAMLPath, []byte(scopedRoleYAML), 0644))
+
+	// Create the scoped role
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleYAMLPath})
+	require.NoError(t, err)
+
+	// wait for cache propagation
+	timeout := time.After(time.Second * 30)
+	var raw []byte
+	for {
+		// Get the scoped role
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
+		if err == nil {
+			raw = buff.Bytes()
+			break
+		}
+
+		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+
+	// Unmarshal the response into a ScopedRole object
+	rs, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRole](raw, services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, rs, 1)
+
+	// Compare with expected value
+	expected := &scopedaccessv1.ScopedRole{
+		Kind: scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{
+			Name: "some-role",
+		},
+		Scope: "/",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/foo"},
+		},
+		Version: types.V1,
+	}
+
+	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// now that a role exists, test commands for assignment creation
+	scopedRoleAssignmentYAMLPath := filepath.Join(t.TempDir(), "some-role-assignment.yaml")
+	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
+
+	// Create the scoped role assignment
+	buff, err := runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	require.NoError(t, err)
+
+	parts := bytes.Split(buff.Bytes(), []byte("\""))
+	require.Len(t, parts, 3)
+
+	assignmentName := string(parts[1])
+
+	_, err = uuid.Parse(assignmentName)
+	require.NoError(t, err, "expected assignment name to be a UUID, got %q (extracted from output %q)", assignmentName, buff.String())
+
+	// wait for cache propagation
+	timeout = time.After(time.Second * 30)
+	var rawAssignment []byte
+	for {
+		// Get the scoped role assignment
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+		if err == nil {
+			rawAssignment = buff.Bytes()
+			break
+		}
+		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role assignment cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+
+	// Unmarshal the response into a ScopedRoleAssignment object
+	as, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, as, 1)
+
+	// Compare with expected value
+	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
+		Kind: scopedaccess.KindScopedRoleAssignment,
+		Metadata: &headerv1.Metadata{
+			Name: assignmentName,
+		},
+		Scope: "/",
+		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			User: "bob",
+			Assignments: []*scopedaccessv1.Assignment{
+				{
+					Role:  "some-role",
+					Scope: "/foo",
+				},
+			},
+		},
+		Version: types.V1,
+	}
+
+	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// verify delete of assignment
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/" + assignmentName})
+	require.NoError(t, err)
+
+	// wait for delete cache propagation
+	timeout = time.After(time.Second * 30)
+	for {
+		// verify assignment is gone
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+		if err != nil {
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+			break
+		}
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role assignment cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+
+	// verify delete of role
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role/some-role"})
+	require.NoError(t, err)
+
+	// wait for delete cache propagation
+	timeout = time.After(time.Second * 30)
+	for {
+		// verify role is gone
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
+		if err != nil {
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+			break
+		}
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
 }
 
 // TestIntegrationResource tests tctl integration commands.

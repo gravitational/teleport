@@ -17,11 +17,10 @@
  */
 
 import { FeatureBox } from 'teleport/components/Layout';
-import { Route, Switch } from 'teleport/components/Router';
+import { Redirect, Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
 import { BotFlowType } from '../types';
-import { AddBotsPicker } from './AddBotsPicker';
 import GitHubActionsFlow from './GitHubActions';
 
 export function AddBots() {
@@ -32,7 +31,10 @@ export function AddBots() {
           path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
           component={GitHubActionsFlow}
         />
-        <Route path={cfg.getBotsNewRoute()} component={AddBotsPicker} />
+        <Redirect
+          path={cfg.getBotsNewRoute()}
+          to={`${cfg.getIntegrationEnrollRoute()}?tags=bot`}
+        />
       </Switch>
     </FeatureBox>
   );

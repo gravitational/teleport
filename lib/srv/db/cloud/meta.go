@@ -52,6 +52,7 @@ import (
 // elasticacheClient defines a subset of the AWS ElastiCache client API.
 type elasticacheClient interface {
 	elasticache.DescribeReplicationGroupsAPIClient
+	elasticache.DescribeServerlessCachesAPIClient
 }
 
 // iamClient defines a subset of the AWS IAM client API.
@@ -197,6 +198,8 @@ func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 		return m.updateAWS(ctx, database, m.fetchRedshiftServerlessMetadata)
 	case types.DatabaseTypeElastiCache:
 		return m.updateAWS(ctx, database, m.fetchElastiCacheMetadata)
+	case types.DatabaseTypeElastiCacheServerless:
+		return m.updateAWS(ctx, database, m.fetchElastiCacheServerlessMetadata)
 	case types.DatabaseTypeMemoryDB:
 		return m.updateAWS(ctx, database, m.fetchMemoryDBMetadata)
 	}
@@ -339,6 +342,26 @@ func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.
 	return discoverycommon.MetadataFromElastiCacheCluster(cluster, endpointType)
 }
 
+// fetchElastiCacheServerlessMetadata fetches metadata for the provided
+// ElastiCache serverless database.
+func (m *Metadata) fetchElastiCacheServerlessMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
+	meta := database.GetAWS()
+	awsCfg, err := m.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt := m.cfg.awsClients.getElastiCacheClient(awsCfg)
+	cache, err := describeElastiCacheServerlessCache(ctx, clt, meta.ElastiCacheServerless.CacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return discoverycommon.MetadataFromElastiCacheServerlessCache(cache)
+}
+
 // fetchMemoryDBMetadata fetches metadata for the provided MemoryDB database.
 func (m *Metadata) fetchMemoryDBMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
@@ -430,9 +453,24 @@ func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticac
 		return nil, common.ConvertError(err)
 	}
 	if len(out.ReplicationGroups) != 1 {
-		return nil, trace.BadParameter("expected 1 ElastiCache cluster for %v, got %+v", replicationGroupID, out.ReplicationGroups)
+		return nil, trace.BadParameter("expected 1 ElastiCache cluster for %v, got %d", replicationGroupID, len(out.ReplicationGroups))
 	}
 	return &out.ReplicationGroups[0], nil
+}
+
+// describeElastiCacheServerlessCache returns AWS ElastiCache Serverless Redis cache for the
+// specified ID.
+func describeElastiCacheServerlessCache(ctx context.Context, client elasticacheClient, name string) (*ectypes.ServerlessCache, error) {
+	out, err := client.DescribeServerlessCaches(ctx, &elasticache.DescribeServerlessCachesInput{
+		ServerlessCacheName: aws.String(name),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	if len(out.ServerlessCaches) != 1 {
+		return nil, trace.BadParameter("expected 1 ElastiCache Serverless cache for %v, got %d", name, len(out.ServerlessCaches))
+	}
+	return &out.ServerlessCaches[0], nil
 }
 
 // describeMemoryDBCluster returns AWS MemoryDB cluster for the specified ID.
