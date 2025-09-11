@@ -1,4 +1,4 @@
-.version: &version "19.0.1-dev.winterrprovider.8"
+.version: &version "19.0.1-dev.winterrprovider.9"
 
 name: teleport-cluster
 apiVersion: v2
