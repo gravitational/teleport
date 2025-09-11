@@ -24,7 +24,7 @@ endif
 BINARY_NAME = terraform-provider-teleport$(EXEEXT)
 
 # windows terraform provider filename as it will appear on downloads page
-WINDOWS_DOWNLOAD_FILENAME := terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)$(EXEEXT)
+WINDOWS_DOWNLOAD_FILENAME := terraform-provider-teleport-v$(VERSION)-windows-$(ARCH)$(EXEEXT)
 
 .PHONY: tfclean
 tfclean:
