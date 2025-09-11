@@ -37,6 +37,8 @@ import (
 // Variables might to be overridden during compilation time for integration tests.
 var (
 	// Version is the current version of the Teleport.
+	// The variable is overloaded during integration tests to emulate different
+	// Teleport versions. See `integration/autoupdate/tools/updater/modules.go`.
 	Version = teleport.Version
 )
 
@@ -126,6 +128,9 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 func CheckAndUpdateRemote(ctx context.Context, currentProfileName string, insecure bool, reExecArgs []string) error {
 	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
 	// so we don't try to read te user home directory, fail, and log warnings.
+	// If we are re-executed, we ignore the "off" version because some previous Teleport versions
+	// are disabling execution too aggressively and this causes stuck updates.
+	// If "off" was set by the user, we would not be re-executed.
 	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled && os.Getenv(teleportToolsVersionReExecEnv) == "" {
 		return nil
 	}
