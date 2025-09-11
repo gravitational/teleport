@@ -20,41 +20,29 @@ import { z } from 'zod';
 
 import { Platform } from 'teleterm/mainProcess/types';
 
-export function invalidKeyCodeIssue(wrongKeyCode: string): z.IssueData {
-  return {
-    code: z.ZodIssueCode.custom,
-    message: `"${wrongKeyCode}" cannot be used as a key code.`,
-  };
+export function invalidKeyCodeIssue(wrongKeyCode: string): string {
+  return `"${wrongKeyCode}" cannot be used as a key code.`;
 }
 
 export function invalidModifierIssue(
   wrongModifiers: string[],
   validModifiers: string[]
-): z.IssueData {
+): string {
   const formatList = (items: string[]) =>
     `${items.map(m => `"${m}"`).join(', ')}`;
-  return {
-    code: z.ZodIssueCode.custom,
-    message: `${formatList(
-      wrongModifiers
-    )} cannot be used as a modifier. Valid modifiers are: ${formatList(
-      validModifiers
-    )}.`,
-  };
+  return `${formatList(
+    wrongModifiers
+  )} cannot be used as a modifier. Valid modifiers are: ${formatList(
+    validModifiers
+  )}.`;
 }
 
-export function duplicateModifierIssue(): z.IssueData {
-  return {
-    code: z.ZodIssueCode.custom,
-    message: `Duplicate modifier found.`,
-  };
+export function duplicateModifierIssue(): string {
+  return `Duplicate modifier found.`;
 }
 
-export function missingModifierIssue(keyCode: string): z.IssueData {
-  return {
-    code: z.ZodIssueCode.custom,
-    message: `"${keyCode}" must be used together with a modifier.`,
-  };
+export function missingModifierIssue(keyCode: string): string {
+  return `"${keyCode}" must be used together with a modifier.`;
 }
 
 export function createKeyboardShortcutSchema(platform: Platform) {
