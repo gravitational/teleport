@@ -332,11 +332,7 @@ func (s *Service) mount() error {
 
 // unmount will unmount the cgroupv2 filesystem.
 func (s *Service) unmount() error {
-	// The exact args to the umount syscall come from a strace of umount(8):
-	//
-	//    umount2("/cgroup2", 0)                  = 0
-	err := unix.Unmount(s.MountPath, 0)
-	if err != nil {
+	if err := unix.Unmount(s.MountPath, unix.MNT_DETACH); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

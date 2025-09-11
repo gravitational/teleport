@@ -58,7 +58,7 @@ endif
 
 PHONY: test
 test:
-	go test -v -cover -timeout=120s -parallel=10 ./...
+	go test -v -timeout=120s -parallel=10 ./...
 
 PHONY: testacc
 testacc:

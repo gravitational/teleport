@@ -70,7 +70,7 @@ jobs:
         run: make test-terraform-provider
         timeout-minutes: 15
 
-      - name: Run terraform provider OSS tests
+      - name: Run MWI terraform provider OSS tests
         run: make test-terraform-provider-mwi
         timeout-minutes: 15
 
