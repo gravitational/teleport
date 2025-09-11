@@ -29,6 +29,7 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	zoidc "github.com/zitadel/oidc/v3/pkg/oidc"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -362,10 +363,15 @@ func ValidateTokenWithJWKS(
 }
 
 // NewKubernetesOIDCTokenValidator constructs a KubernetesOIDCTokenValidator.
-func NewKubernetesOIDCTokenValidator() *KubernetesOIDCTokenValidator {
-	return &KubernetesOIDCTokenValidator{
-		validator: oidc.NewCachingTokenValidator[*OIDCServiceAccountClaims](),
+func NewKubernetesOIDCTokenValidator() (*KubernetesOIDCTokenValidator, error) {
+	validator, err := oidc.NewCachingTokenValidator[*OIDCServiceAccountClaims](clockwork.NewRealClock())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	return &KubernetesOIDCTokenValidator{
+		validator: validator,
+	}, nil
 }
 
 // KubernetesOIDCTokenValidator is a validator that can validate Kubernetes
@@ -382,7 +388,7 @@ func (v *KubernetesOIDCTokenValidator) ValidateToken(
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	validator, err := v.validator.GetValidator(issuerURL, clusterName)
+	validator, err := v.validator.GetValidator(ctx, issuerURL, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

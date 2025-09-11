@@ -22,7 +22,6 @@ import (
 	"context"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -34,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -53,10 +53,6 @@ const (
 	// validatorTTL is a maximum time a particular validator instance should
 	// remain in memory before being pruned if left unused.
 	validatorTTL = time.Hour * 24 * 2
-
-	// freshnessCheckMinInterval is the minimum period to wait before
-	// potentially purging stale validators.
-	freshnessCheckMinInterval = time.Hour
 )
 
 // validatorKey is a composite key for the validator instance map
@@ -67,14 +63,23 @@ type validatorKey struct {
 
 // NewCachingTokenValidator creates a caching validator for the given issuer and
 // audience, using a real clock.
-func NewCachingTokenValidator[C oidc.Claims]() *CachingTokenValidator[C] {
-	clock := clockwork.NewRealClock()
+func NewCachingTokenValidator[C oidc.Claims](clock clockwork.Clock) (*CachingTokenValidator[C], error) {
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		Clock: clock,
+		TTL:   validatorTTL,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &CachingTokenValidator[C]{
-		clock:      clock,
-		instances:  make(map[validatorKey]*CachingValidatorInstance[C]),
-		lastPruned: clock.Now(),
-	}
+		clock: clock,
+		cache: cache,
+	}, nil
 }
 
 // CachingTokenValidator is a wrapper on top of `CachingValidatorInstance` that
@@ -85,64 +90,31 @@ func NewCachingTokenValidator[C oidc.Claims]() *CachingTokenValidator[C] {
 type CachingTokenValidator[C oidc.Claims] struct {
 	clock clockwork.Clock
 
-	mu         sync.Mutex
-	instances  map[validatorKey]*CachingValidatorInstance[C]
-	lastPruned time.Time
-}
-
-// pruneStaleValidatorsLocked removes stale validators from the internal
-// validator instance map. `v.mu` must already be held.
-func (v *CachingTokenValidator[C]) pruneStaleValidatorsLocked() {
-	if v.clock.Since(v.lastPruned) < freshnessCheckMinInterval {
-		// Too soon since the last prune, don't bother.
-		return
-	}
-
-	prunedCount := 0
-	for k, val := range v.instances {
-		if val.IsStale() {
-			prunedCount += 1
-			delete(v.instances, k)
-		}
-	}
-
-	v.lastPruned = v.clock.Now()
-	log.DebugContext(context.Background(), "Pruned stale OIDC validators", "count", prunedCount)
+	cache *utils.FnCache
 }
 
 // GetValidator retreives a validator for the given issuer and audience. This
 // will create a new validator instance if necessary, and will occasionally
 // prune old instances that have not been used to validate any tokens in some
 // time.
-func (v *CachingTokenValidator[C]) GetValidator(issuer, audience string) (*CachingValidatorInstance[C], error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-
-	defer v.pruneStaleValidatorsLocked()
-
+func (v *CachingTokenValidator[C]) GetValidator(ctx context.Context, issuer, audience string) (*CachingValidatorInstance[C], error) {
 	key := validatorKey{issuer: issuer, audience: audience}
-	if validator, ok := v.instances[key]; ok {
-		validator.validatorExpires.Store(v.clock.Now().Add(validatorTTL).UnixNano())
-		return validator, nil
-	}
+	instance, err := utils.FnCacheGet(ctx, v.cache, key, func(ctx context.Context) (*CachingValidatorInstance[C], error) {
+		transport, err := defaults.Transport()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	transport, err := defaults.Transport()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		return &CachingValidatorInstance[C]{
+			client:     &http.Client{Transport: otelhttp.NewTransport(transport)},
+			clock:      v.clock,
+			issuer:     issuer,
+			audience:   audience,
+			verifierFn: zoidcTokenVerifier[C],
+		}, nil
+	})
 
-	validator := &CachingValidatorInstance[C]{
-		client:     &http.Client{Transport: otelhttp.NewTransport(transport)},
-		clock:      v.clock,
-		issuer:     issuer,
-		audience:   audience,
-		verifierFn: zoidcTokenVerifier[C],
-	}
-	validator.validatorExpires.Store(v.clock.Now().Add(validatorTTL).UnixNano())
-
-	v.instances[key] = validator
-
-	return validator, nil
+	return instance, err
 }
 
 // CachingValidatorInstance provides an issuer-specific cache. It separately
@@ -161,8 +133,6 @@ type CachingValidatorInstance[C oidc.Claims] struct {
 	lastJWKSURI            string
 	keySet                 oidc.KeySet
 	keySetExpires          time.Time
-
-	validatorExpires atomic.Int64
 
 	// verifierFn is the function that actually verifies the token using the
 	// oidc library. `zitadel/oidc` doesn't provide any way to override the
@@ -188,9 +158,6 @@ func (v *CachingValidatorInstance[C]) getKeySet(
 
 	l := log.With("issuer", v.issuer, "audience", v.audience)
 	now := v.clock.Now()
-
-	// Mark this validator as fresh.
-	v.validatorExpires.Store(now.Add(validatorTTL).UnixNano())
 
 	if !v.discoveryConfigExpires.IsZero() && now.After(v.discoveryConfigExpires) {
 		// Invalidate the cached value.
@@ -289,16 +256,4 @@ func (v *CachingValidatorInstance[C]) ValidateToken(
 	}
 
 	return claims, nil
-}
-
-// Expires returns the time at which this validator will expire if left unused.
-func (v *CachingValidatorInstance[C]) Expires() time.Time {
-	return time.Unix(0, v.validatorExpires.Load())
-}
-
-// IsStale returns true if this validator has not been asked to validate any
-// tokens for at least `validatorTTL` and is eligible to be pruned.
-func (v *CachingValidatorInstance[C]) IsStale() bool {
-	then := time.Unix(0, v.validatorExpires.Load())
-	return v.clock.Now().After(then)
 }
