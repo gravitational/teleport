@@ -244,6 +244,17 @@ func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, hand
 	return nil
 }
 
+// HandleChannelOpenNoTrace returns a channel on which NewChannel requests
+// for the given type are sent. If the type already is being handled,
+// nil is returned. The channel is closed when the connection is closed.
+//
+// This method uses the base [ssh.Client] and thus does not create traces for
+// channels opened by this method. Traces should be created manually in the handling
+// of new channels, or HandleChannelOpen should be used.
+func (c *Client) HandleChannelOpenNoTrace(channelType string) <-chan ssh.NewChannel {
+	return c.Client.HandleChannelOpen(channelType)
+}
+
 // clientWrapper wraps the ssh.Conn for individual ssh.Client
 // operations to intercept internal calls by the ssh.Client to
 // OpenChannel. This allows for internal operations within the
