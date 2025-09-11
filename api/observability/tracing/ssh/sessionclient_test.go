@@ -31,7 +31,7 @@ func TestWrappedSSHConn(t *testing.T) {
 
 	// ensure that OpenChannel returns the same SSH channel and requests
 	// chan that wrappedSSHConn was given
-	wrappedConn := &wrappedSSHConn{
+	wrappedConn := &sshSession{
 		ch:   sshCh,
 		reqs: reqs,
 	}
