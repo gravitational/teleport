@@ -18,6 +18,7 @@ package teleport.decision.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/decision/v1alpha1/tls_identity.proto";
+import "teleport/scopes/v1/scopes.proto";
 import "teleport/trait/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
@@ -159,6 +160,10 @@ message SSHIdentity {
   // JoinToken is the name of the join token used for bot joining. It is unset
   // for other identity types, or for bots using the `token` join method.
   string join_token = 34;
+
+  // ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+  // set, the Roles field must not be set.
+  teleport.scopes.v1.Pin scope_pin = 35;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type
