@@ -32,10 +32,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -335,6 +337,11 @@ func (m *mockServer) ChildLogConfig() ChildLogConfig {
 		},
 		Writer: os.Stdout,
 	}
+}
+
+// TracerProvider returns the configured tracer provider.
+func (m *mockServer) TracerProvider() oteltrace.TracerProvider {
+	return tracing.DefaultProvider()
 }
 
 // Implementation of ssh.Conn interface.

@@ -378,6 +378,11 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	}
 }
 
+// TracerProvider returns the configured tracer provider.
+func (s *Server) TracerProvider() oteltrace.TracerProvider {
+	return s.tracerProvider
+}
+
 // ServerOption is a functional option passed to the server
 type ServerOption func(s *Server) error
 
@@ -2010,7 +2015,7 @@ func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
 	// start an agent server on a unix socket.  each incoming connection
 	// will result in a separate agent request.
 	agentServer := sshagent.NewServer(func() (sshagent.Client, error) {
-		return scx.Parent().StartAgentChannel()
+		return scx.Parent().StartAgentChannel(ctx, tracing.WithTracerProvider(s.tracerProvider))
 	})
 	agentServer.SetListener(listener)
 	scx.Parent().AddCloser(agentServer)

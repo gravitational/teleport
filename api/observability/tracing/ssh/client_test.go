@@ -18,12 +18,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
 func TestIsTracingSupported(t *testing.T) {
@@ -377,4 +383,77 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 	ok, err = session.SendRequest(ctx, pingRequest, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok, "Expected the server to reply true to session ping request")
+}
+
+func TestHandleChannelOpenTraceContext(t *testing.T) {
+	t.Parallel()
+	const testChannelType = "test-channel"
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	provider := sdktrace.NewTracerProvider()
+	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+	opts := []tracing.Option{
+		tracing.WithTracerProvider(provider),
+		tracing.WithTextMapPropagator(propagator),
+	}
+	payload := []byte("test-payload")
+	ready := make(chan struct{})
+	parentTraceID := make(chan oteltrace.TraceID, 1)
+	handlerTraceID := make(chan oteltrace.TraceID, 1)
+	handlerPayload := make(chan []byte, 1)
+	errC := make(chan error, 1)
+
+	srv := newServer(t, tracingSupportedVersion, func(conn *ssh.ServerConn, _ <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+		go ssh.DiscardRequests(requests)
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ready:
+		}
+
+		spanCtx, span := provider.Tracer("test").Start(ctx, "server-open-channel-parent")
+		parentTraceID <- span.SpanContext().TraceID()
+		ch, reqs, err := OpenChannelToClient(spanCtx, conn, testChannelType, payload, opts...)
+		span.End()
+		if err != nil {
+			errC <- err
+			return
+		}
+		defer ch.Close()
+		go ssh.DiscardRequests(reqs)
+	})
+
+	conn, err := net.Dial("tcp", srv.listener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
+
+	sshConn, chans, reqs, err := ssh.NewClientConn(conn, "", &ssh.ClientConfig{
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(srv.cSigner)},
+		ClientVersion:   "SSH-2.0-Teleport",
+		HostKeyCallback: ssh.FixedHostKey(srv.hSigner.PublicKey()),
+	})
+	require.NoError(t, err)
+
+	client := NewClient(sshConn, chans, reqs, opts...)
+	require.NoError(t, client.HandleChannelOpen(ctx, testChannelType, func(ctx context.Context, ch ssh.NewChannel) {
+		handlerTraceID <- oteltrace.SpanFromContext(ctx).SpanContext().TraceID()
+		handlerPayload <- ch.ExtraData()
+		channel, reqs, err := ch.Accept()
+		require.NoError(t, err)
+		defer channel.Close()
+		go ssh.DiscardRequests(reqs)
+	}))
+	close(ready)
+
+	require.Equal(t, <-parentTraceID, <-handlerTraceID)
+	require.Equal(t, payload, <-handlerPayload)
+
+	select {
+	case err := <-errC:
+		require.NoError(t, err)
+	default:
+	}
 }
