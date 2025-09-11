@@ -50,13 +50,9 @@ func (s *Server) handleBoundKeypairJoin(
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	msg, err := stream.Recv()
+	boundKeypairInit, err := messages.RecvRequest[*messages.BoundKeypairInit](stream)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	boundKeypairInit, ok := msg.(*messages.BoundKeypairInit)
-	if !ok {
-		return nil, trace.BadParameter("expected BoundKeyPairInit message, got %T", msg)
 	}
 	challengeResponse := func(challenge messages.Response) (messages.Request, error) {
 		if err := stream.Send(challenge); err != nil {

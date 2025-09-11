@@ -97,7 +97,7 @@ func issueBoundKeypairChallenge(
 		return trace.Wrap(err)
 	}
 
-	responseMsg, err := params.ChallengeResponse(&messages.BoundKeypairChallenge{
+	solutionMsg, err := params.ChallengeResponse(&messages.BoundKeypairChallenge{
 		PublicKey: []byte(marshaledKey),
 		Challenge: string(marshalledChallenge),
 	})
@@ -105,14 +105,14 @@ func issueBoundKeypairChallenge(
 		return trace.Wrap(err, "requesting a signed challenge")
 	}
 
-	solutionResponse, ok := responseMsg.(*messages.BoundKeypairChallengeSolution)
-	if !ok {
-		return trace.BadParameter("client provided unexpected challenge response type %T", responseMsg)
+	solution, err := messages.AssertRequestType[*messages.BoundKeypairChallengeSolution](solutionMsg)
+	if err != nil {
+		return trace.Wrap(err, "waiting for challenge solution from client")
 	}
 
 	if err := validator.ValidateChallengeResponse(
 		challenge,
-		string(solutionResponse.Solution),
+		string(solution.Solution),
 	); err != nil {
 		// TODO: Consider access denied instead?
 		return trace.Wrap(err, "validating challenge response")
@@ -197,20 +197,20 @@ func requestBoundKeypairRotation(
 	algoSuite := string(algoSuiteText)
 
 	// Request a new marshaled public key from the client.
-	responseMsg, err := params.ChallengeResponse(&messages.BoundKeypairRotationRequest{
+	rotationResponseMsg, err := params.ChallengeResponse(&messages.BoundKeypairRotationRequest{
 		SignatureAlgorithmSuite: algoSuite,
 	})
 	if err != nil {
 		return "", trace.Wrap(err, "requesting a new public key")
 	}
 
-	pubKeyResponse, ok := responseMsg.(*messages.BoundKeypairRotationResponse)
-	if !ok {
-		return "", trace.BadParameter("client provided unexpected keypair request response type %T", responseMsg)
+	rotationResponse, err := messages.AssertRequestType[*messages.BoundKeypairRotationResponse](rotationResponseMsg)
+	if err != nil {
+		return "", trace.Wrap(err, "waiting for rotation response from client")
 	}
 
 	// Issue a challenge against this new key to ensure ownership.
-	pubKey := string(pubKeyResponse.PublicKey)
+	pubKey := string(rotationResponse.PublicKey)
 	if err := issueBoundKeypairChallenge(ctx, params, pubKey); err != nil {
 		return "", trace.Wrap(err, "solving challenge for new public key")
 	}
