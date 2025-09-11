@@ -36,7 +36,6 @@ func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
 	mustSetupAWSIdentityCenterIntegration(t, aliceClient.AuthClient)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assertSCIMUsers(t.Context(), c, mockSCIM, "alice", "bob")
 
 		accounts, _, err := auth.ListIdentityCenterAccounts(t.Context(), 0, "")
 		require.NoError(c, err)

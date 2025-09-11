@@ -18,6 +18,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+const (
+	oidcIntegrationName = "aws-oidc-integration"
+)
+
 // setMockICClientProvider sets a custom Identity Center client provider for a
 // test. The original provider is automatically restored when the test completes.
 func setMockICClientProvider(t *testing.T, provider func(icsdk.Config) (icsdk.Client, error)) {
@@ -50,10 +54,10 @@ func setupMockAWSICEnvironment(t *testing.T, icMock icsdk.Client, scimMock scims
 
 // mustSetupAWSIdentityCenterIntegration creates and installs an Identity Center
 // plugin resource
-func mustSetupAWSIdentityCenterIntegration(t *testing.T, authClient authclient.ClientI) {
+func mustSetupAWSIdentityCenterIntegration(t *testing.T, authClient authclient.ClientI, options ...pluginOption) {
 	t.Helper()
 	mustSetupOIDCIntegration(t, authClient)
-	mustCreateAWSICPlugin(t, authClient)
+	mustCreateAWSICPlugin(t, authClient, options...)
 }
 
 func mustSetupOIDCIntegration(t *testing.T, authClient authclient.ClientI) {
@@ -72,7 +76,7 @@ func mustCreateAWSICPlugin(t *testing.T, authClient authclient.ClientI, options 
 func awsOIDCIntegration() *types.IntegrationV1 {
 	return &types.IntegrationV1{
 		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{Name: "aws-oidc-integration"},
+			Metadata: types.Metadata{Name: oidcIntegrationName},
 			Kind:     types.KindIntegration,
 			SubKind:  types.IntegrationSubKindAWSOIDC,
 		},
@@ -135,17 +139,6 @@ func withGroupSyncFilterExclude(re string) pluginOption {
 	}
 }
 
-// withSystemAWSCredentials configures the IC plugin to use system AWS credentials
-func withSystemAWSCredentials(opts *pluginOptions) {
-	opts.awsCredentials = &types.AWSICCredentials{
-		Source: &types.AWSICCredentials_System{
-			System: &types.AWSICCredentialSourceSystem{
-				AssumeRoleArn: "arn:aws:iam::111111111111:role/teleport-ic-admin-role",
-			},
-		},
-	}
-}
-
 // withIntegrationName sets a custom OIDC integration name
 func withSAMLProviderName(n string) pluginOption {
 	return func(opts *pluginOptions) {
@@ -171,9 +164,9 @@ func awsICPluginRequest(options ...pluginOption) *pluginspb.CreatePluginRequest 
 		samlProviderName: "saml-provider",
 		defaultOwners:    []string{"alice"},
 		awsCredentials: &types.AWSICCredentials{
-			Source: &types.AWSICCredentials_Oidc{
-				Oidc: &types.AWSICCredentialSourceOIDC{
-					IntegrationName: "aws-oidc-integration",
+			Source: &types.AWSICCredentials_System{
+				System: &types.AWSICCredentialSourceSystem{
+					AssumeRoleArn: "arn:aws:iam::111111111111:role/teleport-ic-admin-role",
 				},
 			},
 		},
@@ -193,7 +186,6 @@ func awsICPluginRequest(options ...pluginOption) *pluginspb.CreatePluginRequest 
 			Spec: types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_AwsIc{
 					AwsIc: &types.PluginAWSICSettings{
-						IntegrationName:         "aws-oidc-integration",
 						Region:                  "eu-central-1",
 						Arn:                     "arn:aws:sso:::instance/ssoins-1111111111111111",
 						AccessListDefaultOwners: opts.defaultOwners,

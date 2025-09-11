@@ -109,7 +109,6 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 	// which will trigger the plugin to rely on an external service to provision
 	// users into IC, aka "hybrid mode"
 	mustCreateAWSICPlugin(t, adminUser.AuthClient,
-		withSystemAWSCredentials,
 		withSAMLProviderName(""),
 		withDefaultAccessListOwners("admin"))
 
