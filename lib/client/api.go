@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -1262,7 +1263,7 @@ type TeleportClient struct {
 
 	// OnChannelRequest gets called when SSH channel requests are
 	// received. It's safe to keep it nil.
-	OnChannelRequest tracessh.ChannelRequestCallback
+	OnChannelRequest apisshutils.ChannelRequestCallback
 
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil.

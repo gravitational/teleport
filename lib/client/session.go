@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -178,7 +179,7 @@ func (ns *NodeSession) NodeClient() *NodeClient {
 	return ns.nodeClient
 }
 
-func (ns *NodeSession) regularSession(ctx context.Context, chanReqCallback tracessh.ChannelRequestCallback, sessionCallback func(s *tracessh.Session) error) error {
+func (ns *NodeSession) regularSession(ctx context.Context, chanReqCallback apisshutils.ChannelRequestCallback, sessionCallback func(s *tracessh.Session) error) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/regularSession",
@@ -198,7 +199,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, chanReqCallback trace
 
 type interactiveCallback func(serverSession *tracessh.Session, shell io.ReadWriteCloser) error
 
-func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback tracessh.ChannelRequestCallback) (*tracessh.Session, error) {
+func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback apisshutils.ChannelRequestCallback) (*tracessh.Session, error) {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/createServerSession",
@@ -272,7 +273,7 @@ func selectKeyAgent(ctx context.Context, tc *TeleportClient) sshagent.ClientGett
 
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.SessionParticipantMode, chanReqCallback tracessh.ChannelRequestCallback, sessionCallback interactiveCallback) error {
+func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.SessionParticipantMode, chanReqCallback apisshutils.ChannelRequestCallback, sessionCallback interactiveCallback) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/interactiveSession",
@@ -516,7 +517,7 @@ func (s *sessionWriter) Write(p []byte) (int, error) {
 }
 
 // runShell executes user's shell on the remote node under an interactive session
-func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, chanReqCallback tracessh.ChannelRequestCallback, beforeStart func(io.Writer), shellCallback ShellCreatedCallback) error {
+func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, chanReqCallback apisshutils.ChannelRequestCallback, beforeStart func(io.Writer), shellCallback ShellCreatedCallback) error {
 	return ns.interactiveSession(ctx, mode, chanReqCallback, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
 		w := &sessionWriter{
 			tshOut:  ns.nodeClient.TC.Stdout,
@@ -545,7 +546,7 @@ func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipa
 
 // runCommand executes a "exec" request either in interactive mode (with a
 // TTY attached) or non-intractive mode (no TTY).
-func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionParticipantMode, cmd []string, chanReqCallback tracessh.ChannelRequestCallback, shellCallback ShellCreatedCallback, interactive bool) error {
+func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionParticipantMode, cmd []string, chanReqCallback apisshutils.ChannelRequestCallback, shellCallback ShellCreatedCallback, interactive bool) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/runCommand",
