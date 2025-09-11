@@ -194,6 +194,36 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	}, nil
 }
 
+func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, handleFn func(ch ssh.NewChannel)) error {
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
+	ch := c.Client.HandleChannelOpen(channelType)
+	if ch == nil {
+		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", channelType)
+	}
+
+	go func() {
+		for newCh := range ch {
+			_, span := tracer.Start(
+				ctx,
+				fmt.Sprintf("ssh.HandleChannelOpen/%s", channelType),
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					append(
+						peerAttr(c.Conn.RemoteAddr()),
+						semconv.RPCServiceKey.String("ssh.Client"),
+						semconv.RPCMethodKey.String("NewSession"),
+						semconv.RPCSystemKey.String("ssh"),
+					)...,
+				),
+			)
+
+			handleFn(newCh)
+			span.End()
+		}
+	}()
+	return nil
+}
+
 // HandleRequests starts a goroutine to handle any incoming [ssh.Request] matching
 // the provided type using the provided handler. If the type already is being handled,
 // an error is returned.

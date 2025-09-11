@@ -669,7 +669,7 @@ func (s *Server) Serve() {
 
 	// Once the client and server connections are established, ensure we forward
 	// x11 channel requests from the server to the client.
-	if err := x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
+	if err := x11.ServeChannelRequests(ctx, s.remoteClient, s.handleX11ChannelRequest); err != nil {
 		s.logger.ErrorContext(s.Context(), "Unable to forward x11 channel requests", "error", err)
 		return
 	}
@@ -677,7 +677,26 @@ func (s *Server) Serve() {
 	succeeded = true
 
 	// Add channel handlers immediately to avoid rejecting a channel.
-	forwardedTCPIP := s.remoteClient.HandleChannelOpen(teleport.ChanForwardedTCPIP)
+	s.remoteClient.HandleChannelOpen(ctx, teleport.ChanForwardedTCPIP, func(ch ssh.NewChannel) {
+		chanCtx, nch := tracessh.ContextFromNewChannel(ch)
+
+		// TODO: Remove redundant span?
+		ctx, span := s.tracerProvider.Tracer("ssh").Start(
+			oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(chanCtx)),
+			fmt.Sprintf("ssh.Forward.OpenChannel/%s", nch.ChannelType()),
+			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+			oteltrace.WithAttributes(
+				semconv.RPCServiceKey.String("ssh.ForwardServer"),
+				semconv.RPCMethodKey.String("OpenChannel"),
+				semconv.RPCSystemKey.String("ssh"),
+			),
+		)
+		defer span.End()
+
+		if err := s.handleForwardedTCPIPRequest(ctx, nch); err != nil && !utils.IsOKNetworkError(err) {
+			s.logger.ErrorContext(ctx, "Error handling forwarded-tcpip request", "error", err)
+		}
+	})
 
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
@@ -693,7 +712,6 @@ func (s *Server) Serve() {
 		CloseCancel:  func() { s.connectionContext.Close() },
 	})
 
-	go s.handleClientChannels(ctx, forwardedTCPIP)
 	go s.handleConnection(ctx, chans, reqs)
 }
 
@@ -845,30 +863,6 @@ func (s *Server) handleConnection(ctx context.Context, chans <-chan ssh.NewChann
 		case <-ctx.Done():
 			return
 		}
-	}
-}
-
-// handleClientChannels handles channel open requests from the remote server.
-func (s *Server) handleClientChannels(ctx context.Context, forwardedTCPIP <-chan ssh.NewChannel) {
-	for nch := range forwardedTCPIP {
-		chanCtx, nch := tracessh.ContextFromNewChannel(nch)
-		ctx, span := s.tracerProvider.Tracer("ssh").Start(
-			oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(chanCtx)),
-			fmt.Sprintf("ssh.Forward.OpenChannel/%s", nch.ChannelType()),
-			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
-			oteltrace.WithAttributes(
-				semconv.RPCServiceKey.String("ssh.ForwardServer"),
-				semconv.RPCMethodKey.String("OpenChannel"),
-				semconv.RPCSystemKey.String("ssh"),
-			),
-		)
-
-		go func() {
-			defer span.End()
-			if err := s.handleForwardedTCPIPRequest(ctx, nch); err != nil && !utils.IsOKNetworkError(err) {
-				s.logger.ErrorContext(ctx, "Error handling forwarded-tcpip request", "error", err)
-			}
-		}()
 	}
 }
 
