@@ -69,6 +69,7 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	recordingmetadatav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -109,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata/recordingmetadatav1"
 	scopedaccess "github.com/gravitational/teleport/lib/auth/scopes/access"
 	scopedjoining "github.com/gravitational/teleport/lib/auth/scopes/joining"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
@@ -1141,6 +1143,18 @@ func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.Acces
 	return caps, nil
 }
 
+func (g *GRPCServer) GetRemoteAccessCapabilities(ctx context.Context, req *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caps, err := auth.ServerWithRoles.GetRemoteAccessCapabilities(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1485,6 +1499,10 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		if hasOktaOrigin {
 			return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
 		}
+	}
+
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
@@ -2474,12 +2492,28 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 		return trace.Wrap(err)
 	}
 
-	err = actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user)
-	if err != nil {
-		return trace.Wrap(err)
+	// We must use the real username associated with the identity.
+	// GetUser() can be remote-{user}-{cluster} if we are using
+	// a leaf cluster.
+	realUsername := actx.Identity.GetIdentity().Username
+	originCluster := actx.Identity.GetIdentity().OriginClusterName
+	origErr := actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, realUsername, originCluster)
+	switch {
+	case trace.IsNotFound(origErr):
+		// If the user was not found, it may be because the session tracker
+		// was created with the .GetUser() value (remote-{user}-{cluster}).
+		// Try again with that username as a fallback.
+		// TODO(tigrato): DELETE IN 20.0.0
+		if fallbackErr := actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user, originCluster); fallbackErr != nil {
+			// Return the original error, as that is more relevant to the client.
+			return trace.Wrap(origErr)
+		}
+		return nil
+	case origErr != nil:
+		return trace.Wrap(origErr)
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 // MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
@@ -3844,6 +3878,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3858,6 +3895,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	}
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
+	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
@@ -4029,6 +4069,34 @@ func (g *GRPCServer) GetDatabases(ctx context.Context, _ *emptypb.Empty) (*types
 	return &types.DatabaseV3List{
 		Databases: databasesV3,
 	}, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (g *GRPCServer) ListDatabases(ctx context.Context, req *authpb.ListDatabasesRequest) (*authpb.ListDatabasesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, next, err := auth.ListDatabases(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListDatabasesResponse{
+		Databases:     make([]*types.DatabaseV3, 0, len(databases)),
+		NextPageToken: next,
+	}
+
+	for _, database := range databases {
+		databaseV3, ok := database.(*types.DatabaseV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported database type %T", database)
+		}
+		resp.Databases = append(resp.Databases, databaseV3)
+	}
+
+	return resp, nil
 }
 
 // DeleteDatabase removes the specified database.
@@ -5794,6 +5862,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Uploader:   cfg.AuthServer.Services,
+		KeyRotater: cfg.AuthServer.Services,
 		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
 	})
 	if err != nil {
@@ -5917,6 +5986,19 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 		summarizerv1pb.RegisterSummarizerServiceServer(server, summarizerv1.NewService())
 	}
+
+	recordingMetadataService, err := recordingmetadatav1.NewService(recordingmetadatav1.ServiceConfig{
+		Authorizer: NewSessionRecordingAuthorizer(
+			cfg.AuthServer,
+			cfg.Authorizer,
+		),
+		Streamer:        cfg.AuthServer,
+		DownloadHandler: cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating recording metadata service")
+	}
+	recordingmetadatav1pb.RegisterRecordingMetadataServiceServer(server, recordingMetadataService)
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
 		DecisionService: cfg.AuthServer.pdp,
@@ -6057,4 +6139,31 @@ func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstr
 			return trail.ToGRPC(trace.Wrap(err))
 		}
 	}
+}
+
+// ValidateTrustedCluster is called by the Proxy when a leaf cluster is
+// requesting to join.
+func (g *GRPCServer) ValidateTrustedCluster(
+	ctx context.Context,
+	req *authpb.ValidateTrustedClusterRequest,
+) (*authpb.ValidateTrustedClusterResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nativeReq := authclient.ValidateTrustedClusterRequestFromProto(req)
+	nativeResp, err := auth.ValidateTrustedCluster(ctx, nativeReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoResp, err := nativeResp.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(
+			err,
+			"converting native ValidateTrustedClusterResponse to proto representation",
+		)
+	}
+
+	return protoResp, nil
 }

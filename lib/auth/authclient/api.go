@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -48,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -277,7 +277,14 @@ type ReadProxyAccessPoint interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
 	// GetDatabases returns all database resources.
+	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -644,7 +651,14 @@ type ReadDatabaseAccessPoint interface {
 	GetProxies() ([]types.Server, error)
 
 	// GetDatabases returns all database resources.
+	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -701,14 +715,20 @@ type ReadWindowsDesktopAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
-	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	// ListWindowsDesktops returns Windows desktop hosts.
+	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 
-	// GetWindowsDesktopServices returns windows desktop hosts.
-	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+	// ListWindowsDesktopServices returns Windows desktop services.
+	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
 
-	// GetWindowsDesktopService returns a windows desktop host by name.
+	// GetWindowsDesktopService returns a Windows desktop service by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+
+	// GetDynamicWindowsDesktop gets a dynamic Windows desktop by name.
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+
+	// ListDynamicWindowsDesktops returns dynamic Windows desktops.
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 }
 
 // WindowsDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -751,7 +771,15 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
 	// GetDatabases returns all database resources.
+	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
+
 	// GetDatabase returns a database resource with the given name if it exists.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
@@ -1100,7 +1128,14 @@ type Cache interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
 	// GetDatabases returns all database resources.
+	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -1182,22 +1217,18 @@ type Cache interface {
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// ListAccessLists returns a paginated list of access lists.
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// ListAccessListsV2 returns a paginated list of access lists.
+	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 
 	// CountAccessListMembers will count all access list members.
 	CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member list.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// ListAllAccessListMembers returns a paginated list of all members of all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member record.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 
 	// ListAccessListReviews will list access list reviews for a particular access list.
@@ -1269,12 +1300,16 @@ type Cache interface {
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 
 	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
-	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
 	GetIdentityCenterAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
 
+	// ListIdentityCenterAccounts fetches a paginated list of IdentityCenter Accounts.
+	ListIdentityCenterAccounts(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Account, string, error)
 	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
 	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
+	// ListPrincipalAssignments fetches a paginated list of IdentityCenter Principal Assignments.
+	ListPrincipalAssignments(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PrincipalAssignment, string, error)
+	// ListProvisioningStatesForAllDownstreams fetches a paginated list of ProvisioningStates.
+	ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error)
 
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)

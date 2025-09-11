@@ -296,19 +296,34 @@ func crlContainerDN(domain string, caType types.CertAuthType) string {
 	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), DomainDN(domain))
 }
 
-// CRLDN computes the distinguished name for a Teleport issuer in Windows environments.
-func CRLDN(issuerID string, activeDirectoryDomain string, caType types.CertAuthType) string {
-	return "CN=" + issuerID + "," + crlContainerDN(activeDirectoryDomain, caType)
+// CRNCN computes the common name for a Teleport CRL in Windows environments.
+// The issuer SKID is optional, but should generally be set for compatibility
+// with clusters having more than one issuer (like those using HSMs).
+func CRLCN(issuerCN string, issuerSKID []byte) string {
+	name := issuerCN
+	if len(issuerSKID) > 0 {
+		id := base32.HexEncoding.EncodeToString(issuerSKID)
+		name = id + "_" + name
+	}
+	// The limit on the CN attribute should be 64 characters, but in practice
+	// we observe that certutil.exe truncates the CN as soon as it exceeds 51 characters.
+	return name[:min(len(name), 51)]
+}
+
+// CRLDN computes the distinguished name for a Teleport CRL in Windows environments.
+// The issuer SKID is optional, but should generally be set for compatibility
+// with clusters having more than one issuer (like those using HSMs).
+func CRLDN(issuerCN string, issuerSKID []byte, activeDirectoryDomain string, caType types.CertAuthType) string {
+	return "CN=" + CRLCN(issuerCN, issuerSKID) + "," + crlContainerDN(activeDirectoryDomain, caType)
 }
 
 // CRLDistributionPoint computes the CRL distribution point for certs issued.
 func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthType, issuer *tlsca.CertAuthority, includeSKID bool) string {
-	name := issuer.Cert.Subject.CommonName
+	var issuerSKID []byte
 	if includeSKID {
-		id := base32.HexEncoding.EncodeToString(issuer.Cert.SubjectKeyId)
-		name = id + "_" + name
+		issuerSKID = issuer.Cert.SubjectKeyId
 	}
-	crlDN := CRLDN(name, activeDirectoryDomain, caType)
+	crlDN := CRLDN(issuer.Cert.Subject.CommonName, issuerSKID, activeDirectoryDomain, caType)
 	return fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
 }
 
@@ -376,15 +391,16 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 			ldap.DialWithTLSConfig(ldapTLSConfig),
 		)
 
-		if err != nil {
-			// If the connection fails, try the next server
-			c.Logger.DebugContext(ctx, "Error connecting to LDAP server, trying next available server", "server", server, "error", err)
-			continue
+		if err == nil {
+			c.Logger.DebugContext(ctx, "Connected to LDAP server", "server", server)
+			conn.SetTimeout(ldapRequestTimeout)
+			return conn, nil
 		}
 
-		c.Logger.DebugContext(ctx, "Connected to LDAP server", "server", server)
-		conn.SetTimeout(ldapRequestTimeout)
-		return conn, nil
+		if c.LocateServer.Enabled {
+			// If the connection fails and we're using LocateServer, log that a server failed.
+			c.Logger.DebugContext(ctx, "Error connecting to LDAP server, trying next available server", "server", server, "error", err)
+		}
 	}
 
 	return nil, trace.NotFound("no LDAP servers responded successfully for domain %q", c.Domain)

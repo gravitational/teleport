@@ -227,9 +227,8 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("server: missing server")
 	}
 
-	if t.Term.W <= 0 || t.Term.H <= 0 ||
-		t.Term.W >= 4096 || t.Term.H >= 4096 {
-		return trace.BadParameter("term: bad dimensions(%dx%d)", t.Term.W, t.Term.H)
+	if err := t.Term.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if t.UserAuthClient == nil {
@@ -654,7 +653,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 				}
 
 				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported on the web terminal, please register a supported mfa method to connect to this server")
+					return nil, trace.Wrap(authclient.ErrNoMFADevices)
 				}
 
 				var codec protobufMFACodec

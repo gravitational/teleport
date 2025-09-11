@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"net"
@@ -106,10 +105,10 @@ func (c *ProxiedMetricConn) Close() error {
 type serverResolverFn = func(ctx context.Context, host, port string, cluster cluster) (types.Server, error)
 type windowsDesktopServiceConnectorFn = func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)
 
-// SiteGetter provides access to connected local or remote clusters.
-type SiteGetter interface {
-	// GetSite returns the cluster matching the provided clusterName
-	GetSite(clusterName string) (reversetunnelclient.Cluster, error)
+// ClusterGetter provides access to connected local or remote clusters.
+type ClusterGetter interface {
+	// Cluster returns the cluster matching the provided clusterName
+	Cluster(ctx context.Context, clusterName string) (reversetunnelclient.Cluster, error)
 }
 
 // LocalAccessPoint provides access to remote cluster resources
@@ -127,8 +126,8 @@ type RouterConfig struct {
 	ClusterName string
 	// LocalAccessPoint is the proxy cache
 	LocalAccessPoint LocalAccessPoint
-	// SiteGetter allows looking up clusters
-	SiteGetter SiteGetter
+	// ClusterGetter allows looking up clusters
+	ClusterGetter ClusterGetter
 	// TracerProvider allows tracers to be created
 	TracerProvider oteltrace.TracerProvider
 	// Log is an optional logger. A default logger will be created if not set.
@@ -150,7 +149,7 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("LocalAccessPoint must be provided")
 	}
 
-	if c.SiteGetter == nil {
+	if c.ClusterGetter == nil {
 		return trace.BadParameter("SiteGetter must be provided")
 	}
 
@@ -179,7 +178,7 @@ type Router struct {
 	clusterName                    string
 	localAccessPoint               LocalAccessPoint
 	localCluster                   reversetunnelclient.Cluster
-	siteGetter                     SiteGetter
+	clusterGetter                  ClusterGetter
 	tracer                         oteltrace.Tracer
 	log                            *slog.Logger
 	serverResolver                 serverResolverFn
@@ -193,7 +192,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	localCluster, err := cfg.SiteGetter.GetSite(cfg.ClusterName)
+	localCluster, err := cfg.ClusterGetter.Cluster(context.Background(), cfg.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,7 +201,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 		clusterName:                    cfg.ClusterName,
 		localAccessPoint:               cfg.LocalAccessPoint,
 		localCluster:                   localCluster,
-		siteGetter:                     cfg.SiteGetter,
+		clusterGetter:                  cfg.ClusterGetter,
 		tracer:                         cfg.TracerProvider.Tracer("Router"),
 		log:                            cfg.Logger,
 		serverResolver:                 cfg.serverResolver,
@@ -247,61 +246,49 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 	span.AddEvent("retrieved target server")
 
+	serverID := target.GetName() + "." + clusterName
+	hostClusterPrincipal := host + "." + clusterName
 	principals := []string{
 		host,
-		// Add in principal for when nodes are on leaf clusters.
-		host + "." + clusterName,
+		// Add in hostClusterPrincipal for when nodes are on leaf clusters.
+		hostClusterPrincipal,
 	}
 
-	var (
-		isAgentlessNode bool
-		serverID        string
-		serverAddr      string
-		proxyIDs        []string
-		sshSigner       ssh.Signer
-	)
-
-	if target != nil {
-		proxyIDs = target.GetProxyIDs()
-		serverID = fmt.Sprintf("%v.%v", target.GetName(), clusterName)
-
-		// add hostUUID.cluster to the principals
+	// add hostUUID.cluster to the principals if it's different from hostClusterPrincipal.
+	if serverID != hostClusterPrincipal {
 		principals = append(principals, serverID)
+	}
 
-		// add ip if it exists to the principals
-		serverAddr = target.GetAddr()
+	serverAddr := target.GetAddr()
+	switch {
+	case serverAddr != "":
+		h, _, err := net.SplitHostPort(serverAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-		switch {
-		case serverAddr != "":
-			h, _, err := net.SplitHostPort(serverAddr)
+		principals = append(principals, h)
+	case serverAddr == "" && target.GetUseTunnel():
+		serverAddr = reversetunnelclient.LocalNode
+	}
+
+	// If the node is a registered openssh node don't set agentGetter
+	// so a SSH user agent will not be created when connecting to the remote node.
+	var sshSigner ssh.Signer
+	if target.IsOpenSSHNode() {
+		agentGetter = nil
+
+		if target.GetSubKind() == types.SubKindOpenSSHNode {
+			// If the node is of SubKindOpenSSHNode, create the signer.
+			client, err := r.GetSiteClient(ctx, clusterName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-
-			principals = append(principals, h)
-		case serverAddr == "" && target.GetUseTunnel():
-			serverAddr = reversetunnelclient.LocalNode
-		}
-		// If the node is a registered openssh node don't set agentGetter
-		// so a SSH user agent will not be created when connecting to the remote node.
-		if target.IsOpenSSHNode() {
-			agentGetter = nil
-			isAgentlessNode = true
-
-			if target.GetSubKind() == types.SubKindOpenSSHNode {
-				// If the node is of SubKindOpenSSHNode, create the signer.
-				client, err := r.GetSiteClient(ctx, clusterName)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				sshSigner, err = signer(ctx, r.localAccessPoint, client)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
+			sshSigner, err = signer(ctx, r.localAccessPoint, client)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 		}
-	} else {
-		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
 
 	conn, err := cluster.Dial(reversetunnelclient.DialParams{
@@ -309,12 +296,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
-		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
 		Principals:            apiutils.Deduplicate(principals),
 		ServerID:              serverID,
-		ProxyIDs:              proxyIDs,
+		ProxyIDs:              target.GetProxyIDs(),
 		ConnType:              types.NodeTunnel,
 		TargetServer:          target,
 	})
@@ -359,7 +345,7 @@ func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDs
 	serviceConn, _, err := r.windowsDesktopServiceConnector(ctx, &desktop.ConnectionConfig{
 		Log:            r.log,
 		DesktopsGetter: accessPoint,
-		Site:           cluster,
+		Cluster:        cluster,
 		ClientSrcAddr:  clientSrcAddr,
 		ClientDstAddr:  clientDstAddr,
 		ClusterName:    clusterName,
@@ -424,7 +410,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, clust
 	)
 	defer span.End()
 
-	cluster, err := r.siteGetter.GetSite(clusterName)
+	cluster, err := r.clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
@@ -567,33 +553,37 @@ func getServerWithResolver(ctx context.Context, host, port string, cluster clust
 		matches = filtered
 	}
 
-	var server types.Server
 	switch {
-	case strategy == types.RoutingStrategy_MOST_RECENT:
-		for _, m := range matches {
-			if server == nil || m.Expiry().After(server.Expiry()) {
-				server = m
-			}
-		}
+	case len(matches) == 1:
+		return matches[0], nil
+
 	case len(matches) > 1:
 		// TODO(tross) DELETE IN V20.0.0
 		// NodeIsAmbiguous is included in the error message for backwards compatibility
 		// with older nodes that expect to see that string in the error message.
-		return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous, teleport.NodeIsAmbiguous)
-	case len(matches) == 1:
-		server = matches[0]
-	}
-
-	if routeMatcher.MatchesServerIDs() && server == nil {
-		idType := "UUID"
-		if aws.IsEC2NodeID(host) {
-			idType = "EC2"
+		if strategy != types.RoutingStrategy_MOST_RECENT {
+			return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous, teleport.NodeIsAmbiguous)
 		}
 
-		return nil, trace.NotFound("unable to locate node matching %s-like target %s", idType, host)
-	}
+		var recentServer types.Server
+		for _, m := range matches {
+			if recentServer == nil || m.Expiry().After(recentServer.Expiry()) {
+				recentServer = m
+			}
+		}
+		return recentServer, nil
 
-	return server, nil
+	default: // no matches
+		if routeMatcher.MatchesServerIDs() {
+			idType := "UUID"
+			if aws.IsEC2NodeID(host) {
+				idType = "EC2"
+			}
+			return nil, trace.NotFound("unable to locate node matching %s-like target %s", idType, host)
+		}
+
+		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+	}
 }
 
 // DialSite establishes a connection to the auth server in the provided
@@ -621,7 +611,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 	}
 
 	// lookup the cluster and dial its auth server
-	cluster, err := r.siteGetter.GetSite(clusterName)
+	cluster, err := r.clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -640,7 +630,7 @@ func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (authcli
 		return r.localCluster.GetClient()
 	}
 
-	cluster, err := r.siteGetter.GetSite(clusterName)
+	cluster, err := r.clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

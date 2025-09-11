@@ -351,10 +351,8 @@ func TestTerminalSizeRequest(t *testing.T) {
 		// initiating the client request for the window size to prevent flakiness.
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			size, err := f.ssh.srv.termHandlers.SessionRegistry.GetTerminalSize(sessionID)
-			if assert.NoError(t, err) {
-				return
-			}
-			assert.Empty(t, cmp.Diff(expectedSize, size, cmp.AllowUnexported(term.Winsize{})))
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expectedSize, *size, cmp.AllowUnexported(term.Winsize{})))
 		}, 10*time.Second, 100*time.Millisecond)
 
 		// Send a request for the window size now that we know the window change
@@ -1823,7 +1821,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -1969,7 +1967,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -2667,7 +2665,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
 			ClusterName:      f.testSrv.ClusterName(),
 			LocalAccessPoint: proxyClient,
-			SiteGetter:       reverseTunnelServer,
+			ClusterGetter:    reverseTunnelServer,
 			TracerProvider:   tracing.NoopProvider(),
 		})
 		require.NoError(t, err)
@@ -2933,7 +2931,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -3375,7 +3373,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
 		LocalAccessPoint: proxyClient,
-		SiteGetter:       reverseTunnelServer,
+		ClusterGetter:    reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)

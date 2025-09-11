@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
@@ -88,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -867,6 +867,84 @@ func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
 
 	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
 	require.JSONEq(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
+}
+
+func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	// Set up a user with the necessary roles to access the AWS App.
+	username := "aws-access-user"
+	roleARN := "arn:aws:iam::123456789012:role/MyRole"
+	awsAccessRole, err := authtest.CreateRole(ctx, srv.Auth(), "aws-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			AWSRoleARNs: []string{roleARN},
+		},
+	})
+	require.NoError(t, err)
+
+	awsOIDCIntegration := "aws-oidc-integration"
+	ig, err := types.NewIntegrationAWSOIDC(types.Metadata{Name: awsOIDCIntegration}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "arn:aws:iam::123456789012:role/MyRole",
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	// Set up a new AWS App created from a Roles Anywhere Profile.
+	appName := "my-aws-access-using-awsoidc"
+	app, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.NewString(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: appName},
+				Spec: types.AppSpecV3{
+					URI:         constants.AWSConsoleURL,
+					Integration: awsOIDCIntegration,
+					PublicAddr:  "my-app.example.com",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), username, awsAccessRole)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Create credentials for the AWS App
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	pub, err := keys.MarshalPublicKey(priv.Public())
+	require.NoError(t, err)
+
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       appName,
+			AWSRoleARN: roleARN,
+		},
+	})
+	require.NoError(t, err)
+
+	// Parse the Identity and check the AWS Role ARN and credentials.
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
+	require.Empty(t, identity.RouteToApp.AWSCredentialProcessCredentials)
 }
 
 func TestSSODiagnosticInfo(t *testing.T) {
@@ -2675,7 +2753,7 @@ func serverWithAllowRules(t *testing.T, srv *authtest.AuthServer, allowRules []t
 	_, err = srv.AuthServer.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
+	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username, Groups: []string{role.GetName()}}}
 	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer.Services, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
 	authContext.AdminActionAuthState = authz.AdminActionAuthMFAVerified
@@ -2786,10 +2864,32 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	dbs, next, err := devClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should see both.
 	dbs, err = adminClt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	dbs, next, err = adminClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// With limit, next should be dev
+	dbs, next, err = adminClt.ListDatabases(ctx, 1, "")
+	require.NoError(t, err)
+	require.Equal(t, devDatabase.GetName(), next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase}, dbs,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -2881,6 +2981,14 @@ func mustGetDatabases(t *testing.T, client *authclient.Client, wantDatabases []t
 	t.Helper()
 
 	actualDatabases, err := client.GetDatabases(context.Background())
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
+	))
+
+	actualDatabases, err = stream.Collect(client.RangeDatabases(t.Context(), "", ""))
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
@@ -3585,7 +3693,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	user, _, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
+	user, role, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
 	require.NoError(t, err)
 
 	targetCluster := "cluster"
@@ -3596,7 +3704,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	}{
 		{
 			desc:     "users may not replace remote locks",
-			identity: authtest.TestUser(user.GetName()),
+			identity: authtest.TestUserWithRoles(user.GetName(), []string{role.GetName()}),
 			checkErr: trace.IsAccessDenied,
 		},
 		{
@@ -3826,7 +3934,7 @@ func TestKindClusterConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
-		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUser(user.GetName()).I))
+		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I))
 		require.NoError(t, err, trace.DebugReport(err))
 		s := auth.NewServerWithRoles(
 			srv.AuthServer,
@@ -3840,7 +3948,9 @@ func TestKindClusterConfig(t *testing.T) {
 	}
 
 	t.Run("without KindClusterConfig privilege", func(t *testing.T) {
-		user, err := authtest.CreateUser(ctx, srv.AuthServer, "test-user")
+		role, err := types.NewRole("test-role", types.RoleSpecV6{})
+		require.NoError(t, err)
+		user, err := authtest.CreateUser(ctx, srv.AuthServer, "test-user", role)
 		require.NoError(t, err)
 		for _, err := range getClusterConfigResources(ctx, user) {
 			require.Error(t, err)
@@ -4752,7 +4862,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	testUg2 := createUserGroup(t, srv.AuthServer, "a", map[string]string{"label": "value"})
 	testUg3 := createUserGroup(t, srv.AuthServer, "b", map[string]string{"label": "value"})
 
-	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUser(user.GetName()).I))
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), []string{role.GetName()}).I))
 	require.NoError(t, err)
 
 	s := auth.NewServerWithRoles(
@@ -5943,6 +6053,9 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		require.NoError(t, err)
 		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 		require.NoError(t, err)
+
+		createTestAppServerV3(t, srv.Auth(), name, nil)
+		createTestMCPAppServer(t, srv.Auth(), "mcp-"+name, nil)
 	}
 
 	// create user and client
@@ -5975,6 +6088,21 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		Limit: 5,
 	})
 	require.NoError(t, err, "sort field is not required")
+
+	t.Run("KindApp", func(t *testing.T) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindApp},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 10) // 5 app + 5 mcp server
+	})
+	t.Run("KindMCP", func(t *testing.T) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindMCP},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 5)
+	})
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -6373,21 +6501,19 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 	withMatchingAccountAssignment := withAccountAssignment(types.Allow,
 		validAccountID, validPermissionSetARN)
 
-	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test-account",
-				Labels: map[string]string{
-					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-				},
+	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "test-account",
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:   validAccountID,
-				Arn:  "some:account:arn",
-				Name: "Test Account",
-			},
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:   validAccountID,
+			Arn:  "some:account:arn",
+			Name: "Test Account",
 		},
 	})
 	require.NoError(t, err)
@@ -6398,8 +6524,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 
 	inlineEventually(t,
 		func() bool {
-			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(accounts) == 1
 		},
@@ -8691,6 +8816,9 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
+	_, err = authtest.CreateRole(ctx, srv.AuthServer.Services, "rolename", types.RoleSpecV6{})
+	require.NoError(t, err)
+
 	// Create a test user.
 	_, err = authtest.CreateUser(ctx, srv.AuthServer.Services, "username")
 	require.NoError(t, err)
@@ -8707,7 +8835,7 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 		},
 		{
 			desc:      "User",
-			identity:  authtest.TestUser("username"),
+			identity:  authtest.TestUserWithRoles("username", []string{"rolename"}),
 			assertErr: require.NoError,
 		},
 		{
@@ -10372,26 +10500,23 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		},
 	}
 
-	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx,
-		services.IdentityCenterAccount{
-			Account: &identitycenterv1.Account{
-				Kind:    types.KindIdentityCenterAccount,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: accountID,
-					Labels: map[string]string{
-						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-					},
-				},
-				Spec: &identitycenterv1.AccountSpec{
-					Id:                accountID,
-					Arn:               "aws:arn:test:account",
-					Name:              "Test Account",
-					Description:       "An account for testing",
-					PermissionSetInfo: permissionSets,
-				},
+	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: accountID,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-		})
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:                accountID,
+			Arn:               "aws:arn:test:account",
+			Name:              "Test Account",
+			Description:       "An account for testing",
+			PermissionSetInfo: permissionSets,
+		},
+	})
 	require.NoError(t, err)
 
 	// GIVEN a role that allows access to all permission sets on the target
@@ -10420,8 +10545,7 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 	// EXPECT that the IC Account has made it to the cache
 	inlineEventually(t,
 		func() bool {
-			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(testAssignments) == 1
 		},
@@ -10626,8 +10750,6 @@ func TestValidateOracleJoinToken(t *testing.T) {
 
 func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
 	t.Helper()
-	ctx := t.Context()
-
 	app, err := types.NewAppV3(
 		types.Metadata{
 			Name:   name,
@@ -10638,10 +10760,15 @@ func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels 
 		},
 	)
 	require.NoError(t, err)
+	return createTestAppServerFromApp(t, auth, app)
+}
+
+func createTestAppServerFromApp(t *testing.T, auth *auth.Server, app *types.AppV3) *types.AppServerV3 {
+	t.Helper()
 	appServer, err := types.NewAppServerV3(
 		types.Metadata{
-			Name:   name,
-			Labels: labels,
+			Name:   app.GetName(),
+			Labels: app.GetAllLabels(),
 		},
 		types.AppServerSpecV3{
 			HostID: "test-host-id",
@@ -10650,10 +10777,28 @@ func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels 
 	)
 	require.NoError(t, err)
 
-	_, err = auth.UpsertApplicationServer(ctx, appServer)
+	_, err = auth.UpsertApplicationServer(t.Context(), appServer)
 	require.NoError(t, err, "upserting test Application Server")
 
 	return appServer
+}
+
+func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
+	t.Helper()
+	mcp, err := types.NewAppV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppSpecV3{
+			MCP: &types.MCP{
+				Command:       "test",
+				RunAsHostUser: "test",
+			},
+		},
+	)
+	require.NoError(t, err)
+	return createTestAppServerFromApp(t, auth, mcp)
 }
 
 func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {

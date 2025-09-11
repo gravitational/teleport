@@ -1633,6 +1633,22 @@ message ListAppsResponse {
   string next_key = 2;
 }
 
+message ListDatabasesRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListDatabasesResponse {
+  // a list of databases.
+  repeated types.DatabaseV3 databases = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
 message GetWindowsDesktopServicesResponse {
   // Services is a list of Windows desktop services.
@@ -2744,6 +2760,27 @@ message ListProvisionTokensResponse {
   string NextKey = 2;
 }
 
+// ValidateTrustedClusterRequest is the request for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterRequest {
+  // Token is the join token to use to join.
+  string Token = 1;
+  // CertAuthorities are the certificate authorities submitted from the leaf to
+  // the root as part of the join process.
+  repeated types.CertAuthorityV2 CertAuthorities = 2;
+  // TeleportVersion is the version of Teleport that the leaf cluster is
+  // running.
+  string TeleportVersion = 3;
+}
+
+// ValidateTrustedClusterResponse is the response for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterResponse {
+  // CertAuthorities are the certificate authorities of the root cluster that
+  // should be trusted by the leaf cluster.
+  repeated types.CertAuthorityV2 CertAuthorities = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2844,6 +2881,8 @@ service AuthService {
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
   // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+  // GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+  rpc GetRemoteAccessCapabilities(types.RemoteAccessCapabilitiesRequest) returns (types.RemoteAccessCapabilities);
 
   // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
   rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);
@@ -3338,7 +3377,11 @@ service AuthService {
   rpc DeleteAllApps(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetDatabases returns all registered databases.
-  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
+  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List) {
+    option deprecated = true;
+  }
+  // ListDatabases returns a page of registered databases.
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
   // GetDatabase returns a database by name.
   rpc GetDatabase(types.ResourceRequest) returns (types.DatabaseV3);
   // CreateDatabase creates a new database resource.
@@ -3584,4 +3627,9 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
+  // by the proxy on behalf of a cluster that wishes to join to this one as a
+  // leaf cluster.
+  rpc ValidateTrustedCluster(ValidateTrustedClusterRequest) returns (ValidateTrustedClusterResponse);
 }

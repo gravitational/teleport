@@ -382,10 +382,12 @@ func TestGetServers(t *testing.T) {
 		serverAssertion func(t *testing.T, srv types.Server)
 	}{
 		{
-			name:         "no matches for hostname",
-			site:         testSite{cfg: &unambiguousCfg},
-			host:         "test",
-			errAssertion: require.NoError,
+			name: "no matches for hostname",
+			site: testSite{cfg: &unambiguousCfg},
+			host: "test",
+			errAssertion: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsConnectionProblem(err), "Expected connection error but got %v", err)
+			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
 			},
@@ -627,14 +629,13 @@ func TestCheckedPrefixWriter(t *testing.T) {
 	})
 }
 
-type fakeTunnel struct {
-	reversetunnelclient.Tunnel
-
+type fakeClusterGetter struct {
+	ClusterGetter
 	cluster reversetunnelclient.Cluster
 	err     error
 }
 
-func (t fakeTunnel) GetSite(cluster string) (reversetunnelclient.Cluster, error) {
+func (t fakeClusterGetter) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
 	return t.cluster, t.err
 }
 
@@ -662,14 +663,6 @@ func (r testRemoteSite) GetClient() (authclient.ClientI, error) {
 
 func (r testRemoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return nil, nil
-}
-
-type fakeSiteGetter struct {
-	cluster reversetunnelclient.Cluster
-}
-
-func (s fakeSiteGetter) GetSite(clusterName string) (reversetunnelclient.Cluster, error) {
-	return s.cluster, nil
 }
 
 type fakeConn struct {
@@ -747,9 +740,9 @@ func TestRouter_DialHost(t *testing.T) {
 		{
 			name: "failure looking up cluster",
 			router: Router{
-				clusterName: "leaf",
-				siteGetter:  fakeTunnel{err: trace.NotFound("unknown cluster")},
-				tracer:      tracing.NoopTracer("test"),
+				clusterName:   "leaf",
+				clusterGetter: fakeClusterGetter{err: trace.NotFound("unknown cluster")},
+				tracer:        tracing.NoopTracer("test"),
 			},
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -794,7 +787,7 @@ func TestRouter_DialHost(t *testing.T) {
 			router: Router{
 				clusterName:    "test",
 				localCluster:   &testRemoteSite{conn: fakeConn{}},
-				siteGetter:     &fakeSiteGetter{cluster: &testRemoteSite{conn: fakeConn{}}},
+				clusterGetter:  &fakeClusterGetter{cluster: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(agentlessSrv, nil),
 			},
@@ -803,7 +796,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessSrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.NotNil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 				require.Contains(t, params.Principals, "host")
 				require.Contains(t, params.Principals, "host.test")
@@ -814,7 +806,7 @@ func TestRouter_DialHost(t *testing.T) {
 			router: Router{
 				clusterName:    "test",
 				localCluster:   &testRemoteSite{conn: fakeConn{}},
-				siteGetter:     &fakeSiteGetter{cluster: &testRemoteSite{conn: fakeConn{}}},
+				clusterGetter:  &fakeClusterGetter{cluster: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(agentlessEC2ICESrv, nil),
 			},
@@ -823,7 +815,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.Nil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},
@@ -854,7 +845,7 @@ func TestRouter_DialSite(t *testing.T) {
 		name      string
 		cluster   string
 		localSite testRemoteSite
-		tunnel    fakeTunnel
+		tunnel    fakeClusterGetter
 		assertion func(t *testing.T, conn net.Conn, err error)
 	}{
 		{
@@ -888,7 +879,7 @@ func TestRouter_DialSite(t *testing.T) {
 		{
 			name:    "failure to dial remote site",
 			cluster: "leaf",
-			tunnel: fakeTunnel{
+			tunnel: fakeClusterGetter{
 				cluster: &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
@@ -900,7 +891,7 @@ func TestRouter_DialSite(t *testing.T) {
 		{
 			name:    "unknown cluster",
 			cluster: "fake",
-			tunnel: fakeTunnel{
+			tunnel: fakeClusterGetter{
 				err: trace.NotFound("unknown cluster"),
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
@@ -912,7 +903,7 @@ func TestRouter_DialSite(t *testing.T) {
 		{
 			name:    "successfully  dial remote site",
 			cluster: "leaf",
-			tunnel: fakeTunnel{
+			tunnel: fakeClusterGetter{
 				cluster: &testRemoteSite{conn: fakeConn{}},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
@@ -927,10 +918,10 @@ func TestRouter_DialSite(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			router := Router{
-				clusterName:  cluster,
-				localCluster: &tt.localSite,
-				siteGetter:   tt.tunnel,
-				tracer:       tracing.NoopTracer(cluster),
+				clusterName:   cluster,
+				localCluster:  &tt.localSite,
+				clusterGetter: tt.tunnel,
+				tracer:        tracing.NoopTracer(cluster),
 			}
 
 			conn, err := router.DialSite(ctx, tt.cluster, nil, nil)
@@ -950,9 +941,9 @@ func TestRouter_DialWindowsDesktop(t *testing.T) {
 		{
 			name: "failure looking up cluster",
 			router: Router{
-				clusterName: "leaf",
-				siteGetter:  fakeTunnel{err: trace.NotFound("unknown cluster")},
-				tracer:      tracing.NoopTracer("test"),
+				clusterName:   "leaf",
+				clusterGetter: fakeClusterGetter{err: trace.NotFound("unknown cluster")},
+				tracer:        tracing.NoopTracer("test"),
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.Error(t, err)

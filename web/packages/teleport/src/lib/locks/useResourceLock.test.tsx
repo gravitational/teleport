@@ -143,6 +143,44 @@ describe('useResourceLock', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.locks).toHaveLength(2);
     expect(result.current.isLocked).toBe(true);
+    expect(result.current.canUnlock).toBe(true);
+  });
+
+  it('handles lock with other targets', async () => {
+    withListLocksSuccess({
+      locks: [
+        {
+          name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+          message: 'This is a test message',
+          expires: '2023-12-31T23:59:59Z',
+          targets: {
+            user: 'test-user',
+            role: 'test-role', // This target means the lock cannot be removed.
+          },
+          createdAt: '2023-01-01T00:00:00Z',
+          createdBy: 'admin',
+        },
+      ],
+    });
+
+    const { result } = renderHook(
+      () =>
+        useResourceLock({
+          targetKind: 'user',
+          targetName: 'test-user',
+        }),
+      {
+        wrapper: makeWrapper(),
+      }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.locks).toHaveLength(1);
+    expect(result.current.isLocked).toBe(true);
     expect(result.current.canUnlock).toBe(false);
   });
 
@@ -234,7 +272,10 @@ describe('useResourceLock', () => {
     });
 
     expect(result.current.canUnlock).toBe(false);
-    await result.current.unlock();
+
+    await expect(result.current.unlock).rejects.toEqual(
+      new Error('missing permission to remove locks')
+    );
 
     expect(result.current.locks).toHaveLength(1);
   });
@@ -268,7 +309,9 @@ describe('useResourceLock', () => {
     });
 
     expect(result.current.canLock).toBe(false);
-    await result.current.lock('', '');
+    await expect(() => result.current.lock('', '')).rejects.toEqual(
+      new Error('missing permission to create locks')
+    );
 
     expect(result.current.locks).toHaveLength(0);
   });
@@ -328,16 +371,5 @@ function withUnlockSuccess() {
 }
 
 function withLockSuccess() {
-  server.use(
-    createLockSuccess({
-      name: '0aac8a56-5ce0-427a-90ad-5a6973c1216e',
-      message: 'This is a test message',
-      expires: '2023-12-31T23:59:59Z',
-      targets: {
-        user: 'test-user',
-      },
-      createdAt: '2023-01-01T00:00:00Z',
-      createdBy: 'admin',
-    })
-  );
+  server.use(createLockSuccess());
 }

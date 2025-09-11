@@ -350,6 +350,27 @@ func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) 
 	}, nil
 }
 
+// NewAccessCheckerForUserSession is an alternative to NewAccessChecker that includes a UserSessionRoleNotFoundErrorMsg if
+// a role from the user's session is not found during the access check. This allows the Web UI to distinguish between
+// a user session role lookup error (which should prompt the user to re-login) vs. other role lookup
+// failures.
+func NewAccessCheckerForUserSession(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
+	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// Add the UserSessionRoleNotFoundErrorMsg message to indicate this role not found error was encountered fetching
+			// the user's session roles. This can only happen if the user's session certificate contains a role that no longer exists.
+			return nil, trace.Wrap(err, UserSessionRoleNotFoundErrorMsg)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return &accessChecker{
+		info:         info,
+		localCluster: localCluster,
+		RoleSet:      roleSet,
+	}, nil
+}
+
 // NewAccessCheckerWithRoleSet is similar to NewAccessChecker, but accepts the
 // full RoleSet rather than a RoleGetter.
 func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet RoleSet) AccessChecker {
@@ -1139,7 +1160,10 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 		}
 	}
 
-	return groups.Elements(), nil
+	// These groups get encoded into a certificate that's parsed by
+	// Rust code on Windows. That code expects an empty JSON array,
+	// not a null value.
+	return groups.ElementsNotNil(), nil
 }
 
 func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode {
@@ -1362,35 +1386,15 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 // AccessInfoFromLocalTLSIdentity returns a new AccessInfo populated from the given
 // tlsca.Identity. Should only be used for cluster local users as roles will not
 // be mapped.
-func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity, access UserGetter) (*AccessInfo, error) {
-	roles := identity.Groups
-	traits := identity.Traits
-
-	// Legacy certs are not encoded with roles or traits,
-	// so we fallback to the traits and roles in the backend.
-	// empty traits are a valid use case in standard certs,
-	// so we only check for whether roles are empty.
+func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error) {
 	if len(identity.Groups) == 0 {
-		if access == nil {
-			return nil, trace.BadParameter("UserGetter not provided")
-		}
-		u, err := access.GetUser(context.TODO(), identity.Username, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		const msg = "Failed to find roles in x509 identity. Fetching " +
-			"from backend. If the identity provider allows username changes, this can " +
-			"potentially allow an attacker to change the role of the existing user."
-		slog.WarnContext(context.Background(), msg, "username", identity.Username)
-		roles = u.GetRoles()
-		traits = u.GetTraits()
+		return nil, trace.BadParameter("tls identity %q does not encode any roles, this may indicate a malformed certificate or one that was issued by an incompatible teleport version", identity.Username)
 	}
 
 	return &AccessInfo{
 		Username:           identity.Username,
-		Roles:              roles,
-		Traits:             traits,
+		Roles:              identity.Groups,
+		Traits:             identity.Traits,
 		AllowedResourceIDs: identity.AllowedResourceIDs,
 	}, nil
 }

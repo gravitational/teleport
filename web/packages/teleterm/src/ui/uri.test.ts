@@ -89,9 +89,7 @@ describe('getKubeResourceNamespaceUri', () => {
     },
   ];
 
-  /* eslint-disable jest/no-conditional-expect */
   test.each(tests)('$name', ({ input, output }) => {
     expect(routing.getKubeResourceNamespaceUri(input)).toEqual(output);
   });
-  /* eslint-enable jest/no-conditional-expect */
 });

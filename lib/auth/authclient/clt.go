@@ -49,9 +49,11 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -83,7 +85,7 @@ var (
 	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 	// complete the challenge with.
 	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "MFA is required to access this resource but user has no MFA devices; see Account Settings in the Web UI or use 'tsh mfa add' to register MFA devices",
+		Message: "Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device",
 	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
@@ -574,7 +576,7 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
+func (c *Client) UpdatePresence(ctx context.Context, _, _, _ string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1217,6 +1219,41 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	}, nil
 }
 
+func (v *ValidateTrustedClusterRequest) ToProto() (*proto.ValidateTrustedClusterRequest, error) {
+	// Convert from interface type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+
+	return &proto.ValidateTrustedClusterRequest{
+		Token:           v.Token,
+		TeleportVersion: v.TeleportVersion,
+		CertAuthorities: cas,
+	}, nil
+}
+
+func ValidateTrustedClusterRequestFromProto(
+	req *proto.ValidateTrustedClusterRequest,
+) *ValidateTrustedClusterRequest {
+	cas := make([]types.CertAuthority, 0, len(req.CertAuthorities))
+	for _, certAuthority := range req.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterRequest{
+		Token:           req.Token,
+		CAs:             cas,
+		TeleportVersion: req.TeleportVersion,
+	}
+}
+
 type ValidateTrustedClusterRequestRaw struct {
 	Token           string   `json:"token"`
 	CAs             [][]byte `json:"certificate_authorities"`
@@ -1261,6 +1298,39 @@ func (v *ValidateTrustedClusterResponse) ToRaw() (*ValidateTrustedClusterRespons
 	return &ValidateTrustedClusterResponseRaw{
 		CAs: cas,
 	}, nil
+}
+
+// ToProto converts ValidateTrustedClusterResponse to its proto representation.
+func (v *ValidateTrustedClusterResponse) ToProto() (*proto.ValidateTrustedClusterResponse, error) {
+	// Cast interface to underlying type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+	return &proto.ValidateTrustedClusterResponse{
+		CertAuthorities: cas,
+	}, nil
+}
+
+// ValidateTrustedClusterResponseFromProto converts the proto representation of
+// ValidateTrustedClusterResponse to its native representation.
+func ValidateTrustedClusterResponseFromProto(
+	resp *proto.ValidateTrustedClusterResponse,
+) *ValidateTrustedClusterResponse {
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthorities))
+	for _, certAuthority := range resp.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterResponse{
+		CAs: cas,
+	}
 }
 
 type ValidateTrustedClusterResponseRaw struct {
@@ -1482,6 +1552,8 @@ type ClientI interface {
 	types.WebTokensGetter
 
 	DynamicDesktopClient() *dynamicwindows.Client
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
@@ -1778,4 +1850,12 @@ type ClientI interface {
 
 	// ListRequestableRoles is a paginated requestable role getter.
 	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
+
+	// RecordingMetadataServiceClient returns a client for the session recording
+	// metadata service.
+	RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient
+
+	// SummarizerServiceClient returns a client for the session recording
+	// summarizer service.
+	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
 }

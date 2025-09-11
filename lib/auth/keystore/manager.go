@@ -30,6 +30,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"io"
 	"log/slog"
 	"math/big"
@@ -434,6 +435,35 @@ func sshSignerFromCryptoSigner(cryptoSigner crypto.Signer) (ssh.Signer, error) {
 	}
 }
 
+var ErrUnusableKey = errors.New("unable to sign with requested key")
+
+// TLSSigner returns a crypto.Signer for the given TLSKeyPair.
+// It returns ErrUnusableKey if unable to create a signer from the given keypair,
+// e.g. if it is stored in an HSM or KMS this auth service is not configured to use.
+func (m *Manager) TLSSigner(ctx context.Context, keypair *types.TLSKeyPair) (crypto.Signer, error) {
+	for _, backend := range m.usableBackends {
+		canUse, err := backend.canUseKey(ctx, keypair.Key, keypair.KeyType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !canUse {
+			continue
+		}
+		pub, err := publicKeyFromTLSCertPem(keypair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signer, err := backend.getSigner(ctx, keypair.Key, pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: backend.name()}, nil
+	}
+
+	return nil, ErrUnusableKey
+}
+
 // GetTLSCertAndSigner selects a usable TLS keypair from the given CA
 // and returns the PEM-encoded TLS certificate and a [crypto.Signer].
 func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {
@@ -528,7 +558,7 @@ func (m *Manager) GetDecrypter(ctx context.Context, keyPair *types.EncryptionKey
 		if !canUse {
 			continue
 		}
-		pub, err := keys.ParsePublicKey(keyPair.PublicKey)
+		pub, err := x509.ParsePKIXPublicKey(keyPair.PublicKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -731,7 +761,7 @@ func (m *Manager) newEncryptionKeyPair(ctx context.Context, alg cryptosuites.Alg
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	publicKey, err := keys.MarshalPublicKey(decrypter.Public())
+	publicKey, err := x509.MarshalPKIXPublicKey(decrypter.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

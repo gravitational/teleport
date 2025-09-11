@@ -41,7 +41,6 @@ export const Empty = () => {
 export const List = () => {
   return (
     <BotList
-      attempt={{ status: '' }}
       bots={botsFixture}
       disabledEdit={false}
       disabledDelete={false}

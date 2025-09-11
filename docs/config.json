@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.28.0"
+      "version": "1.28.1"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -17,8 +17,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.5.6",
-      "major_version": "17",
+      "version": "18.1.4",
+      "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -65,7 +65,6 @@
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "teleport": {
-      "git": "api/14.0.0-gd1e081e",
       "major_version": "19",
       "version": "19.0.0-dev",
       "url": "teleport.example.com",
@@ -97,7 +96,7 @@
   "redirects": [
     {
       "source": "/admin-guides/access-controls/guides/moderated-sessions/",
-      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/authentication/joining-sessions/",
       "permanent": true
     },
     {
@@ -172,7 +171,7 @@
     },
     {
       "source": "/access-controls/guides/role-templates/",
-      "destination": "/zero-trust-access/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/rbac-get-started/role-templates/",
       "permanent": true
     },
     {
@@ -182,7 +181,7 @@
     },
     {
       "source": "/access-controls/guides/headless/",
-      "destination": "/zero-trust-access/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/authentication/headless/",
       "permanent": true
     },
     {
@@ -208,6 +207,11 @@
     {
       "source": "/kubernetes-access/",
       "destination": "/enroll-resources/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-ssh/",
+      "destination": "/enroll-resources/kubernetes-access/controls/",
       "permanent": true
     },
     {
@@ -248,6 +252,11 @@
     {
       "source": "/upgrading/automatic-agent-updates/",
       "destination": "/upgrading/agent-managed-updates-v1/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/upgrading-reference/",
+      "destination": "/upgrading/upgrading-manual/",
       "permanent": true
     },
     {
@@ -745,6 +754,16 @@
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
     },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/",
+      "destination": "/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+        {
+      "source": "/machine-workload-identity/mwi-use-cases/mwi-ci-cd/",
+      "destination": "/machine-workload-identity/mwi-ci-cd/",
+      "permanent": true
+    },
     {
       "source": "/admin-guides/deploy-a-cluster/access-graph/",
       "destination": "/identity-security/access-graph/",
@@ -822,12 +841,22 @@
     },
     {
       "source": "/admin-guides/teleport-policy/policy-how-to-use/",
-      "destination": "/identity-security/policy-how-to-use/",
+      "destination": "/identity-security/how-to-use/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/policy-how-to-use/",
+      "destination": "/identity-security/how-to-use/",
       "permanent": true
     },
     {
       "source": "/admin-guides/teleport-policy/",
-      "destination": "/identity-security/teleport-policy/",
+      "destination": "/identity-security/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/teleport-policy/",
+      "destination": "/identity-security/",
       "permanent": true
     },
     {
@@ -857,7 +886,7 @@
     },
     {
       "source": "/admin-guides/access-controls/sso/azuread/",
-      "destination": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     },
     {
@@ -1057,72 +1086,72 @@
     },
     {
       "source": "/admin-guides/access-controls/",
-      "destination": "/zero-trust-access/access-controls/",
+      "destination": "/zero-trust-access/authentication/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/getting-started/",
-      "destination": "/zero-trust-access/access-controls/getting-started/",
+      "destination": "/zero-trust-access/rbac-get-started/role-demo/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/dual-authz/",
-      "destination": "/zero-trust-access/access-controls/guides/dual-authz/",
+      "destination": "/identity-governance/access-requests/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/",
-      "destination": "/zero-trust-access/access-controls/guides/",
+      "destination": "/zero-trust-access/authentication/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/hardware-key-support/",
-      "destination": "/zero-trust-access/access-controls/guides/hardware-key-support/",
+      "destination": "/zero-trust-access/authentication/hardware-key-support/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/headless/",
-      "destination": "/zero-trust-access/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/authentication/headless/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/impersonation/",
-      "destination": "/zero-trust-access/access-controls/guides/impersonation/",
+      "destination": "/zero-trust-access/authentication/impersonation/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/ip-pinning/",
-      "destination": "/zero-trust-access/access-controls/guides/ip-pinning/",
+      "destination": "/zero-trust-access/authentication/ip-pinning/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/joining-sessions/",
-      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/authentication/joining-sessions/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/mfa-for-admin-actions/",
-      "destination": "/zero-trust-access/access-controls/guides/mfa-for-admin-actions/",
+      "destination": "/zero-trust-access/authentication/mfa-for-admin-actions/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/passwordless/",
-      "destination": "/zero-trust-access/access-controls/guides/passwordless/",
+      "destination": "/zero-trust-access/authentication/passwordless/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/per-session-mfa/",
-      "destination": "/zero-trust-access/access-controls/guides/per-session-mfa/",
+      "destination": "/zero-trust-access/authentication/per-session-mfa/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/role-templates/",
-      "destination": "/zero-trust-access/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/rbac-get-started/role-templates/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/guides/webauthn/",
-      "destination": "/zero-trust-access/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/authentication/webauthn/",
       "permanent": true
     },
     {
@@ -1152,12 +1181,12 @@
     },
     {
       "source": "/admin-guides/access-controls/login-rules/guide/",
-      "destination": "/zero-trust-access/access-controls/login-rules/guide/",
+      "destination": "/zero-trust-access/authentication/login-rules/guide/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/login-rules/",
-      "destination": "/zero-trust-access/access-controls/login-rules/",
+      "destination": "/zero-trust-access/authentication/login-rules/",
       "permanent": true
     },
     {
@@ -1292,7 +1321,7 @@
     },
     {
       "source": "/admin-guides/management/admin/labels/",
-      "destination": "/zero-trust-access/management/admin/labels/",
+      "destination": "/zero-trust-access/rbac-get-started/labels/",
       "permanent": true
     },
     {
@@ -1402,17 +1431,17 @@
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/",
-      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/",
+      "destination": "/identity-governance/aws-iam-identity-center/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
-      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/guide/",
+      "destination": "/identity-governance/aws-iam-identity-center/guide/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
-      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "destination": "/identity-governance/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
       "permanent": true
     },
     {
@@ -1507,7 +1536,7 @@
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/using-aws-cli/",
-      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/using-aws-cli/",
+      "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
       "permanent": true
     },
     {
@@ -1543,6 +1572,116 @@
     {
       "source": "/admin-guides/migrate-plans/",
       "destination": "/migrate-plans/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/",
+      "destination": "/zero-trust-access/authentication/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/",
+      "destination": "/zero-trust-access/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/getting-started/",
+      "destination": "/zero-trust-access/authentication/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/dual-authz/",
+      "destination": "/zero-trust-access/authentication/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/hardware-key-support/",
+      "destination": "/zero-trust-access/authentication/hardware-key-support/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/authentication/headless/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/impersonation/",
+      "destination": "/zero-trust-access/authentication/impersonation/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/ip-pinning/",
+      "destination": "/zero-trust-access/authentication/ip-pinning/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/authentication/joining-sessions/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/mfa-for-admin-actions/",
+      "destination": "/zero-trust-access/authentication/mfa-for-admin-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/passwordless/",
+      "destination": "/zero-trust-access/authentication/passwordless/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/per-session-mfa/",
+      "destination": "/zero-trust-access/authentication/per-session-mfa/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/rbac-get-started/role-templates/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/authentication/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/login-rules/guide/",
+      "destination": "/zero-trust-access/authentication/login-rules/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/access-controls/login-rules/",
+      "destination": "/zero-trust-access/authentication/login-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/labels/",
+      "destination": "/zero-trust-access/rbac-get-started/labels/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/aws-iam-identity-center/",
+      "destination": "/identity-governance/aws-iam-identity-center/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/aws-iam-identity-center/guide/",
+      "destination": "/identity-governance/aws-iam-identity-center/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "destination": "/identity-governance/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/aws-iam-identity-center/using-aws-cli/",
+      "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/azuread/",
+      "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
     }
   ]

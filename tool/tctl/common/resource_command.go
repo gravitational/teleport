@@ -121,8 +121,8 @@ type ResourceCommand struct {
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
 	UpdateHandlers map[ResourceKind]ResourceCreateHandler
 
-	// stdout allows to switch standard output source for resource command. Used in tests.
-	stdout io.Writer
+	// Stdout allows to switch standard output source for resource command. Used in tests.
+	Stdout io.Writer
 }
 
 const getHelp = `Examples:
@@ -195,6 +195,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindHealthCheckConfig:                  rc.createHealthCheckConfig,
 		scopedaccess.KindScopedRole:                  rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
+		types.KindInferenceModel:                     rc.createInferenceModel,
+		types.KindInferenceSecret:                    rc.createInferenceSecret,
+		types.KindInferencePolicy:                    rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -223,6 +226,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
 		scopedaccess.KindScopedRole:                  rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
+		types.KindInferenceModel:                     rc.updateInferenceModel,
+		types.KindInferencePolicy:                    rc.updateInferencePolicy,
 	}
 	rc.config = config
 
@@ -259,8 +264,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	rc.getCmd.Alias(getHelp)
 
-	if rc.stdout == nil {
-		rc.stdout = os.Stdout
+	if rc.Stdout == nil {
+		rc.Stdout = os.Stdout
 	}
 }
 
@@ -344,11 +349,11 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(rc.stdout, rc.verbose)
+		return collection.writeText(rc.Stdout, rc.verbose)
 	case teleport.YAML:
-		return writeYAML(collection, rc.stdout)
+		return writeYAML(collection, rc.Stdout)
 	case teleport.JSON:
-		return writeJSON(collection, rc.stdout)
+		return writeJSON(collection, rc.Stdout)
 	}
 	return trace.BadParameter("unsupported format")
 }
@@ -367,7 +372,7 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 		}
 		resources = append(resources, collection.resources()...)
 	}
-	if err := utils.WriteYAML(rc.stdout, resources); err != nil {
+	if err := utils.WriteYAML(rc.Stdout, resources); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -472,18 +477,11 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	// TODO(bernardjkim) consider using UpsertTrustedClusterV2 in VX.0.0
 	out, err := client.UpsertTrustedCluster(ctx, tc)
 	if err != nil {
-		// If force is used and UpsertTrustedCluster returns trace.AlreadyExists,
-		// this means the user tried to upsert a cluster whose exact match already
-		// exists in the backend, nothing needs to occur other than happy message
-		// that the trusted cluster has been created.
-		if rc.force && trace.IsAlreadyExists(err) {
-			out = tc
-		} else {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
+
 	if out.GetName() != tc.GetName() {
-		fmt.Printf("WARNING: trusted cluster %q resource has been renamed to match remote cluster name %q\n", name, out.GetName())
+		fmt.Printf("WARNING: trusted cluster resource %q has been renamed to match root cluster name %q. this will become an error in future teleport versions, please update your configuration to use the correct name.\n", name, out.GetName())
 	}
 	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, rc.force))
 	return nil
@@ -1207,7 +1205,7 @@ func (rc *ResourceCommand) createWorkloadIdentityX509IssuerOverride(ctx context.
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		types.KindWorkloadIdentityX509IssuerOverride+" %q has been created\n",
 		r.GetMetadata().GetName(),
 	)
@@ -1231,7 +1229,7 @@ func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		types.KindWorkloadIdentityX509IssuerOverride+" %q has been updated\n",
 		r.GetMetadata().GetName(),
 	)
@@ -1255,7 +1253,7 @@ func (rc *ResourceCommand) createScopedRole(ctx context.Context, client *authcli
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		scopedaccess.KindScopedRole+" %q has been created\n",
 		r.GetMetadata().GetName(),
 	)
@@ -1276,7 +1274,7 @@ func (rc *ResourceCommand) updateScopedRole(ctx context.Context, client *authcli
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		scopedaccess.KindScopedRole+" %q has been updated\n",
 		r.GetMetadata().GetName(),
 	)
@@ -1302,7 +1300,7 @@ func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, clien
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		scopedaccess.KindScopedRoleAssignment+" %q has been created\n",
 		rsp.GetAssignment().GetMetadata().GetName(), // must extract from rsp since assignment names are generated server-side
 	)
@@ -1342,7 +1340,7 @@ func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *aut
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		types.KindSigstorePolicy+" %q has been created\n",
 		r.GetMetadata().GetName(),
 	)
@@ -1366,7 +1364,7 @@ func (rc *ResourceCommand) updateSigstorePolicy(ctx context.Context, client *aut
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		types.KindSigstorePolicy+" %q has been updated\n",
 		r.GetMetadata().GetName(),
 	)
@@ -2021,9 +2019,17 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabase:
-		databases, err := client.GetDatabases(ctx)
+		databases, err := stream.Collect(client.RangeDatabases(ctx, "", ""))
 		if err != nil {
-			return trace.Wrap(err)
+			// TODO(okraport) DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				databases, err = client.GetDatabases(ctx)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			} else {
+				return trace.Wrap(err)
+			}
 		}
 		resDesc := "database"
 		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
@@ -2301,7 +2307,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Fprintf(
-			rc.stdout,
+			rc.Stdout,
 			types.KindWorkloadIdentityX509IssuerOverride+" %q has been deleted\n",
 			rc.ref.Name,
 		)
@@ -2312,7 +2318,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Fprintf(
-			rc.stdout,
+			rc.Stdout,
 			scopedaccess.KindScopedRole+" %q has been deleted\n",
 			rc.ref.Name,
 		)
@@ -2323,7 +2329,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Fprintf(
-			rc.stdout,
+			rc.Stdout,
 			scopedaccess.KindScopedRoleAssignment+" %q has been deleted\n",
 			rc.ref.Name,
 		)
@@ -2338,7 +2344,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Fprintf(
-			rc.stdout,
+			rc.Stdout,
 			types.KindSigstorePolicy+" %q has been deleted\n",
 			rc.ref.Name,
 		)
@@ -2374,6 +2380,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("relay_server %+q has been deleted\n", rc.ref.Name)
+	case types.KindInferenceModel:
+		return trace.Wrap(rc.deleteInferenceModel(ctx, client))
+	case types.KindInferenceSecret:
+		return trace.Wrap(rc.deleteInferenceSecret(ctx, client))
+	case types.KindInferencePolicy:
+		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2842,10 +2854,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
-		databases, err := client.GetDatabases(ctx)
+		databases, err := stream.Collect(client.RangeDatabases(ctx, "", ""))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// TODO(okraport) DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				databases, err = client.GetDatabases(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				return nil, trace.Wrap(err)
+			}
 		}
+
 		if rc.ref.Name == "" {
 			return &databaseCollection{databases: databases}, nil
 		}
@@ -3740,6 +3761,15 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			c = append(c, types.ProtoResource153ToLegacy(rs))
 		}
 		return c, nil
+	case types.KindInferenceModel:
+		models, err := rc.getInferenceModels(ctx, client)
+		return models, trace.Wrap(err)
+	case types.KindInferenceSecret:
+		secrets, err := rc.getInferenceSecrets(ctx, client)
+		return secrets, trace.Wrap(err)
+	case types.KindInferencePolicy:
+		policies, err := rc.getInferencePolicies(ctx, client)
+		return policies, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

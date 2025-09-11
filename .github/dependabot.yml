@@ -18,6 +18,7 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
+      - dependency-name: github.com/hinshun/vt10x
     open-pull-requests-limit: 20
     groups:
       go:
@@ -238,15 +239,18 @@ updates:
       - 'ui'
       - 'no-changelog'
     groups:
+      # These packages are either directly involved in the process of building Teleport Connect or
+      # they make use of native dependencies. Verifying that updating them didn't break anything
+      # involves making a tag build.
       electron:
         patterns:
           - 'electron*'
+          - node-gyp
+          - node-pty
       ui:
         update-types:
           - 'minor'
           - 'patch'
-        exclude-patterns:
-          - 'electron*'
     open-pull-requests-limit: 20
   - package-ecosystem: github-actions
     directory: '/.github/workflows'

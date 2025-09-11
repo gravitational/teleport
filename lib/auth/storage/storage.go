@@ -288,13 +288,21 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicen
 
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
 // key storage (dataDir).
+//
+// TODO(nklaassen): delete this after ref has been removed from teleport.e
 func ReadLocalIdentity(dataDir string, id state.IdentityID) (*state.Identity, error) {
+	return ReadLocalIdentityForRole(dataDir, id.Role)
+}
+
+// ReadLocalIdentityForRole reads, parses and returns the given pub/pri key +
+// cert from the key storage (dataDir).
+func ReadLocalIdentityForRole(dataDir string, role types.SystemRole) (*state.Identity, error) {
 	storage, err := NewProcessStorage(context.TODO(), dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer storage.Close()
-	return storage.ReadIdentity(state.IdentityCurrent, id.Role)
+	return storage.ReadIdentity(state.IdentityCurrent, role)
 }
 
 // ReadOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.
@@ -305,52 +313,55 @@ func ReadLocalIdentity(dataDir string, id state.IdentityID) (*state.Identity, er
 // Finally, if a new id is generated, this function writes it into local storage and Kubernetes storage (if available).
 // If kubeBackend is nil, the agent is not running in a Kubernetes Cluster.
 // When facing IsAlreadyExists error, this function will retry reading the host ID from the storage.
-func (p *ProcessStorage) ReadOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config) error {
+func (p *ProcessStorage) ReadOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config) (string, error) {
+	var hostID string
+
 	// Read or generate the host ID, which is used to identify the Teleport agent.
 	// If running in Kubernetes, it will read from the Kubernetes secret if available,
 	// otherwise it will read from the local storage.
 	if err := retry.OnError(retry.DefaultRetry, trace.IsAlreadyExists, func() error {
-		return readOrGenerateHostID(ctx, cfg, p.stateStorage)
+		var err error
+		hostID, err = readOrGenerateHostID(ctx, cfg, p.stateStorage)
+		return err
 	}); err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
-	return nil
+	return hostID, nil
 }
 
-func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBackend stateBackend) (err error) {
+func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBackend stateBackend) (string, error) {
 	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
 	// readHostUUIDFromStorages will try to read the `host_uuid` from the Kubernetes Secret. If the
 	// key is empty or if not running in a Kubernetes Cluster, it will read the
 	// `host_uuid` from local data directory.
-	cfg.HostUUID, err = readHostIDFromStorages(ctx, cfg.DataDir, kubeBackend)
+	hostID, err := readHostIDFromStorages(ctx, cfg.DataDir, kubeBackend)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			if errors.Is(err, fs.ErrPermission) {
 				cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 			}
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 		// if there's no host uuid initialized yet, try to read one from the
 		// one of the identities
 		if len(cfg.Identities) != 0 {
-			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
-			cfg.Logger.InfoContext(ctx, "Taking host UUID from first identity.", "host_uuid", cfg.HostUUID)
+			hostID = cfg.Identities[0].ID.HostUUID
+			cfg.Logger.InfoContext(ctx, "Taking host UUID from first identity.", "host_uuid", hostID)
 		} else {
-			id, err := hostid.Generate(ctx, cfg.JoinMethod)
+			hostID, err = hostid.Generate(ctx, cfg.JoinMethod)
 			if err != nil {
-				return trace.Wrap(err)
+				return "", trace.Wrap(err)
 			}
-			cfg.HostUUID = id
-			cfg.Logger.InfoContext(ctx, "Generating new host UUID", "host_uuid", cfg.HostUUID)
+			cfg.Logger.InfoContext(ctx, "Generating new host UUID", "host_uuid", hostID)
 		}
 		// persistHostUUIDToStorages will persist the host_uuid to the local storage
 		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
-		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
-			return trace.Wrap(err)
+		if err := persistHostIDToStorages(ctx, cfg, hostID, kubeBackend); err != nil {
+			return "", trace.Wrap(err)
 		}
 	}
-	return nil
+	return hostID, nil
 }
 
 // readHostIDFromStorages tries to read the `host_uuid` value from different storages,
@@ -371,21 +382,21 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend sta
 	return hostID, trace.Wrap(err)
 }
 
-// persistHostIDToStorages writes the cfg.HostUUID to local data and to
+// persistHostIDToStorages writes the host ID to local data and to
 // Kubernetes Secret if this process is running on a Kubernetes Cluster.
-func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBackend stateBackend) error {
+func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, hostID string, kubeBackend stateBackend) error {
 	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
 	// This is required because `host_uuid` is part of the client secret
 	// and Auth connection will fail if we present a different `host_uuid`.
 	if kubeBackend != nil {
-		if err := writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID); err != nil {
+		if err := writeHostIDToKubeSecret(ctx, kubeBackend, hostID); err != nil {
 			// If the storage of the secret fails, don't attempt to write the host id to disk.
 			return trace.Wrap(err)
 		}
 		// Success, write the hostid to disk.
 	}
 
-	if err := hostid.WriteFile(cfg.DataDir, cfg.HostUUID); err != nil {
+	if err := hostid.WriteFile(cfg.DataDir, hostID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 		}

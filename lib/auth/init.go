@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -92,6 +93,7 @@ type VersionStorage interface {
 type RecordingEncryptionManager interface {
 	services.RecordingEncryption
 	recordingencryption.KeyUnwrapper
+	recordingencryptionv1.KeyRotater
 	SetCache(cache recordingencryption.Cache)
 }
 
@@ -549,7 +551,14 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
+		if err := initializeAuthPreference(ctx, asrv, cfg.AuthPreference); err != nil {
+			span.End()
+			return trace.Wrap(err)
+		}
+		span.End()
+
+		ctx, span = cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
 		defer span.End()
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
@@ -564,12 +573,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeVnetConfig")
 		defer span.End()
 		return trace.Wrap(initializeVnetConfig(ctx, asrv))
-	})
-
-	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
-		defer span.End()
-		return trace.Wrap(initializeAuthPreference(ctx, asrv, cfg.AuthPreference))
 	})
 
 	g.Go(func() error {
@@ -778,19 +781,37 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 
 	// Add [empty] CRLs to any issuers that are missing them.
 	// These are valid for 10 years and regenerated on CA rotation.
+	// DELETE IN v20(probakowski, zmb3): by v20 all auths will have
+	// at least been on v19, and all versions of 19 backfill missing CRLs.
 	updated := false
 	for _, kp := range ca.GetActiveKeys().TLS {
-		if kp.CRL != nil {
-			continue
-		}
-		certBytes, signer, err := asrv.keyStore.GetTLSCertAndSigner(ctx, ca)
-		if err != nil {
-			asrv.logger.WarnContext(ctx, "Couldn't get CA certificate", "ca_type", caID.Type, "error", err)
-			continue
-		}
-		cert, err := tlsca.ParseCertificatePEM(certBytes)
+		cert, err := tlsca.ParseCertificatePEM(kp.Cert)
 		if err != nil {
 			asrv.logger.WarnContext(ctx, "Couldn't parse CA certificate", "ca_type", caID.Type, "error", err)
+			continue
+		}
+
+		needsNewCRL := len(kp.CRL) == 0
+		if !needsNewCRL {
+			// An earlier version of this code generated CRLs that may have been signed with the wrong keypair.
+			// To fix this, we must also validate the signature of existing CRLs.
+			if crl, err := x509.ParseRevocationList(kp.CRL); err != nil {
+				needsNewCRL = true
+			} else if err := crl.CheckSignatureFrom(cert); err != nil {
+				asrv.logger.WarnContext(ctx, "Detected CRL with invalid signature, regenerating", "ca_type", caID.Type, "ca", ca.GetName(), "error", err)
+				needsNewCRL = true
+			}
+		}
+
+		if !needsNewCRL {
+			continue
+		}
+
+		signer, err := asrv.keyStore.TLSSigner(ctx, kp)
+		if err != nil {
+			if !errors.Is(err, keystore.ErrUnusableKey) {
+				asrv.logger.WarnContext(ctx, "Couldn't get TLS signer for CA", "ca", ca.GetName(), "ca_type", caID.Type, "error", err)
+			}
 			continue
 		}
 
@@ -1309,6 +1330,7 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
+		services.NewPresetMCPUserRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the

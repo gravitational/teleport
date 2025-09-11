@@ -2,9 +2,10 @@
 title: MariaDB Automatic User Provisioning 
 sidebar_label: MariaDB
 description: Configure automatic user provisioning for MariaDB.
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -156,6 +157,8 @@ database queries in the Teleport Audit Logs, when the Teleport username is over
 
 (!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="MySQL Workbench"!)
 
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="MariaDB"!)
+
 ## Troubleshooting
 
 ### Use your mapped remote username error
@@ -165,5 +168,5 @@ database queries in the Teleport Audit Logs, when the Teleport username is over
 ## Next steps
 
 - Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
-- Learn about [role templating](../../../zero-trust-access/access-controls/guides/role-templates.mdx).
+- Learn about [role templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

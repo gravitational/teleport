@@ -76,7 +76,9 @@ func TestAWSAccessMiddleware(t *testing.T) {
 	t.Run("request with body", func(t *testing.T) {
 		body := []byte("body")
 		req := httptest.NewRequest(http.MethodPost, "http://sts.us-east-2.amazonaws.com", bytes.NewReader(body))
-		awsutils.NewSigner("sts").SignHTTP(t.Context(), localCred, req, awsutils.GetV4PayloadHash(body), "sts", "us-east-2", time.Now())
+		payloadHash, err := awsutils.GetV4PayloadHash(req)
+		require.NoError(t, err)
+		awsutils.NewSigner("sts").SignHTTP(t.Context(), localCred, req, payloadHash, "sts", "us-east-2", time.Now())
 
 		recorder := httptest.NewRecorder()
 		require.False(t, m.HandleRequest(recorder, req))

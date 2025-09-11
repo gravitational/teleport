@@ -30,29 +30,32 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 )
 
-// StderrTraceLogWriter implements io.Writer and logs the content at TRACE
+// StderrLogWriter implements io.Writer and logs the content at configured log
 // level. Used for tracing stderr.
-type StderrTraceLogWriter struct {
-	ctx context.Context
-	log *slog.Logger
+type StderrLogWriter struct {
+	level slog.Level
+	ctx   context.Context
+	log   *slog.Logger
 }
 
-// NewStderrTraceLogWriter returns a new StderrTraceLogWriter.
-func NewStderrTraceLogWriter(ctx context.Context, log *slog.Logger) *StderrTraceLogWriter {
-	return &StderrTraceLogWriter{
-		ctx: ctx,
-		log: cmp.Or(log, slog.Default()),
+// NewStderrLogWriter returns a new StderrLogWriter.
+func NewStderrLogWriter(ctx context.Context, log *slog.Logger, level slog.Level) *StderrLogWriter {
+	return &StderrLogWriter{
+		ctx:   ctx,
+		level: level,
+		log:   cmp.Or(log, slog.Default()).With(teleport.ComponentKey, teleport.Component("MCP:stderr")),
 	}
 }
 
-// Write implements io.Writer and logs the given input p at trace level.
+// Write implements io.Writer and logs the given input p at configured level.
 // Note that the input p may contain arbitrary-length data, which can span
 // multiple lines or include partial lines.
-func (l *StderrTraceLogWriter) Write(p []byte) (int, error) {
-	l.log.Log(l.ctx, logutils.TraceLevel, "Trace stderr", "data", p)
+func (l *StderrLogWriter) Write(p []byte) (int, error) {
+	l.log.Log(l.ctx, l.level, "stderr", "data", string(p))
 	return len(p), nil
 }
 
@@ -110,5 +113,5 @@ func (r *StdioReader) ReadMessage(context.Context) (string, error) {
 
 // Type returns "stdio".
 func (r *StdioReader) Type() string {
-	return "stdio"
+	return types.MCPTransportStdio
 }

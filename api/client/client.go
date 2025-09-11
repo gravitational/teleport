@@ -90,6 +90,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -112,6 +113,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -503,7 +506,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
@@ -518,6 +520,9 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			metadata.StreamClientInterceptor,
 			interceptors.GRPCClientStreamErrorInterceptor,
 			breaker.StreamClientInterceptor(cb),
+		),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(grpcutils.MaxClientRecvMsgSize()),
 		),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
@@ -922,6 +927,18 @@ func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 // recording summarizer service.
 func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient {
 	return summarizerv1.NewSummarizerServiceClient(c.conn)
+}
+
+// RecordingMetadataServiceClient returns an unadorned client for the session
+// recording metadata service.
+func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient {
+	return recordingmetadatav1.NewRecordingMetadataServiceClient(c.conn)
+}
+
+// RecordingEncryptionServiceClient returns an unadorned client for the session
+// recording encryption service.
+func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
+	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -1342,6 +1359,15 @@ func (c *Client) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 // GetAccessCapabilities requests the access capabilities of a user.
 func (c *Client) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	caps, err := c.grpc.GetAccessCapabilities(ctx, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
+// GetRemoteAccessCapabilities requests the access capabilities of a user.
+func (c *Client) GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	caps, err := c.grpc.GetRemoteAccessCapabilities(ctx, &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2746,6 +2772,14 @@ func (c *Client) DynamicDesktopClient() *dynamicwindows.Client {
 	return dynamicwindows.NewClient(dynamicwindowsv1.NewDynamicWindowsServiceClient(c.conn))
 }
 
+func (c *Client) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
+	return c.DynamicDesktopClient().ListDynamicWindowsDesktops(ctx, pageSize, pageToken)
+}
+
+func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	return c.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, name)
+}
+
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {
@@ -3348,31 +3382,7 @@ func (c *Client) ListApps(ctx context.Context, limit int, start string) ([]types
 
 // Apps returns application resources within the range [start, end).
 func (c *Client) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	return func(yield func(types.Application, error) bool) {
-		for {
-			apps, next, err := c.ListApps(ctx, 0, start)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			for _, app := range apps {
-				if end != "" && app.GetName() >= end {
-					return
-				}
-
-				if !yield(app, nil) {
-					return
-				}
-			}
-
-			if next == "" {
-				return
-			}
-
-			start = next
-		}
-	}
+	return clientutils.RangeResources(ctx, start, end, c.ListApps, types.Application.GetName)
 }
 
 // DeleteApp deletes specified application resource.
@@ -3536,7 +3546,9 @@ func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, 
 //
 // For a full list of registered databases that are served by a database
 // service, use GetDatabaseServers instead.
+// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	items, err := c.grpc.GetDatabases(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3546,6 +3558,58 @@ func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
 		databases[i] = items.Databases[i]
 	}
 	return databases, nil
+}
+
+// ListDatabases returns a page of database resources.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]types.Database, string, error) {
+	resp, err := c.grpc.ListDatabases(ctx, &proto.ListDatabasesRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	databases := make([]types.Database, len(resp.Databases))
+	for i := range resp.Databases {
+		databases[i] = resp.Databases[i]
+	}
+	return databases, resp.NextPageToken, nil
+}
+
+// RangeDatabases returns database resources within the range [start, end).
+func (c *Client) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+	return func(yield func(types.Database, error) bool) {
+		for {
+			databases, next, err := c.ListDatabases(ctx, 0, start)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			for _, db := range databases {
+				if end != "" && db.GetName() >= end {
+					return
+				}
+
+				if !yield(db, nil) {
+					return
+				}
+			}
+
+			if next == "" {
+				return
+			}
+
+			start = next
+		}
+	}
 }
 
 // DeleteDatabase deletes specified database resource.
@@ -4254,7 +4318,7 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetGitServer()
 			default:
 				out.Resources = nil
-				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+				return out, trace.NotImplemented("resource type %q does not support pagination", req.ResourceType)
 			}
 
 			t, ok := resource.(T)
@@ -5526,4 +5590,16 @@ func (c *Client) DeleteHealthCheckConfig(ctx context.Context, name string) error
 		},
 	)
 	return trace.Wrap(err)
+}
+
+// ValidateTrustedCluster is called by the proxy on behalf of a cluster that
+// wishes to join this one as a leaf cluster.
+func (c *Client) ValidateTrustedCluster(
+	ctx context.Context, validateRequest *proto.ValidateTrustedClusterRequest,
+) (*proto.ValidateTrustedClusterResponse, error) {
+	resp, err := c.grpc.ValidateTrustedCluster(ctx, validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }

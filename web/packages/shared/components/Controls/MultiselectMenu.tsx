@@ -210,7 +210,19 @@ export const MultiselectMenu = <T extends readonly Option<any>[]>({
               <MenuItem
                 disabled={opt.disabled}
                 px={2}
-                onClick={() => (!opt.disabled ? handleSelect(opt.value) : null)}
+                onClick={e => {
+                  const target = e.target as HTMLElement;
+                  // Check if the click originated from the checkbox
+                  if (
+                    (target as HTMLInputElement).type === 'checkbox' ||
+                    target.closest('input[type="checkbox"]')
+                  ) {
+                    return; // Don't handle if click came from checkbox
+                  }
+                  if (!opt.disabled) {
+                    handleSelect(opt.value);
+                  }
+                }}
               >
                 {$checkbox}
               </MenuItem>
@@ -252,7 +264,7 @@ const MultiselectMenuOptionsContainer = styled(Flex)<{
   z-index: 1;
 `;
 
-const FiltersExistIndicator = styled.div`
+export const FiltersExistIndicator = styled.div`
   position: absolute;
   top: -4px;
   right: -4px;

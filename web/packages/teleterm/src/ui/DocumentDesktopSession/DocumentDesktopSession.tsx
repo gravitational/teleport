@@ -33,7 +33,7 @@ import Logger from 'teleterm/logger';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import Document from 'teleterm/ui/Document';
+import Document, { ForegroundSession } from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
@@ -49,6 +49,20 @@ import { DesktopUri, isWindowsDesktopUri, routing } from 'teleterm/ui/uri';
 const noOtherSession = () => Promise.resolve(false);
 
 export function DocumentDesktopSession(props: {
+  visible: boolean;
+  doc: types.DocumentDesktopSession;
+}) {
+  return (
+    <ForegroundSession
+      visible={props.visible}
+      connected={props.doc.status === 'connected'}
+    >
+      <DesktopSessionComponent visible={props.visible} doc={props.doc} />
+    </ForegroundSession>
+  );
+}
+
+function DesktopSessionComponent(props: {
   visible: boolean;
   doc: types.DocumentDesktopSession;
 }) {
