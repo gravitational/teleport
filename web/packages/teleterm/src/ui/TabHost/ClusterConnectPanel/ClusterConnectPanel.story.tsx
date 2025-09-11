@@ -36,7 +36,6 @@ const clusterOrange = makeRootCluster({
   loggedInUser: makeLoggedInUser({
     name: 'bob',
     roles: ['access', 'editor'],
-    sshLogins: ['root'],
   }),
   uri: '/clusters/orange',
 });
