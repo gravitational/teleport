@@ -292,7 +292,27 @@ var metricsServicesRunningMap = map[string]string{
 	"jamf.init":            "jamf_service",
 }
 
+// isShuttingDown returns true if the supervisor is in the process of shutting down
+// either gracefully or immediately.
+// Should be called with the lock held to make sure the state doesn't change
+func (s *LocalSupervisor) isShuttingDown() bool {
+	select {
+	case <-s.exitContext.Done():
+		return true
+	case <-s.gracefulExitContext.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// server starts the service in a separate goroutine.
+// Should be called with the lock held.
 func (s *LocalSupervisor) serve(srv Service) {
+	if s.isShuttingDown() {
+		s.log.WarnContext(s.closeContext, "Not starting new service, process is shutting down")
+		return
+	}
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -355,6 +375,9 @@ func (s *LocalSupervisor) Services() []string {
 	return out
 }
 
+// Wait blocks until all registered services have exited.
+// It is invoked during process shutdown to ensure
+// that all registered services have exited.
 func (s *LocalSupervisor) Wait() error {
 	defer s.signalClose()
 	s.wg.Wait()
