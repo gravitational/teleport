@@ -5167,6 +5167,7 @@ message KubernetesClusterV3List {
 message KubernetesServerV3 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
+
   // Kind is the Kubernetes server resource kind. Always "kube_server".
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
@@ -5183,6 +5184,8 @@ message KubernetesServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the Kubernetes server status.
+  KubernetesServerStatusV3 status = 6;
 }
 
 // KubernetesServerSpecV3 is the Kubernetes server spec.
@@ -5207,6 +5210,13 @@ message KubernetesServerSpecV3 {
   string relay_group = 7;
   // the list of Relay host IDs that the server is connected to
   repeated string relay_ids = 8;
+}
+
+// KubernetesServerStatusV3 is the Kubernetes cluster status.
+message KubernetesServerStatusV3 {
+  // TargetHealth is the health status of between the Teleport agent
+  // and Kubernetes cluster.
+  TargetHealth target_health = 1;
 }
 
 // WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
