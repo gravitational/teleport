@@ -3225,6 +3225,11 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		}
 	}
 
+	// ensure SAMLIdPServiceProvider included with apps
+	if slices.Contains(kinds, types.KindApp) && !slices.Contains(kinds, types.KindSAMLIdPServiceProvider) {
+		kinds = append(kinds, types.KindSAMLIdPServiceProvider)
+	}
+
 	// set default kinds to be requested if none exist in the request
 	if len(kinds) == 0 {
 		kinds = []string{
