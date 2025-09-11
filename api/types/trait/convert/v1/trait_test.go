@@ -36,3 +36,8 @@ func TestRoundtrip(t *testing.T) {
 
 	require.Empty(t, cmp.Diff(traits, converted))
 }
+
+func TestNil(t *testing.T) {
+	var traits trait.Traits
+	require.Nil(t, FromProto(ToProto(traits)))
+}
