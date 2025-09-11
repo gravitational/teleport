@@ -13402,8 +13402,8 @@ var xxx_messageInfo_KubernetesServerSpecV3 proto.InternalMessageInfo
 
 // KubernetesServerStatusV3 is the Kubernetes cluster status.
 type KubernetesServerStatusV3 struct {
-	// TargetHealth is the health status of network connectivity between
-	// the agent and the Kubernetes cluster.
+	// TargetHealth is the health status of between the Teleport agent
+	// and Kubernetes cluster.
 	TargetHealth         *TargetHealth `protobuf:"bytes,1,opt,name=target_health,json=targetHealth,proto3" json:"target_health,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`

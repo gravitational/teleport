@@ -5165,8 +5165,8 @@ message KubernetesServerSpecV3 {
 
 // KubernetesServerStatusV3 is the Kubernetes cluster status.
 message KubernetesServerStatusV3 {
-  // TargetHealth is the health status of network connectivity between
-  // the agent and the Kubernetes cluster.
+  // TargetHealth is the health status of between the Teleport agent
+  // and Kubernetes cluster.
   TargetHealth target_health = 1;
 }
 
