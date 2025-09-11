@@ -1350,25 +1350,23 @@ func prepareToReceiveSessionID(ctx context.Context, log *slog.Logger, nc *client
 	// send the session ID received from the server
 	var gotSessionID atomic.Bool
 	sessionIDFromServer := make(chan session.ID, 1)
-	nc.TC.OnChannelRequest = func(req *ssh.Request) *ssh.Request {
-		// ignore unrelated requests and handle only the first session
-		// ID request
-		if req.Type != teleport.CurrentSessionIDRequest || gotSessionID.Load() {
-			return req
+
+	nc.Client.HandleRequests(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+		// only handle the first session ID request
+		if gotSessionID.Load() {
+			return
 		}
 
 		sid, err := session.ParseID(string(req.Payload))
 		if err != nil {
 			log.WarnContext(ctx, "Unable to parse session ID", "error", err)
-			return nil
+			return
 		}
 
 		if gotSessionID.CompareAndSwap(false, true) {
 			sessionIDFromServer <- *sid
 		}
-
-		return nil
-	}
+	})
 
 	// If the session is about to close and we haven't received a session
 	// ID yet, ask if the server even supports sending one. Send the
