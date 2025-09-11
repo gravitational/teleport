@@ -20,6 +20,10 @@ from Teleport.
 
 Once enrolled you can download the required `app.zip` file from the integrations status page.
 
+The `region` field is used to configure the region used by the
+Microsoft Bot Framework. This should match the region set when creating your Azure
+app, and will default to 'emea' when left unspecified.
+
 ![Download app.zip](../../../img/enterprise/plugins/msteams/app-zip.png)
 
 </details>
@@ -204,6 +208,9 @@ This should result in a config file like the one below:
 ```toml
 (!examples/resources/plugins/teleport-msteams.toml!)
 ```
+
+The `teams_app_id` is a UUID you must specify that will be used as an identifier
+for the app's manifest within Teams.
 
 Copy the `/var/lib/teleport/plugins/msteams/assets/app.zip` file to your local
 computer. You will have to upload it to Microsoft Teams later.
