@@ -204,3 +204,29 @@ type ServerStream interface {
 	Send(Response) error
 	Recv() (Request, error)
 }
+
+// RecvRequest calls [ServerStream.Recv] and asserts the expected type of
+// the received message, returning an appropriate error if the client sent a
+// message with an unexpected type.
+func RecvRequest[T Request](ss ServerStream) (T, error) {
+	req, err := ss.Recv()
+	if err != nil {
+		var nul T
+		return nul, trace.Wrap(err)
+	}
+	return AssertRequestType[T](req)
+}
+
+// AssertRequestType performs a type assertion on a request and returns an
+// appropriate error if the request has an unexpected type.
+func AssertRequestType[T Request](req Request) (T, error) {
+	// TODO(nklaassen): add ClientGivingUp request type and return an
+	// appropriate error here.
+	switch typedRequest := req.(type) {
+	case T:
+		return typedRequest, nil
+	default:
+		var nul T
+		return nul, trace.BadParameter("expected client to send message of type %T, got %T", nul, req)
+	}
+}
