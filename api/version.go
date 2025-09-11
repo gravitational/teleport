@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.1-dev.winTerrProvider.7"
+const Version = "19.0.1-dev.winterrprovider.8"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 1
-const VersionPreRelease = "dev.winTerrProvider.7"
+const VersionPreRelease = "dev.winterrprovider.8"
 const VersionMetadata = ""

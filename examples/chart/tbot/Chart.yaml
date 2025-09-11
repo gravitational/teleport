@@ -1,4 +1,4 @@
-.version: &version "19.0.1-dev.winTerrProvider.7"
+.version: &version "19.0.1-dev.winterrprovider.8"
 
 name: tbot
 apiVersion: v2
