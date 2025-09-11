@@ -46,7 +46,9 @@ type Kube struct {
 	// name is the kube name
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// labels is the kube labels
-	Labels        []*Label `protobuf:"bytes,3,rep,name=labels,proto3" json:"labels,omitempty"`
+	Labels []*Label `protobuf:"bytes,3,rep,name=labels,proto3" json:"labels,omitempty"`
+	// target_health is the health of the kube cluster
+	TargetHealth  *TargetHealth `protobuf:"bytes,4,opt,name=target_health,json=targetHealth,proto3" json:"target_health,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -98,6 +100,13 @@ func (x *Kube) GetName() string {
 func (x *Kube) GetLabels() []*Label {
 	if x != nil {
 		return x.Labels
+	}
+	return nil
+}
+
+func (x *Kube) GetTargetHealth() *TargetHealth {
+	if x != nil {
+		return x.TargetHealth
 	}
 	return nil
 }
@@ -200,11 +209,12 @@ var File_teleport_lib_teleterm_v1_kube_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_kube_proto_rawDesc = "" +
 	"\n" +
-	"#teleport/lib/teleterm/v1/kube.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"e\n" +
+	"#teleport/lib/teleterm/v1/kube.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xb2\x01\n" +
 	"\x04Kube\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x127\n" +
-	"\x06labels\x18\x03 \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labels\"\xb9\x01\n" +
+	"\x06labels\x18\x03 \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labels\x12K\n" +
+	"\rtarget_health\x18\x04 \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\"\xb9\x01\n" +
 	"\fKubeResource\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x12\n" +
@@ -230,15 +240,17 @@ var file_teleport_lib_teleterm_v1_kube_proto_goTypes = []any{
 	(*Kube)(nil),         // 0: teleport.lib.teleterm.v1.Kube
 	(*KubeResource)(nil), // 1: teleport.lib.teleterm.v1.KubeResource
 	(*Label)(nil),        // 2: teleport.lib.teleterm.v1.Label
+	(*TargetHealth)(nil), // 3: teleport.lib.teleterm.v1.TargetHealth
 }
 var file_teleport_lib_teleterm_v1_kube_proto_depIdxs = []int32{
 	2, // 0: teleport.lib.teleterm.v1.Kube.labels:type_name -> teleport.lib.teleterm.v1.Label
-	2, // 1: teleport.lib.teleterm.v1.KubeResource.labels:type_name -> teleport.lib.teleterm.v1.Label
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	3, // 1: teleport.lib.teleterm.v1.Kube.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
+	2, // 2: teleport.lib.teleterm.v1.KubeResource.labels:type_name -> teleport.lib.teleterm.v1.Label
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_kube_proto_init() }
@@ -247,6 +259,7 @@ func file_teleport_lib_teleterm_v1_kube_proto_init() {
 		return
 	}
 	file_teleport_lib_teleterm_v1_label_proto_init()
+	file_teleport_lib_teleterm_v1_target_health_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

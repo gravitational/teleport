@@ -64,4 +64,11 @@ message Matcher {
   // empty value is ignored. The match result is logically ANDed with DBLabels,
   // if both are non-empty.
   string db_labels_expression = 2;
+  // KubernetesLabels matches Kubernetes labels. An empty value is ignored. The match
+  // result is logically ANDed with KubernetesLabelsExpression, if both are non-empty.
+  repeated teleport.label.v1.Label kubernetes_labels = 3;
+  // KubernetesLabelsExpression is a label predicate expression to match Kubernetes. An
+  // empty value is ignored. The match result is logically ANDed with KubernetesLabels,
+  // if both are non-empty.
+  string kubernetes_labels_expression = 4;
 }

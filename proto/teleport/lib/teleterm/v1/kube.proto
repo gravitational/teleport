@@ -21,6 +21,7 @@ syntax = "proto3";
 package teleport.lib.teleterm.v1;
 
 import "teleport/lib/teleterm/v1/label.proto";
+import "teleport/lib/teleterm/v1/target_health.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
@@ -32,6 +33,8 @@ message Kube {
   string name = 2;
   // labels is the kube labels
   repeated Label labels = 3;
+  // target_health is the health of the kube cluster
+  TargetHealth target_health = 4;
 }
 
 // KubeResource describes a kube_cluster's subresource eg: pods, namespaces, etc.
