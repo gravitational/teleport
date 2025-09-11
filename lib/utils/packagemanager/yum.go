@@ -27,9 +27,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/linux"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
-
-const yumRepoEndpoint = "https://yum.releases.teleport.dev/"
 
 var (
 	// yumDistroMap maps distro IDs that teleport doesn't officially support but are known to work.
@@ -96,7 +95,7 @@ func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 
 	// Repo location looks like this:
 	// https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo
-	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", yumRepoEndpoint, distroID, versionID, repoChannel)
+	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", teleportassets.YumRepoURL(), distroID, versionID, repoChannel)
 	pm.logger.InfoContext(ctx, "Building rpm metadata for Teleport repo", "command", "rpm --eval "+repoLocation)
 	rpmEvalTeleportRepoCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--eval", repoLocation)
 	rpmEvalTeleportRepoCMDOutput, err := rpmEvalTeleportRepoCMD.CombinedOutput()

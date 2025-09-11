@@ -20,6 +20,7 @@ package teleportassets
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/coreos/go-semver/semver"
 
@@ -34,7 +35,44 @@ const (
 	// teleportPreReleaseCDN is the Teleport CDN URL for pre-release builds.
 	// This can be used to download the Teleport binary for pre-release builds.
 	teleportPreReleaseCDN = "https://cdn.cloud.gravitational.io"
+	// TeleportRepoBaseDomain is the base domain hosting the apt and yum package repos.
+	teleportRepoBaseDomain = "releases.teleport.dev"
+
+	teleportRepoBaseDomainEnvVar = "TELEPORT_REPO_BASE_DOMAIN"
 )
+
+var repoBaseDomain string
+
+func init() {
+	if base := os.Getenv(teleportRepoBaseDomainEnvVar); base != "" {
+		repoBaseDomain = base
+	}
+	repoBaseDomain = teleportRepoBaseDomain
+}
+
+func AptRepoURL() string {
+	return "https://apt." + repoBaseDomain + "/"
+}
+
+func AptRepoGPGURL() string {
+	return AptRepoURL() + "gpg"
+}
+
+func YumRepoURL() string {
+	return "https://yum." + repoBaseDomain + "/"
+}
+
+func ZypperRepoURL() string {
+	return "https://zypper." + repoBaseDomain + "/"
+}
+
+func ZypperRepoGPGURL() string {
+	return ZypperRepoURL() + "gpg"
+}
+
+func RepoBaseDomain() string {
+	return repoBaseDomain
+}
 
 // CDNBaseURL returns the URL of the CDN that can be used to download Teleport
 // binary assets.
