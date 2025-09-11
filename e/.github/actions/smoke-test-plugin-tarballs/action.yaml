@@ -76,9 +76,13 @@ runs:
         TARGET: ${{ inputs.target }}
       run: |
         aws s3 sync "$BUCKET_DIR_URI" "$LOCAL_ARTIFACTS_PATH/" \
-        --exclude "*" --include "*$TARGET-bin.tar.gz"
+          --exclude "*" \
+          --include "*.exe" \
+          --include "*.exe.manifest" \
+          --include "*$TARGET-bin.tar.gz"
 
-    - name: Verify Plugin Tarballs
+    - name: Verify Plugin Tarballs (macOS/Linux)
+      if: ${{ inputs.target != 'windows-amd64' }}
       shell: bash
       env:
         LOCAL_ARTIFACTS_PATH: /tmp/artifacts
@@ -119,4 +123,26 @@ runs:
           echo "::error title=Smoke terraform-provider-teleport::terraform-provider-teleport-$ARTIFACT_TAG failed to run for $TARGET"
           echo "* :x: terraform-provider-teleport" >> "$GITHUB_STEP_SUMMARY"
         fi
+        exit $CODE
+
+    - name: Verify downloaded .exe plugin artifacts
+      shell: bash
+      if: ${{ inputs.target == 'windows-amd64' }}
+      env:
+        LOCAL_ARTIFACTS_PATH: /tmp/artifacts
+        VERSION: ${{ inputs.version }}
+      run: |
+        echo "## Verifying .exe plugin artifacts for v$VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
+        CODE=0
+
+        TF_PROVIDER_EXE="terraform-provider-teleport-v${VERSION}-windows-amd64.exe"
+
+        if [[ -f "$LOCAL_ARTIFACTS_PATH/$TF_PROVIDER_EXE" ]]; then
+          echo "* Found $TF_PROVIDER_EXE"  | tee -a "$GITHUB_STEP_SUMMARY"
+        else
+          echo "::error title=Missing EXE::$TF_PROVIDER_EXE not found"
+          echo "* Missing $TF_PROVIDER_EXE"  | tee -a "$GITHUB_STEP_SUMMARY"
+        CODE=1
+        fi
+
         exit $CODE

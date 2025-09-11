@@ -35,6 +35,8 @@ jobs:
             runs-on: ubuntu-22.04-16core
           - os: darwin
             runs-on: macos-13-xlarge
+          - os: windows
+            runs-on: ubuntu-22.04-16core # Perform cross-compile on a Linux runner
     runs-on: ${{ matrix.target.runs-on }}
     environment: ${{ inputs.environment }}
     permissions:
@@ -71,7 +73,7 @@ jobs:
           # Mac signing secrets are needed for signing the macOS plugins
           value-sets: mac-signing
           environments-directory: e/.environments
-          
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -110,7 +112,7 @@ jobs:
             make -C "integrations/access/$plugin/" OS=linux ARCH=amd64 release
             make -C "integrations/access/$plugin/" OS=linux ARCH=arm64 release
           done
-      
+
       # Setup Keychain for macOS plugin builds only for signing and notarizing
       - name: Setup keychain
         if: ${{ matrix.target.os == 'darwin' }}
@@ -122,18 +124,24 @@ jobs:
         run: |
           ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
 
-      - name: Build the terraform provider release tarballs
+      - name: Build the terraform provider release tarballs / cross compile for windows
         env:
           APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
           APPLE_PASSWORD: ${{ env.OS == 'darwin' && env.APPLE_APPLICATION_PASSWORD }}
         run: |
-          make -C integrations/terraform release ARCH=amd64
-          make -C integrations/terraform release ARCH=arm64
+          if [[ "$OS" == "linux" || "$OS" == "darwin" ]]; then
+            make -C integrations/terraform release ARCH=amd64
+            make -C integrations/terraform release ARCH=arm64
+          fi
           if [[ "$OS" == "darwin" ]]; then
             make -C integrations/terraform release ARCH=universal
           fi
+          if [[ "$OS" == "windows" ]]; then
+            make -C integrations/terraform OS=windows ARCH=amd64 release
+          fi
 
       - name: Build the MWI terraform provider release tarballs
+        if: ${{ matrix.target.os != 'windows' }}
         env:
           APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
           APPLE_PASSWORD: ${{ env.OS == 'darwin' && env.APPLE_APPLICATION_PASSWORD }}
@@ -145,6 +153,7 @@ jobs:
           fi
 
       - name: Build the event handler release tarballs
+        if: ${{ matrix.target.os != 'windows' }}
         env:
           APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
           APPLE_PASSWORD: ${{ env.OS == 'darwin' && env.APPLE_APPLICATION_PASSWORD }}
@@ -155,7 +164,9 @@ jobs:
       - name: Collect the build files
         run: |
           mkdir -pv "$ARTIFACT_DIRECTORY"
-          find . -name '*.tar.gz' -type f -exec cp {} "$ARTIFACT_DIRECTORY" \;
+          find . -type f \( -name "*.tar.gz" -o -name "*.exe" \) \
+            ! -name "terraform-provider-teleport.exe" \
+            -exec cp {} "$ARTIFACT_DIRECTORY" \;
 
       - name: Generate release server manifests
         env:
@@ -187,7 +198,17 @@ jobs:
             # teleport-access-<plugin name>-<tag>-<os>-<arch>-bin.tar.gz
             # or
             # teleport-event-handler-<tag>-<os>-<arch>-bin.tar.gz
-            PLUGIN_NAME="${file#teleport-}"
+            
+            # Normalize filename so .exe and .manifest don't break parsing
+            normalized_file="${file%.manifest}"
+            normalized_file="${normalized_file%.exe}"
+            normalized_file="${normalized_file%-bin.tar.gz}"
+    
+            PLUGIN_ARCH="${normalized_file##*-}" # last dash-separated field
+            PLUGIN_OS="${normalized_file%-*}" # remove last field
+            PLUGIN_OS="${PLUGIN_OS##*-}" # last field of remaining
+  
+            PLUGIN_NAME="${normalized_file#teleport-}"
             PLUGIN_NAME="${PLUGIN_NAME#access-}" # This is a noop for event-handler
             PLUGIN_NAME="${PLUGIN_NAME%-v*}"
             PLUGIN_NAME="${PLUGIN_NAME%-teleport*}" # This is a noop for everything but the Terraform provider
@@ -203,10 +224,6 @@ jobs:
                 PLUGIN_NAME="${PLUGIN_NAME/-/ }" # Replace '-' with ' '
               ;;
             esac
-
-            # Get the plugin arch and OS by slicing the file name up 
-            PLUGIN_ARCH="$(echo "${file}" | rev | cut -d'-' -f2 | rev)"
-            PLUGIN_OS="$(echo "${file}" | rev | cut -d'-' -f3 | rev)"
 
             "${RELCLI_PATH}" generate-manifest \
               --path "${PWD}/$file" --os "${PLUGIN_OS}" --architecture "${PLUGIN_ARCH}" \
@@ -405,7 +422,7 @@ jobs:
         with:
           tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
-          
+
       - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
         with:
           target: darwin-${{ matrix.arch }}
@@ -421,3 +438,36 @@ jobs:
           s3-bucket: ${{ env.ARTIFACT_SOURCE_BUCKET }}
           aws-role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           version: ${{ inputs.teleport-version }}
+
+  smoke-test-windows-amd64:
+    needs: build-plugins
+    name: Smoke Test Windows amd64 Artifacts
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+
+      - name: Checkout env files
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@e28b4323d6c036f904996b9a4a77578e52560570 # tools/env-loader/v0.0.5
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+
+      - name: Smoke-test Windows AMD64 plugin
+        uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
+        with:
+          target: windows-amd64
+          version: ${{ inputs.teleport-version }}
+          s3-bucket: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
