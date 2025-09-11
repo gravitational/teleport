@@ -209,12 +209,18 @@ func TestWorkloadIdentityCacheFallback(t *testing.T) {
 		require.Len(t, results, 1)
 	})
 
-	t.Run("unsupported sort", func(t *testing.T) {
+	t.Run("unsupported sort field", func(t *testing.T) {
 		_, _, err = p.cache.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			SortField: "name",
-			SortDesc:  true,
+			SortField: "spiffe_id",
 		})
-		require.ErrorContains(t, err, "unsupported sort, only name:asc is supported, but got \"name\" (desc = true)")
+		require.ErrorContains(t, err, `unsupported sort, only name field is supported, but got "spiffe_id"`)
+	})
+
+	t.Run("unsupported sort dir", func(t *testing.T) {
+		_, _, err = p.cache.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			SortDesc: true,
+		})
+		require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
 	})
 }
 
