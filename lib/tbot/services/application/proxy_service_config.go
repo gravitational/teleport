@@ -6,9 +6,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
-	"github.com/gravitational/trace"
 )
 
 const ProxyServiceType = "httpproxy-tunnel"
@@ -17,7 +18,6 @@ type ProxyServiceConfig struct {
 	Name               string                 `yaml:"name,omitempty"`
 	Listen             string                 `yaml:"listen"`
 	Roles              []string               `yaml:"roles,omitempty"`
-	CertificateCaching bool                   `yaml:"certificate_caching,omitempty"`
 	CredentialLifetime bot.CredentialLifetime `yaml:"credential_lifetime,omitempty"`
 	Listener           net.Listener           `yaml:"-"`
 }
