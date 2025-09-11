@@ -33,7 +33,6 @@ import (
 // Client is a wrapper around ssh.Client that adds tracing support.
 type Client struct {
 	*ssh.Client
-	conn          *connWrapper
 	opts          []tracing.Option
 	capability    tracingCapability
 	sessionClient *SessionClient
@@ -56,17 +55,9 @@ const (
 // and Channel created from the returned Client will honor the clients view
 // of whether they should provide tracing context.
 func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) *Client {
-	conn := &connWrapper{
-		capability: tracingUnsupported,
-		Conn:       c,
-		opts:       opts,
-		contexts:   make(map[string][]context.Context),
-	}
-
 	clt := &Client{
-		conn:          conn,
-		Client:        ssh.NewClient(conn, chans, reqs),
-		sessionClient: NewSessionClient(conn),
+		Client:        ssh.NewClient(c, chans, reqs),
+		sessionClient: NewSessionClient(),
 		opts:          opts,
 		capability:    tracingUnsupported,
 	}
@@ -99,7 +90,16 @@ func (c *Client) DialContext(ctx context.Context, n, addr string) (net.Conn, err
 	)
 	defer span.End()
 
-	conn, err := c.Client.DialContext(ctx, n, addr)
+	// create a new connWrapper to propagate the current ctx to the ssh.OpenChannel span.
+	wrapper := &connWrapper{
+		capability: c.capability,
+		Conn:       c.Client.Conn,
+		opts:       c.opts,
+		ctx:        ctx,
+		contexts:   make(map[string][]context.Context),
+	}
+
+	conn, err := wrapper.Dial(n, addr)
 	return conn, trace.Wrap(err)
 }
 
@@ -181,7 +181,16 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	)
 	defer span.End()
 
-	session, err := c.sessionClient.NewSession()
+	// create a new connWrapper to propagate the current ctx to child (ssh.ChannelRequests).
+	wrapper := &connWrapper{
+		capability: c.capability,
+		Conn:       c.Client.Conn,
+		opts:       c.opts,
+		ctx:        ctx,
+		contexts:   make(map[string][]context.Context),
+	}
+
+	session, err := c.sessionClient.NewSession(wrapper)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,7 +199,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	// can be traced
 	return &Session{
 		Session: session,
-		wrapper: c.conn,
+		wrapper: wrapper,
 	}, nil
 }
 
@@ -296,6 +305,18 @@ type connWrapper struct {
 	lock sync.Mutex
 	// contexts a LIFO queue of context.Context per channel name.
 	contexts map[string][]context.Context
+}
+
+// Dial initiates a connection to the addr from the remote host.
+func (c *connWrapper) Dial(n, addr string) (net.Conn, error) {
+	// create a client that will defer to us when
+	// opening the "direct-tcpip" channel so that we
+	// can add an Envelope to the request
+	client := &ssh.Client{
+		Conn: c,
+	}
+
+	return client.Dial(n, addr)
 }
 
 // addContext adds the provided context.Context to the end of
