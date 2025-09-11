@@ -3,7 +3,7 @@ persistence:
   storageClass: "io2"
   accessModes:
     - ReadWriteOnce
-  size: 64Gi # twice the quota
+  size: 256Gi
 
 resources:
   limits:
@@ -18,8 +18,17 @@ replicaCount: 5
 args:
   - /opt/bitnami/scripts/etcd/run.sh
   - --quota-backend-bytes
-  - "34359738368"
+  - "137438953472"
 
 # Switch to legacy images
 image:
   repository: bitnamilegacy/etcd
+
+
+autoCompactionMode: periodic
+autoCompactionRetention: 1h
+
+defrag:
+  enabled: true
+  cronjob:
+    schedule: "0 */2 * * *"

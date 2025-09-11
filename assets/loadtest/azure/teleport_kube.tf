@@ -63,12 +63,9 @@ resource "helm_release" "teleport" {
     }
 
     "resources" = {
-      "limits" = {
-        "memory" = "8Gi"
-      }
       "requests" = {
         "cpu"    = "4"
-        "memory" = "8Gi"
+        "memory" = "16Gi"
       }
     }
 
