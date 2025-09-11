@@ -10,11 +10,11 @@ tags:
 
 {/* lint disable page-structure remark-lint */}
 
-Teleport Machine and Workload Identity (MWI) provides secure access across multiple platforms and resource types,
-supporting everything from [Infrastructure-as-Code](../machine-workload-identity/iac-mwi.mdx) workflows to [AI agent](../machine-workload-identity/ai-agents-mwi.mdx)
-operations. This guide focuses on a popular implementation: executing commands on deployment targets through CI/CD
-pipelines. Even if your specific use case differs, this guide covers the fundamental MWI setup process, after which you
-can reference the dedicated use case pages for tool-specific guidance.
+Teleport Machine and Workload Identity (MWI) provides secure access for Non-Human Identities across multiple platforms
+and resource types, supporting everything from [Infrastructure-as-Code](../machine-workload-identity/iac-mwi.mdx)
+workflows to [AI agent](../machine-workload-identity/ai-agents-mwi.mdx) operations. This guide focuses on a popular
+implementation: executing commands on deployment targets through CI/CD pipelines. Even if your specific use case differs,
+this guide covers the fundamental MWI setup process, after which you can reference the dedicated use case pages for tool-specific guidance.
 
 Here's an overview of what you will do:
 
@@ -31,12 +31,11 @@ ID](../machine-workload-identity/machine-id/deployment/deployment.mdx) guides.
 ## Prerequisites
 
 In this getting started guide, you will configure MWI to issue commands to a Linux
-server or Kubernetes cluster from a GitHub Actions workflow. Linux servers
-and Kubernetes clusters are the most common targets in Teleport, so you don't need to set up new
-infrastructure. If you need a new target resource in Teleport, create an SSH server
-or Kubernetes cluster you can let the bot access before starting.
+server or Kubernetes cluster from a GitHub Actions workflow. This guide assumes you've already enrolled a Linux server
+or Kubernetes cluster to Teleport. If you haven't done so, refer to the
+[guides on enrolling resources](../enroll-resources/enroll-resources.mdx).
 
-- A GitHub repository where you have permissions to create a GitHub Actions workflows.
+- A GitHub repository where you have permissions to create GitHub Actions workflows.
   - You can fork the [example repository for this guide](https://github.com/asteroid-earth/mwi-getting-started-guide) to go faster.
 
     <details>
@@ -75,9 +74,7 @@ Here are example resources with labels we can reference:
 <Tabs>
 <TabItem label="Server">
 
-![Example ssh server resource with label](../../img/machine-id/ssh-target-example.png)
-
-You can also find your nodes with the following command:
+You can find your nodes and labels in the GUI or with the following command:
 
 ```code
 $ tctl nodes ls --format=text
@@ -91,16 +88,14 @@ target1 8a50c8aa-c45f-403c-95ff-83f50561d64c                env=mwi-demo,hostnam
 
 <TabItem label="Kubernetes">
 
-![Example kubernetes cluster resource with label](../../img/machine-id/k8s-target-example.png)
-
-You can also find your clusters with the following command:
+  You can find your clusters and labels in the GUI or with the following command:
 
 ```code
 $ tctl kube ls --format=text
 
 Cluster  Labels                        Version
 -------- ----------------------------- -------
-crumpet  env=dog-food,region=us-west-2  18.1.5
+staging  env=mwi-demo,region=us-west-2  18.1.5
 ```
 
 </TabItem>
@@ -118,7 +113,7 @@ crumpet  env=dog-food,region=us-west-2  18.1.5
 </Admonition>
 
 If you have an existing role that allows access to your target resource, you can skip this step.
-Every Teleport cluster has a default `access` role that allows access to all nodes and clusters,
+Every Teleport cluster has a preset `access` role that allows access to all nodes and clusters,
 but if you cannot use that one for this guide, we can quickly make a new, more restrictive role.
 
 <Tabs>
@@ -221,10 +216,11 @@ $ tctl create -f ./teleport/github_bot.yaml
 ## Step 4/5 Create a join token
 
 Unlike users, bots do not authenticate using a username and password or SSO.
-Instead, they initially authenticate in a process called joining. Teleport
+Instead, they authenticate in a process called joining. Teleport
 uses metadata about the platform the bot is running on, such as OIDC endpoints for CI pipelines,
-or the Assumed Role of an AWS EC2 Instance, to ensure that only authorized bots can join the cluster.
-This means the bot has a verified <i>identity</i>, rather than just a shared secret.
+or the Assumed Role of an AWS EC2 Instance, to attest to the identity of the process,
+ensuring only authorized bots can join the cluster. This means the bot has a verified <i>identity</i>,
+rather than just a shared secret.
 
 Teleport supports a number of secure [join methods](../reference/join-methods.mdx#delegated-join-methods)
 specific to the platform the bot is running on. Since we are using GitHub Actions,
@@ -276,7 +272,7 @@ for convenience, but for this guide we will look at things explicitly to aid und
 
 ```yaml
 version: v2
-proxy_server: mycluster.cloud.gravitational.io:443
+proxy_server: example.teleport.sh:443
 onboarding:
   join_method: github
   token: github-bot
@@ -319,13 +315,13 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        proxy: mycluster.cloud.gravitational.io:443
+        proxy: example.teleport.sh:443
         version: auto
     - name: Export ssh config
       run: tbot start --oneshot -c ./action_support/server_bot.yaml
     - name: Run mpstat
       run: |
-        ssh -F ./ssh_out/ssh_config ubuntu@myinstance.mycluster.cloud.gravitational.io mpstat
+        ssh -F ./ssh_out/ssh_config ubuntu@myinstance.example.teleport.sh mpstat
 ```
 
 - In the second step, we use one of the published Actions, which installs the `tbot` binary into the runner.
@@ -348,7 +344,7 @@ This kind of workflow can be used with Ansible or any other kind of SSH-based au
 
 ```yaml
 version: v2
-proxy_server: mycluster.cloud.gravitational.io:443
+proxy_server: example.teleport.sh:443
 onboarding:
   join_method: github
   token: github-bot
@@ -392,12 +388,10 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
-    - name: Fetch kubectl
-      uses: azure/setup-kubectl@v3
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        proxy: mycluster.cloud.gravitational.io:443
+        proxy: example.teleport.sh:443
         version: auto
     - name: Export kubectl config
       run: tbot start --oneshot -c ./action_support/server_bot.yaml
