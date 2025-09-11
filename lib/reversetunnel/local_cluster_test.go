@@ -59,7 +59,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	clt := &mockLocalSiteClient{}
+	clt := &mockLocalClusterClient{}
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
@@ -73,17 +73,17 @@ func TestRemoteConnCleanup(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())
 
-	// set up the site
+	// set up the cluster
 	srv := &server{
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
-		localAuthClient:  &mockLocalSiteClient{},
+		localAuthClient:  &mockLocalClusterClient{},
 		logger:           logtest.NewLogger(),
 		offlineThreshold: time.Second,
 		proxyWatcher:     watcher,
 	}
 
-	site, err := newLocalSite(srv, "clustername", nil,
+	cluster, err := newLocalCluster(srv, "clustername", nil,
 		withPeriodicFunctionInterval(time.Hour),
 		withProxySyncInterval(time.Hour),
 	)
@@ -92,7 +92,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	// add a connection
 	rconn := &mockRemoteConnConn{}
 	sconn := &mockedSSHConn{}
-	conn1, err := site.addConn(uuid.NewString(), types.NodeTunnel, rconn, sconn)
+	conn1, err := cluster.addConn(uuid.NewString(), types.NodeTunnel, rconn, sconn)
 	require.NoError(t, err)
 
 	// create a fake session
@@ -103,14 +103,14 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	// terminated by too many missed heartbeats
 	go func() {
-		site.handleHeartbeat(ctx, conn1, nil, reqs)
+		cluster.handleHeartbeat(ctx, conn1, nil, reqs)
 		cancel()
 	}()
 
 	// set the heartbeat to a time in the past that is long enough
 	// to consider the connection offline
 	conn1.markValid()
-	conn1.setLastHeartbeat(clock.Now().UTC().Add(site.offlineThreshold * missedHeartBeatThreshold * -2))
+	conn1.setLastHeartbeat(clock.Now().UTC().Add(cluster.offlineThreshold * missedHeartBeatThreshold * -2))
 
 	// advance the clock to trigger a missed heartbeat
 	clock.BlockUntil(clockBlockers)
@@ -127,7 +127,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	// set the heartbeat to a time in the past that is long enough
 	// to consider the connection offline
 	conn1.markValid()
-	conn1.setLastHeartbeat(clock.Now().UTC().Add(site.offlineThreshold * missedHeartBeatThreshold * -2))
+	conn1.setLastHeartbeat(clock.Now().UTC().Add(cluster.offlineThreshold * missedHeartBeatThreshold * -2))
 
 	// close the fake session
 	require.NoError(t, fakeSession.Close())
@@ -141,20 +141,20 @@ func TestRemoteConnCleanup(t *testing.T) {
 		require.True(t, conn1.closed.Load())
 		require.True(t, sconn.closed.Load())
 	case <-time.After(15 * time.Second):
-		t.Fatal("localSite heartbeat handler never terminated")
+		t.Fatal("localCluster heartbeat handler never terminated")
 	}
 }
 
-func TestLocalSiteOverlap(t *testing.T) {
+func TestLocalClusterOverlap(t *testing.T) {
 	t.Parallel()
 
 	srv := &server{
 		Config:          Config{Clock: clockwork.NewFakeClock()},
 		ctx:             context.Background(),
-		localAuthClient: &mockLocalSiteClient{},
+		localAuthClient: &mockLocalClusterClient{},
 	}
 
-	site, err := newLocalSite(srv, "clustername", nil,
+	cluster, err := newLocalCluster(srv, "clustername", nil,
 		withPeriodicFunctionInterval(time.Hour),
 	)
 	require.NoError(t, err)
@@ -167,17 +167,17 @@ func TestLocalSiteOverlap(t *testing.T) {
 	}
 
 	// add a few connections for the same node id
-	conn1, err := site.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
+	conn1, err := cluster.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
 	require.NoError(t, err)
 
-	conn2, err := site.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
+	conn2, err := cluster.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
 	require.NoError(t, err)
 
-	conn3, err := site.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
+	conn3, err := cluster.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
 	require.NoError(t, err)
 
 	// no heartbeats from any of them shouldn't return a connection
-	c, err := site.getRemoteConn(dreq)
+	c, err := cluster.getRemoteConn(dreq)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, c)
 
@@ -185,7 +185,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 	conn1.setLastHeartbeat(time.Now())
 
 	// getRemoteConn returns the only healthy connection
-	c, err = site.getRemoteConn(dreq)
+	c, err = cluster.getRemoteConn(dreq)
 	require.NoError(t, err)
 	require.Equal(t, conn1, c)
 
@@ -193,7 +193,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 	conn2.setLastHeartbeat(time.Now())
 
 	// getRemoteConn returns the newest healthy connection
-	c, err = site.getRemoteConn(dreq)
+	c, err = cluster.getRemoteConn(dreq)
 	require.NoError(t, err)
 	require.Equal(t, conn2, c)
 
@@ -201,7 +201,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 	conn2.markInvalid(nil)
 
 	// getRemoteConn returns the only healthy connection
-	c, err = site.getRemoteConn(dreq)
+	c, err = cluster.getRemoteConn(dreq)
 	require.NoError(t, err)
 	require.Equal(t, conn1, c)
 
@@ -209,23 +209,23 @@ func TestLocalSiteOverlap(t *testing.T) {
 	conn1.markInvalid(nil)
 
 	// getRemoteConn returns the only healthy connection
-	c, err = site.getRemoteConn(dreq)
+	c, err = cluster.getRemoteConn(dreq)
 	require.NoError(t, err)
 	require.Equal(t, conn2, c)
 
 	// remove conn2
-	site.removeRemoteConn(conn2)
+	cluster.removeRemoteConn(conn2)
 
 	// getRemoteConn returns the only invalid connection
-	c, err = site.getRemoteConn(dreq)
+	c, err = cluster.getRemoteConn(dreq)
 	require.NoError(t, err)
 	require.Equal(t, conn1, c)
 
 	// remove conn1
-	site.removeRemoteConn(conn1)
+	cluster.removeRemoteConn(conn1)
 
 	// no ready connections exist
-	c, err = site.getRemoteConn(dreq)
+	c, err = cluster.getRemoteConn(dreq)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, c)
 
@@ -233,7 +233,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 	conn3.setLastHeartbeat(time.Now())
 
 	// getRemoteConn returns the only healthy connection
-	c, err = site.getRemoteConn(dreq)
+	c, err = cluster.getRemoteConn(dreq)
 	require.NoError(t, err)
 	require.Equal(t, conn3, c)
 }
@@ -251,7 +251,7 @@ func TestProxyResync(t *testing.T) {
 	proxy2, err := types.NewServer(uuid.NewString(), types.KindProxy, types.ServerSpecV2{})
 	require.NoError(t, err)
 
-	clt := &mockLocalSiteClient{
+	clt := &mockLocalClusterClient{
 		proxies: []types.Server{proxy1, proxy2},
 	}
 	// set up the watcher and wait for it to be initialized
@@ -268,16 +268,16 @@ func TestProxyResync(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())
 
-	// set up the site
+	// set up the cluster
 	srv := &server{
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
-		localAuthClient:  &mockLocalSiteClient{},
+		localAuthClient:  &mockLocalClusterClient{},
 		logger:           logtest.NewLogger(),
 		offlineThreshold: 24 * time.Hour,
 		proxyWatcher:     watcher,
 	}
-	site, err := newLocalSite(srv, "clustername", nil,
+	cluster, err := newLocalCluster(srv, "clustername", nil,
 		withProxySyncInterval(time.Second),
 		withPeriodicFunctionInterval(24*time.Hour),
 	)
@@ -305,14 +305,14 @@ func TestProxyResync(t *testing.T) {
 	}
 
 	// add a connection
-	conn1, err := site.addConn(uuid.NewString(), types.NodeTunnel, rconn, sconn)
+	conn1, err := cluster.addConn(uuid.NewString(), types.NodeTunnel, rconn, sconn)
 	require.NoError(t, err)
 
 	reqs := make(chan *ssh.Request)
 
 	// terminated by canceled context
 	go func() {
-		site.handleHeartbeat(ctx, conn1, nil, reqs)
+		cluster.handleHeartbeat(ctx, conn1, nil, reqs)
 	}()
 
 	expected := []types.Server{proxy1, proxy2}
@@ -340,18 +340,18 @@ func TestProxyResync(t *testing.T) {
 	}
 }
 
-type mockLocalSiteClient struct {
+type mockLocalClusterClient struct {
 	authclient.Client
 
 	proxies []types.Server
 }
 
-// called by (*localSite).sshTunnelStats() as part of (*localSite).periodicFunctions()
-func (*mockLocalSiteClient) GetNodes(_ context.Context, _ string) ([]types.Server, error) {
+// called by (*localCluster).sshTunnelStats() as part of (*localCluster).periodicFunctions()
+func (*mockLocalClusterClient) GetNodes(_ context.Context, _ string) ([]types.Server, error) {
 	return nil, nil
 }
 
-func (m *mockLocalSiteClient) GetProxies() ([]types.Server, error) {
+func (m *mockLocalClusterClient) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
@@ -386,7 +386,7 @@ func (m mockWatcher) Error() error {
 }
 
 // called by proxyWatcher
-func (mockLocalSiteClient) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
+func (mockLocalClusterClient) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
 	return newMockWatcher(), nil
 }
 
