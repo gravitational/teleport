@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 const (
@@ -148,23 +147,13 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 
 // ListIdentityCenterAccounts provides a paged list of all AWS accounts known
 // to the Identity Center integration
-func (svc *IdentityCenterService) ListIdentityCenterAccounts(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]services.IdentityCenterAccount, pagination.NextPageToken, error) {
-	pageToken, err := page.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "listing identity center assignment records")
-	}
-
+func (svc *IdentityCenterService) ListIdentityCenterAccounts(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Account, string, error) {
 	accounts, nextPage, err := svc.ListIdentityCenterAccounts2(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	result := make([]services.IdentityCenterAccount, len(accounts))
-	for i, acct := range accounts {
-		result[i] = services.IdentityCenterAccount{Account: acct}
-	}
-
-	return result, pagination.NextPageToken(nextPage), nil
+	return accounts, nextPage, nil
 }
 
 // ListIdentityCenterAccounts2 provides a paged list of all AWS accounts known
@@ -179,12 +168,12 @@ func (svc *IdentityCenterService) ListIdentityCenterAccounts2(ctx context.Contex
 }
 
 // CreateIdentityCenterAccount creates a new Identity Center Account record
-func (svc *IdentityCenterService) CreateIdentityCenterAccount(ctx context.Context, acct services.IdentityCenterAccount) (services.IdentityCenterAccount, error) {
-	created, err := svc.CreateIdentityCenterAccount2(ctx, acct.Account)
+func (svc *IdentityCenterService) CreateIdentityCenterAccount(ctx context.Context, acct *identitycenterv1.Account) (*identitycenterv1.Account, error) {
+	created, err := svc.CreateIdentityCenterAccount2(ctx, acct)
 	if err != nil {
-		return services.IdentityCenterAccount{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return services.IdentityCenterAccount{Account: created}, nil
+	return created, nil
 }
 
 // CreateIdentityCenterAccount2 creates a new Identity Center Account record
@@ -207,12 +196,12 @@ func (svc *IdentityCenterService) GetIdentityCenterAccount(ctx context.Context, 
 
 // UpdateIdentityCenterAccount performs a conditional update on an Identity
 // Center Account record, returning the updated record on success.
-func (svc *IdentityCenterService) UpdateIdentityCenterAccount(ctx context.Context, acct services.IdentityCenterAccount) (services.IdentityCenterAccount, error) {
-	updated, err := svc.UpdateIdentityCenterAccount2(ctx, acct.Account)
+func (svc *IdentityCenterService) UpdateIdentityCenterAccount(ctx context.Context, acct *identitycenterv1.Account) (*identitycenterv1.Account, error) {
+	updated, err := svc.UpdateIdentityCenterAccount2(ctx, acct)
 	if err != nil {
-		return services.IdentityCenterAccount{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return services.IdentityCenterAccount{Account: updated}, nil
+	return updated, nil
 }
 
 // UpdateIdentityCenterAccount2 performs a conditional update on an Identity
@@ -248,17 +237,12 @@ func (svc *IdentityCenterService) DeleteAllIdentityCenterAccounts(ctx context.Co
 }
 
 // ListPrincipalAssignments lists a page of PrincipalAssignment records in the service.
-func (svc *IdentityCenterService) ListPrincipalAssignments(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error) {
-	pageToken, err := page.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "extracting page token")
-	}
-
+func (svc *IdentityCenterService) ListPrincipalAssignments(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PrincipalAssignment, string, error) {
 	resp, nextPage, err := svc.ListPrincipalAssignments2(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	return resp, pagination.NextPageToken(nextPage), nil
+	return resp, nextPage, nil
 }
 
 // ListPrincipalAssignments2 lists a page of PrincipalAssignment records in the service.
@@ -321,16 +305,12 @@ func (svc *IdentityCenterService) DeleteAllPrincipalAssignments(ctx context.Cont
 }
 
 // ListPermissionSets returns a page of known Permission Sets in the managed Identity Center
-func (svc *IdentityCenterService) ListPermissionSets(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]*identitycenterv1.PermissionSet, pagination.NextPageToken, error) {
-	pageToken, err := page.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "extracting page token")
-	}
+func (svc *IdentityCenterService) ListPermissionSets(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PermissionSet, string, error) {
 	resp, nextPage, err := svc.ListPermissionSets2(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing identity center permission set records")
 	}
-	return resp, pagination.NextPageToken(nextPage), nil
+	return resp, nextPage, nil
 }
 
 // ListPermissionSets2 returns a page of known Permission Sets in the managed Identity Center
@@ -380,25 +360,6 @@ func (svc *IdentityCenterService) DeletePermissionSet(ctx context.Context, name 
 // DeleteAllPermissionSets deletes all Identity Center PermissionSet
 func (svc *IdentityCenterService) DeleteAllPermissionSets(ctx context.Context) error {
 	return trace.Wrap(svc.permissionSets.DeleteAllResources(ctx))
-}
-
-// ListAccountAssignments returns a page of IdentityCenterAccountAssignment records.
-func (svc *IdentityCenterService) ListAccountAssignments(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {
-	pageToken, err := page.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "extracting page token")
-	}
-	assignments, nextPage, err := svc.ListIdentityCenterAccountAssignments(ctx, pageSize, pageToken)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	result := make([]services.IdentityCenterAccountAssignment, len(assignments))
-	for i, asmt := range assignments {
-		result[i] = services.IdentityCenterAccountAssignment{AccountAssignment: asmt}
-	}
-
-	return result, pagination.NextPageToken(nextPage), nil
 }
 
 // ListIdentityCenterAccountAssignments returns a page of IdentityCenterAccountAssignment records.

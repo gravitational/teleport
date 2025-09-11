@@ -2,10 +2,14 @@
 title: Run the Slack Access Request Plugin
 description: How to set up Teleport's Slack plugin for privilege elevation approvals.
 sidebar_label: Slack
-labels:
+tags:
  - how-to
  - identity-governance
+ - privileged-access
 ---
+
+import SlackVideoMp4 from "@version/docs/img/enterprise/plugins/slack/slack.mp4"
+import SlackVideoWebm from "@version/docs/img/enterprise/plugins/slack/slack.webm"
 
 This guide will explain how to set up Slack to receive Access Request messages
 from Teleport. 
@@ -28,14 +32,14 @@ best practices without compromising productivity.
 
 Here is an example of sending an Access Request via Teleport's Slack plugin:
 
-<video controls>
+<video controls width="100%" height="100%">
   <source
-    src="../../../img/enterprise/plugins/slack/slack.mp4"
+    src={SlackVideoMp4}
     type="video/mp4"
   />
 
   <source
-    src="../../../img/enterprise/plugins/slack/slack.webm"
+    src={SlackVideoWebm}
     type="video/webm"
   />
 

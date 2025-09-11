@@ -124,6 +124,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
+	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -533,6 +534,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err, "creating VnetConfigService")
 		}
 	}
+	if cfg.ScopedAccess == nil {
+		cfg.ScopedAccess = local.NewScopedAccessService(cfg.Backend)
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -559,6 +563,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
+		Events: cfg.Events,
+		Reader: cfg.ScopedAccess,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	services := &Services{
@@ -635,6 +647,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Unstable:                  local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:                  services,
 		Cache:                     services,
+		scopedAccessBackend:       cfg.ScopedAccess,
+		scopedAccessCache:         scopedAccessCache,
 		keyStore:                  cfg.KeyStore,
 		traceClient:               cfg.TraceClient,
 		fips:                      cfg.FIPS,
@@ -1099,6 +1113,13 @@ type Server struct {
 	// and Services will call the one from Cache. To bypass the cache, call the
 	// method on Services instead.
 	authclient.Cache
+
+	// scopedAccessCache is a specialized cache that provides read methods for select
+	// scoped access control resources.
+	scopedAccessCache *scopedaccesscache.Cache
+
+	// scopedAccessBackend is the backend service for scoped access control resources.
+	scopedAccessBackend services.ScopedAccess
 
 	// ReadOnlyCache is a specialized cache that provides read-only shared references
 	// in certain performance-critical paths where deserialization/cloning may be too
@@ -3579,7 +3600,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			AzureIdentity:                   req.azureIdentity,
 			GCPServiceAccount:               req.gcpServiceAccount,
 		},
-		TeleportCluster: clusterName,
+		TeleportCluster:   clusterName,
+		OriginClusterName: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
 			ServiceName: req.dbService,
 			Protocol:    req.dbProtocol,
@@ -5560,7 +5582,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
 	}
 
-	var resources = []string{}
+	resources := []string{}
 	if len(req.GetRoles()) != 0 {
 		resources = append(resources, types.KindRole)
 	}
@@ -5676,8 +5698,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
 		// be able to see their assigned permission sets.
-		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
-		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
+		asmt, err := a.GetIdentityCenterAccountAssignment(ctx, resource.Name)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching identity center account assignment")
 		}
@@ -5723,6 +5744,7 @@ type cacheWithFetchedAccessLists struct {
 func (c *cacheWithFetchedAccessLists) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
 	return c.fetchedACLs, nil
 }
+
 func (c *cacheWithFetchedAccessLists) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
 	return c.fetchedACLs, "", nil
 }
@@ -5926,7 +5948,7 @@ func (a *Server) submitAccessReview(
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 
-	var resources = []string{}
+	resources := []string{}
 	if len(req.GetRoles()) != 0 {
 		resources = append(resources, types.KindRole)
 	}

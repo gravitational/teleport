@@ -681,16 +681,17 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, gotTLSCert.PublicKey, inTLSPub)
 	wantID := tlsca.Identity{
-		Username:         user,
-		Groups:           []string{role.GetName()},
-		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:  []string{user},
-		KubernetesGroups: []string{"system:masters"},
-		Expires:          gotTLSCert.NotAfter,
-		RouteToCluster:   s.clusterName.GetClusterName(),
-		TeleportCluster:  s.clusterName.GetClusterName(),
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		UserType:         "local",
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -724,6 +725,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 		UserType:          "local",
 	}
@@ -780,6 +782,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 		UserType:          "local",
 	}
@@ -806,16 +809,17 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:         user,
-		Groups:           []string{role.GetName()},
-		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:  []string{user},
-		KubernetesGroups: []string{"system:masters"},
-		Expires:          gotTLSCert.NotAfter,
-		RouteToCluster:   s.clusterName.GetClusterName(),
-		TeleportCluster:  s.clusterName.GetClusterName(),
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		UserType:         "local",
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -847,6 +851,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 		UserType:          "local",
 	}
@@ -873,16 +878,17 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:         user,
-		Groups:           []string{role.GetName()},
-		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:  []string{user},
-		KubernetesGroups: []string{"system:masters"},
-		Expires:          gotTLSCert.NotAfter,
-		RouteToCluster:   s.clusterName.GetClusterName(),
-		TeleportCluster:  s.clusterName.GetClusterName(),
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		UserType:         "local",
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
