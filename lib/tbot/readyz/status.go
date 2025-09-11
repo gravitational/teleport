@@ -52,6 +52,21 @@ func (s Status) String() string {
 	}
 }
 
+// MetricLabelValue returns a string suitable for use as a Prometheus metric
+// label value.
+func (s Status) MetricLabelValue() string {
+	switch s {
+	case Initializing:
+		return "initializing"
+	case Healthy:
+		return "healthy"
+	case Unhealthy:
+		return "unhealthy"
+	default:
+		return "unknown"
+	}
+}
+
 // MarshalJSON implements json.Marshaler.
 func (s Status) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.String())

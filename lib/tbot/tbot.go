@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
@@ -131,6 +132,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		internal.LoopIterationsSuccessCounter,
 		internal.LoopIterationsFailureCounter,
 		internal.LoopIterationTime,
+		readyz.ServiceStatusGauge,
 	); err != nil {
 		return trace.Wrap(err)
 	}
