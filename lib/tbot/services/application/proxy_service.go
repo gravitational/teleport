@@ -7,15 +7,17 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
+
+	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -26,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 var applicationProxyTracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/applicationproxy")
@@ -188,13 +189,13 @@ func (s *ProxyService) startProxy(ctx context.Context) error {
 	// Ping the Teleport Proxy
 	proxyPing, err := s.proxyPinger.Ping(ctx)
 	if err != nil {
-		return err
+		return trace.Wrap(err, "pinging upstream proxy")
 	}
 
 	// Retrieve the Proxy Address to use for the Application Request
 	proxyAddr, err := proxyPing.ProxyWebAddr()
 	if err != nil {
-		return err
+		return trace.Wrap(err, "determining proxy address from ping response")
 	}
 	s.proxyAddr = proxyAddr
 
@@ -213,13 +214,16 @@ func (s *ProxyService) startProxy(ctx context.Context) error {
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+		BaseContext: func(net.Listener) context.Context {
+			// Use the main context which controls the service being stopped as
+			// the base context for all incoming requests.
+			return ctx
+		},
 	}
 	proxyHttpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		reqWithContext := req.WithContext(ctx)
-		err := s.handleProxyRequest(w, reqWithContext)
+		err := s.handleProxyRequest(w, req)
 		if err != nil {
 			s.handleProxyError(w, err)
-			ctx.Done()
 			return
 		}
 	})
@@ -245,19 +249,11 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 
 	var appCert *tls.Certificate
 	var err error
-	var cached bool
-
-	if s.cfg.CertificateCaching {
-		cached = true
-		appCert, err = utils.FnCacheGet(ctx, s.cache, appName, func(ctx context.Context) (*tls.Certificate, error) {
-			cached = false
-			s.log.InfoContext(ctx, fmt.Sprintf("(Re)issuing application Certificate for %s\n", appName))
-			cert, _, err := s.issueCert(ctx, appName)
-			return cert, err
-		})
-	} else {
-		appCert, _, err = s.issueCert(ctx, appName)
-	}
+	appCert, err = utils.FnCacheGet(ctx, s.cache, appName, func(ctx context.Context) (*tls.Certificate, error) {
+		s.log.InfoContext(ctx, fmt.Sprintf("(Re)issuing application Certificate for %s\n", appName))
+		cert, _, err := s.issueCert(ctx, appName)
+		return cert, err
+	})
 
 	if err != nil {
 		return err
@@ -310,10 +306,6 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 			w.Header().Set(key, value)
 		}
 	}
-
-	// Add extra Teleport header
-	w.Header().Set("X-Teleport-Application", appName)
-	w.Header().Set("X-Teleport-Application-Cached", strconv.FormatBool(cached))
 
 	// Write the StatusCode
 	w.WriteHeader(result.StatusCode)
