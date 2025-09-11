@@ -25,6 +25,7 @@ import (
 	"net/netip"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,6 +43,12 @@ type RouteConflictConfig struct {
 	Routing Routing
 	// Interfaces abstracts away functions from the net package and calls to ifconfig.
 	Interfaces Interfaces
+	// IPv4CIDRRanges are the IPv4 ranges used by VNet to assign virtual IPs in different clusters.
+	//
+	// [RouteConflictDiag.Run] performs a bunch of non-atomic operations. The indices of interfaces
+	// can change between those operations. IPv4CIDRRanges allow a way to double check if VNet
+	// destinations as recognized by [RouteConflictDiag] are indeed within the ranges used by VNet.
+	IPv4CIDRRanges []string
 	// RefetchRoutesDuration is the duration for which [RouteConflictDiag] is going to wait before
 	// re-fetching the list of network routes on the system if it does not see any routes belonging to
 	// the interface set up by VNet. It will fetch the routes up to three times. If after the third
@@ -81,6 +88,10 @@ type Interfaces interface {
 // routes set up by VNet.
 type RouteConflictDiag struct {
 	cfg *RouteConflictConfig
+
+	// ipv4CIDRPrefixes are IPv4CIDRRanges from [RouteConflictConfig] parsed into netip.Prefix during
+	// [NewRouteConflictDiag].
+	ipv4CIDRPrefixes []netip.Prefix
 }
 
 // NewRouteConflictDiag instantiates [RouteConflictDiag] given [RouteConflictConfig] and checks if
@@ -102,8 +113,18 @@ func NewRouteConflictDiag(cfg *RouteConflictConfig) (*RouteConflictDiag, error) 
 		cfg.RefetchRoutesDuration = 500 * time.Millisecond
 	}
 
+	ipv4CIDRPrefixes := make([]netip.Prefix, 0, len(cfg.IPv4CIDRRanges))
+	for _, ipv4Range := range cfg.IPv4CIDRRanges {
+		prefix, err := netip.ParsePrefix(ipv4Range)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing prefix %s", ipv4Range)
+		}
+		ipv4CIDRPrefixes = append(ipv4CIDRPrefixes, prefix)
+	}
+
 	return &RouteConflictDiag{
-		cfg: cfg,
+		cfg:              cfg,
+		ipv4CIDRPrefixes: ipv4CIDRPrefixes,
 	}, nil
 }
 
@@ -151,14 +172,6 @@ func (c *RouteConflictDiag) EmptyCheckReport() *diagv1.CheckReport {
 }
 
 func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, error) {
-	// Unlike in other interactions with Interfaces, it doesn't make sense to re-fetch the routes,
-	// hence why NewUnstableIfaceError is not used. If this call gives an error, then VnetIfaceName is
-	// likely wrong.
-	vnetIface, err := c.cfg.Interfaces.InterfaceByName(c.cfg.VnetIfaceName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// If RouteConflictDiag runs soon after starting VNet or logging in to the first cluster, it might
 	// take a few seconds for the VNet admin process to set up relevant network routes. In that
 	// situation, RouteConflictDiag should wait for a brief period and then re-fetch routes.
@@ -168,12 +181,22 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, e
 	// route conflicts.
 	var rds []RouteDest
 	var vnetDests []RouteDest
+	var vnetIface *net.Interface
 	attempts := 0
 	for len(vnetDests) == 0 && attempts < 3 {
 		if attempts > 0 {
 			time.Sleep(c.cfg.RefetchRoutesDuration)
 		}
 		attempts++
+
+		var err error
+		// If this call returns an error, then likely there's something wrong with VnetIfaceName.
+		// Unlike in other interactions with Interfaces, it doesn't make sense to re-fetch the routes in
+		// that scenario, hence why NewUnstableIfaceError is not used.
+		vnetIface, err = c.cfg.Interfaces.InterfaceByName(c.cfg.VnetIfaceName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		rds, err = c.cfg.Routing.GetRouteDestinations()
 		if err != nil {
@@ -189,6 +212,10 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, e
 
 	if len(vnetDests) == 0 {
 		return nil, nil
+	}
+
+	if err := c.verifyVnetDestsAreWithinIPv4Ranges(vnetDests); err != nil {
+		return nil, trace.Wrap(NewUnstableIfaceError(err))
 	}
 
 	var rcs []*diagv1.RouteConflict
@@ -228,6 +255,43 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, e
 	}
 
 	return rcs, nil
+}
+
+// verifyVnetDestsAreWithinIPv4Ranges protects the diag check from returning incoherent results.
+//
+// [RouteConflictDiag.Run] performs a bunch of non-atomic operations, such as fetching full
+// interface details by index or fetching route destinations (where each route is set up for a
+// particular interface, identified by the index). The indices of interfaces can change between
+// those operations. This functions checks if VNet destinations as recognized by [RouteConflictDiag]
+// are indeed within the ranges used by VNet.
+func (c *RouteConflictDiag) verifyVnetDestsAreWithinIPv4Ranges(vnetDests []RouteDest) error {
+	if len(c.ipv4CIDRPrefixes) == 0 {
+		// There are no IPv4 CIDR ranges if VNet is running but the user is not logged in to any
+		// clusters, or if the request to obtain IPv4 ranges failed (which will be reported elsewhere in
+		// the diag report).
+		return nil
+	}
+
+	for _, rd := range vnetDests {
+		switch route := rd.(type) {
+		case *RouteDestIP:
+			// If a VNet route is a single address, check if it's contained by any configured prefix.
+			if !slices.ContainsFunc(c.ipv4CIDRPrefixes, func(prefix netip.Prefix) bool {
+				return prefix.Contains(route.Addr)
+			}) {
+				return trace.Errorf("%s does not belong to any IPv4 CIDR range used by VNet", rd.String())
+			}
+		case *RouteDestPrefix:
+			// If a VNet route is a prefix, check if it's equal to any configured prefix.
+			if !slices.ContainsFunc(c.ipv4CIDRPrefixes, func(prefix netip.Prefix) bool {
+				otherPrefix := route.Prefix
+				return prefix.Addr() == otherPrefix.Addr() && prefix.Bits() == otherPrefix.Bits()
+			}) {
+				return trace.Errorf("%s is not one of the IPv4 CIDR ranges used by VNet", rd.String())
+			}
+		}
+	}
+	return nil
 }
 
 // Commands returns the accompanying command showing the state of routes in the system.
