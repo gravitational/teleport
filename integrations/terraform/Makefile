@@ -45,7 +45,7 @@ clean: tfclean
 build: clean
 # Turning off GOWORK to prevent missing package errors.
 	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) \
-		go build -tags "kustomize_disable_go_plugin_support,terraform" \
+		go build -tags "kustomize_disable_go_plugin_support,terraformprovider" \
 		-o $(BUILDDIR)/$(BINARY_NAME) $(BUILDFLAGS)
 
 build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm64 amd64)

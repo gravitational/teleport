@@ -1,4 +1,4 @@
-//go:build !terraform
+//go:build !terraformprovider
 
 /*
  * Teleport

@@ -1,4 +1,4 @@
-//go:build !windows && !terraform
+//go:build !windows && !terraformprovider
 
 /*
  * Teleport
