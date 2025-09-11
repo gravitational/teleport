@@ -104,7 +104,7 @@ const channelType = "auth-agent@openssh.com"
 // [agent] library once https://github.com/golang/go/issues/61383
 // is addressed.
 func ServeChannelRequests(ctx context.Context, client *tracessh.Client, getForwardAgent ClientGetter) error {
-	err := client.HandleChannelOpen(ctx, channelType, func(ch ssh.NewChannel) {
+	err := client.HandleChannelOpen(ctx, channelType, func(ctx context.Context, ch ssh.NewChannel) {
 		channel, reqs, err := ch.Accept()
 		if err != nil {
 			return

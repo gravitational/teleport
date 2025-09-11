@@ -21,12 +21,8 @@
 package x11
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 const (
@@ -80,18 +76,6 @@ type ChannelRequestPayload struct {
 	OriginatorAddress string
 	// OriginatorPort is the port of the server requesting an X11 channel
 	OriginatorPort uint32
-}
-
-type x11ChannelHandler func(ctx context.Context, nch ssh.NewChannel)
-
-// ServeChannelRequests opens an X11 channel handler and starts a
-// goroutine to serve any channels received with the handler provided.
-func ServeChannelRequests(ctx context.Context, clt *tracessh.Client, handler x11ChannelHandler) error {
-	err := clt.HandleChannelOpen(ctx, ChannelRequest, func(ch ssh.NewChannel) {
-		// TODO: handle error and fix ctx.
-		handler(ctx, ch)
-	})
-	return trace.Wrap(err)
 }
 
 // ServerConfig is a server configuration for X11 forwarding
