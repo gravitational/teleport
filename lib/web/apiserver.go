@@ -650,7 +650,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		// request is going to the web UI
 		if cfg.StaticFS == nil {
-			w.WriteHeader(http.StatusNotImplemented)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 
