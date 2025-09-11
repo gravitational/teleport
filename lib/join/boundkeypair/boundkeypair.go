@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
-	"github.com/gravitational/teleport/lib/join/joincerts"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -547,6 +545,7 @@ type JoinParams struct {
 	BoundKeypairInit            *messages.BoundKeypairInit
 	ChallengeResponse           func(messages.Response) (messages.Request, error)
 	CreateBoundKeypairValidator CreateBoundKeypairValidator
+	GenerateBotCerts            func(ctx context.Context, previousBotInstanceID string, claims any) (result *messages.Result, botInstanceID string, err error)
 	Clock                       clockwork.Clock
 	Logger                      *slog.Logger
 }
@@ -584,7 +583,6 @@ func (p *JoinParams) checkAndSetDefaults() error {
 // AuthService is the subset of the Auth service interface required by the
 // JoinServer to implement joining.
 type AuthService interface {
-	GenerateBotCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *joincerts.BotCertsParams) (*proto.Certs, string, error)
 	EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error
 	GetClusterName(context.Context) (types.ClusterName, error)
 	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
@@ -900,21 +898,11 @@ func HandleBoundKeypairJoin(
 		boundPublicKey = newPubKey
 	}
 
-	certsParams, err := joincerts.MakeBotCertsParams(
-		params.Diag,
-		params.AuthCtx,
-		params.ClientInit,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certsParams.RawJoinClaims = &boundkeypair.Claims{
+	result, botInstanceID, err := params.GenerateBotCerts(ctx, verifiedPreviousBotInstanceID, &boundkeypair.Claims{
 		PublicKey:     boundPublicKey,
 		RecoveryCount: recoveryCount,
 		RecoveryMode:  recoveryMode,
-	}
-	certsParams.PreviousBotInstanceID = verifiedPreviousBotInstanceID
-	certs, botInstanceID, err := params.AuthService.GenerateBotCertsForJoin(ctx, params.ProvisionToken, certsParams)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -974,10 +962,6 @@ func HandleBoundKeypairJoin(
 		return nil, trace.Wrap(err, "issuing join state document")
 	}
 
-	result, err := joincerts.MakeResultMessage(certs, nil /*hostID*/)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	result.BoundKeypairResult = &messages.BoundKeypairResult{
 		JoinState: []byte(newJoinState),
 		PublicKey: []byte(boundPublicKey),

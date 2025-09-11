@@ -65,6 +65,23 @@ func (s *Server) handleBoundKeypairJoin(
 		solution, err := stream.Recv()
 		return solution, trace.Wrap(err)
 	}
+	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Result, string, error) {
+		certsParams, err := makeBotCertsParams(diag, authCtx, clientInit)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		certsParams.PreviousBotInstanceID = previousBotInstanceID
+		certsParams.RawJoinClaims = claims
+		certs, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisionToken, certsParams)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		resultMsg, err := makeResultMessage(certs)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return resultMsg, botInstanceID, nil
+	}
 	return boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:       s.cfg.AuthService,
 		AuthCtx:           authCtx,
@@ -73,6 +90,7 @@ func (s *Server) handleBoundKeypairJoin(
 		ClientInit:        clientInit,
 		BoundKeypairInit:  boundKeypairInit,
 		ChallengeResponse: challengeResponse,
+		GenerateBotCerts:  generateBotCerts,
 		Clock:             s.clock,
 		Logger:            log,
 	})
@@ -142,6 +160,24 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		PreviousJoinState: req.PreviousJoinState,
 	}
 
+	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Result, string, error) {
+		certsParams, err := makeBotCertsParams(diag, authCtx, clientInit)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		certsParams.PreviousBotInstanceID = previousBotInstanceID
+		certsParams.RawJoinClaims = claims
+		certs, botInstanceID, err := a.GenerateBotCertsForJoin(ctx, provisionToken, certsParams)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		resultMsg, err := makeResultMessage(certs)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return resultMsg, botInstanceID, nil
+	}
+
 	resultMsg, err := boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:                 a,
 		AuthCtx:                     authCtx,
@@ -151,6 +187,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		BoundKeypairInit:            boundKeypairInit,
 		ChallengeResponse:           adaptBoundKeypairChallengeResponseFunc(challengeResponse),
 		CreateBoundKeypairValidator: createBoundKeypairValidator,
+		GenerateBotCerts:            generateBotCerts,
 		Clock:                       a.GetClock(),
 		Logger:                      log,
 	})
