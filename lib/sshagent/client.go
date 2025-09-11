@@ -129,3 +129,16 @@ func ServeChannelRequests(ctx context.Context, client *tracessh.Client, getForwa
 	})
 	return trace.Wrap(err)
 }
+
+// RequestAgentForwarding sets up agent forwarding for the session.
+// ForwardToAgent or ForwardToRemote should be called to route
+// the authentication requests.
+func RequestAgentForwarding(ctx context.Context, session *tracessh.Session) error {
+	ok, err := session.SendRequest(ctx, "auth-agent-req@openssh.com", true, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.Errorf("agent forwarding request denied")
+	}
+	return nil
+}
