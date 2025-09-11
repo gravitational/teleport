@@ -33,7 +33,7 @@ import (
 // giving up.
 const providerTimeout = 15 * time.Second
 
-// Validate validates an OIDC ID token for the specified claims type.
+// ValidateToken validates an OIDC ID token for the specified claims type.
 func ValidateToken[C oidc.Claims](
 	ctx context.Context,
 	issuerURL string,

@@ -78,11 +78,6 @@ export function ConnectServerActionButton(props: {
     });
   }
 
-  function getSshLogins(): string[] {
-    const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
-    return cluster?.loggedInUser?.sshLogins || [];
-  }
-
   function connect(login: string): void {
     const { uri, hostname } = props.server;
     connectToServer(
@@ -97,7 +92,7 @@ export function ConnectServerActionButton(props: {
   const commonProps = {
     inputType: MenuInputType.FILTER,
     textTransform: 'none',
-    getLoginItems: () => getSshLogins().map(login => ({ login, url: '' })),
+    getLoginItems: () => props.server.logins.map(login => ({ login, url: '' })),
     onSelect: (e, login) => connect(login),
     transformOrigin: {
       vertical: 'top',
