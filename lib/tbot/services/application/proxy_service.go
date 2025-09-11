@@ -202,6 +202,9 @@ func (s *ProxyService) startProxy(ctx context.Context) error {
 	}
 	s.proxyUrl = proxyUrl
 
+	// TODO: Check if ALPN Upgrade is required - if so, implement it here or
+	// throw an error for this MVP.
+
 	// This router expects the requests to come in via the style "GET <fqdn>:<port>/"
 	// It doesn't really consider the CONNECT method, but it should work nonetheless.
 	proxyHttpServer := http.Server{
