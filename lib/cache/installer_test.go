@@ -33,15 +33,11 @@ func TestInstallers(t *testing.T) {
 		newResource: func(name string) (types.Installer, error) {
 			return types.NewInstallerV1(name, "test.sh")
 		},
-		create: p.clusterConfigS.SetInstaller,
-		list: func(ctx context.Context) ([]types.Installer, error) {
-			return p.clusterConfigS.GetInstallers(ctx)
-		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.Installer, error) {
-			return p.cache.GetInstallers(ctx)
-		},
+		create:    p.clusterConfigS.SetInstaller,
+		list:      legacyListAdapter(p.clusterConfigS.GetInstallers),
+		cacheList: legacyListAdapter(p.cache.GetInstallers),
 		deleteAll: func(ctx context.Context) error {
 			return p.clusterConfigS.DeleteAllInstallers(ctx)
 		},
-	})
+	}, withSkipPaginationTest())
 }
