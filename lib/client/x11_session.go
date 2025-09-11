@@ -154,22 +154,22 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 
 // serveX11Channels serves incoming X11 channels by starting X11 forwarding with the session.
 func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Session) error {
-	err := x11.ServeChannelRequests(ctx, ns.nodeClient.Client, func(ctx context.Context, nch ssh.NewChannel) {
+	err := ns.nodeClient.Client.HandleChannelOpen(ctx, x11.ChannelRequest, func(ctx context.Context, ch ssh.NewChannel) {
 		if !ns.x11RefuseTime.IsZero() && time.Now().After(ns.x11RefuseTime) {
-			nch.Reject(ssh.Prohibited, "rejected X11 channel request after ForwardX11Timeout")
+			ch.Reject(ssh.Prohibited, "rejected X11 channel request after ForwardX11Timeout")
 			slog.WarnContext(ctx, "rejected X11 forwarding attempt after the ForwardX11Timeout")
 			return
 		}
 
 		var req x11.ChannelRequestPayload
-		if err := ssh.Unmarshal(nch.ExtraData(), &req); err != nil {
-			nch.Reject(ssh.Prohibited, "invalid payload")
+		if err := ssh.Unmarshal(ch.ExtraData(), &req); err != nil {
+			ch.Reject(ssh.Prohibited, "invalid payload")
 			slog.DebugContext(ctx, "rejected X11 channel request with invalid payload", "err", err)
 			return
 		}
 
 		slog.DebugContext(ctx, "received X11 channel request from %s:%d", req.OriginatorAddress, req.OriginatorPort)
-		xchan, sin, err := nch.Accept()
+		xchan, sin, err := ch.Accept()
 		if err != nil {
 			slog.DebugContext(ctx, "failed to accept X11 channel request", "err", err)
 			return
@@ -223,12 +223,12 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Sess
 
 // rejectX11Channels rejects any incomign X11 channels for this node session.
 func (ns *NodeSession) rejectX11Channels(ctx context.Context) error {
-	err := x11.ServeChannelRequests(ctx, ns.nodeClient.Client, func(_ context.Context, nch ssh.NewChannel) {
+	err := ns.nodeClient.Client.HandleChannelOpen(ctx, x11.ChannelRequest, func(ctx context.Context, ch ssh.NewChannel) {
 		// According to RFC 4254, client "implementations MUST reject any X11 channel
 		// open requests if they have not requested X11 forwarding". Following openssh's
 		// example, we treat such a request as a break in attempt and warn the user.
 		slog.WarnContext(ctx, "server tried X11 forwarding without client requesting it, this is likely a break-in attempt by a malicious user")
-		nch.Reject(ssh.Prohibited, "")
+		ch.Reject(ssh.Prohibited, "")
 	})
 	return trace.Wrap(err)
 }

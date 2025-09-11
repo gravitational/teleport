@@ -1425,8 +1425,8 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// Handle any x11 channel requests received from the server
 	// and start x11 forwarding to the client display.
-	err = x11.ServeChannelRequests(ctx, clt, func(ctx context.Context, nch ssh.NewChannel) {
-		sch, sin, err := nch.Accept()
+	err = clt.HandleChannelOpen(ctx, x11.ChannelRequest, func(ctx context.Context, ch ssh.NewChannel) {
+		sch, sin, err := ch.Accept()
 		assert.NoError(t, err)
 		defer sch.Close()
 
