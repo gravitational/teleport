@@ -19,8 +19,13 @@
 package services
 
 import (
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -451,4 +456,26 @@ func TestInsecureSkipVerify(t *testing.T) {
 		result := getTLSInsecureSkipVerify(tt.annotations)
 		require.Equal(t, tt.expected, result)
 	}
+}
+
+func TestRewriteHeadersAndApplyValueTraits(t *testing.T) {
+	r := httptest.NewRequest("GET", "/foo", nil)
+	r.Header.Set("x-no-rewrite", "no-rewrite")
+	rewrites := []*types.Header{
+		{Name: "host", Value: "1.2.3.4"},
+		{Name: "x-rewrite", Value: "{{external.rewrite}}"},
+		// Missing traits should log a debug message that this rewrite is skipped.
+		{Name: "x-bad-rewrite", Value: "{{external.bad_rewrite}}"},
+	}
+	traits := map[string][]string{
+		"rewrite": {"value1", "value2"},
+	}
+	RewriteHeadersAndApplyValueTraits(r, slices.Values(rewrites), traits, slog.Default())
+
+	assert.Equal(t, "1.2.3.4", r.Host)
+	wantHeaders := make(http.Header)
+	wantHeaders.Add("x-rewrite", "value1")
+	wantHeaders.Add("x-rewrite", "value2")
+	wantHeaders.Add("x-no-rewrite", "no-rewrite")
+	assert.Equal(t, wantHeaders, r.Header)
 }

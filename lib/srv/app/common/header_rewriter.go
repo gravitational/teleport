@@ -19,8 +19,14 @@
 package common
 
 import (
+	"context"
+	"iter"
+	"log/slog"
 	"net/http/httputil"
+	"slices"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
 
@@ -54,4 +60,20 @@ func (hr *HeaderRewriter) Rewrite(req *httputil.ProxyRequest) {
 	} else {
 		req.Out.Header.Set(XForwardedSSL, sslOff)
 	}
+}
+
+// AppRewriteHeaders returns an iterator for app headers to rewrite. Reserved
+// headers are skipped.
+func AppRewriteHeaders(ctx context.Context, rewrite *types.Rewrite, log *slog.Logger) iter.Seq[*types.Header] {
+	var headers []*types.Header
+	if rewrite != nil {
+		headers = rewrite.Headers
+	}
+	return iterutils.Filter(func(header *types.Header) bool {
+		if IsReservedHeader(header.Name) {
+			log.DebugContext(ctx, "Not rewriting Teleport reserved header", "header_name", header.Name)
+			return false
+		}
+		return true
+	}, slices.Values(headers))
 }
