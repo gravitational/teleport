@@ -32,24 +32,20 @@ const chanSize = 16
 // SessionClient is an extended [*ssh.Client] with additional methods
 // for handling session requests.
 type SessionClient struct {
-	conn ssh.Conn
-
 	mu              sync.Mutex
 	requestHandlers map[string]chan *ssh.Request
 }
 
 // NewSessionClient returns a new SessionClient.
-func NewSessionClient(conn ssh.Conn) *SessionClient {
-	return &SessionClient{
-		conn: conn,
-	}
+func NewSessionClient() *SessionClient {
+	return &SessionClient{}
 }
 
 // NewSession opens a new Session for this client.
-func (c *SessionClient) NewSession() (*ssh.Session, error) {
+func (c *SessionClient) NewSession(conn ssh.Conn) (*ssh.Session, error) {
 	// open a session manually so we can take ownership of the
 	// requests chan
-	ch, reqs, err := c.conn.OpenChannel("session", nil)
+	ch, reqs, err := conn.OpenChannel("session", nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
