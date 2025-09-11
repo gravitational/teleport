@@ -700,8 +700,7 @@ type CreateAccessRequestRequest struct {
 	Roles []string `protobuf:"bytes,3,rep,name=roles,proto3" json:"roles,omitempty"`
 	// suggested_reviewers is a suggested list of reviewers that can review a request.
 	SuggestedReviewers []string `protobuf:"bytes,4,rep,name=suggested_reviewers,json=suggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
-	// TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
-	// a list of resourceIDs requested in the AccessRequest
+	// List of resources to which access is being requested.
 	ResourceIds []*ResourceID `protobuf:"bytes,5,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
 	// assume_start_time is the time after which the requested access can be assumed.
 	AssumeStartTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=assume_start_time,json=assumeStartTime,proto3" json:"assume_start_time,omitempty"`
