@@ -20,6 +20,7 @@ package oidc
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -112,6 +113,7 @@ func (v *CachingTokenValidator[C]) GetValidator(ctx context.Context, issuer, aud
 			issuer:     issuer,
 			audience:   audience,
 			verifierFn: zoidcTokenVerifier[C],
+			logger:     log.With("issuer", issuer, "audience", audience),
 		}, nil
 	})
 
@@ -127,6 +129,7 @@ type CachingValidatorInstance[C oidc.Claims] struct {
 	audience string
 	clock    clockwork.Clock
 	client   *http.Client
+	logger   *slog.Logger
 
 	mu                     sync.Mutex
 	discoveryConfig        *oidc.DiscoveryConfiguration
@@ -157,7 +160,6 @@ func (v *CachingValidatorInstance[C]) getKeySet(
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	l := log.With("issuer", v.issuer, "audience", v.audience)
 	now := v.clock.Now()
 
 	if !v.discoveryConfigExpires.IsZero() && now.After(v.discoveryConfigExpires) {
@@ -165,11 +167,11 @@ func (v *CachingValidatorInstance[C]) getKeySet(
 		v.discoveryConfig = nil
 		v.discoveryConfigExpires = time.Time{}
 
-		l.DebugContext(ctx, "Invalidating expired discovery config")
+		v.logger.DebugContext(ctx, "Invalidating expired discovery config")
 	}
 
 	if v.discoveryConfig == nil {
-		l.DebugContext(ctx, "Fetching new discovery config")
+		v.logger.DebugContext(ctx, "Fetching new discovery config")
 
 		// Note: This is the only blocking call inside the mutex.
 		// In the future, it might be a good idea to fetch the new discovery
@@ -197,11 +199,11 @@ func (v *CachingValidatorInstance[C]) getKeySet(
 		v.keySet = nil
 		v.keySetExpires = time.Time{}
 
-		l.DebugContext(ctx, "Invalidating expired KeySet")
+		v.logger.DebugContext(ctx, "Invalidating expired KeySet")
 	}
 
 	if v.keySet == nil {
-		l.DebugContext(ctx, "Creating new remote KeySet")
+		v.logger.DebugContext(ctx, "Creating new remote KeySet")
 		v.keySet = rp.NewRemoteKeySet(v.client, v.discoveryConfig.JwksURI)
 		v.keySetExpires = now.Add(keySetTTL)
 	}
@@ -217,7 +219,6 @@ func zoidcTokenVerifier[C oidc.Claims](
 	token string,
 	opts ...rp.VerifierOption,
 ) (C, error) {
-	var nilClaims C
 	verifier := rp.NewIDTokenVerifier(issuer, clientID, keySet, opts...)
 
 	// Note: VerifyIDToken() may mutate the KeySet (if the keyset is empty or if
@@ -227,7 +228,7 @@ func zoidcTokenVerifier[C oidc.Claims](
 	// be GC'd afterward.
 	claims, err := rp.VerifyIDToken[C](ctx, token, verifier)
 	if err != nil {
-		return nilClaims, trace.Wrap(err, "verifying token")
+		return *new(C), trace.Wrap(err, "verifying token")
 	}
 
 	return claims, nil
@@ -244,16 +245,14 @@ func (v *CachingValidatorInstance[C]) ValidateToken(
 	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
 	defer cancel()
 
-	var nilClaims C
-
 	ks, err := v.getKeySet(timeoutCtx)
 	if err != nil {
-		return nilClaims, trace.Wrap(err)
+		return *new(C), trace.Wrap(err)
 	}
 
 	claims, err := v.verifierFn(ctx, v.issuer, v.audience, ks, token, opts...)
 	if err != nil {
-		return nilClaims, trace.Wrap(err)
+		return *new(C), trace.Wrap(err)
 	}
 
 	return claims, nil
