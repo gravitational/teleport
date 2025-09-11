@@ -20,6 +20,7 @@ package aws_sync
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -31,6 +32,7 @@ import (
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // EKSClientGetter returns an EKS client for aws-sync.
@@ -58,6 +60,7 @@ func (a *Fetcher) pollAWSEKSClusters(ctx context.Context, result *Resources, col
 		result.EKSClusters = output.clusters
 		result.AssociatedAccessPolicies = output.associatedPolicies
 		result.AccessEntries = output.accessEntry
+		result.EKSAuditLogClusters = output.auditLogClusters
 		return nil
 	}
 }
@@ -67,6 +70,7 @@ type fetchAWSEKSClustersOutput struct {
 	clusters           []*accessgraphv1alpha.AWSEKSClusterV1
 	associatedPolicies []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1
 	accessEntry        []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1
+	auditLogClusters   []*accessgraphv1alpha.AWSEKSClusterV1
 }
 
 // fetchAWSSEKSClusters fetches eks instances from all regions.
@@ -85,6 +89,7 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 	collectClusters := func(cluster *accessgraphv1alpha.AWSEKSClusterV1,
 		clusterAssociatedPolicies []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1,
 		clusterAccessEntries []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1,
+		fetchAuditLogs bool,
 		err error,
 	) {
 		hostsMu.Lock()
@@ -94,6 +99,9 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 		}
 		if cluster != nil {
 			output.clusters = append(output.clusters, cluster)
+			if fetchAuditLogs {
+				output.auditLogClusters = append(output.auditLogClusters, cluster)
+			}
 		}
 		output.associatedPolicies = append(output.associatedPolicies, clusterAssociatedPolicies...)
 		output.accessEntry = append(output.accessEntry, clusterAccessEntries...)
@@ -103,7 +111,7 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 		eG.Go(func() error {
 			eksClient, err := a.GetEKSClient(ctx, region, a.getAWSOptions()...)
 			if err != nil {
-				collectClusters(nil, nil, nil, trace.Wrap(err))
+				collectClusters(nil, nil, nil, false, trace.Wrap(err))
 				return nil
 			}
 
@@ -121,10 +129,14 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 					oldAssociatedPolicies := sliceFilter(existing.AssociatedAccessPolicies, func(ap *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) bool {
 						return ap.Cluster.Region == region && ap.AccountId == a.AccountID
 					})
+					oldAuditLogClusters := sliceFilter(existing.EKSAuditLogClusters, func(cluster *accessgraphv1alpha.AWSEKSClusterV1) bool {
+						return cluster.Region == region && cluster.AccountId == a.AccountID
+					})
 					hostsMu.Lock()
 					output.clusters = append(output.clusters, oldEKSClusters...)
 					output.associatedPolicies = append(output.associatedPolicies, oldAssociatedPolicies...)
 					output.accessEntry = append(output.accessEntry, oldAccessEntries...)
+					output.auditLogClusters = append(output.auditLogClusters, oldAuditLogClusters...)
 					hostsMu.Unlock()
 					break
 				}
@@ -147,22 +159,27 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 				},
 				)
 				if err != nil {
-					collectClusters(oldCluster, oldAssociatedPolicies, oldAccessEntries, trace.Wrap(err))
+					fetchAuditLogs := slices.Contains(existing.EKSAuditLogClusters, oldCluster)
+					collectClusters(oldCluster, oldAssociatedPolicies, oldAccessEntries, fetchAuditLogs, trace.Wrap(err))
 					return nil
 				}
 				protoCluster := awsEKSClusterToProtoCluster(cluster.Cluster, region, a.AccountID)
+				fetchAuditLogs := false
+				if a.EKSAuditLogs != nil {
+					fetchAuditLogs, _, _ = services.MatchLabels(a.EKSAuditLogs.Tags, cluster.Cluster.Tags)
+				}
 
 				// if eks cluster only allows CONFIGMAP auth, skip polling of access entries and
 				// associated policies.
 				if cluster.Cluster != nil && cluster.Cluster.AccessConfig != nil &&
 					cluster.Cluster.AccessConfig.AuthenticationMode == ekstypes.AuthenticationModeConfigMap {
-					collectClusters(protoCluster, nil, nil, nil)
+					collectClusters(protoCluster, nil, nil, fetchAuditLogs, nil)
 					continue
 				}
 				// fetchAccessEntries retries the list of configured access entries
 				accessEntries, err := a.fetchAccessEntries(ctx, eksClient, protoCluster)
 				if err != nil {
-					collectClusters(protoCluster, oldAssociatedPolicies, oldAccessEntries, trace.Wrap(err))
+					collectClusters(protoCluster, oldAssociatedPolicies, oldAccessEntries, fetchAuditLogs, trace.Wrap(err))
 				}
 
 				accessEntryARNs := make([]string, 0, len(accessEntries))
@@ -175,9 +192,9 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 
 				associatedPolicies, err := a.fetchAssociatedPolicies(ctx, eksClient, protoCluster, accessEntryARNs)
 				if err != nil {
-					collectClusters(protoCluster, oldAssociatedPolicies, accessEntries, trace.Wrap(err))
+					collectClusters(protoCluster, oldAssociatedPolicies, accessEntries, fetchAuditLogs, trace.Wrap(err))
 				}
-				collectClusters(protoCluster, associatedPolicies, accessEntries, nil)
+				collectClusters(protoCluster, associatedPolicies, accessEntries, fetchAuditLogs, nil)
 			}
 			return nil
 		})
