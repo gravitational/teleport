@@ -208,16 +208,30 @@ func (m fakeOpenAIClient) NewChatCompletion(
 	// Advance the clock to test if the inference end timestamp is captured.
 	m.clock.Advance(10 * time.Second)
 	content := body.Messages[1].OfUser.Content.OfString.Value
-	if content == "cause an error" {
+	switch content {
+	case "cause an error":
 		return nil, errors.New("OpenAI error")
+	case "make the output too long":
+		return &openai.ChatCompletion{
+			Choices: []openai.ChatCompletionChoice{{
+				Message: openai.ChatCompletionMessage{
+					Content: "",
+				},
+				FinishReason: "length",
+			}},
+		}, nil
+	case "no choices":
+		return &openai.ChatCompletion{}, nil
+	default:
+		return &openai.ChatCompletion{
+			Choices: []openai.ChatCompletionChoice{{
+				Message: openai.ChatCompletionMessage{
+					Content: "The user wrote: " + content,
+				},
+				FinishReason: "stop",
+			}},
+		}, nil
 	}
-	return &openai.ChatCompletion{
-		Choices: []openai.ChatCompletionChoice{{
-			Message: openai.ChatCompletionMessage{
-				Content: "The user wrote: " + content,
-			},
-		}},
-	}, nil
 }
 
 func waitForSummary(
@@ -250,6 +264,8 @@ func TestSummarizer(t *testing.T) {
 	kubeSessionID := "8fef2bf5-3efa-4c5d-8502-9410dea3dc94"
 	dbSessionID := "44608ee9-af78-4970-b523-ac4eb6121de7"
 	errorSessionID := "9a0ec7f5-2d1c-4c15-bb8c-9ac45864a627"
+	tooLongOutputSessionID := "db309e60-27d3-4f07-9c50-1a088771727a"
+	noChoicesSessionID := "da9f14f7-f068-4269-b2f4-6061a3a133c8"
 	serverID := "9d68b09f-8c0c-49a3-b54d-f8791f0c3941"
 	cases := []struct {
 		name      string
@@ -307,6 +323,33 @@ func TestSummarizer(t *testing.T) {
 			}),
 			state: summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR,
 			error: "OpenAI error",
+		},
+		{
+			name:      "output too long",
+			sessionID: tooLongOutputSessionID,
+			events: eventstest.GenerateTestSession(eventstest.SessionParams{
+				UserName:  "alice",
+				SessionID: tooLongOutputSessionID,
+				ServerID:  serverID,
+				// This text will trigger the fake inference provider to simulate too
+				// long model output.
+				PrintData: []string{"make the output too long"},
+			}),
+			state: summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR,
+			error: "model response length limit exceeded",
+		},
+		{
+			name:      "no choices",
+			sessionID: noChoicesSessionID,
+			events: eventstest.GenerateTestSession(eventstest.SessionParams{
+				UserName:  "alice",
+				SessionID: noChoicesSessionID,
+				ServerID:  serverID,
+				// This text will trigger returning an empty choices slice.
+				PrintData: []string{"no choices"},
+			}),
+			state: summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR,
+			error: "model returned no choices",
 		},
 	}
 

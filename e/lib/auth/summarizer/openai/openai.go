@@ -26,7 +26,7 @@ import (
 const (
 	// TODO(bl-nero): add context window size detection and adaptive algorithm.
 	defaultMaxSessionLength       = 200_000 // bytes
-	maxCompletionTokens     int64 = 2000
+	maxCompletionTokens     int64 = 4000
 	// labelApiErrorCode is a Prometheus metric label that carries the OpenAI API
 	// error code.
 	labelApiErrorCode = "api_error_code"
@@ -231,11 +231,25 @@ func (p *InferenceProvider) Summarize(
 		return "", trace.Wrap(err)
 	}
 
+	if len(completion.Choices) == 0 {
+		return "", trace.BadParameter("model returned no choices")
+	}
+
+	choice := completion.Choices[0]
 	p.logger.DebugContext(ctx, "Session summary generated",
 		"session_id", sessionID,
 		"session_length", len(transcript),
 		"prompt_tokens", completion.Usage.PromptTokens,
 		"completion_tokens", completion.Usage.CompletionTokens,
+		"finish_reason", choice.FinishReason,
 	)
-	return completion.Choices[0].Message.Content, nil
+
+	switch choice.FinishReason {
+	case string(openai.CompletionChoiceFinishReasonStop):
+		return choice.Message.Content, nil
+	case string(openai.CompletionChoiceFinishReasonLength):
+		return choice.Message.Content, trace.LimitExceeded("model response length limit exceeded")
+	default:
+		return choice.Message.Content, trace.BadParameter("model returned unexpected finish reason: %q", choice.FinishReason)
+	}
 }
