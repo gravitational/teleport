@@ -230,6 +230,11 @@
       "permanent": true
     },
     {
+      "source": "/machine-workload-identity/machine-id/getting-started.mdx/",
+      "destination": "/machine-workload-identity/getting-started.mdx/",
+      "permanent": true
+    },
+    {
       "source": "/management/export-audit-events/fluentd/",
       "destination": "/zero-trust-access/export-audit-events/fluentd/",
       "permanent": true
