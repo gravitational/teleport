@@ -15,55 +15,54 @@
 package sshutils
 
 import (
+	"sync"
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
-// ChannelRequestCallback allows the handling of channel requests
-// to be customized. nil can be returned if you don't want
-// golang/x/crypto/ssh to handle the request.
-type ChannelRequestCallback func(req *ssh.Request) *ssh.Request
+// chanSize sets the amount of buffering SSH connections. This is
+// primarily for testing: setting chanSize=0 uncovers deadlocks more
+// quickly.
+//
+// This constant originated from golang/x/crypto/ssh.
+const chanSize = 16
+
+// SessionClient is an extended [*ssh.Client] with additional methods
+// for handling session requests.
+type SessionClient struct {
+	conn ssh.Conn
+
+	mu              sync.Mutex
+	requestHandlers map[string]chan *ssh.Request
+}
+
+// NewSessionClient returns a new SessionClient.
+func NewSessionClient(conn ssh.Conn) *SessionClient {
+	return &SessionClient{
+		conn: conn,
+	}
+}
 
 // NewSession opens a new Session for this client.
-func NewSession(client *ssh.Client, callback ChannelRequestCallback) (*ssh.Session, error) {
-	// No custom request handling needed. We can use the basic golang/x/crypto/ssh implementation.
-	if callback == nil {
-		session, err := client.NewSession()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return session, nil
-	}
-
+func (c *SessionClient) NewSession() (*ssh.Session, error) {
 	// open a session manually so we can take ownership of the
 	// requests chan
-	ch, originalReqs, openChannelErr := client.OpenChannel("session", nil)
-	if openChannelErr != nil {
-		return nil, trace.Wrap(openChannelErr)
+	ch, reqs, err := c.conn.OpenChannel("session", nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	handleReqs := originalReqs
-	if callback != nil {
-		reqs := make(chan *ssh.Request, cap(originalReqs))
-		handleReqs = reqs
+	// Capture requests not handled by registered request handlers and
+	// pass them to the crypto [ssh.Session].
+	unhandledReqs := make(chan *ssh.Request, cap(reqs))
+	go func() {
+		c.handleRequests(reqs, unhandledReqs)
+		close(unhandledReqs)
+	}()
 
-		// pass the channel requests to the provided callback and
-		// forward them to another chan so golang.org/x/crypto/ssh
-		// can handle Session exiting correctly
-		go func() {
-			defer close(reqs)
-
-			for req := range originalReqs {
-				if req := callback(req); req != nil {
-					reqs <- req
-				}
-			}
-		}()
-	}
-
-	session, err := newCryptoSSHSession(ch, handleReqs)
+	session, err := newCryptoSSHSession(ch, unhandledReqs)
 	if err != nil {
 		_ = ch.Close()
 		return nil, trace.Wrap(err)
@@ -72,9 +71,63 @@ func NewSession(client *ssh.Client, callback ChannelRequestCallback) (*ssh.Sessi
 	return session, nil
 }
 
-// wrappedSSHConn allows an SSH session to be created while also allowing
+// HandleRequest returns a channel on which ssh Requests for the given
+// type are sent. If the type already is being handled, nil is returned.
+// The channel is closed when the connection is closed.
+//
+// This should be called before NewSession to ensure requests of this type are
+// not processed before the handler is registered.
+//
+// This method was adapted from golang/x/crypto/ssh.Client.HandleChannelOpen.
+// golang/x/crypto/ssh does not currently provide a similar method for session
+// requests out of the box.
+func (c *SessionClient) HandleRequests(requestType string) <-chan *ssh.Request {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.requestHandlers == nil {
+		// The SSH channel has been closed.
+		c := make(chan *ssh.Request)
+		close(c)
+		return c
+	}
+
+	ch := c.requestHandlers[requestType]
+	if ch != nil {
+		return nil
+	}
+
+	ch = make(chan *ssh.Request, chanSize)
+	c.requestHandlers[requestType] = ch
+	return ch
+}
+
+// handleRequests from the remote side.
+func (c *SessionClient) handleRequests(in <-chan *ssh.Request, unhandledReqs chan<- *ssh.Request) {
+	for req := range in {
+		c.mu.Lock()
+		handler := c.requestHandlers[req.Type]
+		c.mu.Unlock()
+
+		if handler != nil {
+			handler <- req
+		} else {
+			// Pass on requests without a registered handler. These will be
+			// handled by the default x/crypto/ssh request handler.
+			unhandledReqs <- req
+		}
+	}
+
+	c.mu.Lock()
+	for _, ch := range c.requestHandlers {
+		close(ch)
+	}
+	c.requestHandlers = nil
+	c.mu.Unlock()
+}
+
+// sshSession allows an SSH session to be created while also allowing
 // callers to take ownership of the SSH channel requests chan.
-type wrappedSSHConn struct {
+type sshSession struct {
 	ssh.Conn
 
 	channelOpened atomic.Bool
@@ -83,7 +136,7 @@ type wrappedSSHConn struct {
 	reqs <-chan *ssh.Request
 }
 
-func (f *wrappedSSHConn) OpenChannel(_ string, _ []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+func (f *sshSession) OpenChannel(_ string, _ []byte) (ssh.Channel, <-chan *ssh.Request, error) {
 	if !f.channelOpened.CompareAndSwap(false, true) {
 		panic("WrappedSSHConn.OpenChannel called more than once")
 	}
@@ -98,7 +151,7 @@ func (f *wrappedSSHConn) OpenChannel(_ string, _ []byte) (ssh.Channel, <-chan *s
 // to them, so this workaround is needed.
 func newCryptoSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request) (*ssh.Session, error) {
 	return (&ssh.Client{
-		Conn: &wrappedSSHConn{
+		Conn: &sshSession{
 			ch:   ch,
 			reqs: reqs,
 		},

@@ -34,8 +34,10 @@ import (
 // Client is a wrapper around ssh.Client that adds tracing support.
 type Client struct {
 	*ssh.Client
-	opts       []tracing.Option
-	capability tracingCapability
+	opts          []tracing.Option
+	capability    tracingCapability
+	wrapper       *clientWrapper
+	sessionClient *sshutils.SessionClient
 }
 
 type tracingCapability int
@@ -60,6 +62,16 @@ func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request
 		opts:       opts,
 		capability: tracingUnsupported,
 	}
+
+	// create the wrapper while the lock is still held
+	clt.wrapper = &clientWrapper{
+		capability: clt.capability,
+		Conn:       clt.Client.Conn,
+		opts:       clt.opts,
+		contexts:   make(map[string][]context.Context),
+	}
+
+	clt.sessionClient = sshutils.NewSessionClient(clt.wrapper)
 
 	if bytes.HasPrefix(clt.ServerVersion(), []byte("SSH-2.0-Teleport")) {
 		clt.capability = tracingSupported
@@ -162,24 +174,10 @@ func (c *Client) OpenChannel(
 	}, reqs, err
 }
 
-// NewSession creates a new SSH session that is passed tracing context
-// so that spans may be correlated properly over the ssh connection.
+// NewSession opens a new Session for this client.
 func (c *Client) NewSession(ctx context.Context) (*Session, error) {
-	return c.newSession(ctx, nil)
-}
-
-// NewSessionWithRequestCallback creates a new SSH session that is passed
-// tracing context so that spans may be correlated properly over the ssh
-// connection. The handling of channel requests from the underlying SSH
-// session can be controlled with chanReqCallback.
-func (c *Client) NewSessionWithRequestCallback(ctx context.Context, chanReqCallback sshutils.ChannelRequestCallback) (*Session, error) {
-	return c.newSession(ctx, chanReqCallback)
-}
-
-func (c *Client) newSession(ctx context.Context, chanReqCallback sshutils.ChannelRequestCallback) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
-
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		"ssh.NewSession",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -194,18 +192,53 @@ func (c *Client) newSession(ctx context.Context, chanReqCallback sshutils.Channe
 	)
 	defer span.End()
 
-	// create the wrapper while the lock is still held
-	wrapper := &clientWrapper{
-		capability: c.capability,
-		Conn:       c.Client.Conn,
-		opts:       c.opts,
-		ctx:        ctx,
-		contexts:   make(map[string][]context.Context),
+	session, err := c.sessionClient.NewSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// get a session from the wrapper
-	session, err := wrapper.NewSession(chanReqCallback)
-	return session, trace.Wrap(err)
+	// wrap the session so all session requests on the channel
+	// can be traced
+	return &Session{
+		Session: session,
+		wrapper: c.wrapper,
+	}, nil
+}
+
+// HandleRequests starts a goroutine to handle any incoming [ssh.Request] matching
+// the provided type using the provided handler. If the type already is being handled,
+// an error is returned.
+//
+// This should be called before NewSession to ensure requests of this type are
+// not processed before the handler is registered.
+func (c *Client) HandleRequests(ctx context.Context, requestType string, handleFn func(req *ssh.Request)) error {
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
+	ch := c.sessionClient.HandleRequests(requestType)
+	if ch == nil {
+		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", requestType)
+	}
+
+	go func() {
+		for req := range ch {
+			_, span := tracer.Start(
+				ctx,
+				fmt.Sprintf("ssh.HandleRequests/%s", requestType),
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					append(
+						peerAttr(c.Conn.RemoteAddr()),
+						semconv.RPCServiceKey.String("ssh.Client"),
+						semconv.RPCMethodKey.String("NewSession"),
+						semconv.RPCSystemKey.String("ssh"),
+					)...,
+				),
+			)
+
+			handleFn(req)
+			span.End()
+		}
+	}()
+	return nil
 }
 
 // clientWrapper wraps the ssh.Conn for individual ssh.Client
@@ -230,7 +263,7 @@ type clientWrapper struct {
 }
 
 // NewSession opens a new Session for this client.
-func (c *clientWrapper) NewSession(callback sshutils.ChannelRequestCallback) (*Session, error) {
+func (c *clientWrapper) NewSession() (*Session, error) {
 	// create a client that will defer to us when
 	// opening the "session" channel so that we
 	// can add an Envelope to the request
@@ -238,7 +271,7 @@ func (c *clientWrapper) NewSession(callback sshutils.ChannelRequestCallback) (*S
 		Conn: c,
 	}
 
-	session, err := sshutils.NewSession(client, callback)
+	session, err := client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
