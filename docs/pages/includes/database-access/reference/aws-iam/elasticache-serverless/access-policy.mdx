@@ -1,0 +1,48 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ElastiCacheServerlessFetchMetadata",
+            "Effect": "Allow",
+            "Action": "elasticache:DescribeServerlessCaches",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ElastiCacheServerlessDescribeUsers",
+            "Effect": "Allow",
+            "Action": "elasticache:DescribeUsers",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ElastiCacheServerlessConnect",
+            "Effect": "Allow",
+            "Action": "elasticache:Connect",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| ---------- | ------- |
+|`ElastiCacheServerlessFetchMetadata` | Automatically import AWS metadata about the database. |
+|`ElastiCacheServerlessDescribeUsers` | Determine whether a user is compatible with IAM authentication. |
+|`ElastiCacheServerlessConnect` | Connect using IAM authentication. |
+
+<Details>
+You can reduce the scope of the `ElastiCacheServerlessConnect` statement by
+updating it to only allow specific ElastiCache Serverless caches and IAM users.
+The resource ARN you can specify has the following formats:
+
+```code
+arn:aws:elasticache:{Region}:{AccountID}:serverlesscache:{CacheName}
+arn:aws:elasticache:{Region}:{AccountID}:user:{UserName}
+```
+
+See
+[Authenticating with IAM for
+ElastiCache](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html)
+for more information.
+</Details>
+
