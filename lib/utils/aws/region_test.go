@@ -36,6 +36,7 @@ func TestGetKnownRegions(t *testing.T) {
 			"cn-north-1",
 			"us-gov-west-1",
 			"us-isob-east-1",
+			"eu-isoe-west-1",
 		} {
 			require.Contains(t, GetKnownRegions(), region)
 		}

@@ -48,7 +48,7 @@ var crdDocTmpl string = `---
 title: {{.Title}}
 description: {{.Description}}
 tocDepth: 3
-labels:
+tags:
  - reference
  - platform-wide
 ---
