@@ -28,6 +28,7 @@ var (
 	ServiceStatusGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "tbot_service_status",
+			// TODO: (noah) Make this help string useful.
 			Help: "The status label indicates the current status of the service (healthy, unhealthy, initializing, unknown).",
 		}, []string{"service", "status"},
 	)
