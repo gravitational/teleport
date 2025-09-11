@@ -208,14 +208,17 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 			prevName = page[i].GetMetadata().GetName()
 		}
 	})
-	t.Run("unsupported sort error", func(t *testing.T) {
+	t.Run("unsupported sort field error", func(t *testing.T) {
 		_, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			Sort: &types.SortBy{
-				Field:  "name",
-				IsDesc: true,
-			},
+			SortField: "blah",
 		})
-		require.ErrorContains(t, err, `unsupported sort, only name:asc is supported, but got "name" (desc = true)`, err.Error())
+		require.ErrorContains(t, err, `unsupported sort, only name field is supported, but got "blah"`)
+	})
+	t.Run("unsupported sort order error", func(t *testing.T) {
+		_, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			SortDesc: true,
+		})
+		require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
 	})
 	t.Run("search filter match on name", func(t *testing.T) {
 		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{

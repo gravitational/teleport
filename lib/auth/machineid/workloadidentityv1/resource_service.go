@@ -157,7 +157,8 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		int(req.PageSize),
 		req.PageToken,
 		&services.ListWorkloadIdentitiesRequestOptions{
-			Sort:             req.GetSort(),
+			SortField:        req.GetSortField(),
+			SortDesc:         req.GetSortDesc(),
 			FilterSearchTerm: req.GetFilterSearchTerm(),
 		},
 	)

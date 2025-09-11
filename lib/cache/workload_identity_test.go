@@ -123,10 +123,8 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 
 	t.Run("sort ascending by spiffe_id", func(t *testing.T) {
 		results, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			Sort: &types.SortBy{
-				Field:  "spiffe_id",
-				IsDesc: false,
-			},
+			SortField: "spiffe_id",
+			SortDesc:  false,
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 3)
@@ -137,10 +135,8 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 
 	t.Run("sort descending by spiffe_id", func(t *testing.T) {
 		results, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			Sort: &types.SortBy{
-				Field:  "spiffe_id",
-				IsDesc: true,
-			},
+			SortField: "spiffe_id",
+			SortDesc:  true,
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 3)
@@ -160,10 +156,8 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 
 	t.Run("sort descending by name", func(t *testing.T) {
 		results, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			Sort: &types.SortBy{
-				Field:  "name",
-				IsDesc: true,
-			},
+			SortField: "name",
+			SortDesc:  true,
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 3)
@@ -208,10 +202,8 @@ func TestWorkloadIdentityCacheFallback(t *testing.T) {
 
 	t.Run("supported sort", func(t *testing.T) {
 		results, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			Sort: &types.SortBy{
-				Field:  "name",
-				IsDesc: false,
-			},
+			SortField: "name",
+			SortDesc:  false,
 		})
 		require.NoError(t, err) // asc by name is the only sort supported by the upstream
 		require.Len(t, results, 1)
@@ -219,10 +211,8 @@ func TestWorkloadIdentityCacheFallback(t *testing.T) {
 
 	t.Run("unsupported sort", func(t *testing.T) {
 		_, _, err = p.cache.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
-			Sort: &types.SortBy{
-				Field:  "name",
-				IsDesc: true,
-			},
+			SortField: "name",
+			SortDesc:  true,
 		})
 		require.ErrorContains(t, err, "unsupported sort, only name:asc is supported, but got \"name\" (desc = true)")
 	})

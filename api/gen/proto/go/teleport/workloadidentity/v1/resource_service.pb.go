@@ -21,7 +21,6 @@
 package workloadidentityv1
 
 import (
-	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -331,10 +330,12 @@ type ListWorkloadIdentitiesV2Request struct {
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// The page_token value returned from a previous ListWorkloadIdentities request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	// The sort config to use for the results. If empty, the default sort field and order is used.
-	Sort *types.SortBy `protobuf:"bytes,3,opt,name=sort,proto3" json:"sort,omitempty"`
+	// The sort field to use for the results. If empty, the default sort field is used.
+	SortField string `protobuf:"bytes,3,opt,name=sort_field,json=sortField,proto3" json:"sort_field,omitempty"`
+	// The sort order to use for the results. If empty, the default sort order is used.
+	SortDesc bool `protobuf:"varint,4,opt,name=sort_desc,json=sortDesc,proto3" json:"sort_desc,omitempty"`
 	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
-	FilterSearchTerm string `protobuf:"bytes,4,opt,name=filter_search_term,json=filterSearchTerm,proto3" json:"filter_search_term,omitempty"`
+	FilterSearchTerm string `protobuf:"bytes,5,opt,name=filter_search_term,json=filterSearchTerm,proto3" json:"filter_search_term,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -383,11 +384,18 @@ func (x *ListWorkloadIdentitiesV2Request) GetPageToken() string {
 	return ""
 }
 
-func (x *ListWorkloadIdentitiesV2Request) GetSort() *types.SortBy {
+func (x *ListWorkloadIdentitiesV2Request) GetSortField() string {
 	if x != nil {
-		return x.Sort
+		return x.SortField
 	}
-	return nil
+	return ""
+}
+
+func (x *ListWorkloadIdentitiesV2Request) GetSortDesc() bool {
+	if x != nil {
+		return x.SortDesc
+	}
+	return false
 }
 
 func (x *ListWorkloadIdentitiesV2Request) GetFilterSearchTerm() string {
@@ -457,7 +465,7 @@ var File_teleport_workloadidentity_v1_resource_service_proto protoreflect.FileDe
 
 const file_teleport_workloadidentity_v1_resource_service_proto_rawDesc = "" +
 	"\n" +
-	"3teleport/workloadidentity/v1/resource_service.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\x1a+teleport/workloadidentity/v1/resource.proto\"|\n" +
+	"3teleport/workloadidentity/v1/resource_service.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a+teleport/workloadidentity/v1/resource.proto\"|\n" +
 	"\x1dCreateWorkloadIdentityRequest\x12[\n" +
 	"\x11workload_identity\x18\x01 \x01(\v2..teleport.workloadidentity.v1.WorkloadIdentityR\x10workloadIdentity\"|\n" +
 	"\x1dUpdateWorkloadIdentityRequest\x12[\n" +
@@ -471,13 +479,15 @@ const file_teleport_workloadidentity_v1_resource_service_proto_rawDesc = "" +
 	"\x1dListWorkloadIdentitiesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\xae\x01\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\xc7\x01\n" +
 	"\x1fListWorkloadIdentitiesV2Request\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\x12!\n" +
-	"\x04sort\x18\x03 \x01(\v2\r.types.SortByR\x04sort\x12,\n" +
-	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\"\xa9\x01\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1d\n" +
+	"\n" +
+	"sort_field\x18\x03 \x01(\tR\tsortField\x12\x1b\n" +
+	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12,\n" +
+	"\x12filter_search_term\x18\x05 \x01(\tR\x10filterSearchTerm\"\xa9\x01\n" +
 	"\x1eListWorkloadIdentitiesResponse\x12_\n" +
 	"\x13workload_identities\x18\x01 \x03(\v2..teleport.workloadidentity.v1.WorkloadIdentityR\x12workloadIdentities\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xd9\a\n" +
@@ -513,34 +523,32 @@ var file_teleport_workloadidentity_v1_resource_service_proto_goTypes = []any{
 	(*ListWorkloadIdentitiesV2Request)(nil), // 6: teleport.workloadidentity.v1.ListWorkloadIdentitiesV2Request
 	(*ListWorkloadIdentitiesResponse)(nil),  // 7: teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
 	(*WorkloadIdentity)(nil),                // 8: teleport.workloadidentity.v1.WorkloadIdentity
-	(*types.SortBy)(nil),                    // 9: types.SortBy
-	(*emptypb.Empty)(nil),                   // 10: google.protobuf.Empty
+	(*emptypb.Empty)(nil),                   // 9: google.protobuf.Empty
 }
 var file_teleport_workloadidentity_v1_resource_service_proto_depIdxs = []int32{
 	8,  // 0: teleport.workloadidentity.v1.CreateWorkloadIdentityRequest.workload_identity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
 	8,  // 1: teleport.workloadidentity.v1.UpdateWorkloadIdentityRequest.workload_identity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
 	8,  // 2: teleport.workloadidentity.v1.UpsertWorkloadIdentityRequest.workload_identity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
-	9,  // 3: teleport.workloadidentity.v1.ListWorkloadIdentitiesV2Request.sort:type_name -> types.SortBy
-	8,  // 4: teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse.workload_identities:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
-	0,  // 5: teleport.workloadidentity.v1.WorkloadIdentityResourceService.CreateWorkloadIdentity:input_type -> teleport.workloadidentity.v1.CreateWorkloadIdentityRequest
-	1,  // 6: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpdateWorkloadIdentity:input_type -> teleport.workloadidentity.v1.UpdateWorkloadIdentityRequest
-	2,  // 7: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpsertWorkloadIdentity:input_type -> teleport.workloadidentity.v1.UpsertWorkloadIdentityRequest
-	3,  // 8: teleport.workloadidentity.v1.WorkloadIdentityResourceService.GetWorkloadIdentity:input_type -> teleport.workloadidentity.v1.GetWorkloadIdentityRequest
-	4,  // 9: teleport.workloadidentity.v1.WorkloadIdentityResourceService.DeleteWorkloadIdentity:input_type -> teleport.workloadidentity.v1.DeleteWorkloadIdentityRequest
-	5,  // 10: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentities:input_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesRequest
-	6,  // 11: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentitiesV2:input_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesV2Request
-	8,  // 12: teleport.workloadidentity.v1.WorkloadIdentityResourceService.CreateWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
-	8,  // 13: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpdateWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
-	8,  // 14: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpsertWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
-	8,  // 15: teleport.workloadidentity.v1.WorkloadIdentityResourceService.GetWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
-	10, // 16: teleport.workloadidentity.v1.WorkloadIdentityResourceService.DeleteWorkloadIdentity:output_type -> google.protobuf.Empty
-	7,  // 17: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentities:output_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
-	7,  // 18: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentitiesV2:output_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
-	12, // [12:19] is the sub-list for method output_type
-	5,  // [5:12] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	8,  // 3: teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse.workload_identities:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
+	0,  // 4: teleport.workloadidentity.v1.WorkloadIdentityResourceService.CreateWorkloadIdentity:input_type -> teleport.workloadidentity.v1.CreateWorkloadIdentityRequest
+	1,  // 5: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpdateWorkloadIdentity:input_type -> teleport.workloadidentity.v1.UpdateWorkloadIdentityRequest
+	2,  // 6: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpsertWorkloadIdentity:input_type -> teleport.workloadidentity.v1.UpsertWorkloadIdentityRequest
+	3,  // 7: teleport.workloadidentity.v1.WorkloadIdentityResourceService.GetWorkloadIdentity:input_type -> teleport.workloadidentity.v1.GetWorkloadIdentityRequest
+	4,  // 8: teleport.workloadidentity.v1.WorkloadIdentityResourceService.DeleteWorkloadIdentity:input_type -> teleport.workloadidentity.v1.DeleteWorkloadIdentityRequest
+	5,  // 9: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentities:input_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesRequest
+	6,  // 10: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentitiesV2:input_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesV2Request
+	8,  // 11: teleport.workloadidentity.v1.WorkloadIdentityResourceService.CreateWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 12: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpdateWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 13: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpsertWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 14: teleport.workloadidentity.v1.WorkloadIdentityResourceService.GetWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
+	9,  // 15: teleport.workloadidentity.v1.WorkloadIdentityResourceService.DeleteWorkloadIdentity:output_type -> google.protobuf.Empty
+	7,  // 16: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentities:output_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
+	7,  // 17: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentitiesV2:output_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
+	11, // [11:18] is the sub-list for method output_type
+	4,  // [4:11] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_workloadidentity_v1_resource_service_proto_init() }

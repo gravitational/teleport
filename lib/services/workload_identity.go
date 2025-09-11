@@ -139,18 +139,26 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 }
 
 type ListWorkloadIdentitiesRequestOptions struct {
-	// The sort config to use for the results. If empty, the default sort field
-	// and order is used.
-	Sort *types.SortBy
+	// The sort field to use for the results. If empty, the default sort field is used.
+	SortField string
+	// The sort order to use for the results. If empty, the default sort order is used.
+	SortDesc bool
 	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
 	FilterSearchTerm string
 }
 
-func (o *ListWorkloadIdentitiesRequestOptions) GetSort() *types.SortBy {
+func (o *ListWorkloadIdentitiesRequestOptions) GetSortField() string {
 	if o == nil {
-		return nil
+		return ""
 	}
-	return o.Sort
+	return o.SortField
+}
+
+func (o *ListWorkloadIdentitiesRequestOptions) GetSortDesc() bool {
+	if o == nil {
+		return false
+	}
+	return o.SortDesc
 }
 
 func (o *ListWorkloadIdentitiesRequestOptions) GetFilterSearchTerm() string {

@@ -21,12 +21,12 @@ package web
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	tslices "github.com/gravitational/teleport/lib/utils/slices"
 )
@@ -39,27 +39,27 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	var pageSize int64 = 20
+	request := &workloadidentityv1.ListWorkloadIdentitiesV2Request{
+		PageSize:         20,
+		PageToken:        r.URL.Query().Get("page_token"),
+		SortField:        r.URL.Query().Get("sort_field"),
+		FilterSearchTerm: r.URL.Query().Get("search"),
+	}
+
 	if r.URL.Query().Has("page_size") {
-		pageSize, err = strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
+		pageSize, err := strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
 		if err != nil {
 			return nil, trace.BadParameter("invalid page size")
 		}
+		request.PageSize = int32(pageSize)
 	}
 
-	var sort *types.SortBy
-	if r.URL.Query().Has("sort") {
-		sortString := r.URL.Query().Get("sort")
-		s := types.GetSortByFromString(sortString)
-		sort = &s
+	if r.URL.Query().Has("sort_dir") {
+		sortDir := r.URL.Query().Get("sort_dir")
+		request.SortDesc = strings.ToLower(sortDir) == "desc"
 	}
 
-	result, err := clt.WorkloadIdentityResourceServiceClient().ListWorkloadIdentitiesV2(r.Context(), &workloadidentityv1.ListWorkloadIdentitiesV2Request{
-		PageSize:         int32(pageSize),
-		PageToken:        r.URL.Query().Get("page_token"),
-		Sort:             sort,
-		FilterSearchTerm: r.URL.Query().Get("search"),
-	})
+	result, err := clt.WorkloadIdentityResourceServiceClient().ListWorkloadIdentitiesV2(r.Context(), request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

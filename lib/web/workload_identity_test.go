@@ -200,7 +200,8 @@ func TestListWorkloadIdentitiesSorting(t *testing.T) {
 	response, err := pack.clt.Get(ctx, endpoint, url.Values{
 		"page_token": []string{""}, // default to the start
 		"page_size":  []string{"0"},
-		"sort":       []string{"spiffe_id:desc"},
+		"sort_field": []string{"spiffe_id"},
+		"sort_dir":   []string{"DESC"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")

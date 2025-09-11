@@ -83,11 +83,9 @@ func (c *Cache) ListWorkloadIdentities(
 
 	index := workloadIdentityNameIndex
 	keyFn := keyForWorkloadIdentityNameIndex
-	var isDesc bool
-	if options.GetSort() != nil {
-		isDesc = options.Sort.IsDesc
-
-		switch options.Sort.Field {
+	isDesc := options.GetSortDesc()
+	if options.GetSortField() != "" {
+		switch options.GetSortField() {
 		case "name":
 			index = workloadIdentityNameIndex
 			keyFn = keyForWorkloadIdentityNameIndex
@@ -95,7 +93,7 @@ func (c *Cache) ListWorkloadIdentities(
 			index = workloadIdentitySpiffeIDIndex
 			keyFn = keyForWorkloadIdentitySpiffeIDIndex
 		default:
-			return nil, "", trace.BadParameter("unsupported sort %q but expected name or spiffe_id", options.Sort.Field)
+			return nil, "", trace.BadParameter("unsupported sort %q but expected name or spiffe_id", options.GetSortField())
 		}
 	}
 

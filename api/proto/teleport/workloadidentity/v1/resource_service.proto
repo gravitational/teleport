@@ -17,7 +17,6 @@ syntax = "proto3";
 package teleport.workloadidentity.v1;
 
 import "google/protobuf/empty.proto";
-import "teleport/legacy/types/types.proto";
 import "teleport/workloadidentity/v1/resource.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
@@ -97,10 +96,12 @@ message ListWorkloadIdentitiesV2Request {
   int32 page_size = 1;
   // The page_token value returned from a previous ListWorkloadIdentities request, if any.
   string page_token = 2;
-  // The sort config to use for the results. If empty, the default sort field and order is used.
-  types.SortBy sort = 3;
+  // The sort field to use for the results. If empty, the default sort field is used.
+  string sort_field = 3;
+  // The sort order to use for the results. If empty, the default sort order is used.
+  bool sort_desc = 4;
   // A search term used to filter the results. If non-empty, it's used to match against supported fields.
-  string filter_search_term = 4;
+  string filter_search_term = 5;
 }
 
 // The response for ListWorkloadIdentities.

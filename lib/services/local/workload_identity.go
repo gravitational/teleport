@@ -83,8 +83,11 @@ func (b *WorkloadIdentityService) ListWorkloadIdentities(
 	currentToken string,
 	options *services.ListWorkloadIdentitiesRequestOptions,
 ) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-	if options.GetSort() != nil && (options.GetSort().Field != "name" || options.GetSort().IsDesc != false) {
-		return nil, "", trace.CompareFailed("unsupported sort, only name:asc is supported, but got %q (desc = %t)", options.Sort.Field, options.Sort.IsDesc)
+	if options.GetSortField() != "" && options.GetSortField() != "name" {
+		return nil, "", trace.CompareFailed("unsupported sort, only name field is supported, but got %q", options.GetSortField())
+	}
+	if options.GetSortDesc() {
+		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
 	}
 
 	if options.GetFilterSearchTerm() == "" {
