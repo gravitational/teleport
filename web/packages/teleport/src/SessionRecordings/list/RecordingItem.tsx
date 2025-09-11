@@ -94,8 +94,7 @@ export function RecordingItem({
   );
 
   const actions = useMemo(
-    () =>
-      actionSlot ? actionSlot(recording.sid, recording.recordingType) : null,
+    () => actionSlot?.(recording.sid, recording.recordingType),
     [actionSlot, recording.sid, recording.recordingType]
   );
 
