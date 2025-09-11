@@ -36,14 +36,17 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -57,6 +60,15 @@ type AuthService interface {
 	GenerateHostCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *HostCertsParams) (*proto.Certs, error)
 	GenerateBotCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *BotCertsParams) (*proto.Certs, string, error)
 	EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error
+	GetClusterName(context.Context) (types.ClusterName, error)
+	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
+	GetKeyStore() *keystore.Manager
+	PatchToken(context.Context, string, func(types.ProvisionToken) (types.ProvisionToken, error)) (types.ProvisionToken, error)
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
+	GetReadOnlyAuthPreference(context.Context) (readonly.AuthPreference, error)
+	UpsertLock(context.Context, types.Lock) error
+	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
+	GetClock() clockwork.Clock
 }
 
 // ServerConfig holds configuration parameters for [Server].
@@ -98,7 +110,8 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	diag := stream.Diagnostic()
 	defer func() {
 		if err != nil {
-			s.handleJoinFailure(ctx, diag, err)
+			diag.Set(func(i *diagnostic.Info) { i.Error = err })
+			handleJoinFailure(ctx, s.cfg.AuthService, diag)
 		}
 	}()
 
@@ -165,6 +178,14 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	switch joinMethod {
 	case types.JoinMethodToken:
 		// No additional checks necessary for the token join method.
+	case types.JoinMethodBoundKeypair:
+		result, err := s.handleBoundKeypairJoin(ctx, authCtx, diag, stream, clientInit, provisionToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Bound keypair join method is a special case that constructs its own
+		// result message, which gets directly sent here with an early return.
+		return trace.Wrap(stream.Send(result))
 	default:
 		return trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
 	}
@@ -476,10 +497,9 @@ func rawSSHPublicKeys(authorizedKeys [][]byte) ([][]byte, error) {
 	return out, nil
 }
 
-func (s *Server) handleJoinFailure(ctx context.Context, diag *diagnostic.Diagnostic, err error) {
-	diag.Set(func(i *diagnostic.Info) { i.Error = err })
+func handleJoinFailure(ctx context.Context, emitter apievents.Emitter, diag *diagnostic.Diagnostic) {
 	log.LogAttrs(ctx, slog.LevelWarn, "Failure to join cluster occurred", diag.SlogAttrs()...)
-	if err := s.cfg.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diag)); err != nil {
+	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diag)); err != nil {
 		log.WarnContext(ctx, "Failed to emit failed join event", "error", err)
 	}
 }
