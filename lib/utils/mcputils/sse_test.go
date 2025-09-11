@@ -66,3 +66,11 @@ func TestConnectSSEServer(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "test-server", initResult.ServerInfo.Name)
 }
+
+func TestEventMarshal(t *testing.T) {
+	e := event{
+		name: sseEventMessage,
+		data: []byte("hello"),
+	}
+	require.Equal(t, "event: message\ndata: hello\n\n", string(e.marshal()))
+}
