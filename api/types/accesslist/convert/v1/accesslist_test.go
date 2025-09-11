@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	stdcmp "cmp"
 	"testing"
 	"time"
 
@@ -475,7 +476,31 @@ func TestConvAccessList(t *testing.T) {
 			got := ToProto(acl)
 			require.NoError(t, err)
 
+			// See [Test_convertGrantsToProto_never_nil] why that is.
+			tt.input.Spec.Grants = stdcmp.Or(tt.input.Spec.Grants, &accesslistv1.AccessListGrants{})
+			tt.input.Spec.OwnerGrants = stdcmp.Or(tt.input.Spec.OwnerGrants, &accesslistv1.AccessListGrants{})
+
 			require.Equal(t, tt.input, got)
 		})
 	}
+}
+
+func Test_convertGrantsToProto_never_nil(t *testing.T) {
+	// We can't convert empty (owner) grants to nil because, when grants are
+	// not specified in Terraform, that causes it to error with:
+	//
+	// 	teleport_access_list.test_direct: Creating...
+	// 	╷
+	// 	│ Error: Provider produced inconsistent result after apply
+	// 	│
+	// 	│ When applying changes to teleport_access_list.test_direct, provider "provider[\"terraform.releases.teleport.dev/gravitational/teleport\"]" produced
+	// 	│ an unexpected new value: .spec.grants: was cty.ObjectVal(map[string]cty.Value{"roles":cty.ListValEmpty(cty.String),
+	// 	│ "traits":cty.ListValEmpty(cty.Object(map[string]cty.Type{"key":cty.String, "values":cty.List(cty.String)}))}), but now null.
+	// 	│
+	// 	│ This is a bug in the provider, which should be reported in the provider's own issue tracker.
+	// 	╵
+	//
+	// See https://github.com/gravitational/teleport/issues/58948
+	emptyGrants := accesslist.Grants{}
+	require.NotNil(t, convertGrantsToProto(emptyGrants))
 }
