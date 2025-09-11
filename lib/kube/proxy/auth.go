@@ -259,10 +259,10 @@ func checkImpersonationPermissions(ctx context.Context, cluster string, sarClien
 			},
 		}, metav1.CreateOptions{})
 		if err != nil {
-			return trace.Wrap(err, "failed to verify impersonation permissions for Kubernetes: %v; this may be due to missing the SelfSubjectAccessReview permission on the ClusterRole used by the proxy; please make sure that proxy has all the necessary permissions: https://goteleport.com/teleport/docs/kubernetes-ssh/#impersonation", err)
+			return trace.Wrap(err, "failed to verify impersonation permissions for Kubernetes: %v; this may be due to missing the SelfSubjectAccessReview permission on the ClusterRole used by the proxy; please make sure that proxy has all the necessary permissions: https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/#enabling-impersonation", err)
 		}
 		if !resp.Status.Allowed {
-			return trace.AccessDenied("proxy can't impersonate Kubernetes %s at the cluster level; please make sure that proxy has all the necessary permissions: https://goteleport.com/teleport/docs/kubernetes-ssh/#impersonation", resource)
+			return trace.AccessDenied("proxy can't impersonate Kubernetes %s at the cluster level; please make sure that proxy has all the necessary permissions: https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/#enabling-impersonation", resource)
 		}
 	}
 	return nil
