@@ -31,7 +31,6 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { useStore } from 'shared/libs/stores';
 import { isAbortError } from 'shared/utils/error';
-import { pipe } from 'shared/utils/pipe';
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
@@ -583,10 +582,9 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
           assumedRequests,
         },
       });
-      const processCluster = pipe(mergeAssumedRequests);
 
       this.setState(draft => {
-        draft.clusters.set(clusterUri, processCluster(cluster));
+        draft.clusters.set(clusterUri, mergeAssumedRequests(cluster));
       });
     } catch (error) {
       this.setState(draft => {
