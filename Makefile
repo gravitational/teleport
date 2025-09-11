@@ -1932,7 +1932,7 @@ endif
 .PHONY: ensure-wasm-opt
 ensure-wasm-opt: WASM_OPT_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-wasm-opt-version)
 ensure-wasm-opt:
-	cargo install wasm-opt@$(WASM_OPT_VERSION)
+	cargo install --locked wasm-opt@$(WASM_OPT_VERSION)
 
 .PHONY: build-ui
 build-ui: ensure-js-deps ensure-wasm-deps
