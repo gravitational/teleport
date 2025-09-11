@@ -832,7 +832,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	envVarHelp := func(help string, envVar string) string {
-		return fmt.Sprintf("%v [env_var: %q]", help, envVar)
+		return fmt.Sprintf("%s. ($%s)", strings.TrimSuffix(help, "."), envVar)
 	}
 
 	// We need to parse the arguments before executing managed updates to identify
