@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -68,14 +69,22 @@ func TestHeartbeatService(t *testing.T) {
 	}
 
 	now := time.Date(2024, time.April, 1, 12, 0, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(now)
+
+	registry := readyz.NewRegistry(readyz.WithClock(clock))
+	reporter := registry.AddService("my-service", "service")
+	reporter.ReportReason(readyz.Unhealthy, "out of bananas")
+
 	svc, err := NewService(Config{
-		Interval:   time.Second,
-		RetryLimit: 3,
-		Client:     fhs,
-		Clock:      clockwork.NewFakeClockAt(now),
-		StartedAt:  time.Date(2024, time.April, 1, 11, 0, 0, 0, time.UTC),
-		Logger:     log,
-		JoinMethod: types.JoinMethodGitHub,
+		MinInterval:    time.Second,
+		MaxInterval:    time.Second,
+		RetryLimit:     3,
+		Client:         fhs,
+		Clock:          clock,
+		StartedAt:      time.Date(2024, time.April, 1, 11, 0, 0, 0, time.UTC),
+		Logger:         log,
+		JoinMethod:     types.JoinMethodGitHub,
+		StatusRegistry: registry,
 	})
 	require.NoError(t, err)
 
@@ -99,6 +108,17 @@ func TestHeartbeatService(t *testing.T) {
 			Architecture: runtime.GOARCH,
 			Os:           runtime.GOOS,
 			JoinMethod:   string(types.JoinMethodGitHub),
+			ServiceHealth: []*machineidv1pb.BotInstanceServiceHealth{
+				{
+					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+						Name: "my-service",
+						Type: "service",
+					},
+					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+					Reason:    ptr("out of bananas"),
+					UpdatedAt: timestamppb.New(now),
+				},
+			},
 		},
 	}
 	assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
@@ -110,3 +130,5 @@ func TestHeartbeatService(t *testing.T) {
 	cancel()
 	assert.NoError(t, <-errCh)
 }
+
+func ptr[T any](v T) *T { return &v }

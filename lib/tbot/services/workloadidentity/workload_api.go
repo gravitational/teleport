@@ -78,7 +78,7 @@ func WorkloadAPIServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String(), WorkloadAPIServiceType)
 		return bot.NewServicePair(svc, sidecar), nil
 	}
 }
