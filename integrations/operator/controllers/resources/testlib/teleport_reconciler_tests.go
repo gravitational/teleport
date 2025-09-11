@@ -152,7 +152,6 @@ func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t
 	err = test.CreateKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 
-	testLogger := t.Logf
 	// Check the resource was updated in Teleport
 	FastEventuallyWithT(t, func(t *assert.CollectT) {
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
@@ -163,10 +162,7 @@ func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		if !equal {
-			testLogger("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
-		}
-		assert.True(t, equal)
+		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 	})
 
 	// Updating the resource in Kubernetes
@@ -186,10 +182,7 @@ func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		if !equal {
-			testLogger("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
-		}
-		assert.True(t, equal)
+		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 	})
 
 	// Delete the resource to avoid leftover state.

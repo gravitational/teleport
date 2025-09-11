@@ -742,9 +742,11 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 	defer newProxy.Close()
 
-	client := testSrv.CloneClient(t, newProxy)
+	newClient := func() *authclient.Client {
+		return testSrv.CloneClient(t, newProxy)
+	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err = client.GetNodes(ctx, apidefaults.Namespace)
+		_, err = newClient().GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
 	}, 15*time.Second, 100*time.Millisecond)
 
@@ -789,11 +791,10 @@ func TestRollback(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	client = testSrv.CloneClient(t, newProxy)
 	// clients with new creds will no longer work as soon as backend modification event propagates.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := client.GetNodes(ctx, apidefaults.Namespace)
-		assert.Error(t, err)
+		_, err := newClient().GetNodes(ctx, apidefaults.Namespace)
+		require.Error(t, err)
 	}, time.Second*15, time.Millisecond*100)
 
 	// clients with old creds will still work
