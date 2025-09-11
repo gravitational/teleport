@@ -6,3 +6,98 @@ tags:
  - access-risks
  - conceptual
 ---
+{/*TODO: use case paragraph */}
+{/*TODO: explain key terms and introduce the feature*/}
+
+Teleport Access Graph feature can help you to answer questions like:
+
+- Who can access a specific resource?
+
+Determine who has access to resources and understand the pathways that grant access:
+
+![Show Access Path Resource](../../../img/access-graph/show-access-path-resource.gif)
+
+- What resources can a specific user access?
+
+At a glance, you can view all the resources a user can access:
+
+![Show Access Path](../../../img/access-graph/show-access-path.gif)
+
+## Search
+
+To search for a graph node, use the search bar at the top of the page or press `/`.
+
+This will bring up the global search, where you can search for nodes, pages and access paths.
+
+![Search](../../../img/access-graph/search.png)
+
+Clicking on a node will open a drawer with more details about that node.
+
+![Node Information](../../../img/access-graph/node-information.png)
+
+Viewing a node's access path will open up the graph explorer view with the selected node.
+
+![Access Path](../../../img/access-graph/access-path.png)
+
+## Access path view
+
+A node's access path shows all the resources that the node can access.
+
+When viewing an access path, you can filter down the graph to show only the nodes that you are interested in.
+
+For example, if you are viewing a user's access path and want to see what access is given to that user through a certain role, you can right-click the role and select "Add to search".
+
+![Add to search](../../../img/access-graph/add-to-search.png)
+
+This will narrow down the graph to show you only the access paths that include that role.
+
+![Filtered access path](../../../img/access-graph/filtered-access-path.png)
+
+## Graph nodes
+
+Access Graph divides your infrastructure into six main components:
+
+### Identities
+
+![Identity Node](../../../img/access-graph/identity-node.png)
+
+Identities are the actors that can access your infrastructure. They can be employees, contractors, machines or bots.
+
+The number on the right hand side shows **standing privileges**. The standing privileges metric indicates the number of
+resources that an identity can access without creating an Access Request.
+
+### User Groups
+
+![Identity Group Node](../../../img/access-graph/identity-group-node.png)
+
+Identity Groups are collections of identities. They can be used to organize users
+based on their role or team, and they can be nested.
+
+### Actions
+
+![Action Node](../../../img/access-graph/allow-action-node.png)
+
+Actions are the things that identities can or cannot do. Actions are related to resources.
+For example, a user can SSH into a node.
+
+### Deny Actions
+
+![Deny Action Node](../../../img/access-graph/deny-action-node.png)
+
+Deny Actions are the things that identities cannot do. Deny Actions are related to resources.
+For example, a user cannot SSH into a node.
+
+### Resource Groups
+
+![Resource Group Node](../../../img/access-graph/resource-group-node.png)
+
+Resource Groups are collections of resources. They can be used to organize resources based on their role or team.
+
+The number on the right hand side shows the number of resources that a resource group contains.
+
+### Resources
+
+![Resource Node](../../../img/access-graph/resource-node.png)
+
+Resources are the things that users can or cannot access. They can be servers, databases, or Kubernetes clusters.
+
