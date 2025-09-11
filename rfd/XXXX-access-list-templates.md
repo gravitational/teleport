@@ -49,7 +49,7 @@ message AccessListSpec {
   // ... other existing fields
 
   // Existing type values: "" (default), "scim", and "static"
-  // NEW value: "template"
+  // NEW value: "templated"
   string type = 12;
 }
 ```
@@ -66,11 +66,12 @@ message AccessListSpec {
 }
 
 // AccessListTemplateConfig describes the template used.
+// Only one field will be allowed to be defined.
+// Omitting "oneof" was intentional because "oneof"
+// isn't well supported with terraform.
 message AccessListTemplateConfig {
-  oneof template {
     TemplateLongTerm long_term = 1;
     TemplateShortTerm short_term = 2;
-  }
 }
 
 // TemplateRoleMetadata contains read-only fields
@@ -81,11 +82,11 @@ message TemplateRoleMetadata {
   // revision stores the last revision made by Teleport
   // on a role.
   string revision = 1;
-  // initial_version preserves the initial version of role
+  // starting_version preserves the starting version of role
   // to prevent unintended role behavioral change with
   // newer role versions or when user has changed the role
   // version.
-  string initial_version = 2;
+  string starting_version = 2;
 }
 
 // TemplateLongTerm describes fields required to create
