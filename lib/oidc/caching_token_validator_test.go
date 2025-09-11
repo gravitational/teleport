@@ -304,12 +304,8 @@ func TestCachingTokenValidator(t *testing.T) {
 				val, err := v.GetValidator(t.Context(), idp.issuer(), defaultAudience)
 				require.NoError(t, err)
 				val.verifierFn = minimalValidator()
-				//require.False(t, val.IsStale())
-
-				//originalExpires := val.Expires()
 
 				idp.clock.Advance(validatorTTL + time.Minute)
-				//require.True(t, val.IsStale())
 
 				token := idp.issueToken(t, defaultAudience, "a", time.Hour)
 				_, err = val.ValidateToken(t.Context(), token)
@@ -328,9 +324,6 @@ func TestCachingTokenValidator(t *testing.T) {
 				// Config should be reloaded, but the keyset will remain cached
 				require.EqualValues(t, 2, idp.configRequests.Load())
 				require.EqualValues(t, 1, idp.jwksRequests.Load())
-
-				// Expiration should have been incremented
-				//require.True(t, val.Expires().After(originalExpires))
 			},
 		},
 		{
@@ -340,10 +333,8 @@ func TestCachingTokenValidator(t *testing.T) {
 				val, err := v.GetValidator(t.Context(), idp.issuer(), defaultAudience)
 				require.NoError(t, err)
 				val.verifierFn = minimalValidator()
-				//require.False(t, val.IsStale())
 
 				idp.clock.Advance(validatorTTL + time.Minute)
-				//require.True(t, val.IsStale())
 
 				token := idp.issueToken(t, defaultAudience, "a", time.Hour)
 				_, err = val.ValidateToken(t.Context(), token)
