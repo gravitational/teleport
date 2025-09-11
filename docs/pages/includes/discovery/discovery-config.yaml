@@ -23,6 +23,7 @@ discovery_service:
       # 'redshift' - Amazon Redshift databases.
       # 'redshift-serverless' - Amazon Redshift Serverless databases.
       # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
+      # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
       # 'memorydb' - Amazon MemoryDB databases.
       # 'opensearch' - Amazon OpenSearch Redis databases.
     - types: ["ec2"]

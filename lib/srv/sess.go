@@ -1171,20 +1171,14 @@ func (s *session) emitSessionLeaveEventUnderLock(ctx *ServerContext) {
 		SessionMetadata: s.scx.GetSessionMetadata(),
 		UserMetadata:    ctx.Identity.GetUserMetadata(),
 	}
-	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionLeaveEvent)
-	if err == nil {
-		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
-			s.logger.WarnContext(ctx.srv.Context(), "Failed to record session leave event.", "error", err)
-		}
-		if err := s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
-			s.logger.WarnContext(ctx.srv.Context(), "Failed to emit session leave event.", "error", err)
-		}
-	} else {
-		s.logger.WarnContext(ctx.srv.Context(), "Failed to set up session leave event - event will not be recorded.", "error", err)
+	preparedEvent, prepareErr := s.Recorder().PrepareSessionEvent(sessionLeaveEvent)
+	if prepareErr != nil {
+		s.logger.WarnContext(ctx.srv.Context(), "Failed to set up session leave event - event will not be recorded.", "error", prepareErr)
 	}
-
 	// Notify all members of the party that a new member has left over the
-	// "x-teleport-event" channel.
+	// "x-teleport-event" channel. This has to be done after preparing the event
+	// (to capture any changes by PrepareSessionEvent) but before emitting the
+	// event (to prevent a race on sessionLeaveEvent).
 	for _, p := range s.parties {
 		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
 		if err != nil {
@@ -1200,6 +1194,14 @@ func (s *session) emitSessionLeaveEventUnderLock(ctx *ServerContext) {
 			continue
 		}
 		s.logger.DebugContext(ctx.srv.Context(), "Sent session leave event to party.", "party", p)
+	}
+	if prepareErr == nil {
+		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
+			s.logger.WarnContext(ctx.srv.Context(), "Failed to record session leave event.", "error", err)
+		}
+		if err := s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
+			s.logger.WarnContext(ctx.srv.Context(), "Failed to emit session leave event.", "error", err)
+		}
 	}
 }
 
@@ -1235,13 +1237,27 @@ func (s *session) emitSessionEndEvent() {
 	}
 
 	for _, p := range s.participants {
-		sessionEndEvent.Participants = append(sessionEndEvent.Participants, p.user)
+		username := services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              p.user,
+				OriginClusterName: p.originCluster,
+				LocalClusterName:  ctx.ClusterName,
+			},
+		)
+		sessionEndEvent.Participants = append(sessionEndEvent.Participants, username)
 	}
 
 	// If there are 0 participants, this is an exec session.
 	// Use the user from the session context.
 	if len(s.participants) == 0 {
-		sessionEndEvent.Participants = []string{s.scx.Identity.TeleportUser}
+		username := services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              s.scx.Identity.TeleportUser,
+				OriginClusterName: s.scx.Identity.OriginClusterName,
+				LocalClusterName:  ctx.ClusterName,
+			},
+		)
+		sessionEndEvent.Participants = []string{username}
 	}
 
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionEndEvent)

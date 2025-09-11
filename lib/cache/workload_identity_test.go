@@ -48,7 +48,7 @@ func TestWorkloadIdentity(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*workloadidentityv1pb.WorkloadIdentity]{
+	testResources153(t, p, testFuncs[*workloadidentityv1pb.WorkloadIdentity]{
 		newResource: func(s string) (*workloadidentityv1pb.WorkloadIdentity, error) {
 			return newWorkloadIdentity(s), nil
 		},
@@ -65,10 +65,10 @@ func TestWorkloadIdentity(t *testing.T) {
 			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
 		},
 
-		cacheList: func(ctx context.Context) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
 			items, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		cacheGet: p.cache.GetWorkloadIdentity,
-	})
+	}, withSkipPaginationTest())
 }
