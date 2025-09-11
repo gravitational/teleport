@@ -194,11 +194,17 @@ export function SessionSummaryError({
   error,
   resetErrorBoundary,
 }: FallbackProps) {
+  const errorMessage = getErrorMessage(error);
+
+  if (errorMessage.includes('not found')) {
+    return <Text>Could not find a summary for this session.</Text>;
+  }
+
   return (
     <>
       <Text color="error.main">Error loading session summary</Text>
 
-      <Text>{getErrorMessage(error)}</Text>
+      <Text>{errorMessage}</Text>
 
       <Flex justifyContent="center">
         <ButtonSecondary onClick={resetErrorBoundary}>Retry</ButtonSecondary>
