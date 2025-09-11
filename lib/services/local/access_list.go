@@ -543,7 +543,7 @@ func (a *AccessListService) GetAccessListOwners(ctx context.Context, accessListN
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		owners, err = accesslists.GetOwnersFor(ctx, accessList, &accessListAndMembersGetter{a.service, a.memberService})
+		owners, err = accesslists.GetOwnersFor(ctx, accessList, &accessListAndMembersGetter{a.service, a.memberService}, a.clock)
 		return trace.Wrap(err)
 	})
 	return owners, trace.Wrap(err)
