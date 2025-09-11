@@ -255,7 +255,6 @@ export const makeLoggedInUser = (
   isDeviceTrusted: false,
   trustedDeviceRequirement: TrustedDeviceRequirement.NOT_REQUIRED,
   acl: makeAcl(),
-  sshLogins: [],
   roles: [],
   requestableRoles: [],
   suggestedReviewers: [],
