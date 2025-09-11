@@ -43,9 +43,8 @@ pub(crate) fn cast_length<T, S: TryInto<T, Error: Debug>>(
     field: &str,
     s: S,
 ) -> ClientResult<T> {
-    s.try_into().map_err(|e| {
-        ClientError::InternalError(format!("{}: can't convert {}: {:?}", ctx, field, e))
-    })
+    s.try_into()
+        .map_err(|e| ClientError::InternalError(format!("{ctx}: can't convert {field}: {e:?}")))
 }
 
 /// `FilesystemBackend` implements the filesystem redirection backend as described in [\[MS-RDPEFS\]: Remote Desktop Protocol: File System Virtual Channel Extension].
@@ -334,8 +333,7 @@ impl FilesystemBackend {
                 return Err(pdu_other_err!(
                     "",
                     source:FilesystemBackendError(format!(
-                        "received unknown CreateDisposition value for RDP {req:?}",
-                        req = req
+                        "received unknown CreateDisposition value for RDP {req:?}"
                     ))
                 ));
             }
@@ -465,7 +463,7 @@ impl FilesystemBackend {
         rdp_req: efs::ServerDriveNotifyChangeDirectoryRequest,
     ) -> PduResult<()> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L661
-        debug!("Received NotifyChangeDirectory, ignoring: {:?}", rdp_req);
+        debug!("Received NotifyChangeDirectory, ignoring: {rdp_req:?}");
         Ok(())
     }
 
@@ -646,8 +644,7 @@ impl FilesystemBackend {
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "received unsupported FileInformationClass value for RDP {:?}",
-                    rdp_req
+                    "received unsupported FileInformationClass value for RDP {rdp_req:?}"
                 ))
             )),
         }
@@ -985,15 +982,14 @@ impl FilesystemBackend {
         &self,
         mut tdp_req: tdp::SharedDirectoryAcknowledge,
     ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
+        debug!("sending tdp: {tdp_req:?}");
         let err = unsafe { cgo_tdp_sd_acknowledge(self.cgo_handle, &mut tdp_req) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "call to tdp_sd_acknowledge failed: {:?}",
-                    err
+                    "call to tdp_sd_acknowledge failed: {err:?}"
                 ))
             )),
         }
@@ -1001,7 +997,7 @@ impl FilesystemBackend {
 
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
     fn send_tdp_sd_info_request(&self, tdp_req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
+        debug!("sending tdp: {tdp_req:?}");
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_info_request(self.cgo_handle, req.cgo()) };
         match err {
@@ -1009,8 +1005,7 @@ impl FilesystemBackend {
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "call to tdp_sd_info_request failed: {:?}",
-                    err
+                    "call to tdp_sd_info_request failed: {err:?}"
                 ))
             )),
         }
@@ -1021,7 +1016,7 @@ impl FilesystemBackend {
         &self,
         tdp_req: tdp::SharedDirectoryTruncateRequest,
     ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
+        debug!("sending tdp: {tdp_req:?}");
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_truncate_request(self.cgo_handle, req.cgo()) };
         match err {
@@ -1029,8 +1024,7 @@ impl FilesystemBackend {
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "call to tdp_sd_truncate_request failed: {:?}",
-                    err
+                    "call to tdp_sd_truncate_request failed: {err:?}"
                 ))
             )),
         }
@@ -1041,7 +1035,7 @@ impl FilesystemBackend {
         &self,
         tdp_req: tdp::SharedDirectoryCreateRequest,
     ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
+        debug!("sending tdp: {tdp_req:?}");
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_create_request(self.cgo_handle, req.cgo()) };
         match err {
@@ -1049,8 +1043,7 @@ impl FilesystemBackend {
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "call to tdp_sd_create_request failed: {:?}",
-                    err
+                    "call to tdp_sd_create_request failed: {err:?}"
                 ))
             )),
         }
@@ -1061,7 +1054,7 @@ impl FilesystemBackend {
         &self,
         tdp_req: tdp::SharedDirectoryDeleteRequest,
     ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
+        debug!("sending tdp: {tdp_req:?}");
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_delete_request(self.cgo_handle, req.cgo()) };
         match err {
@@ -1069,8 +1062,7 @@ impl FilesystemBackend {
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "call to tdp_sd_delete_request failed: {:?}",
-                    err
+                    "call to tdp_sd_delete_request failed: {err:?}"
                 ))
             )),
         }
@@ -1078,7 +1070,7 @@ impl FilesystemBackend {
 
     /// Sends a [`tdp::SharedDirectoryListRequest`] to the browser.
     fn send_tdp_sd_list_request(&self, tdp_req: tdp::SharedDirectoryListRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
+        debug!("sending tdp: {tdp_req:?}");
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_list_request(self.cgo_handle, req.cgo()) };
         match err {
@@ -1086,8 +1078,7 @@ impl FilesystemBackend {
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "call to tdp_sd_list_request failed: {:?}",
-                    err
+                    "call to tdp_sd_list_request failed: {err:?}"
                 ))
             )),
         }
@@ -1095,7 +1086,7 @@ impl FilesystemBackend {
 
     /// Sends a [`tdp::SharedDirectoryReadRequest`] to the browser.
     fn send_tdp_sd_read_request(&self, tdp_req: tdp::SharedDirectoryReadRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
+        debug!("sending tdp: {tdp_req:?}");
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_read_request(self.cgo_handle, req.cgo()) };
         match err {
@@ -1103,8 +1094,7 @@ impl FilesystemBackend {
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "call to tdp_sd_read_request failed: {:?}",
-                    err
+                    "call to tdp_sd_read_request failed: {err:?}"
                 ))
             )),
         }
@@ -1115,7 +1105,7 @@ impl FilesystemBackend {
         &self,
         tdp_req: tdp::SharedDirectoryWriteRequest,
     ) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
+        debug!("sending tdp: {tdp_req:?}");
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_write_request(self.cgo_handle, req.cgo()) };
         match err {
@@ -1123,8 +1113,7 @@ impl FilesystemBackend {
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "call to tdp_sd_write_request failed: {:?}",
-                    err
+                    "call to tdp_sd_write_request failed: {err:?}"
                 ))
             )),
         }
@@ -1132,7 +1121,7 @@ impl FilesystemBackend {
 
     /// Sends a [`tdp::SharedDirectoryMoveRequest`] to the browser.
     fn send_tdp_sd_move_request(&self, tdp_req: tdp::SharedDirectoryMoveRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", tdp_req);
+        debug!("sending tdp: {tdp_req:?}");
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_move_request(self.cgo_handle, req.cgo()) };
         match err {
@@ -1140,8 +1129,7 @@ impl FilesystemBackend {
             _ => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
-                    "call to tdp_sd_move_request failed: {:?}",
-                    err
+                    "call to tdp_sd_move_request failed: {err:?}"
                 ))
             )),
         }
@@ -1840,7 +1828,7 @@ struct FilesystemBackendError(pub String);
 
 impl std::fmt::Display for FilesystemBackendError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#?}", self)
+        write!(f, "{self:#?}")
     }
 }
 
