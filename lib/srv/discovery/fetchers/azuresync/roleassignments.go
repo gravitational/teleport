@@ -35,7 +35,7 @@ type RoleAssignmentsClient interface {
 }
 
 // fetchRoleAssignments fetches Azure role assignments using the Azure role assignments API
-func fetchRoleAssignments(ctx context.Context, subscriptionID string, cli RoleAssignmentsClient) ([]*accessgraphv1alpha.AzureRoleAssignment, error) { //nolint:unused // invoked in a dependent PR
+func fetchRoleAssignments(ctx context.Context, subscriptionID string, cli RoleAssignmentsClient) ([]*accessgraphv1alpha.AzureRoleAssignment, error) {
 	// List the role definitions
 	roleAssigns, err := cli.ListRoleAssignments(ctx, fmt.Sprintf("/subscriptions/%s", subscriptionID))
 	if err != nil {
