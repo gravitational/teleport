@@ -653,8 +653,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -664,6 +663,8 @@ func TestDatabaseServerBasics(t *testing.T) {
 	controller := NewController(
 		auth,
 		usagereporter.DiscardUsageReporter{},
+		withServerHBLimiterInterval(500*time.Millisecond),
+		withServerHBLimiterBurst(1),
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
 		WithOnConnect(rc.onConnect),
@@ -699,6 +700,9 @@ func TestDatabaseServerBasics(t *testing.T) {
 		ServerID: serverID,
 		Version:  teleport.Version,
 		Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
+		Capabilities: &proto.UpstreamInventoryHello_SupportedCapabilities{
+			DatabaseHeartbeatGracefulStop: true,
+		},
 	})
 
 	// verify that control stream handle is now accessible
@@ -713,7 +717,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			DatabaseServer: &types.DatabaseServerV3{
 				Metadata: types.Metadata{
-					Name: serverID,
+					Name: fmt.Sprintf("db-%d", i),
 				},
 				Spec: types.DatabaseServerSpecV3{
 					HostID:   serverID,
@@ -738,6 +742,73 @@ func TestDatabaseServerBasics(t *testing.T) {
 		deny(dbUpsertErr, dbKeepAliveErr, handlerClose),
 	)
 
+	// re-upsert one db to trigger rate limiting for it
+	for range 3 {
+		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+			DatabaseServer: &types.DatabaseServerV3{
+				Metadata: types.Metadata{
+					Name: "db-0",
+				},
+				Spec: types.DatabaseServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Database: &types.DatabaseV3{
+						Kind:    types.KindDatabase,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name: "db-0",
+						},
+						Spec: types.DatabaseSpecV3{},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	awaitEvents(t, events,
+		expect(dbUpsertRateLimited, dbUpsertRateLimitedRetryOk),
+		deny(dbUpsertOk, dbUpsertErr, dbUpsertRetryErr, dbUpsertRateLimitedRetryErr, dbKeepAliveErr, handlerClose),
+	)
+
+	for range 3 {
+		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+			DatabaseServer: &types.DatabaseServerV3{
+				Metadata: types.Metadata{
+					Name: "db-0",
+				},
+				Spec: types.DatabaseServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Database: &types.DatabaseV3{
+						Kind:    types.KindDatabase,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name: "db-0",
+						},
+						Spec: types.DatabaseSpecV3{},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	awaitEvents(t, events,
+		expect(dbUpsertOk, dbUpsertRateLimited),
+		deny(dbUpsertErr, dbUpsertRetryErr, dbUpsertRateLimitedRetryOk, dbUpsertRateLimitedRetryErr, dbKeepAliveErr, handlerClose),
+	)
+
+	// induce a failure on rate limit delayed upsert, but the upsert should succeed on retry
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
+
+	awaitEvents(t, events,
+		expect(dbUpsertRateLimitedRetryErr, dbUpsertRetryOk),
+		deny(dbUpsertOk, dbUpsertErr, dbUpsertRetryErr, dbKeepAliveErr, handlerClose),
+	)
+
 	// set up to induce delete failure
 	auth.mu.Lock()
 	auth.failDeletes = 1
@@ -753,7 +824,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// verify that keep alive stops, even if the heartbeat couldn't be deleted
 	awaitEvents(t, events,
 		expect(dbKeepAliveDel, dbDelErr),
-		deny(dbDelOk, dbUpsertErr, dbKeepAliveErr, handlerClose),
+		deny(dbDelOk, dbUpsertErr, dbKeepAliveErr, handlerClose, dbUpsertRateLimited, dbUpsertRateLimitedRetryOk, dbUpsertRateLimitedRetryErr),
 	)
 	require.Equal(t, dbCount-1, rc.count())
 
@@ -823,7 +894,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(dbUpsertErr, dbUpsertRetryOk),
+		expect(dbUpsertOk, dbUpsertOk, dbUpsertErr, dbUpsertRetryOk),
 		deny(dbKeepAliveErr, handlerClose),
 	)
 
@@ -910,6 +981,91 @@ func TestDatabaseServerBasics(t *testing.T) {
 
 	// verify that metrics have been updated correctly
 	require.Zero(t, rc.count())
+}
+
+func TestDatabaseServer_RateLimitDisabled(t *testing.T) {
+	const serverID = "test-server"
+
+	t.Parallel()
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerHBLimiterInterval(time.Second),
+		withServerHBLimiterBurst(1),
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		controller.Close()
+		upstream.Close()
+		downstream.Close()
+	})
+
+	controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
+	})
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+	t.Cleanup(func() {
+		require.NoError(t, handle.Close())
+	})
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// upsert the same db repeatedly
+	for range 100 {
+		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+			DatabaseServer: &types.DatabaseServerV3{
+				Metadata: types.Metadata{
+					Name: "db-1",
+				},
+				Spec: types.DatabaseServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Database: &types.DatabaseV3{
+						Kind:    types.KindDatabase,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name: "db-1",
+						},
+						Spec: types.DatabaseSpecV3{},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	for range 100 {
+		awaitEvents(t, events,
+			expect(dbUpsertOk),
+			deny(dbUpsertRateLimited, dbUpsertErr, dbKeepAliveErr, handlerClose),
+		)
+	}
+	awaitEvents(t, events,
+		expect(dbKeepAliveOk),
+		deny(dbUpsertRateLimited, dbUpsertErr, dbKeepAliveErr, handlerClose),
+	)
 }
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
