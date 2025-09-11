@@ -487,7 +487,7 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 			gotNames[ks.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
-			assert.Contains(t, gotNames, name, "missing kube cluster")
+			require.Contains(t, gotNames, name, "missing kube cluster")
 		}
 	}, time.Second*10, time.Millisecond*500, "dynamically created kube clusters failed to register")
 }

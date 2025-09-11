@@ -543,6 +543,6 @@ func UpsertAuthPrefAndWaitForCache(
 		rp, err := srv.GetReadOnlyAuthPreference(ctx)
 		require.NoError(t, err)
 		p := rp.Clone()
-		assert.Empty(t, cmp.Diff(&pref, &p))
+		require.Empty(t, cmp.Diff(&pref, &p))
 	}, 5*time.Second, 100*time.Millisecond)
 }

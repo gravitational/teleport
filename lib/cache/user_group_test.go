@@ -78,7 +78,7 @@ func TestUserGroups(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.Equal(t, 500, p.cache.collections.userGroups.store.len())
+		require.Equal(t, 500, p.cache.collections.userGroups.store.len())
 	}, 10*time.Second, 100*time.Millisecond)
 
 	var out []types.UserGroup

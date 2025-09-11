@@ -165,7 +165,7 @@ func requireFeatures(t *testing.T, fakeClock *clockwork.FakeClock, want proto.Fe
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		diff := cmp.Diff(want, getFeatures())
-		assert.Empty(t, diff)
+		require.Empty(t, diff)
 	}, 5*time.Second, time.Millisecond*100)
 }
 

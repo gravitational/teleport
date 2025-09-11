@@ -447,8 +447,8 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 			EventTypes: []string{events.DatabaseSessionQueryEvent},
 			Order:      types.EventOrderAscending,
 		})
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
 	}, 10*time.Second, 500*time.Millisecond)
 
 	appReqEvent := &testAuditEvent{

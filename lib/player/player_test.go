@@ -291,9 +291,9 @@ func TestSkipIdlePeriods(t *testing.T) {
 			clk.Advance(player.MaxIdleTime)
 			select {
 			case evt := <-p.C():
-				assert.Equal(t, int64(i), evt.GetIndex())
+				require.Equal(t, int64(i), evt.GetIndex())
 			default:
-				assert.Fail(t, "expected to receive event after short period, but got nothing")
+				require.Fail(t, "expected to receive event after short period, but got nothing")
 			}
 		}, 3*time.Second, 100*time.Millisecond)
 	}

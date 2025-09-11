@@ -97,7 +97,7 @@ func Test_handleStdio(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		event := emitter.LastEvent()
 		_, ok := event.(*apievents.MCPSessionStart)
-		assert.True(t, ok)
+		require.True(t, ok)
 	}, time.Second*5, time.Millisecond*100, "expect session start")
 
 	// Some basic tests on the demo server.

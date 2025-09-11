@@ -834,7 +834,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 		for {
 			var userTasks []*usertasksv1.UserTask
 			userTasks, nextTokenResp, err := userTasksClt.ListUserTasks(context.Background(), 0, nextToken, &usertasksv1.ListUserTasksFilters{})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			allTasks = append(allTasks, userTasks...)
 			if nextTokenResp == "" {
 				break
@@ -843,9 +843,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 		}
 		existingTasks = allTasks
 
-		if !assert.GreaterOrEqual(t, len(allTasks), minUserTasks) {
-			return
-		}
+		require.GreaterOrEqual(t, len(allTasks), minUserTasks)
 
 		gotResources := 0
 		for _, task := range allTasks {
@@ -853,7 +851,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 			gotResources += len(task.GetSpec().GetDiscoverEks().GetClusters())
 			gotResources += len(task.GetSpec().GetDiscoverRds().GetDatabases())
 		}
-		assert.GreaterOrEqual(t, gotResources, minUserTaskResources)
+		require.GreaterOrEqual(t, gotResources, minUserTaskResources)
 	}, 10*time.Second, 50*time.Millisecond)
 
 	return existingTasks
@@ -973,8 +971,8 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	// Even when two servers are discovering the same EC2 Instance, they will use the same name when converting to EICE Node.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		allNodes, err := tlsServer.Auth().GetNodes(ctx, "default")
-		assert.NoError(t, err)
-		assert.Len(t, allNodes, 1)
+		require.NoError(t, err)
+		require.Len(t, allNodes, 1)
 	}, 1*time.Second, 50*time.Millisecond)
 
 	// We should never get a duplicate instance.
@@ -1174,18 +1172,12 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				existingApps, err := tlsServer.Auth().GetApps(ctx)
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.Len(t, existingApps, len(tt.expectedAppsToExistInAuth)) {
-					return
-				}
+				require.NoError(t, err)
+				require.Len(t, existingApps, len(tt.expectedAppsToExistInAuth))
 				a1 := types.Apps(existingApps)
 				a2 := types.Apps(tt.expectedAppsToExistInAuth)
 				for k := range a1 {
-					if !assert.Equal(t, services.Equal, services.CompareResources(a1[k], a2[k])) {
-						return
-					}
+					require.Equal(t, services.Equal, services.CompareResources(a1[k], a2[k]))
 				}
 			}, 5*time.Second, 200*time.Millisecond)
 		})
@@ -2650,10 +2642,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		expectDatabases := []types.Database{awsRDSDB}
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
-			if !assert.NoError(t, err) {
-				return
-			}
-			assert.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 			))
@@ -2668,7 +2658,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		// A new DiscoveryFetch event must have been emitted.
 		expectedEmittedEvents := currentEmittedEvents + 1
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			assert.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), expectedEmittedEvents)
+			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), expectedEmittedEvents)
 		}, waitForReconcileTimeout, 100*time.Millisecond)
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
@@ -2680,10 +2670,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			// Existing databases must be removed.
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
-				if !assert.NoError(t, err) {
-					return
-				}
-				assert.Empty(t, actualDatabases)
+				require.NoError(t, err)
+				require.Empty(t, actualDatabases)
 			}, waitForReconcileTimeout, 100*time.Millisecond)
 
 			// Given that no Fetch was issued, the counter should not increment.

@@ -124,20 +124,12 @@ func TestWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-		if !assert.Len(t, servers, 3) {
-			return
-		}
-		if !assert.Equal(t, "db0", servers[0].GetName()) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, servers, 3)
+		require.Equal(t, "db0", servers[0].GetName())
 		wantDBs := types.Databases(types.DatabaseServers(servers).ToDatabases()).ToMap()
 		for _, db := range []types.Database{db0, db1, db2} {
-			if !assert.Contains(t, wantDBs, db.GetName()) {
-				return
-			}
+			require.Contains(t, wantDBs, db.GetName())
 		}
 	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be registered")
 
@@ -167,15 +159,9 @@ func TestWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-		if !assert.Len(t, servers, 1) {
-			return
-		}
-		if !assert.Equal(t, "db0", servers[0].GetName()) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "db0", servers[0].GetName())
 	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be cleaned up")
 }
 

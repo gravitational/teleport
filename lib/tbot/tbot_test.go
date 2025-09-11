@@ -1029,14 +1029,12 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// EventuallyWithT to retry.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		conn, err := pgconn.Connect(ctx, fmt.Sprintf("postgres://%s/mydb?user=llama", botListener.Addr().String()))
-		if !assert.NoError(t, err) {
-			return
-		}
+		require.NoError(t, err)
 		defer func() {
 			conn.Close(ctx)
 		}()
 		_, err = conn.Exec(ctx, "SELECT 1;").ReadAll()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	// Shut down bot and make sure it exits.
@@ -1132,7 +1130,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			"ssh_config",
 		} {
 			_, err := os.Stat(filepath.Join(tmpDir, fileName))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 

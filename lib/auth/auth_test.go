@@ -3043,13 +3043,11 @@ func TestGenerateKubernetesUserCert(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		gotNames := map[string]struct{}{}
 		for ks, err := range p.a.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-			if !assert.NoError(t, err) {
-				return
-			}
+			require.NoError(t, err)
 
 			gotNames[ks.GetCluster().GetName()] = struct{}{}
 		}
-		assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+		require.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
 	}, 15*time.Second, 100*time.Millisecond)
 
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)

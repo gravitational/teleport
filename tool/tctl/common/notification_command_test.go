@@ -79,34 +79,34 @@ func TestNotificationCommmandCRUD(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// List notifications for auditor and verify that auditor notification exists.
 		buf, err = runNotificationsCommand(t, clt, []string{"ls", "--user", auditorUsername})
-		assert.NoError(t, err)
-		assert.Contains(t, buf.String(), "auditor notification")
-		assert.NotContains(t, buf.String(), "manager notification")
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "auditor notification")
+		require.NotContains(t, buf.String(), "manager notification")
 
 		// List notifications for manager and verify output.
 		buf, err = runNotificationsCommand(t, clt, []string{"ls", "--user", managerUsername})
-		assert.NoError(t, err)
-		assert.Contains(t, buf.String(), "manager notification")
-		assert.NotContains(t, buf.String(), "auditor notification")
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "manager notification")
+		require.NotContains(t, buf.String(), "auditor notification")
 
 		// List global notifications and verify that test-1 notification exists.
 		buf, err = runNotificationsCommand(t, clt, []string{"ls"})
-		assert.NoError(t, err)
-		assert.Contains(t, buf.String(), "test-1 notification")
-		assert.NotContains(t, buf.String(), "auditor notification")
-		assert.NotContains(t, buf.String(), "manager notification")
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "test-1 notification")
+		require.NotContains(t, buf.String(), "auditor notification")
+		require.NotContains(t, buf.String(), "manager notification")
 
 		// Filter out notifications with a non-existent label and make sure nothing comes back.
 		buf, err = runNotificationsCommand(t, clt, []string{"ls", "--labels=thislabel=doesnotexist"})
-		assert.NotContains(t, buf.String(), "test-1 notification")
-		assert.NotContains(t, buf.String(), "auditor notification")
-		assert.NotContains(t, buf.String(), "manager notification")
+		require.NotContains(t, buf.String(), "test-1 notification")
+		require.NotContains(t, buf.String(), "auditor notification")
+		require.NotContains(t, buf.String(), "manager notification")
 
 		// Filter out global notifications with a valid label.
 		buf, err = runNotificationsCommand(t, clt, []string{"ls", "--labels=forrole=test-1"})
-		assert.Contains(t, buf.String(), "test-1 notification")
-		assert.NotContains(t, buf.String(), "auditor notification")
-		assert.NotContains(t, buf.String(), "manager notification")
+		require.Contains(t, buf.String(), "test-1 notification")
+		require.NotContains(t, buf.String(), "auditor notification")
+		require.NotContains(t, buf.String(), "manager notification")
 
 	}, 3*time.Second, 100*time.Millisecond)
 
@@ -120,12 +120,12 @@ func TestNotificationCommmandCRUD(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Verify that the global notification is no longer listed.
 		buf, err = runNotificationsCommand(t, clt, []string{"ls"})
-		assert.NoError(t, err)
-		assert.NotContains(t, buf.String(), "test-1 notification")
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), "test-1 notification")
 
 		// Verify that the auditor notification is no longer listed.
 		buf, err = runNotificationsCommand(t, clt, []string{"ls", "--user", auditorUsername})
-		assert.NoError(t, err)
-		assert.NotContains(t, buf.String(), "auditor notification")
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), "auditor notification")
 	}, 3*time.Second, 100*time.Millisecond)
 }

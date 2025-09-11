@@ -854,7 +854,7 @@ func TestSessionRecordingModes(t *testing.T) {
 				for _, e := range srv.Events() {
 					delete(eventsNotReceived, e.GetType())
 				}
-				assert.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
+				require.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
 			}, time.Second*5, time.Millisecond*500, "Some events not received")
 		})
 	}

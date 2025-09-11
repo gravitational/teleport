@@ -987,8 +987,8 @@ func TestNodeWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, filtered, len(nodes))
+		require.NoError(t, err)
+		require.Len(t, filtered, len(nodes))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool { return n.GetUseTunnel() })
@@ -999,8 +999,8 @@ func TestNodeWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, filtered, len(nodes)-1)
+		require.NoError(t, err)
+		require.Len(t, filtered, len(nodes)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool { return n.GetName() == nodes[0].GetName() })
@@ -1073,8 +1073,8 @@ func TestKubeServerWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(context.Background())
-		assert.NoError(t, err)
-		assert.Len(t, filtered, len(kubeServers))
+		require.NoError(t, err)
+		require.Len(t, filtered, len(kubeServers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
 
 	// Test filtering by cluster name.
@@ -1088,8 +1088,8 @@ func TestKubeServerWatcher(t *testing.T) {
 	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		kube, err := w.CurrentResources(context.Background())
-		assert.NoError(t, err)
-		assert.Len(t, kube, len(kubeServers)-1)
+		require.NoError(t, err)
+		require.Len(t, kube, len(kubeServers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
 
 	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
@@ -1106,8 +1106,8 @@ func TestKubeServerWatcher(t *testing.T) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		assert.NoError(t, err)
-		assert.Len(t, filtered, 2)
+		require.NoError(t, err)
+		require.Len(t, filtered, 2)
 	}, 1000*time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
 
 	// Test deleting all kube servers with the same name.
@@ -1122,15 +1122,15 @@ func TestKubeServerWatcher(t *testing.T) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		assert.NoError(t, err)
-		assert.Empty(t, filtered)
+		require.NoError(t, err)
+		require.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the two delete events.")
 
 	require.NoError(t, presence.DeleteAllKubernetesServers(ctx))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(context.Background())
-		assert.NoError(t, err)
-		assert.Empty(t, filtered)
+		require.NoError(t, err)
+		require.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive all delete events.")
 }
 
@@ -1439,8 +1439,8 @@ func TestGitServerWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, filtered, len(servers))
+		require.NoError(t, err)
+		require.Len(t, filtered, len(servers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {
@@ -1456,8 +1456,8 @@ func TestGitServerWatcher(t *testing.T) {
 	require.NoError(t, gitServerService.DeleteGitServer(ctx, servers[0].GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, filtered, len(servers)-1)
+		require.NoError(t, err)
+		require.Len(t, filtered, len(servers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {
@@ -1513,8 +1513,8 @@ func TestHealthCheckConfigWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, filtered, len(resources))
+		require.NoError(t, err)
+		require.Len(t, filtered, len(resources))
 	}, time.Second, 100*time.Millisecond, "Timeout waiting for watcher to receive resources.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(s *healthcheckconfigv1.HealthCheckConfig) bool {
@@ -1528,8 +1528,8 @@ func TestHealthCheckConfigWatcher(t *testing.T) {
 	require.NoError(t, localSvc.DeleteHealthCheckConfig(ctx, resources[0].GetMetadata().GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, filtered, len(resources)-1)
+		require.NoError(t, err)
+		require.Len(t, filtered, len(resources)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive resources.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(s *healthcheckconfigv1.HealthCheckConfig) bool {

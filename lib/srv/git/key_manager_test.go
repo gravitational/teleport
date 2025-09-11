@@ -93,7 +93,7 @@ func TestKeyManager_verify_github(t *testing.T) {
 				Auth:            clientAuth,
 				HostKeyCallback: hostKeyCallback,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if conn != nil {
 				conn.Close()
 			}

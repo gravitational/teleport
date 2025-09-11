@@ -1097,9 +1097,9 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			role, err := authServer.GetRole(ctx, roleName)
-			if assert.NoError(t, err) {
-				assert.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
-			}
+			require.NoError(t, err)
+			require.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
+
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
@@ -1115,9 +1115,9 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
-			if assert.NoError(t, err) {
-				assert.Equal(t, roles, user.GetRoles())
-			}
+			require.NoError(t, err)
+
+			require.Equal(t, roles, user.GetRoles())
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 

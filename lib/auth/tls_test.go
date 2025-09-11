@@ -745,7 +745,7 @@ func TestRollback(t *testing.T) {
 	client := testSrv.CloneClient(t, newProxy)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err = client.GetNodes(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}, 15*time.Second, 100*time.Millisecond)
 
 	// advance rotation:

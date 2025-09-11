@@ -70,7 +70,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 		var ok bool
 		event := emitter.LastEvent()
 		startEvent, ok = event.(*apievents.MCPSessionStart)
-		assert.True(t, ok)
+		require.True(t, ok)
 	}, time.Second*5, time.Millisecond*100, "expect session start")
 	require.NotEmpty(t, startEvent.McpSessionId)
 

@@ -178,8 +178,8 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			checkUserInFile(t, utmp, s.wtmpPath, teleportFakeUser, false)
 
 			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportFakeUser)
-			assert.NoError(t, err)
-			assert.False(t, inWtmpdb)
+			require.NoError(t, err)
+			require.False(t, inWtmpdb)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 
