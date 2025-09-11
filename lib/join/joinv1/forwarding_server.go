@@ -98,14 +98,14 @@ func (s *forwardingServer) Join(serverStream grpc.BidiStreamingServer[joinv1.Joi
 				// disconnects, no need to log or return it.
 				return nil
 			}
-			log.WarnContext(ctx, "Forwarded join request canceled",
+			log.LogAttrs(ctx, slog.LevelWarn, "Forwarded join request canceled",
 				slog.Any("error", err),
 				slog.String("remote_addr", peerInfo.remoteAddr),
 				slog.String("client_version", peerInfo.clientVersion))
 			return trace.Wrap(err)
 		case err := <-errs:
 			if err != nil {
-				log.WarnContext(ctx, "Forwarded join request failed",
+				log.LogAttrs(ctx, slog.LevelWarn, "Forwarded join request failed",
 					slog.Any("error", err),
 					slog.String("remote_addr", peerInfo.remoteAddr),
 					slog.String("client_version", peerInfo.clientVersion))
