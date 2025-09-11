@@ -33,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -131,6 +132,8 @@ type Config struct {
 
 	// GetEC2Client gets an AWS EC2 client for the given region.
 	GetEC2Client server.EC2ClientGetter
+	// GetAWSOrgClient gets an AWS EC2 client for the given region.
+	GetAWSOrgClient server.AWSOrgClientGetter
 	// GetSSMClient gets an AWS SSM client for the given region.
 	GetSSMClient func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error)
 	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
@@ -272,6 +275,15 @@ kubernetes matchers are present.`)
 				return nil, trace.Wrap(err)
 			}
 			return ec2.NewFromConfig(cfg), nil
+		}
+	}
+	if c.GetAWSOrgClient == nil {
+		c.GetAWSOrgClient = func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (*organizations.Client, error) {
+			cfg, err := c.getAWSConfig(ctx, region, opts...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return organizations.NewFromConfig(cfg), nil
 		}
 	}
 	if c.AWSFetchersClients == nil {
@@ -568,7 +580,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.GetEC2Client, noDiscoveryConfig)
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.GetEC2Client, s.GetAWSOrgClient, noDiscoveryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -687,7 +699,7 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.GetEC2Client, discoveryConfigName)
+	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.GetEC2Client, s.GetAWSOrgClient, discoveryConfigName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

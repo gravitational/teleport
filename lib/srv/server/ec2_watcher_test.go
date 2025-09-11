@@ -277,7 +277,7 @@ func TestEC2Watcher(t *testing.T) {
 
 	const noDiscoveryConfig = ""
 	fetchersFn := func() []Fetcher {
-		fetchers, err := matchersToEC2InstanceFetchers(t.Context(), matchers, getClient, noDiscoveryConfig)
+		fetchers, err := matchersToEC2InstanceFetchers(t.Context(), matchers, getClient, nil, noDiscoveryConfig)
 		require.NoError(t, err)
 
 		return fetchers
