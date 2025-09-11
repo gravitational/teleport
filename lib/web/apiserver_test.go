@@ -3376,7 +3376,7 @@ func TestSearchClusterEvents(t *testing.T) {
 			},
 			Result:        []apievents.AuditEvent{sessionStart},
 			TestStartKey:  true,
-			StartKeyValue: sessionStart.GetID(),
+			StartKeyValue: fmt.Sprintf("%s/%d", sessionStart.GetID(), sessionStart.GetTime().UnixNano()),
 		},
 		{
 			Comment: "Query session start and session end events with limit and given start key",
