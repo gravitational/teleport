@@ -208,6 +208,72 @@ func (c *Client) newSession(ctx context.Context, chanReqCallback ChannelRequestC
 	return session, trace.Wrap(err)
 }
 
+func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, handleFn func(ch ssh.NewChannel)) error {
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
+	ch := c.Client.HandleChannelOpen(channelType)
+	if ch == nil {
+		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", channelType)
+	}
+
+	go func() {
+		for newCh := range ch {
+			_, span := tracer.Start(
+				ctx,
+				fmt.Sprintf("ssh.HandleChannelOpen/%s", channelType),
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					append(
+						peerAttr(c.Conn.RemoteAddr()),
+						semconv.RPCServiceKey.String("ssh.Client"),
+						semconv.RPCMethodKey.String("NewSession"),
+						semconv.RPCSystemKey.String("ssh"),
+					)...,
+				),
+			)
+
+			handleFn(newCh)
+			span.End()
+		}
+	}()
+	return nil
+}
+
+// HandleRequests starts a goroutine to handle any incoming [ssh.Request] matching
+// the provided type using the provided handler. If the type already is being handled,
+// an error is returned.
+//
+// This should be called before NewSession to ensure requests of this type are
+// not processed before the handler is registered.
+func (c *Client) HandleRequests(ctx context.Context, requestType string, handleFn func(req *ssh.Request)) error {
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
+	ch := c.sessionClient.HandleRequests(requestType)
+	if ch == nil {
+		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", requestType)
+	}
+
+	go func() {
+		for req := range ch {
+			_, span := tracer.Start(
+				ctx,
+				fmt.Sprintf("ssh.HandleRequests/%s", requestType),
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					append(
+						peerAttr(c.Conn.RemoteAddr()),
+						semconv.RPCServiceKey.String("ssh.Client"),
+						semconv.RPCMethodKey.String("NewSession"),
+						semconv.RPCSystemKey.String("ssh"),
+					)...,
+				),
+			)
+
+			handleFn(req)
+			span.End()
+		}
+	}()
+	return nil
+}
+
 // clientWrapper wraps the ssh.Conn for individual ssh.Client
 // operations to intercept internal calls by the ssh.Client to
 // OpenChannel. This allows for internal operations within the

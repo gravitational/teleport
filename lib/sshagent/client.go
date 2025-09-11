@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 // Client extends the [agent.ExtendedAgent] interface with an [io.Closer].
@@ -101,36 +103,29 @@ const channelType = "auth-agent@openssh.com"
 // signature requests. This issue may be resolved directly by the
 // [agent] library once https://github.com/golang/go/issues/61383
 // is addressed.
-func ServeChannelRequests(ctx context.Context, client *ssh.Client, getForwardAgent ClientGetter) error {
-	channels := client.HandleChannelOpen(channelType)
-	if channels == nil {
-		return errors.New("agent forwarding channel already open")
-	}
-
-	go func() {
-		for ch := range channels {
-			channel, reqs, err := ch.Accept()
-			if err != nil {
-				continue
-			}
-
-			go ssh.DiscardRequests(reqs)
-
-			forwardAgent, err := getForwardAgent()
-			if err != nil {
-				_ = channel.Close()
-				slog.ErrorContext(ctx, "failed to connect to forwarded agent", "err", err)
-				continue
-			}
-
-			go func() {
-				defer channel.Close()
-				defer forwardAgent.Close()
-				if err := agent.ServeAgent(forwardAgent, channel); err != nil && !errors.Is(err, io.EOF) {
-					slog.ErrorContext(ctx, "unexpected error serving forwarded agent", "err", err)
-				}
-			}()
+func ServeChannelRequests(ctx context.Context, client *tracessh.Client, getForwardAgent ClientGetter) error {
+	err := client.HandleChannelOpen(ctx, channelType, func(ch ssh.NewChannel) {
+		channel, reqs, err := ch.Accept()
+		if err != nil {
+			return
 		}
-	}()
-	return nil
+
+		go ssh.DiscardRequests(reqs)
+
+		forwardAgent, err := getForwardAgent()
+		if err != nil {
+			_ = channel.Close()
+			slog.ErrorContext(ctx, "failed to connect to forwarded agent", "err", err)
+			return
+		}
+
+		go func() {
+			defer channel.Close()
+			defer forwardAgent.Close()
+			if err := agent.ServeAgent(forwardAgent, channel); err != nil && !errors.Is(err, io.EOF) {
+				slog.ErrorContext(ctx, "unexpected error serving forwarded agent", "err", err)
+			}
+		}()
+	})
+	return trace.Wrap(err)
 }
