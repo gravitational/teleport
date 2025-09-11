@@ -147,8 +147,6 @@ func TestRootCleanup(t *testing.T) {
 		MountPath: dir,
 	})
 	require.NoError(t, err)
-	const skipUnmount = false
-	defer service.Close(skipUnmount)
 
 	// Create fake session ID and cgroup.
 	sessionID := uuid.New().String()
@@ -162,6 +160,9 @@ func TestRootCleanup(t *testing.T) {
 	// Make sure the cgroup no longer exists.
 	cgroupPath := filepath.Join(service.teleportRoot, sessionID)
 	require.NoDirExists(t, cgroupPath)
+
+	err = service.unmount()
+	require.NoError(t, err)
 }
 
 // TestRootSkipUnmount checks that closing the service with skipUnmount set to
