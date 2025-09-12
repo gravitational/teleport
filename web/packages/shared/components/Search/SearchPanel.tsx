@@ -85,13 +85,13 @@ export function SearchPanel({
             searchValue={query}
             setSearchValue={updateQueryForRefetching}
           >
-            {!hideAdvancedSearch ? (
+            {!hideAdvancedSearch && (
               <AdvancedSearchToggle
                 isToggled={isAdvancedSearch}
                 onToggle={onToggle}
                 px={3}
               />
-            ) : undefined}
+            )}
           </InputSearch>
         </StyledFlex>
       </Flex>
