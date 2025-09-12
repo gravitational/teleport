@@ -28,8 +28,8 @@ import { FetchingConfig, SortType } from 'design/DataTable/types';
 import Flex from 'design/Flex';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import { SearchPanel } from 'shared/components/Search';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import { BotInstanceSummary } from 'teleport/services/bot/types';
 
@@ -108,7 +108,7 @@ export function BotInstancesList({
             <Cell>
               <Flex inline alignItems={'center'} gap={1} mr={0}>
                 <MonoText>{instanceIdDisplay}</MonoText>
-                <CopyButton name={instance_id} />
+                <CopyButton value={instance_id} />
               </Flex>
             </Cell>
           ),
