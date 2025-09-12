@@ -27,6 +27,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -67,10 +68,15 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 		requiresRequest := enrichedResource.RequiresRequest
 		switch r := enrichedResource.ResourceWithLabels.(type) {
 		case types.Server:
+			logins, err := libclient.CalculateSSHLogins(cluster.GetLoggedInUser().SSHLogins, enrichedResource.Logins)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Server: &clusters.Server{
 					URI:    cluster.URI.AppendServer(r.GetName()),
 					Server: r,
+					Logins: logins,
 				},
 				RequiresRequest: requiresRequest,
 			})
