@@ -199,6 +199,7 @@ export const resourceIconSpecs = {
   mariadb: { dark: i.mariadbDark, light: i.mariadbLight },
   mattermost: { dark: i.mattermostDark, light: i.mattermostLight },
   maxio: { dark: i.maxioDark, light: i.maxioLight },
+  mcp: { dark: i.mcpDark, light: i.mcpLight },
   mcpCursor: { dark: i.mcpCursorDark, light: i.mcpCursorLight },
   mcpVscode: forAllThemes(i.mcpVscode),
   mcpVscodeInsiders: forAllThemes(i.mcpVscodeInsiders),
