@@ -1,0 +1,21 @@
+clusterName: "test.teleport.sh"
+teleportProxyAddress: "test.teleport.sh:443"
+token: "my-token"
+defaultOutput:
+  enabled: false
+argocd:
+  enabled: true
+  clusterSelectors:
+    - name: foo
+    - labels:
+        foo: bar
+  secretNamespace: my-namespace
+  secretLabels:
+    baz: qux
+  secretAnnotations:
+    chunky: bacon
+  project: my-argo-project
+  namespaces:
+    - dev
+    - prod
+  clusterResources: true

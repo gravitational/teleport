@@ -25,6 +25,39 @@ it should match the snapshot (custom):
     metadata:
       name: RELEASE-NAME-tbot
       namespace: NAMESPACE
+should match the snapshot (argocd):
+  1: |
+    apiVersion: v1
+    data:
+      tbot.yaml: |-
+        onboarding:
+          join_method: kubernetes
+          token: my-token
+        outputs:
+        - cluster_resources: true
+          namespaces:
+          - dev
+          - prod
+          project: my-argo-project
+          secret_annotations:
+            chunky: bacon
+          secret_labels:
+            baz: qux
+          secret_namespace: my-namespace
+          selectors:
+          - name: foo
+          - labels:
+              foo: bar
+          type: kubernetes/argo-cd
+        proxy_server: test.teleport.sh:443
+        storage:
+          name: RELEASE-NAME-tbot
+          type: kubernetes_secret
+        version: v2
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME-tbot
+      namespace: NAMESPACE
 should match the snapshot (full):
   1: |
     apiVersion: v1

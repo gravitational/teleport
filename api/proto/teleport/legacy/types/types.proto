@@ -1173,6 +1173,8 @@ enum PrivateKeyType {
 
 // SSHKeyPair is an SSH CA key pair.
 message SSHKeyPair {
+  option (gogoproto.equal) = true;
+
   // PublicKey is the SSH public key.
   bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
   // PrivateKey is the SSH private key.
@@ -7474,6 +7476,7 @@ message PluginBootstrapCredentialsV1 {
 
 // PluginIdSecretCredential can be OAuth2-like client_id and client_secret or username and password.
 message PluginIdSecretCredential {
+  option (gogoproto.equal) = true;
   string id = 1;
   string secret = 2;
 }
@@ -7739,6 +7742,7 @@ message PluginOktaStatusDetailsAccessListsSync {
 // PluginCredentialsV1 represents "live" credentials
 // that are used by the plugin to authenticate to the 3rd party API.
 message PluginCredentialsV1 {
+  option (gogoproto.equal) = true;
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
@@ -7748,6 +7752,8 @@ message PluginCredentialsV1 {
 }
 
 message PluginOAuth2AccessTokenCredentials {
+  option (gogoproto.equal) = true;
+
   string access_token = 1;
   string refresh_token = 2;
   google.protobuf.Timestamp expires = 3 [
@@ -7757,6 +7763,8 @@ message PluginOAuth2AccessTokenCredentials {
 }
 
 message PluginBearerTokenCredentials {
+  option (gogoproto.equal) = true;
+
   // Token is the literal bearer token to be submitted to the 3rd-party API provider.
   string token = 1;
 
@@ -7795,6 +7803,7 @@ message PluginStaticCredentialsV1 {
 
 // PluginStaticCredentialsSpecV1 is the specification for the static credentials object.
 message PluginStaticCredentialsSpecV1 {
+  option (gogoproto.equal) = true;
   oneof credentials {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
@@ -7805,6 +7814,8 @@ message PluginStaticCredentialsSpecV1 {
 
 // PluginStaticCredentialsBasicAuth represents username and password credentials for a plugin.
 message PluginStaticCredentialsBasicAuth {
+  option (gogoproto.equal) = true;
+
   // Username is the username to use for basic auth.
   string Username = 1 [(gogoproto.jsontag) = "username"];
 
@@ -7814,6 +7825,8 @@ message PluginStaticCredentialsBasicAuth {
 
 // PluginStaticCredentialsOAuthClientSecret represents an oauth client id and secret.
 message PluginStaticCredentialsOAuthClientSecret {
+  option (gogoproto.equal) = true;
+
   // ClientId is the client ID to use for OAuth client secret.
   string ClientId = 1 [(gogoproto.jsontag) = "client_id"];
 
@@ -7824,6 +7837,8 @@ message PluginStaticCredentialsOAuthClientSecret {
 // PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
 // for the integration or plugin.
 message PluginStaticCredentialsSSHCertAuthorities {
+  option (gogoproto.equal) = true;
+
   // CertAuthorities contains the active SSH CAs used for the integration or
   // plugin.
   repeated SSHKeyPair cert_authorities = 1;

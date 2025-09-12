@@ -1,0 +1,34 @@
+---
+title: Service to Service mTLS with Machine & Workload Identity
+description: Managing Service to Service mTLS with Machine & Workload Identity
+labels:
+ - conceptual
+ - mwi
+---
+
+Using Workload Identity certificates reduces the risk of credential exfiltration and provides 
+engineers with a built-in authentication method for new services. Each certificate is tied to 
+the identity of the application itself, rather than relying on a shared certificate infrastructure 
+or API key that can be copied or reused. This ensures that authentication and authorization are both 
+more secure and reliable.
+
+## Eliminate secrets from your applications
+
+Teleport issues special credentials to applications in the form of x.509 certificates or JWTs, after 
+verifying their identity (to get started, see [Introduction to Workload Identity](/machine-workload-identity/workload-identity/introduction.mdx). 
+These credentials are automatically rotated every 20 minutes by default. They contain a URI that 
+uniquely identifies the application. Applications using the credentials automatically gain mTLS, 
+and can verify that a request or response not only comes from a trusted certificate, but from a specific trusted application. 
+This makes it possible to guarantee separation of tenants, geographic areas, etc.
+
+## Improve developer efficiency and experience
+
+With Teleport Machine & Workload Identity powering application to application authentication, developers can use 
+standardized open-source libraries in their services to request a credential, and not worry about setting up API keys or 
+integrating with custom PKI. Teleport Workload Identity credentials follow the SPIFFE standard, making them interoperable 
+with a wide ecosystem of libraries and SDKs.
+
+### Further reading
+
+- [Best Practices for Teleport Workload Identity](/machine-workload-identity/workload-identity/best-practices.mdx): Learn how Teleport verifies applications and issues credentials
+- [Introduction to SPIFFE:](/machine-workload-identity/workload-identity/spiffe.mdx) Learn about the open-source standard for workload identities and federation
