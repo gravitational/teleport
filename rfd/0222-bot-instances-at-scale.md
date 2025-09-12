@@ -392,7 +392,7 @@ enum BotInstanceHealthStatus {
 
 ## Resource storage (backend)
 
-This proposal adds a number of extra data fields pertaining to bot instances; namely `tbot` configuration, service health, and notices. To avoid bloating instance records, some fields will be extracted (stored separately) while others will have hard limits. Any data extracted from an instance will match the instance's expiry. If an instance is deleted, its related records will also be removed.
+This proposal adds a number of extra data fields pertaining to bot instances; namely `tbot` configuration, service health, and notices. To avoid bloating instance records, some fields will be extracted (stored separately) while others will have hard limits. Any data extracted from an instance will match the instance's expiry. When a bot instance is extended (in terms of expiry), related records will be updated to match - this happens when `tbot` renews its credentials. Likewise, if an instance is deleted, its related records will also be removed.
 
 Configuration will be limited before it is sent by `tbot`. It will be stored as its own resource (`BotInstanceConfig`) in `/bot_instance/:bot_name/:uuid/tbot_config`. Only one config record is stored per bot instance, and its value is overwritten when new data arrives.
 
