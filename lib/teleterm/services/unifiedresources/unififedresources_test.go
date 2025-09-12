@@ -115,7 +115,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	require.NoError(t, err)
 
 	mockedResources := []*proto.PaginatedResource{
-		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}},
+		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}, Logins: []string{"ec2-user"}},
 		{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
 		{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: kube}},
 		{Resource: &proto.PaginatedResource_AppServer{AppServer: app}},
@@ -136,6 +136,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	require.Equal(t, UnifiedResource{Server: &clusters.Server{
 		URI:    uri.NewClusterURI(cluster.ProfileName).AppendServer(node.GetName()),
 		Server: node,
+		Logins: nil, // because the cluster has no SSH logins
 	}}, response.Resources[0])
 
 	require.Equal(t, UnifiedResource{Database: &clusters.Database{
