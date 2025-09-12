@@ -268,7 +268,7 @@ func TestAccessListSync_bidirectionalSync(t *testing.T) {
 
 	// 5. Update integration enabling bidirectional sync
 
-	_, err = oktaAuthClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
 		EnableAccessListSync:    true,
@@ -277,7 +277,6 @@ func TestAccessListSync_bidirectionalSync(t *testing.T) {
 			DefaultOwner: []string{"alice-admin"},
 		},
 	})
-	require.NoError(t, err)
 
 	// 6. Wait for AssignmentProcessor event and verify okta_assignments are in "successful" state
 

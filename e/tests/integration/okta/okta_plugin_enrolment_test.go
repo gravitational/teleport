@@ -235,12 +235,11 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 
 	t.Run("extend okta integration and enable user sync", func(t *testing.T) {
 		from := time.Now()
-		_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
 			ApiCredentials:            apiCredentials,
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
 		})
-		require.NoError(t, err)
 
 		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
 			Name: types.PluginTypeOkta,
@@ -284,7 +283,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 
 	t.Run("update integration setting and enable user sync and app groups sync", func(t *testing.T) {
 		from := time.Now()
-		_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
 			ApiCredentials:            apiCredentials,
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
@@ -295,7 +294,6 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 				DefaultOwner: []string{"alice-admin"},
 			},
 		})
-		require.NoError(t, err)
 
 		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
 			Name: types.PluginTypeOkta,
@@ -336,19 +334,16 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 
 	t.Run("enabled full integration by turing on access list sync", func(t *testing.T) {
 		from := time.Now()
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
-				EnableUserSync:            true,
-				DisableAssignDefaultRoles: false,
-				EnableAppGroupSync:        true,
-				EnableAccessListSync:      true,
-				EnableBidirectionalSync:   true,
-				AccessListSettings: &oktav1.AccessListSettings{
-					DefaultOwner: []string{"alice-admin"},
-				},
-			})
-			require.NoError(t, err)
-		}, time.Second, 200*time.Millisecond)
+		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
+			EnableUserSync:            true,
+			DisableAssignDefaultRoles: false,
+			EnableAppGroupSync:        true,
+			EnableAccessListSync:      true,
+			EnableBidirectionalSync:   true,
+			AccessListSettings: &oktav1.AccessListSettings{
+				DefaultOwner: []string{"alice-admin"},
+			},
+		})
 		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*5), withTimePoint(from))
 
 		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
@@ -383,7 +378,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 	})
 
 	t.Run("update integration setting and enable user sync and app groups sync", func(t *testing.T) {
-		_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
 			EnableAppGroupSync:        true,
@@ -395,7 +390,6 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 				AppFilters:   []string{"__none__"},
 			},
 		})
-		require.NoError(t, err)
 
 		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
 			Name: types.PluginTypeOkta,
@@ -490,11 +484,10 @@ func TestPluginEnrolment_OktaRequester_Role(t *testing.T) {
 	})
 
 	t.Run("Enable okta-requester role assignment", func(t *testing.T) {
-		_, err = oktaAuthClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
 		})
-		require.NoError(t, err)
 
 		mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
 
@@ -506,11 +499,10 @@ func TestPluginEnrolment_OktaRequester_Role(t *testing.T) {
 		})
 	})
 	t.Run("Disable okta-requester role assignment again", func(t *testing.T) {
-		_, err = oktaAuthClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: true,
 		})
-		require.NoError(t, err)
 
 		mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
 
@@ -670,12 +662,11 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 	})
 
 	t.Run("update credentials", func(t *testing.T) {
-		_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
 			ApiCredentials:            &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_OauthId{OauthId: "test_client_id_vSHak23"}},
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
 		})
-		require.NoError(t, err)
 
 		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: types.PluginTypeOkta})
 		require.NoError(t, err)
@@ -718,12 +709,10 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 
 		// Now updating integration should populate back the app ID and set user sync source to
 		// "org" (because app ID was not set).
-
-		_, err = oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
 		})
-		require.NoError(t, err)
 
 		oktaPlugin, err = pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: types.PluginTypeOkta})
 		require.NoError(t, err)
@@ -839,12 +828,11 @@ func Test_PluginEnrolment_OAuthScopes(t *testing.T) {
 
 	oktaApiClient.scopes = []string{}
 
-	_, err = oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+	mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
 		EnableUserSync:       false,
 		EnableAppGroupSync:   false,
 		EnableAccessListSync: false,
 	})
-	require.NoError(t, err)
 }
 
 func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector {

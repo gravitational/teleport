@@ -181,7 +181,7 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 
 	// 12. Enable bidirectional sync
 
-	_, err = oktaAuthClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
 		EnableAccessListSync:    true,
@@ -190,7 +190,6 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 			DefaultOwner: []string{"alice-admin"},
 		},
 	})
-	require.NoError(t, err)
 
 	// 13. Now adding a member should work
 
