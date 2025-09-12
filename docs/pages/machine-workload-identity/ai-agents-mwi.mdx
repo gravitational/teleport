@@ -4,6 +4,7 @@ description: Managing AI Agents with Machine & Workload Identity
 labels:
  - conceptual
  - mwi
+ - ai
 ---
 
 ## Enforce access and privileges for agents
@@ -13,7 +14,7 @@ Teleport solves this by issuing each agent its own identity and requiring the ag
 This allows Teleport to apply Role-Based Access Control (RBAC) at both the network and protocol level.
 
 Teleport can secure infrastructure components such as SSH servers, Kubernetes clusters, databases, or MCP servers, when accessed by agents. 
-All queries, commands, and requests executed by the agent are logged, providing full visibility and [auditability](/reference/monitoring/audit.mdx).
+All queries, commands, and requests executed by the agent are logged, providing full visibility and [auditability](../reference/deployment/monitoring/audit.mdx).
 
 ## Interested in a Design Partnership?
 

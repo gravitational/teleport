@@ -48,6 +48,7 @@ var (
 	ListenerProxyPeer         = ListenerType(teleport.Component(teleport.ComponentProxy, "peer"))
 	ListenerMetrics           = ListenerType(teleport.ComponentMetrics)
 	ListenerWindowsDesktop    = ListenerType(teleport.ComponentWindowsDesktop)
+	ListenerRelayTunnel       = ListenerType(teleport.Component(teleport.ComponentRelay, "tunnel"))
 )
 
 // Network returns the network used by the listener.

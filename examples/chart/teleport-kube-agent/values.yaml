@@ -66,7 +66,7 @@ joinParams:
   # joinParams.method(string) -- controls which join method will be used by the
   # instance to join the Teleport cluster.
   #
-  # See [the join method reference](../../reference/join-methods.mdx) for the list of possible
+  # See [the join method reference](../../reference/deployment/join-methods.mdx) for the list of possible
   # values, the implications of each join method, and guides to set up each method.
   #
   # Common join-methods for the `teleport-kube-agent` are:
@@ -80,7 +80,7 @@ joinParams:
   # joinParams.tokenName(string) -- controls which token is used by the agent to
   # join the Teleport cluster.
   #
-  # When `joinParams.method` is [a delegated join method](../../reference/join-methods.mdx#delegated-join-methods),
+  # When `joinParams.method` is [a delegated join method](../../reference/deployment/join-methods.mdx#delegated-join-methods),
   # the value is not sensitive.
   #
   # When `joinParams.method` is `token` (by default), `joinParams.tokenName`
@@ -97,7 +97,7 @@ joinParams:
 
 # teleportClusterName(string) -- is the name of the joined Teleport cluster.
 # Setting this value is required when joining via the
-# [Kubernetes JWKS or OIDC](../../reference/join-methods.mdx#kubernetes-jwks) join method.
+# [Kubernetes JWKS or OIDC](../../reference/deployment/join-methods.mdx#kubernetes-jwks) join method.
 #
 # When this value is set, the chart mounts a kubernetes service account token
 # via a projected volume and configures Teleport to use it for joining.
@@ -533,7 +533,7 @@ insecureSkipProxyTLSVerify: false
 # Teleport pods. The configuration will be merged with the chart-generated
 # configuration and will take precedence in case of conflict.
 #
-# See the [Teleport Configuration Reference](../../reference/config.mdx) for the list of supported fields.
+# See the [Teleport Configuration Reference](../../reference/deployment/config.mdx) for the list of supported fields.
 #
 # ```yaml
 # teleportConfig:
@@ -1079,7 +1079,7 @@ log:
   format: text
   # log.extraFields(list) -- sets the fields used in logging for the Teleport process.
   #
-  # See the [Teleport config file reference](../../reference/config.mdx) for
+  # See the [Teleport config file reference](../../reference/deployment/config.mdx) for
   # more details on possible values for `extra_fields`.
   extraFields: ["timestamp", "level", "component", "caller"]
 

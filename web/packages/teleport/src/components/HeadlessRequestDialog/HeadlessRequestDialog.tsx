@@ -59,7 +59,9 @@ export default function HeadlessRequestDialog({
               you, click Reject and contact your administrator.
               <br />
               <br />
-              If it was you, please use your hardware key to approve.
+              If it was you, approve the request to continue. You will be
+              prompted to verify your identity in order to complete the
+              approval.
             </>
           )}
         </Text>

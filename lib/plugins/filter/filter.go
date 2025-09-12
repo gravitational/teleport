@@ -95,7 +95,7 @@ func Matches(filters Filters, param MatchParam) bool {
 		// Empty filter is considerd a wildcard match.
 		return true
 	}
-	hasInclude := false
+
 	for _, filter := range filters {
 		if filter.GetExclude() == nil {
 			continue
@@ -113,10 +113,11 @@ func Matches(filters Filters, param MatchParam) bool {
 				}
 			}
 		default:
-			slog.ErrorContext(context.Background(), "PluginSyncFilter skipping unsupported exclude filter type", "type", logutils.TypeAttr(v))
+			slog.ErrorContext(context.Background(), "PluginSyncFilter skipping an unknown include filter type", "type", logutils.TypeAttr(v))
 		}
 	}
 
+	hasInclude := false
 	for _, filter := range filters {
 		if filter.GetInclude() == nil {
 			continue
@@ -135,7 +136,7 @@ func Matches(filters Filters, param MatchParam) bool {
 				}
 			}
 		default:
-			slog.ErrorContext(context.Background(), "PluginSyncFilter unsupported filter type encountered. Filter will be skipped.", "type", logutils.TypeAttr(v))
+			slog.ErrorContext(context.Background(), "PluginSyncFilter skipping an unknown exclude filter type", "type", logutils.TypeAttr(v))
 		}
 	}
 	return !hasInclude
