@@ -426,7 +426,9 @@ func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) 
 	// To prevent re-execution loop we have to disable update logic for re-execution,
 	// by unsetting current tools version env variable and setting it to "off"
 	// if same version is requested to be re-executed.
-	if path == executablePath {
+	// We should also prevent further re-execution if the current version is run from
+	// the deprecated `~/.tsh/bin/tsh` path; otherwise, a downgrade could result in a loop.
+	if path == executablePath || executablePath == filepath.Join(u.toolsDir, filepath.Base(executablePath)) {
 		env = filterEnvs(env, []string{teleportToolsVersionEnv})
 		env = append(env, teleportToolsVersionEnv+"="+teleportToolsVersionEnvDisabled)
 		slog.DebugContext(ctx, "Disable re-execution")
