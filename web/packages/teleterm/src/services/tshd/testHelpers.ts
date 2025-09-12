@@ -341,14 +341,6 @@ export const makeAccessRequest = (
   reviews: [],
   suggestedReviewers: ['admin', 'reviewer'],
   thresholdNames: ['default'],
-  resourceIds: [
-    {
-      kind: 'kube_cluster',
-      name: 'minikube',
-      clusterName: 'main',
-      subResourceName: '',
-    },
-  ],
   resources: [
     {
       id: {

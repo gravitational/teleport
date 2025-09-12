@@ -260,8 +260,7 @@ message CreateAccessRequestRequest {
   repeated string roles = 3;
   // suggested_reviewers is a suggested list of reviewers that can review a request.
   repeated string suggested_reviewers = 4;
-  // TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
-  // a list of resourceIDs requested in the AccessRequest
+  // List of resources to which access is being requested.
   repeated ResourceID resource_ids = 5;
   // assume_start_time is the time after which the requested access can be assumed.
   google.protobuf.Timestamp assume_start_time = 6;
