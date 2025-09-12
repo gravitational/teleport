@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -135,7 +136,7 @@ func createAccessRequest(ctx context.Context, clt accessRequestGetCreator, reque
 	return uiResp, nil
 }
 
-func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -148,15 +149,14 @@ func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	return getResourceRequestRoles(r.Context(), clt, req, ctx.GetUser())
+	return getResourceRequestRoles(r.Context(), clt, req, ctx.GetUser(), ctx, clusterClientProvider)
 }
 
-// getResourceRequestRoles returns the list of necessary roles to access a list of resources
-// given their resource IDs.
-func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []ui.ResourceID, user string) ([]string, error) {
-	// Creates new list of type types.ResourceID from the request of type ui.ResourceID.
-	// This is done because the json field name for `ClusterName` is different in both.
-	var resourceIDs []types.ResourceID
+// repackUIResourceIDs repacks the supplied list of [ui.ResourceID] values into a
+// list of [types.ResourceID]. This is necessary due to wire format differences
+// in the two resource ID types.
+func repackUIResourceIDs(req []ui.ResourceID) []types.ResourceID {
+	resourceIDs := make([]types.ResourceID, 0, len(req))
 	for _, resourceID := range req {
 		resourceIDs = append(resourceIDs, types.ResourceID{
 			Name:            resourceID.Name,
@@ -164,6 +164,65 @@ func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []
 			ClusterName:     resourceID.ClusterName,
 			SubResourceName: resourceID.SubResourceName,
 		})
+	}
+	return resourceIDs
+}
+
+// getResourceRequestRoles returns the list of necessary roles to access a list of resources
+// given their resource IDs.
+func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []ui.ResourceID, user string, sessionContext *web.SessionContext, clusterClientProvider web.ClusterClientProvider) ([]string, error) {
+	if len(req) == 0 {
+		return []string{}, nil
+	}
+
+	localClusterName, err := clt.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We assume that an Access Request may only ever request resources from a
+	// single cluster. If this is ever becomes an invalid assumption, it should
+	// be straightforward to group the requests by cluster and the map/reduce
+	// the per-cluster resources
+	var cluster string
+	for _, rID := range req {
+		if cluster != "" && cluster != rID.ClusterName {
+			return nil, trace.BadParameter("all requested resources must be from the same cluster")
+		}
+		cluster = rID.ClusterName
+	}
+	targetCluster := cmp.Or(cluster, localClusterName.GetClusterName())
+
+	resourceIDs := repackUIResourceIDs(req)
+
+	if targetCluster != localClusterName.GetClusterName() {
+		slog.DebugContext(ctx, "Delegating role selection to remote cluster", "remote_cluster", targetCluster)
+
+		accessChecker, err := sessionContext.GetUserAccessChecker()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		searchAsRoles := accessChecker.GetAllowedSearchAsRoles()
+
+		clusterClient, err := clusterClientProvider.UserClientForCluster(ctx, targetCluster)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		accessCaps, err := clusterClient.GetRemoteAccessCapabilities(ctx, types.RemoteAccessCapabilitiesRequest{
+			User:          user,
+			ResourceIDs:   resourceIDs,
+			SearchAsRoles: searchAsRoles,
+		})
+		switch {
+		case err == nil:
+			return accessCaps.ApplicableRolesForResources, nil
+		case trace.IsNotImplemented(err):
+			// Remote cluster does not support pruning roles. Fall back to the
+			// local pruning algorithm
+		default:
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	accessCaps, err := clt.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{User: user, ResourceIDs: resourceIDs})

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,6 +61,11 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 
 	cfg := newInstanceConfig(t)
 	cfg.Clock = options.clock
+	if options.clusterName != "" {
+		cfg.ClusterName = options.clusterName
+		cfg.NodeName = options.clusterName + "-node"
+	}
+	cfg.Logger = options.logger
 	teleport := helpers.NewInstance(t, cfg)
 
 	teleport.ProcessProvider = &entProcessProvider{}
@@ -123,8 +129,8 @@ func (s *SUT) GetClusterClientForUser(t *testing.T, user string) *client.Cluster
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		aliceClient, err := s.Teleport.NewClient(helpers.ClientConfig{
 			TeleportUser: user,
-			Cluster:      helpers.Site,
-			Host:         helpers.Host,
+			Cluster:      s.Teleport.Config.Auth.ClusterName.GetClusterName(),
+			Host:         s.ProxyAddr,
 		})
 		require.NoError(collect, err)
 
@@ -143,6 +149,12 @@ func (s *SUT) GetClusterClientForUser(t *testing.T, user string) *client.Cluster
 	require.NoError(t, err)
 
 	return tc
+}
+
+func (s *SUT) CreateWebClientForUser(t *testing.T, user string) *helpers.WebClientPack {
+	pass := uuid.NewString()
+	require.NoError(t, s.Teleport.Process.GetAuthServer().UpsertPassword(user, []byte(pass)))
+	return helpers.LoginWebClient(t, s.ProxyAddr, user, pass)
 }
 
 func newInstanceConfig(t *testing.T) helpers.InstanceConfig {

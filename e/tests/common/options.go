@@ -1,6 +1,7 @@
 package common
 
 import (
+	"log/slog"
 	"net/http"
 	"testing"
 
@@ -11,14 +12,22 @@ import (
 )
 
 type sutOptions struct {
+	clusterName   string
 	resources     []types.Resource
 	samlConnector string
 	license       string
 	HTTPTransport http.RoundTripper
 	clock         clockwork.Clock
+	logger        *slog.Logger
 }
 
 type option func(*sutOptions)
+
+func WithClusterName(name string) func(*sutOptions) {
+	return func(o *sutOptions) {
+		o.clusterName = name
+	}
+}
 
 // WithUser adds a user with the given roles to the SUT.
 func WithUser(t *testing.T, user string, roles ...string) func(*sutOptions) {
@@ -29,29 +38,83 @@ func WithUser(t *testing.T, user string, roles ...string) func(*sutOptions) {
 	return WithResources(userResource)
 }
 
+type RoleOption func(*types.RoleV6)
+
+func WithSearchAs(rct types.RoleConditionType, r string) RoleOption {
+	return func(rv *types.RoleV6) {
+		dst := &rv.Spec.Deny
+		if rct == types.Allow {
+			dst = &rv.Spec.Allow
+		}
+		if dst.Request == nil {
+			dst.Request = &types.AccessRequestConditions{}
+		}
+		dst.Request.SearchAsRoles = append(dst.Request.SearchAsRoles, r)
+	}
+}
+
+func WithClusterLabel(rct types.RoleConditionType, key string, values ...string) RoleOption {
+	return func(rv *types.RoleV6) {
+		dst := &rv.Spec.Deny
+		if rct == types.Allow {
+			dst = &rv.Spec.Allow
+		}
+		if dst.ClusterLabels == nil {
+			dst.ClusterLabels = types.Labels{}
+		}
+		dst.ClusterLabels[key] = values
+	}
+}
+
+func WithRoleNodeLabel(rct types.RoleConditionType, key string, values ...string) RoleOption {
+	return func(rv *types.RoleV6) {
+		dst := &rv.Spec.Deny
+		if rct == types.Allow {
+			dst = &rv.Spec.Allow
+		}
+		if dst.NodeLabels == nil {
+			dst.NodeLabels = types.Labels{}
+		}
+		dst.NodeLabels[key] = values
+	}
+}
+
+func WithAccountAssignment(rct types.RoleConditionType, accountID, permissionSetARN string) RoleOption {
+	return func(rv *types.RoleV6) {
+		dst := &rv.Spec.Deny
+		if rct == types.Allow {
+			dst = &rv.Spec.Allow
+		}
+		if dst.NodeLabels == nil {
+			dst.NodeLabels = types.Labels{}
+		}
+		assignment := types.IdentityCenterAccountAssignment{
+			Account:       accountID,
+			PermissionSet: permissionSetARN,
+		}
+		dst.AccountAssignments = append(dst.AccountAssignments, assignment)
+	}
+}
+
+func WithRole(t *testing.T, name string, options ...RoleOption) func(*sutOptions) {
+	role, err := types.NewRole(name, types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	rv, ok := role.(*types.RoleV6)
+	require.True(t, ok, "expected RoleV6, got %T", role)
+	for _, applyOption := range options {
+		applyOption(rv)
+	}
+
+	return func(o *sutOptions) {
+		o.resources = append(o.resources, rv)
+	}
+}
+
 // WithResources adds resources to the SUT during initialization.
 func WithResources(resources ...types.Resource) func(*sutOptions) {
 	return func(o *sutOptions) {
 		o.resources = append(o.resources, resources...)
-	}
-}
-
-func WithAllowAccountAssignmentRole(t *testing.T, name string, accountID string, permissionSet string) func(*sutOptions) {
-	roleSpec := types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			AccountAssignments: []types.IdentityCenterAccountAssignment{
-				{Account: accountID, PermissionSet: permissionSet},
-			},
-		},
-	}
-	return WithRole(t, name, &roleSpec)
-}
-
-func WithRole(t *testing.T, name string, roleSpec *types.RoleSpecV6) func(*sutOptions) {
-	role, err := types.NewRole(name, *roleSpec)
-	require.NoError(t, err)
-	return func(o *sutOptions) {
-		o.resources = append(o.resources, role)
 	}
 }
 
@@ -80,5 +143,11 @@ func WithLicense(license string) func(*sutOptions) {
 func WithClock(clock clockwork.Clock) func(*sutOptions) {
 	return func(o *sutOptions) {
 		o.clock = clock
+	}
+}
+
+func WithLogger(logger *slog.Logger) func(*sutOptions) {
+	return func(o *sutOptions) {
+		o.logger = logger
 	}
 }

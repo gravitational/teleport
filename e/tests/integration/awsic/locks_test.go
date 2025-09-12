@@ -25,7 +25,7 @@ func TestLockHandling(t *testing.T) {
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
-		common.WithAllowAccountAssignmentRole(t, "aws-ic-access", "*", "*"),
+		common.WithRole(t, "aws-ic-access", common.WithAccountAssignment(types.Allow, "*", "*")),
 		common.WithUser(t, "alice", "editor"),
 		common.WithUser(t, "bob", "requester"),
 	)

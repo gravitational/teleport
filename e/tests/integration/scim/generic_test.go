@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -197,7 +196,7 @@ func TestSCIMPluginWebHandler(t *testing.T) {
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
 	)
-	webClient := createWebClientForUser(t, sut, "alice-admin")
+	webClient := sut.CreateWebClientForUser(t, "alice-admin")
 	auth := sut.Teleport.Process.GetAuthServer()
 
 	resp, err := doPluginsStaticAuth(t, webClient, "connector-that-does-not-exist", types.KindSAML)
@@ -273,12 +272,6 @@ func TestSCIMPluginWebHandler(t *testing.T) {
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
-}
-
-func createWebClientForUser(t *testing.T, sut *common.SUT, user string) *helpers.WebClientPack {
-	pass := uuid.NewString()
-	require.NoError(t, sut.Teleport.Process.GetAuthServer().UpsertPassword(user, []byte(pass)))
-	return helpers.LoginWebClient(t, sut.ProxyAddr, user, pass)
 }
 
 func installSCIMPlugin(t *testing.T, webClient *helpers.WebClientPack, samlConnectorName, connectorKind string) ui.Plugin {
