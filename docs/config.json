@@ -1683,6 +1683,11 @@
       "source": "/zero-trust-access/sso/azuread/",
       "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
+    },
+    {
+      "source": "/upgrading/agent-managed-updates/",
+      "destination": "/upgrading/agent-managed-updates/",
+      "permanent": true
     }
   ]
 }
