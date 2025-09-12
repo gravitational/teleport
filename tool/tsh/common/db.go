@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -1000,15 +999,10 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 	// - Spanner applies the `@<project>.iam.gserviceaccount.com` suffix directly in the engine.
 	if db.GetProtocol() == defaults.ProtocolPostgres &&
 		d.Username != "" && !strings.Contains(d.Username, "@") &&
-		(db.GetGCP().ProjectID != "" || db.GetType() == types.DatabaseTypeAlloyDB || db.GetType() == types.DatabaseTypeCloudSQL) {
-		projectID := db.GetGCP().ProjectID
-		if db.GetType() == types.DatabaseTypeAlloyDB {
-			// parse from URI
-			parsed, err := gcputils.ParseAlloyDBConnectionURI(db.GetURI())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			projectID = parsed.ProjectID
+		db.IsGCPHosted() {
+		projectID, err := db.GetGCPProjectID()
+		if err != nil {
+			return trace.Wrap(err)
 		}
 		updated := fmt.Sprintf("%s@%s.iam", strings.TrimSpace(d.Username), projectID)
 		logger.DebugContext(cf.Context, "Adding default project suffix for IAM principal", "original", d.Username, "updated", updated)
