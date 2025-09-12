@@ -27,12 +27,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -503,7 +501,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			var args installPluginArgs
+			var args pluginServices
 
 			if testCase.expectRequest != nil {
 				pluginsClient := &mockPluginsClient{}
@@ -552,9 +550,14 @@ func TestPluginsInstallOkta(t *testing.T) {
 	}
 }
 
-func requireBadParameter(t require.TestingT, err error, _ ...any) {
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "Expecting bad parameter, got %T: \"%v\"", err, err)
+func requireBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
+	var bpe *trace.BadParameterError
+	require.ErrorAs(t, err, &bpe, msgAndArgs...)
+}
+
+func requireAccessDenied(t require.TestingT, err error, msgAndArgs ...any) {
+	var ade *trace.AccessDeniedError
+	require.ErrorAs(t, err, &ade, msgAndArgs...)
 }
 
 func mustParseURL(text string) *url.URL {
@@ -564,84 +567,3 @@ func mustParseURL(text string) *url.URL {
 	}
 	return url
 }
-
-type mockPluginsClient struct {
-	mock.Mock
-}
-
-func (m *mockPluginsClient) CreatePlugin(ctx context.Context, in *pluginsv1.CreatePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*emptypb.Empty), result.Error(1)
-}
-
-func (m *mockPluginsClient) GetPlugin(ctx context.Context, in *pluginsv1.GetPluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*types.PluginV1), result.Error(1)
-}
-
-func (m *mockPluginsClient) UpdatePlugin(ctx context.Context, in *pluginsv1.UpdatePluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*types.PluginV1), result.Error(1)
-}
-
-func (m *mockPluginsClient) NeedsCleanup(ctx context.Context, in *pluginsv1.NeedsCleanupRequest, opts ...grpc.CallOption) (*pluginsv1.NeedsCleanupResponse, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*pluginsv1.NeedsCleanupResponse), result.Error(1)
-}
-
-func (m *mockPluginsClient) Cleanup(ctx context.Context, in *pluginsv1.CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*emptypb.Empty), result.Error(1)
-}
-
-func (m *mockPluginsClient) DeletePlugin(ctx context.Context, in *pluginsv1.DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*emptypb.Empty), result.Error(1)
-}
-
-type mockAuthClient struct {
-	mock.Mock
-}
-
-func (m *mockAuthClient) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
-	result := m.Called(ctx, id, withSecrets)
-	return result.Get(0).(types.SAMLConnector), result.Error(1)
-}
-func (m *mockAuthClient) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	result := m.Called(ctx, connector)
-	return result.Get(0).(types.SAMLConnector), result.Error(1)
-}
-func (m *mockAuthClient) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	result := m.Called(ctx, connector)
-	return result.Get(0).(types.SAMLConnector), result.Error(1)
-}
-func (m *mockAuthClient) CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	result := m.Called(ctx, ig)
-	return result.Get(0).(types.Integration), result.Error(1)
-}
-func (m *mockAuthClient) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	result := m.Called(ctx, ig)
-	return result.Get(0).(types.Integration), result.Error(1)
-}
-
-func (m *mockAuthClient) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	result := m.Called(ctx, name)
-	return result.Get(0).(types.Integration), result.Error(1)
-}
-
-func (m *mockAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
-	result := m.Called(ctx)
-	return result.Get(0).(proto.PingResponse), result.Error(1)
-}
-
-func (m *mockAuthClient) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
-	return &proto.MFAAuthenticateResponse{}, nil
-}
-
-func (m *mockAuthClient) GetRole(ctx context.Context, name string) (types.Role, error) {
-	result := m.Called(ctx, name)
-	return result.Get(0).(types.Role), result.Error(1)
-}
-
-// anyContext is an argument matcher for testify mocks that matches any context.
-var anyContext any = mock.MatchedBy(func(context.Context) bool { return true })

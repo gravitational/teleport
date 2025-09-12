@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -49,7 +50,7 @@ type pluginInstallArgs struct {
 	scim    scimArgs
 	entraID entraArgs
 	netIQ   netIQArgs
-	awsIC   awsICArgs
+	awsIC   awsICInstallArgs
 	github  githubArgs
 }
 
@@ -70,15 +71,21 @@ type pluginDeleteArgs struct {
 	name string
 }
 
+type pluginRotateCredsArgs struct {
+	cmd   *kingpin.CmdClause
+	awsic awsICRotateCredsArgs
+}
+
 // PluginsCommand allows for management of plugins.
 type PluginsCommand struct {
-	config     *servicecfg.Config
-	cleanupCmd *kingpin.CmdClause
-	pluginType string
-	dryRun     bool
-	install    pluginInstallArgs
-	delete     pluginDeleteArgs
-	edit       pluginEditArgs
+	config      *servicecfg.Config
+	cleanupCmd  *kingpin.CmdClause
+	pluginType  string
+	dryRun      bool
+	install     pluginInstallArgs
+	delete      pluginDeleteArgs
+	edit        pluginEditArgs
+	rotateCreds pluginRotateCredsArgs
 }
 
 // Initialize creates the plugins command and subcommands
@@ -95,6 +102,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 	p.initInstall(pluginsCommand, config)
 	p.initDelete(pluginsCommand)
 	p.initEdit(pluginsCommand)
+	p.initRotateCreds(pluginsCommand)
 }
 
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
@@ -121,7 +129,7 @@ func (p *PluginsCommand) initEdit(parent *kingpin.CmdClause) {
 }
 
 // Delete implements `tctl plugins delete`, deleting a plugin from the Teleport cluster
-func (p *PluginsCommand) Delete(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) Delete(ctx context.Context, args pluginServices) error {
 	log := p.config.Logger.With("plugin", p.delete.name)
 
 	req := &pluginsv1.DeletePluginRequest{Name: p.delete.name}
@@ -137,7 +145,7 @@ func (p *PluginsCommand) Delete(ctx context.Context, args installPluginArgs) err
 }
 
 // Cleanup cleans up the given plugin.
-func (p *PluginsCommand) Cleanup(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) Cleanup(ctx context.Context, args pluginServices) error {
 	needsCleanup, err := args.plugins.NeedsCleanup(ctx, &pluginsv1.NeedsCleanupRequest{
 		Type: p.pluginType,
 	})
@@ -181,6 +189,12 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, args installPluginArgs) er
 	return nil
 }
 
+func (p *PluginsCommand) initRotateCreds(parent *kingpin.CmdClause) {
+	p.rotateCreds.cmd = parent.Command("rotate", "Rotates a plugin's credentials.")
+
+	p.initRotateCredsAWSIC(p.rotateCreds.cmd)
+}
+
 type authClient interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
@@ -200,16 +214,18 @@ type pluginsClient interface {
 	NeedsCleanup(ctx context.Context, in *pluginsv1.NeedsCleanupRequest, opts ...grpc.CallOption) (*pluginsv1.NeedsCleanupResponse, error)
 	Cleanup(ctx context.Context, in *pluginsv1.CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeletePlugin(ctx context.Context, in *pluginsv1.DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdatePluginStaticCredentials(ctx context.Context, in *pluginsv1.UpdatePluginStaticCredentialsRequest, opts ...grpc.CallOption) (*pluginsv1.UpdatePluginStaticCredentialsResponse, error)
 }
 
-type installPluginArgs struct {
-	authClient authClient
-	plugins    pluginsClient
+type pluginServices struct {
+	authClient   authClient
+	plugins      pluginsClient
+	httpProvider http.RoundTripper
 }
 
 // TryRun runs the plugins command
 func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, args installPluginArgs) error
+	var commandFunc func(ctx context.Context, args pluginServices) error
 	switch cmd {
 	case p.cleanupCmd.FullCommand():
 		commandFunc = p.Cleanup
@@ -229,6 +245,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.Delete
 	case p.edit.awsIC.cmd.FullCommand():
 		commandFunc = p.EditAWSIC
+	case p.rotateCreds.awsic.cmd.FullCommand():
+		commandFunc = p.RotateAWSICCreds
 	default:
 		return false, nil
 	}
@@ -236,7 +254,12 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	err = commandFunc(ctx, installPluginArgs{authClient: client, plugins: client.PluginsClient()})
+	args := pluginServices{
+		authClient:   client,
+		plugins:      client.PluginsClient(),
+		httpProvider: http.DefaultTransport,
+	}
+	err = commandFunc(ctx, args)
 	closeFn(ctx)
 
 	return true, trace.Wrap(err)

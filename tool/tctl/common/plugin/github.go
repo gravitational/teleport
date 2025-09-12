@@ -98,7 +98,7 @@ func (p *PluginsCommand) gitubSetupGuide(ctx context.Context) (githubSettings, e
 	return settings, nil
 }
 
-func (p *PluginsCommand) InstallGithub(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) InstallGithub(ctx context.Context, args pluginServices) error {
 	settings, err := p.gitubSetupGuide(ctx)
 	if err != nil {
 		if errors.Is(err, errCancel) {
