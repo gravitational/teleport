@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { MfaState } from 'teleport/lib/useMfa';
 import api from 'teleport/services/api';
 import {
   DeviceType,
@@ -228,20 +229,17 @@ const auth = {
     });
   },
 
-  headlessSsoAccept(transactionId: string) {
-    return auth
-      .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
-      .then(challenge => auth.getMfaChallengeResponse(challenge))
-      .then(res => {
-        const request = {
-          action: 'accept',
-          mfaResponse: res,
-          // TODO(Joerger): DELETE IN v19.0.0, new clients send mfaResponse.
-          webauthnAssertionResponse: res.webauthn_response,
-        };
+  headlessSsoAccept(mfa: MfaState, transactionId: string) {
+    return mfa.getChallengeResponse().then((res: MfaChallengeResponse) => {
+      const request = {
+        action: 'accept',
+        mfaResponse: res,
+        // TODO(Joerger): DELETE IN v19.0.0, new clients send mfaResponse.
+        webauthnAssertionResponse: res.webauthn_response,
+      };
 
-        return api.put(cfg.getHeadlessSsoPath(transactionId), request);
-      });
+      return api.put(cfg.getHeadlessSsoPath(transactionId), request);
+    });
   },
 
   headlessSSOReject(transactionId: string) {

@@ -739,6 +739,11 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 		return nil
 	}
 
+	// check if proxying permit is defined and authorizes file copying
+	if permit := c.Identity.ProxyingPermit; permit != nil && permit.SSHFileCopy {
+		return nil
+	}
+
 	return trace.Wrap(errRoleFileCopyingNotPermitted)
 }
 
