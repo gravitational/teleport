@@ -1,5 +1,6 @@
 ---
 title: tsh CLI reference
+sidebar_label: tsh
 description: Comprehensive reference of subcommands, flags, and arguments for the tsh CLI tool.
 tags:
  - reference
@@ -898,7 +899,7 @@ $ tsh recordings ls --last=6h0m0s
 >
 
 Recorded sessions are linked from the audit events to session recordings files
-in their [storage backend](../../reference/backends.mdx).
+in their [storage backend](../deployment/backends.mdx).
 The following error can occur if a session recording file is not available or
 when employing multiple auth servers with directory storage backend for recorded
 sessions. When using a directory storage backend for audit logs and recorded sessions,
@@ -1022,7 +1023,7 @@ $ tsh request search [<flags>]
 | `--kube-kind` | none | string | Plural name of the kube resource (required when --kind is `kube_resource`) |
 | `--kube-api-group` | none | string | API group of the kube resource (required when --kind is `kube_resource` depending on the resource) |
 | `--search` | none | Comma-separated strings | List of comma-separated search keywords or phrases enclosed in single quotes |
-| `--query` | none | String | Query by [predicate language](../predicate-language.mdx#resource-filtering) enclosed in single quotes |
+| `--query` | none | String | Query by [predicate language](../access-controls/predicate-language.mdx#resource-filtering) enclosed in single quotes |
 | `--labels` | none | Comma-separated strings | List of comma-separated labels to filter by labels (e.g. `key=value1,key2=value2`) |
 
 ## tsh request show

@@ -21,7 +21,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 TFDIR="$(pwd)"
-DOCSDIR="$(pwd)/../../docs/pages/reference/terraform-provider-mwi"
+DOCSDIR="$(pwd)/../../docs/pages/reference/infrastructure-as-code/terraform-provider-mwi"
 TMPDIR="$(mktemp -d)"
 
 info "Generating provider's schema"
