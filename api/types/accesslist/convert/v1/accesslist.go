@@ -273,10 +273,6 @@ func convertOwnersToProto(owners []accesslist.Owner) []*accesslistv1.AccessListO
 }
 
 func convertGrantsToProto(grants accesslist.Grants) *accesslistv1.AccessListGrants {
-	if len(grants.Roles) == 0 && len(grants.Traits) == 0 {
-		return nil
-	}
-
 	return &accesslistv1.AccessListGrants{
 		Roles:  grants.Roles,
 		Traits: traitv1.ToProto(grants.Traits),

@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.28.1"
+      "version": "1.29.0"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -221,11 +221,6 @@
       "permanent": true
     },
     {
-      "source": "/kubernetes-ssh/",
-      "destination": "/enroll-resources/kubernetes-access/",
-      "permanent": true
-    },
-    {
       "source": "/machine-id/guides/github-actions/",
       "destination": "/machine-workload-identity/machine-id/deployment/github-actions/",
       "permanent": true
@@ -303,6 +298,11 @@
     {
       "source": "/kubernetes-access/",
       "destination": "/enroll-resources/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-ssh/",
+      "destination": "/enroll-resources/kubernetes-access/controls/",
       "permanent": true
     },
     {
