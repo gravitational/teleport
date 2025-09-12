@@ -1,0 +1,82 @@
+---
+title: Bound Keypair Joining Reference
+sidebar_label: Bound Keypair Joining
+description: "Bound Keypair Joining: Reference and admin guide"
+---
+
+Bound Keypair is a join method designed to provide the best features of
+[delegated join methods][s-vs-d] - like the AWS, GCP, or Azure join
+methods - but in on-prem or otherwise unsupported environments where no external
+verification is available.
+
+Specifically, this join method:
+- Does not require dedicated TPM hardware or external identity attestation
+- Does not require long-lived shared secrets
+- Allows for limited automatic recovery if certificates expire
+- Allows recovery restrictions to be relaxed or lifted to accommodate different
+  use cases and deployment scenarios
+- Ensures failed bots can be recovered without client-side intervention in most
+  cases
+
+<Admonition type="tip" title="Preview Note">
+Bound Keypair Joining is available in v18.1.0 and is intended to replace `token`
+joining as the default recommended join method in Teleport v19.0.0.
+
+At this time, Bound Keypair Joining can only be used to join Machine and
+Workload ID bots and cannot be used to join other Teleport agent types.
+</Admonition>
+
+## Use cases
+
+Bound Keypair Joining can be used in any environment and is designed to function
+as a drop-in replacement for the traditional [`token`][ephemeral] join method in
+all situations where it is used today. This includes bare-metal and on-prem
+hardware where TPMs are not available, or cloud providers not currently
+supported by a [delegated join method][delegated].
+
+Similar to `token` joining, Bound Keypair Joining is also a good replacement for
+local experimentation for testing, with minimal configuration needed to onboard
+a bot initially. When ready to deploy to production, it's trivial to adjust
+onboarding and recovery settings to select your desired balance between
+resiliency and security.
+
+Additionally, with [`insecure` recovery](admin-guide.mdx#disabling-join-state-verification)
+and in situations that can accommodate the security complications, Bound Keypair
+Joining can be used to join bots in otherwise unsupported CI/CD providers by
+persisting the bot's keypair in the platform keystore.
+
+## Limitations
+
+While Bound Keypair Joining does enable or simplify a number use cases, it does
+have limitations that may make it unfit in some instances.
+
+In particular, the [secure recovery modes](concepts.mdx#recovery) introduce some deployment
+restrictions:
+- Each bot deployment must be issued a unique token. For deployment at scale,
+  use of Teleport's
+  [Terraform provider](../../../infrastructure-as-code/terraform-provider/terraform-provider.mdx) is
+  recommended to create tokens in bulk for each deployment.
+- Each bot deployment must be able to store client-side state (used for
+  [join state verification](concepts.mdx#join-state-verification)).
+
+This limitation can be worked around using the
+[`insecure` recovery mode](admin-guide.mdx#disabling-join-state-verification), but doing so
+does meaningfully reduce the join method's security protections and should be
+used with care.
+
+## Next steps
+
+You can read step-by-step guides on using Bound Keypair Joining with Machine ID:
+
+- [Using Machine ID with Bound Keypair Joining](./getting-started.mdx):
+  How to install and configure Machine ID with Bound Keypair Joining
+- [Bound Keypair Joining Concepts](./concepts.mdx): Learn more about the
+  components and architecture of Bound Keypair Joining
+- [Bound Keypair Joining Admin Guide](./admin-guide.mdx): Learn how to deploy
+  and maintain bots in production with Bound Keypair Joining
+- [Bound Keypair Provision Token Reference](../../../deployment/join-methods.mdx#bound-keypair-bound_keypair): Learn about the options that can be configured for a `bound_keypair` token
+
+[delegated]: ../../../deployment/join-methods.mdx#delegated-join-methods
+[ephemeral]: ../../../architecture/machine-id-architecture.mdx#ephemeral-token
+[token]: ../../../deployment/join-methods.mdx#ephemeral-tokens
+[s-vs-d]: ../../../deployment/join-methods.mdx#secret-vs-delegated
