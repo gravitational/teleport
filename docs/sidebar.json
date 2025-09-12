@@ -46,6 +46,11 @@
             },
             {
               "type": "doc",
+              "label": "Amazon ECS",
+              "id": "installation/amazon-ecs"
+            },
+            {
+              "type": "doc",
               "label": "Helm",
               "id": "installation/helm"
             },
