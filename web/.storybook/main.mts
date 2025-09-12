@@ -18,11 +18,13 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import type { StorybookConfig } from '@storybook/react-vite';
 
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const enterpriseTeleportExists = fs.existsSync(
-  path.join(import.meta.dirname, '/../../e/web')
+  path.join(__dirname, '/../../e/web')
 );
 
 function createStoriesPaths() {
