@@ -86,8 +86,12 @@ func replaceTarGz(archivePath string, extractDir string, execNames []string) (ma
 		}
 
 		if err = func(header *tar.Header) error {
-			dest := filepath.Join(extractDir, baseName)
-			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+			dest := filepath.Join(extractDir, header.Name)
+			// Preserve the archive directory structure.
+			if err := os.MkdirAll(filepath.Dir(dest), directoryPerm); err != nil {
+				return trace.Wrap(err)
+			}
+			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, binaryPerm)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -98,7 +102,7 @@ func replaceTarGz(archivePath string, extractDir string, execNames []string) (ma
 		}(header); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		execPaths[baseName] = baseName
+		execPaths[baseName] = header.Name
 	}
 
 	return execPaths, trace.Wrap(gzipReader.Close())
