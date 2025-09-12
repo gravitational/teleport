@@ -147,32 +147,61 @@ func TestMatches(t *testing.T) {
 	}
 }
 
-func TestPoorlyFormedFiltersAreAnError(t *testing.T) {
+func TestNew(t *testing.T) {
+	type unsupportedFilterType struct {
+		types.PluginSyncFilter_Id
+	}
 	testCases := []struct {
 		name           string
-		filters        Filters
+		filters        []*types.PluginSyncFilter
 		errorAssertion require.ErrorAssertionFunc
 	}{
 		{
-			name: "Bad regex",
-			filters: Filters{
-				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "^[)$"}},
+			name: "bad regex",
+			filters: []*types.PluginSyncFilter{
+				{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "^[)$"}},
 			},
 			errorAssertion: require.Error,
 		},
-
 		{
-			name: "Bad exclude regex",
-			filters: Filters{
-				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "^[)$"}},
+			name: "bad exclude regex",
+			filters: []*types.PluginSyncFilter{
+				{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "^[)$"}},
 			},
 			errorAssertion: require.Error,
+		},
+		{
+			name:           "empty filter",
+			filters:        nil,
+			errorAssertion: require.NoError,
+		},
+		{
+			name: "empty include id",
+			filters: []*types.PluginSyncFilter{
+				{Include: &types.PluginSyncFilter_Id{}},
+			},
+			errorAssertion: require.Error,
+		},
+		{
+			name: "empty exclude id",
+			filters: []*types.PluginSyncFilter{
+				{Exclude: &types.PluginSyncFilter_ExcludeId{}},
+			},
+			errorAssertion: require.Error,
+		},
+		{
+			name: "unknown filter type",
+			filters: []*types.PluginSyncFilter{
+				{Include: &unsupportedFilterType{}},
+			},
+			errorAssertion: require.NoError,
 		},
 	}
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			test.errorAssertion(t, test.filters.validate())
+			_, err := New(test.filters)
+			test.errorAssertion(t, err)
 		})
 	}
 }

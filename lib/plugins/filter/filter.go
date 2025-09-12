@@ -42,16 +42,33 @@ func New(r []*types.PluginSyncFilter) (Filters, error) {
 // validate validates the Filters.
 func (f Filters) validate() error {
 	for _, v := range f {
-		switch v.GetInclude().(type) {
-		case *types.PluginSyncFilter_NameRegex:
-			if _, err := utils.CompileExpression(v.GetNameRegex()); err != nil {
-				return trace.Wrap(err)
+		if v.GetInclude() != nil {
+			switch filter := v.GetInclude().(type) {
+			case *types.PluginSyncFilter_Id:
+				if filter.Id == "" {
+					return trace.BadParameter("id cannot be empty")
+				}
+			case *types.PluginSyncFilter_NameRegex:
+				if _, err := utils.CompileExpression(v.GetNameRegex()); err != nil {
+					return trace.Wrap(err)
+				}
+			default:
+				return trace.BadParameter("include filter type %T is not supported", filter)
 			}
 		}
-		switch v.GetExclude().(type) {
-		case *types.PluginSyncFilter_ExcludeNameRegex:
-			if _, err := utils.CompileExpression(v.GetExcludeNameRegex()); err != nil {
-				return trace.Wrap(err)
+
+		if v.GetExclude() != nil {
+			switch filter := v.GetExclude().(type) {
+			case *types.PluginSyncFilter_ExcludeId:
+				if filter.ExcludeId == "" {
+					return trace.BadParameter("exclude_id cannot be empty")
+				}
+			case *types.PluginSyncFilter_ExcludeNameRegex:
+				if _, err := utils.CompileExpression(v.GetExcludeNameRegex()); err != nil {
+					return trace.Wrap(err)
+				}
+			default:
+				return trace.BadParameter("exclude filter type %T is not supported", filter)
 			}
 		}
 	}
