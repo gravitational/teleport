@@ -130,6 +130,11 @@
         },
         {
           "type": "doc",
+          "label": "Teleport Cloud FAQ",
+          "id": "cloud-faq"
+        },
+        {
+          "type": "doc",
           "label": "Usage Reporting and Billing",
           "id": "usage-billing"
         },
