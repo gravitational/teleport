@@ -957,7 +957,9 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c, err := process.reconnectToAuthService(types.RoleAdmin)
+		// This test must use RoleInstance because all other roles wait for the
+		// Instance connector without a timeout.
+		c, err := process.reconnectToAuthService(types.RoleInstance)
 		require.Equal(t, ErrTeleportExited, err)
 		require.Nil(t, c)
 	}()
@@ -982,6 +984,93 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	require.True(t, ok)
 	supervisor.signalExit()
 	wg.Wait()
+}
+
+// TestInstanceSelfRepair tests a node that first starts up with only the Proxy
+// service and joins the cluster with a token valid only for role Proxy, and
+// then restarts with the SSH service now enabled and a token valid only for
+// role Node. The instance identity should self-repair on the second startup to
+// get a certificate with both the Proxy and Node system roles.
+func TestInstanceSelfRepair(t *testing.T) {
+	// Setup: create an auth server with two tokens, one proxy proxies and one for nodes.
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: makeTempDir(t),
+	})
+	require.NoError(t, err)
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	proxyToken, err := types.NewProvisionTokenFromSpec("proxytoken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{types.RoleProxy},
+	})
+	require.NoError(t, err)
+	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), proxyToken))
+	sshToken, err := types.NewProvisionTokenFromSpec("sshToken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{types.RoleNode},
+	})
+	require.NoError(t, err)
+	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), sshToken))
+
+	logger := logtest.NewLogger()
+	dataDir := makeTempDir(t)
+	newStartedProcess := func(token string, sshEnabled bool) *TeleportProcess {
+		cfg := servicecfg.MakeDefaultConfig()
+		cfg.SetAuthServerAddress(*utils.MustParseAddr(tlsServer.Listener.Addr().String()))
+		cfg.Clock = clockwork.NewRealClock()
+		cfg.DataDir = dataDir
+		cfg.Auth.Enabled = false
+		cfg.Proxy.Enabled = true
+		cfg.Proxy.DisableWebInterface = true
+		cfg.Proxy.WebAddr = utils.NetAddr{Addr: "127.0.0.1:0", AddrNetwork: "tcp"}
+		cfg.SSH.Enabled = sshEnabled
+		cfg.SSH.Addr = utils.NetAddr{Addr: "127.0.0.1:0", AddrNetwork: "tcp"}
+		cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+		cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+		cfg.Logger = logger
+		cfg.SetToken(token)
+		cfg.JoinMethod = types.JoinMethodToken
+		process, err := NewTeleport(cfg)
+		require.NoError(t, err)
+		go process.Start()
+		return process
+	}
+
+	// Create and start a process with only the Proxy service enabled using the proxy-only token.
+	process := newStartedProcess(proxyToken.GetName(), false)
+	// Sanity check the Instance identity looks as expected with only the Proxy system role.
+	connector, err := process.WaitForConnector(InstanceIdentityEvent, logger)
+	require.NoError(t, err)
+	require.NotNil(t, connector)
+	id := connector.clientState.Load().identity
+	require.Equal(t, types.RoleInstance, id.ID.Role)
+	require.Equal(t, []string{types.RoleProxy.String()}, id.SystemRoles)
+	// Close the process.
+	require.NoError(t, process.Close())
+	require.NoError(t, process.Wait())
+
+	// Start up a new process using the same data dir so that it has access to
+	// the previous Instance and Proxy certs, but enable the SSH service and
+	// provide the token that allows only role Node.
+	process = newStartedProcess(sshToken.GetName(), true)
+	// Wait for the TeleportCredentialsUpdatedEvent which will be emitted after
+	// the rotation logic detects the dangling system role and repairs the
+	// Instance identity.
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	_, err = process.WaitForEvent(ctx, TeleportCredentialsUpdatedEvent)
+	require.NoError(t, err)
+	// Get the new Instance identity and make sure it includes both the Proxy
+	// and Node system roles.
+	instanceConnector, err := process.WaitForConnector(InstanceIdentityEvent, logger)
+	require.NoError(t, err)
+	require.NotNil(t, instanceConnector)
+	instanceID := instanceConnector.clientState.Load().identity
+	require.Equal(t, types.RoleInstance, instanceID.ID.Role)
+	assert.ElementsMatch(t, []string{types.RoleProxy.String(), types.RoleNode.String()}, instanceID.SystemRoles)
+	// Close the process to clean up.
+	require.NoError(t, process.Close())
+	require.NoError(t, process.Wait())
 }
 
 func TestTeleportProcessAuthVersionCheck(t *testing.T) {
