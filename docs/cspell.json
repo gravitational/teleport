@@ -1088,6 +1088,7 @@
     "winserver",
     "workgroups",
     "wtmp",
+    "wtmpdb",
     "xample",
     "xauth",
     "xclip",

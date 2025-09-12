@@ -19,7 +19,7 @@
 * Added ability for user to select whether IC integration creates roles for all possible Account Assignments. [#58861](https://github.com/gravitational/teleport/pull/58861)
 * Updated Go to 1.24.7. [#58835](https://github.com/gravitational/teleport/pull/58835)
 * Populate `user_roles` and `user_traits` fields for SSH audit events. [#58804](https://github.com/gravitational/teleport/pull/58804)
-* Added support for wtmpdb. [#58777](https://github.com/gravitational/teleport/pull/58777)
+* Added support for wtmpdb as a user accounting backend to wtmp. [#58777](https://github.com/gravitational/teleport/pull/58777)
 * Prevents an application from being registered if its public address matches a Teleport cluster address. [#58766](https://github.com/gravitational/teleport/pull/58766)
 * Added a preset role `mcp-user` that has access to all MCP servers and their tools. [#58613](https://github.com/gravitational/teleport/pull/58613)
 
