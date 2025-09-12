@@ -44,7 +44,7 @@ deployments. Teleport stores its state in a multi-region backend and uses
 hosted in a different region.
 
 The recommended multi-region backend
-is [the CockroachDB backend](../../reference/backends.mdx)
+is [the CockroachDB backend](../../reference/deployment/backends.mdx)
 available in self-hosted Teleport Enterprise.
 
 ![Architecture diagram](../../../img/deploy-a-cluster/multi-region-blueprint.svg)
@@ -71,7 +71,7 @@ This section describes this setup in more detail.
 - Create 3 peered regional VPCs (e.g., on AWS) or 1 global VPC (e.g., on GKE).
 - Create 1 Kubernetes cluster in each region, **Pod CIDRs must not overlap**.
 - Ensure pod mesh connectivity. Proxy pods must be able to dial each other
-  [on port 3021](../../reference/networking.mdx). The setup will vary
+  [on port 3021](../../reference/deployment/networking.mdx). The setup will vary
   based on your network and CNI plugin configuration:
   - If pods are using the native network layer (for example GKE, or AWS' vpc-cni addon)
     you can rely on pure VPC peering, routing, and firewall capabilities to
