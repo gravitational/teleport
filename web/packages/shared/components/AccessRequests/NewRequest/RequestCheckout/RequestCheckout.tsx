@@ -147,6 +147,16 @@ export const RequestCheckoutWithSlider = forwardRef<
   }
 );
 
+const keyOf = <T extends PendingListItem>(i: T) =>
+  `${i.kind}|${i.clusterName ?? ''}|${i.id}|${i.subResourceName ?? ''}`;
+
+type DisplayRow<T extends PendingListItem> =
+  | ({ __rowType: 'parent'; __childCount: number } & T)
+  | ({ __rowType: 'child'; __parentKey: string } & T);
+
+const isChild = (i: { __rowType?: string }): i is { __rowType: 'child' } =>
+  i.__rowType === 'child';
+
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
   toggleResources,
@@ -283,6 +293,50 @@ export function RequestCheckout<T extends PendingListItem>({
     item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
   ).length;
 
+  const grouped = useMemo(() => {
+    const m = new Map<string, { parent: T | null; children: T[] }>();
+    pendingAccessRequests.forEach(i => {
+      const k = keyOf(i);
+      const box = m.get(k) ?? { parent: null, children: [] };
+      if (i.kind === 'app' && i.subResourceName) {
+        box.children.push(i);
+      } else {
+        box.parent = i;
+      }
+      m.set(k, box);
+    });
+    return m;
+  }, [pendingAccessRequests]);
+
+  const displayRows = useMemo(() => {
+    const rows: DisplayRow<T>[] = [];
+    for (const [k, { parent, children }] of grouped) {
+      // Always emit a parent row. If there is no natural parent in the list (only subresources),
+      // synthesize one from the first child so the table has a header row.
+      const base = parent ?? {
+        ...children[0],
+        subResourceName: undefined,
+        name: children[0]?.id ?? '', // so parent name shows resource itself
+      };
+      rows.push({
+        ...base,
+        __rowType: 'parent',
+        __childCount: children.length,
+      } satisfies DisplayRow<T>);
+      children
+        .slice() // keep stable order
+        .sort((a, b) => (a.subResourceName! < b.subResourceName! ? -1 : 1))
+        .forEach(c =>
+          rows.push({
+            ...c,
+            __rowType: 'child',
+            __parentKey: k,
+          } satisfies DisplayRow<T>)
+        );
+    }
+    return rows;
+  }, [grouped]);
+
   const DefaultHeader = () => {
     return (
       <Flex mb={3} alignItems="center">
@@ -303,7 +357,7 @@ export function RequestCheckout<T extends PendingListItem>({
     );
   };
 
-  function customRow(item: T) {
+  function customRow(item: DisplayRow<T>) {
     if (item.kind === 'kube_cluster') {
       const unsupported =
         requestKind === RequestKind.LongTerm &&
@@ -355,7 +409,7 @@ export function RequestCheckout<T extends PendingListItem>({
   }
 
   const getStyle = useMemo(
-    () => (item: T) => {
+    () => (item: DisplayRow<T>) => {
       if (
         !shouldShowLongTermGroupingErrors({
           requestKind,
@@ -496,9 +550,7 @@ export function RequestCheckout<T extends PendingListItem>({
                     />
                   )}
                   <StyledTable
-                    data={pendingAccessRequests.filter(
-                      d => d.kind !== 'namespace'
-                    )}
+                    data={displayRows.filter(d => d.kind !== 'namespace')}
                     row={{
                       customRow,
                       getStyle,
@@ -508,17 +560,40 @@ export function RequestCheckout<T extends PendingListItem>({
                         key: 'clusterName',
                         headerText: 'Cluster Name',
                         isNonRender: !showClusterNameColumn,
+                        render: item => (
+                          <Cell>{isChild(item) ? '' : item.clusterName}</Cell>
+                        ),
                       },
                       {
                         key: 'kind',
                         headerText: 'Type',
-                        render: item => (
-                          <Cell>{getPrettyResourceKind(item.kind)}</Cell>
-                        ),
+                        render: item => {
+                          if (isChild(item)) {
+                            return (
+                              <Cell>
+                                <Text pl={3}>Login</Text>
+                              </Cell>
+                            );
+                          }
+
+                          return (
+                            <Cell>{getPrettyResourceKind(item.kind)}</Cell>
+                          );
+                        },
                       },
                       {
                         key: 'name',
                         headerText: 'Name',
+                        render: item => {
+                          if (isChild(item)) {
+                            return (
+                              <Cell title={item.subResourceName}>
+                                <Text pl={3}>{item.subResourceName}</Text>
+                              </Cell>
+                            );
+                          }
+                          return <Cell>{item.name}</Cell>;
+                        },
                       },
                       {
                         altKey: 'delete-btn',

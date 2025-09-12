@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -1055,11 +1057,13 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 	return nil
 }
 
-// requestValidator a helper for validating access requests.
-// a user's statically assigned roles are "added" to the
+type checkAccessFunc func(RoleSet, types.ResourceWithLabels, map[string][]string, AccessState, ...RoleMatcher) error
+
+// RequestValidator is a helper for validating access requests.
+// A user's statically assigned roles are "added" to the
 // validator via the push() method, which extracts all the
 // relevant rules, performs variable substitutions, and builds
-// a set of simple Allow/Deny datastructures.  These, in turn,
+// a set of simple Allow/Deny datastructures. These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
 	logger    *slog.Logger
@@ -1119,6 +1123,7 @@ type RequestValidator struct {
 		matchers    []parse.Matcher
 		maxDuration time.Duration
 	}
+	checkAccess checkAccessFunc
 }
 
 // NewRequestValidator configures a new RequestValidator for the specified user.
@@ -1152,6 +1157,10 @@ func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, gett
 		// before it is inserted into the backend.
 		m.annotations.allow = make(map[singleAnnotation]annotationMatcher)
 		m.annotations.deny = make(map[singleAnnotation]struct{})
+	}
+
+	m.checkAccess = func(rs RoleSet, r types.ResourceWithLabels, traits map[string][]string, state AccessState, matchers ...RoleMatcher) error {
+		return rs.checkAccess(r, traits, state, matchers...)
 	}
 
 	m.kubernetesResource.allow = make(map[string][]types.RequestKubernetesResource)
@@ -1598,7 +1607,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
+	underlying, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1617,38 +1626,77 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
-	// Filter out resources the user requested but doesn't have access to.
-	filteredResources := make([]types.ResourceWithLabels, 0, len(resources))
-	for _, resource := range resources {
-		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
-			filteredResources = append(filteredResources, resource)
+	// Keep only resources the user can currently view; build (rid,res) pairs
+	type pair struct {
+		rid types.ResourceID
+		res types.ResourceWithLabels
+	}
+	var pairs []pair
+	for i, res := range underlying {
+		if err := accessChecker.CheckAccess(res, AccessState{MFAVerified: true}); err == nil {
+			pairs = append(pairs, pair{rid: resourceIDs[i], res: res})
 		}
 	}
 
-	var expanded []string
+	var out []string
+roleLoop:
 	for _, role := range allRoles {
-		n := role.GetName()
-		if slices.Contains(m.userState.GetRoles(), n) || !m.CanRequestRole(n) {
+		name := role.GetName()
+		if slices.Contains(m.userState.GetRoles(), name) || !m.CanRequestRole(name) {
 			continue
 		}
 
-		roleAllowsAccess := true
-		for _, resource := range filteredResources {
-			access, err := m.roleAllowsResource(role, resource, loginHint)
+		for _, p := range pairs {
+			ok, err := m.roleAllowsResourceID(role, p.res, p.rid, loginHint)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if !access {
-				roleAllowsAccess = false
+			if !ok {
+				// Legacy fallback (e.g., non-app kinds without subresource)
+				if p.rid.SubResourceName == "" {
+					if okLegacy, errLegacy := m.roleAllowsResource(role, p.res, loginHint); errLegacy == nil && okLegacy {
+						continue
+					}
+				}
+				continue roleLoop
 			}
 		}
-
-		// user does not currently hold this role, and is allowed to request it.
-		if roleAllowsAccess {
-			expanded = append(expanded, n)
-		}
+		out = append(out, name)
 	}
-	return expanded, nil
+	return out, nil
+
+	//	// Filter out resources the user requested but doesn't have access to.
+	//	filteredResources := make([]types.ResourceWithLabels, 0, len(resources))
+	//	for _, resource := range resources {
+	//		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
+	//			filteredResources = append(filteredResources, resource)
+	//		}
+	//	}
+	//
+	//	var expanded []string
+	//	for _, role := range allRoles {
+	//		n := role.GetName()
+	//		if slices.Contains(m.userState.GetRoles(), n) || !m.CanRequestRole(n) {
+	//			continue
+	//		}
+	//
+	//		roleAllowsAccess := true
+	//		for _, resource := range filteredResources {
+	//			access, err := m.roleAllowsResource(role, resource, loginHint)
+	//			if err != nil {
+	//				return nil, trace.Wrap(err)
+	//			}
+	//			if !access {
+	//				roleAllowsAccess = false
+	//			}
+	//		}
+	//
+	//		// user does not currently hold this role, and is allowed to request it.
+	//		if roleAllowsAccess {
+	//			expanded = append(expanded, n)
+	//		}
+	//	}
+	//	return expanded, nil
 }
 
 // setAllowRequestKubeResourceLookup goes through each search as roles and sets it with the allowed roles.
@@ -2398,6 +2446,65 @@ func countAllowedLogins(role types.Role) int {
 		allowed.Remove(d)
 	}
 	return allowed.Len()
+}
+
+// If resourceID.SubResourceName is set for apps, pass it as a login matcher (the ARN);
+// otherwise fall back to the normal loginHint path.
+func (m *RequestValidator) roleAllowsResourceID(
+	role types.Role,
+	resource types.ResourceWithLabels,
+	rid types.ResourceID,
+	loginHint string,
+	extra ...RoleMatcher,
+) (bool, error) {
+	rs := RoleSet{role}
+	var matchers []RoleMatcher
+
+	// Prefer per-resource hint (ARN/permission-set); fallback to global loginHint
+	if rid.Kind == types.KindApp && rid.SubResourceName != "" {
+		matchers = append(matchers, NewLoginMatcher(rid.SubResourceName))
+	} else if loginHint != "" {
+		matchers = append(matchers, NewLoginMatcher(loginHint))
+	}
+	matchers = append(matchers, extra...)
+
+	if err := m.checkAccess(rs, resource, m.userState.GetTraits(), AccessState{MFAVerified: true}, matchers...); err != nil {
+		if trace.IsAccessDenied(err) {
+			return false, nil
+		}
+		return false, trace.Wrap(err)
+	}
+	return true, nil
+}
+
+// roleAllowsICAssignment checks access to a specific Identity Center permission set
+// by constructing the same synthetic resource used in filterICPermissionSets.
+func (m *RequestValidator) roleAllowsICAssignment(
+	role types.Role,
+	app types.Application,
+	permissionSetARN string,
+) (bool, error) {
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return false, trace.BadParameter("app must be AppV3")
+	}
+
+	assignment := &identitycenterv1.AccountAssignment{
+		Kind:    types.KindIdentityCenterAccountAssignment,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: permissionSetARN,
+		},
+		Spec: &identitycenterv1.AccountAssignmentSpec{
+			AccountId: appV3.GetName(),
+			PermissionSet: &identitycenterv1.PermissionSetInfo{
+				Arn: permissionSetARN,
+			},
+		},
+	}
+
+	checkable := types.Resource153ToResourceWithLabels(assignment)
+	return m.roleAllowsResource(role, checkable, "")
 }
 
 func (m *RequestValidator) roleAllowsResource(

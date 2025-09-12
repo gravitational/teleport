@@ -96,6 +96,8 @@ export type PermissionSet = {
   arn: string;
   /** assignmentId is an account assignment ID. */
   assignmentId: string;
+  /** requiresRequest is true if access to this permission set requires an access request. */
+  requiresRequest?: boolean;
 };
 
 /**
