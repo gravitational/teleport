@@ -137,6 +137,5 @@ func keyForWorkloadIdentityNameIndex(r *workloadidentityv1pb.WorkloadIdentity) s
 
 func keyForWorkloadIdentitySpiffeIDIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
 	// SPIFFE IDs may not be unique, so append the resource name
-	// Join using a "|" to avoid the "a/b" + "/" + "c" vs "a" + "/" + "b/c" problem.
-	return r.GetSpec().GetSpiffe().GetId() + "|" + r.GetMetadata().GetName()
+	return r.GetSpec().GetSpiffe().GetId() + "/" + r.GetMetadata().GetName()
 }
