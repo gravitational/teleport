@@ -131,7 +131,11 @@ type TLSIdentity struct {
 	// DeviceExtensions holds device-aware extensions for the identity.
 	DeviceExtensions *DeviceExtensions `protobuf:"bytes,34,opt,name=device_extensions,json=deviceExtensions,proto3" json:"device_extensions,omitempty"`
 	// UserType indicates if the User was created by an SSO Provider or locally.
-	UserType      string `protobuf:"bytes,35,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
+	UserType string `protobuf:"bytes,35,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
+	// JoinToken is the name of the join token used when a bot joins; it does not
+	// apply to other identity types, or to bots using the traditional `token`
+	// join method.
+	JoinToken     string `protobuf:"bytes,36,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -407,6 +411,13 @@ func (x *TLSIdentity) GetDeviceExtensions() *DeviceExtensions {
 func (x *TLSIdentity) GetUserType() string {
 	if x != nil {
 		return x.UserType
+	}
+	return ""
+}
+
+func (x *TLSIdentity) GetJoinToken() string {
+	if x != nil {
+		return x.JoinToken
 	}
 	return ""
 }
@@ -774,7 +785,7 @@ var File_teleport_decision_v1alpha1_tls_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xb6\f\n" +
+	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xd5\f\n" +
 	"\vTLSIdentity\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\"\n" +
 	"\fimpersonator\x18\x02 \x01(\tR\fimpersonator\x12\x16\n" +
@@ -816,7 +827,9 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\x12private_key_policy\x18  \x01(\tR\x10privateKeyPolicy\x128\n" +
 	"\x18connection_diagnostic_id\x18! \x01(\tR\x16connectionDiagnosticId\x12Y\n" +
 	"\x11device_extensions\x18\" \x01(\v2,.teleport.decision.v1alpha1.DeviceExtensionsR\x10deviceExtensions\x12\x1b\n" +
-	"\tuser_type\x18# \x01(\tR\buserType\"\xaf\x02\n" +
+	"\tuser_type\x18# \x01(\tR\buserType\x12\x1d\n" +
+	"\n" +
+	"join_token\x18$ \x01(\tR\tjoinToken\"\xaf\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +
