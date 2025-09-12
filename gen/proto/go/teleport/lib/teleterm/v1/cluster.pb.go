@@ -310,8 +310,6 @@ type LoggedInUser struct {
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// roles is the user roles
 	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
-	// ssh_logins is the user ssh logins
-	SshLogins []string `protobuf:"bytes,3,rep,name=ssh_logins,json=sshLogins,proto3" json:"ssh_logins,omitempty"`
 	// acl is a user access control list.
 	// It is available only after the cluster details are fetched, as it is not stored on disk.
 	Acl *ACL `protobuf:"bytes,4,opt,name=acl,proto3" json:"acl,omitempty"`
@@ -372,13 +370,6 @@ func (x *LoggedInUser) GetName() string {
 func (x *LoggedInUser) GetRoles() []string {
 	if x != nil {
 		return x.Roles
-	}
-	return nil
-}
-
-func (x *LoggedInUser) GetSshLogins() []string {
-	if x != nil {
-		return x.SshLogins
 	}
 	return nil
 }
@@ -778,12 +769,10 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	" \x01(\tR\fproxyVersion\x12N\n" +
 	"\x0eshow_resources\x18\v \x01(\x0e2'.teleport.lib.teleterm.v1.ShowResourcesR\rshowResources\x120\n" +
 	"\x14profile_status_error\x18\f \x01(\tR\x12profileStatusError\x12\x19\n" +
-	"\bsso_host\x18\r \x01(\tR\assoHost\"\xb7\x04\n" +
+	"\bsso_host\x18\r \x01(\tR\assoHost\"\xaa\x04\n" +
 	"\fLoggedInUser\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1d\n" +
-	"\n" +
-	"ssh_logins\x18\x03 \x03(\tR\tsshLogins\x12/\n" +
+	"\x05roles\x18\x02 \x03(\tR\x05roles\x12/\n" +
 	"\x03acl\x18\x04 \x01(\v2\x1d.teleport.lib.teleterm.v1.ACLR\x03acl\x12'\n" +
 	"\x0factive_requests\x18\x05 \x03(\tR\x0eactiveRequests\x12/\n" +
 	"\x13suggested_reviewers\x18\x06 \x03(\tR\x12suggestedReviewers\x12+\n" +
@@ -795,7 +784,8 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	"\bUserType\x12\x19\n" +
 	"\x15USER_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fUSER_TYPE_LOCAL\x10\x01\x12\x11\n" +
-	"\rUSER_TYPE_SSO\x10\x02\"\xe9\b\n" +
+	"\rUSER_TYPE_SSO\x10\x02J\x04\b\x03\x10\x04R\n" +
+	"ssh_logins\"\xe9\b\n" +
 	"\x03ACL\x12Q\n" +
 	"\x0fauth_connectors\x18\x02 \x01(\v2(.teleport.lib.teleterm.v1.ResourceAccessR\x0eauthConnectors\x12>\n" +
 	"\x05roles\x18\x03 \x01(\v2(.teleport.lib.teleterm.v1.ResourceAccessR\x05roles\x12>\n" +

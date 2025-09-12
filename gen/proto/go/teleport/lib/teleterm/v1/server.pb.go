@@ -54,7 +54,9 @@ type Server struct {
 	// labels is this server list of labels
 	Labels []*Label `protobuf:"bytes,6,rep,name=labels,proto3" json:"labels,omitempty"`
 	// node sub kind: teleport, openssh, openssh-ec2-ice
-	SubKind       string `protobuf:"bytes,7,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	SubKind string `protobuf:"bytes,7,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// Subset of logins allowed by the certificate and RBAC rules.
+	Logins        []string `protobuf:"bytes,8,rep,name=logins,proto3" json:"logins,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -138,11 +140,18 @@ func (x *Server) GetSubKind() string {
 	return ""
 }
 
+func (x *Server) GetLogins() []string {
+	if x != nil {
+		return x.Logins
+	}
+	return nil
+}
+
 var File_teleport_lib_teleterm_v1_server_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"%teleport/lib/teleterm/v1/server.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xca\x01\n" +
+	"%teleport/lib/teleterm/v1/server.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xe2\x01\n" +
 	"\x06Server\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x16\n" +
 	"\x06tunnel\x18\x02 \x01(\bR\x06tunnel\x12\x12\n" +
@@ -150,7 +159,8 @@ const file_teleport_lib_teleterm_v1_server_proto_rawDesc = "" +
 	"\bhostname\x18\x04 \x01(\tR\bhostname\x12\x12\n" +
 	"\x04addr\x18\x05 \x01(\tR\x04addr\x127\n" +
 	"\x06labels\x18\x06 \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labels\x12\x19\n" +
-	"\bsub_kind\x18\a \x01(\tR\asubKindBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
+	"\bsub_kind\x18\a \x01(\tR\asubKind\x12\x16\n" +
+	"\x06logins\x18\b \x03(\tR\x06loginsBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_v1_server_proto_rawDescOnce sync.Once
