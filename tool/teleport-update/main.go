@@ -50,8 +50,6 @@ Find out more at https://goteleport.com/docs/upgrading/agent-managed-updates`
 const (
 	// proxyServerEnvVar allows the proxy server address to be specified via env var.
 	proxyServerEnvVar = "TELEPORT_PROXY"
-	// installSuffixEnvVar specifies the Teleport install suffix.
-	installSuffixEnvVar = "TELEPORT_INSTALL_SUFFIX"
 	// installDirEnvVar specifies the Teleport install directory.
 	installDirEnvVar = "TELEPORT_INSTALL_DIR"
 	// pathEnvVar specifies the Teleport PATH for binary symlinks.
@@ -114,7 +112,7 @@ func Run(args []string) int {
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("install-suffix", "Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
-		Short('i').Envar(installSuffixEnvVar).StringVar(&ccfg.InstallSuffix)
+		Short('i').Envar(common.InstallSuffixEnvVar).StringVar(&ccfg.InstallSuffix)
 	app.Flag("install-dir", "Directory containing Teleport installations.").
 		Hidden().Envar(installDirEnvVar).StringVar(&ccfg.InstallDir)
 	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
