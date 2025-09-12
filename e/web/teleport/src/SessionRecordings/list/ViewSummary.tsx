@@ -19,7 +19,7 @@ import type { FallbackProps } from 'react-error-boundary';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
-import { ButtonSecondary } from 'design/Button';
+import { ButtonBorder, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { ChatCircleSparkle } from 'design/Icon';
 import { Indicator } from 'design/Indicator';
@@ -38,24 +38,6 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 interface ViewSummaryProps {
   sessionId: string;
 }
-
-const ViewSummaryButton = styled.button<{ active: boolean }>`
-  background: ${p =>
-    p.active ? p.theme.colors.spotBackground[0] : 'transparent'};
-  border: 1px solid ${p => p.theme.colors.spotBackground[1]};
-  border-radius: calc(${p => p.theme.radii[3]}px + ${p => p.theme.radii[2]}px);
-  line-height: 1;
-  padding: ${p => p.theme.space[2]}px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: ${p => p.theme.colors.text.main};
-
-  &:hover {
-    background: ${p => p.theme.colors.spotBackground[0]};
-  }
-`;
 
 const Arrow = styled.div<{ placement: string }>`
   position: absolute;
@@ -113,15 +95,16 @@ export function ViewSummary({ sessionId }: ViewSummaryProps) {
   return (
     <>
       <HoverTooltip tipContent="View session summary">
-        <ViewSummaryButton
+        <ButtonBorder
+          width="32px"
+          padding="0"
           aria-label="View session summary"
-          active={open}
           onClick={handleClick}
           ref={refs.setReference}
           {...getReferenceProps()}
         >
           <ChatCircleSparkle size="small" />
-        </ViewSummaryButton>
+        </ButtonBorder>
       </HoverTooltip>
 
       {open && (
