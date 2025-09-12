@@ -1165,7 +1165,7 @@ integration:  $(TEST_LOG_DIR) ensure-gotestsum
 INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
-integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v 'integration/autoupdate')
 integration-kube: $(TEST_LOG_DIR) ensure-gotestsum
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
