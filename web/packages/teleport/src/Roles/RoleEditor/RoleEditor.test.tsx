@@ -172,7 +172,8 @@ test('rendering and switching tabs for a non-standard role', async () => {
   expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 
   await user.clear(await findTextEditor());
-  await user.type(await findTextEditor(), '{{"asdf":"qwer"}');
+  await user.click(await findTextEditor());
+  await user.paste('{"asdf":"qwer"}');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 
   expect(onSave).toHaveBeenCalledWith({
@@ -195,7 +196,8 @@ it('calls onRoleUpdate on each modification in the standard editor', async () =>
   expect(onRoleUpdate).toHaveBeenLastCalledWith(
     withDefaults({ metadata: { name: 'new_role_name' } })
   );
-  await user.type(screen.getByLabelText('Description'), 'some-description');
+  await user.click(screen.getByLabelText('Description'));
+  await user.paste('some-description');
   expect(onRoleUpdate).toHaveBeenLastCalledWith(
     withDefaults({
       metadata: { name: 'new_role_name', description: 'some-description' },
@@ -245,18 +247,15 @@ test('no double conversions when clicking already active tabs', async () => {
   render(<TestRoleEditor />);
   await user.click(getYamlEditorTab());
   await user.click(getStandardEditorTab());
-  await user.type(screen.getByLabelText('Role Name *'), '_2');
+  await user.click(screen.getByLabelText('Role Name *'));
+  await user.paste('_2');
   await user.click(getStandardEditorTab());
   expect(screen.getByLabelText('Role Name *')).toHaveValue('new_role_name_2');
 
   await user.click(getYamlEditorTab());
   await user.clear(await findTextEditor());
-  await user.type(
-    await findTextEditor(),
-    // Note: this is actually correct JSON syntax; the testing library uses
-    // braces for special keys, so we need to use double opening braces.
-    '{{"kind":"role", metadata:{{"name":"new_role_name_3"}}'
-  );
+  await user.click(await findTextEditor());
+  await user.paste('{"kind":"role", metadata:{"name":"new_role_name_3"}}');
   await user.click(getYamlEditorTab());
   expect(await getTextEditorContents()).toBe(
     '{"kind":"role", metadata:{"name":"new_role_name_3"}}'
@@ -321,7 +320,8 @@ describe('closing the editor', () => {
 
   test('standard editor, modified existing resource', async () => {
     const onCancel = setup({ originalRole: newRoleWithYaml(newRole()) });
-    await user.type(screen.getByLabelText('Description'), 'foo');
+    await user.click(screen.getByLabelText('Description'));
+    await user.paste('foo');
     await closeWithConfirmation(onCancel);
   });
 
@@ -349,7 +349,8 @@ describe('closing the editor', () => {
   test('YAML editor, modified existing resource', async () => {
     const onCancel = setup({ originalRole: newRoleWithYaml(newRole()) });
     await user.click(getYamlEditorTab());
-    await user.type(await findTextEditor(), '{{"foo":"bar"}');
+    await user.click(await findTextEditor());
+    await user.paste('{"foo":"bar"}');
     await closeWithConfirmation(onCancel);
   });
 });
@@ -359,12 +360,11 @@ test('saving a new role', async () => {
   render(<TestRoleEditor onSave={onSave} />);
 
   await user.clear(screen.getByLabelText('Role Name *'));
-  await user.type(screen.getByLabelText('Role Name *'), 'great-old-one');
+  await user.click(screen.getByLabelText('Role Name *'));
+  await user.paste('great-old-one');
   await user.clear(screen.getByLabelText('Description'));
-  await user.type(
-    screen.getByLabelText('Description'),
-    'That is not dead which can eternal lie.'
-  );
+  await user.click(screen.getByLabelText('Description'));
+  await user.paste('That is not dead which can eternal lie.');
   await forwardToTab('Resources');
   await forwardToTab('Admin Rules');
   await forwardToTab('Options');
@@ -402,7 +402,8 @@ describe('saving a new role after editing as YAML', () => {
 
     await user.click(getYamlEditorTab());
     await user.clear(await findTextEditor());
-    await user.type(await findTextEditor(), '{{"foo":"bar"}');
+    await user.click(await findTextEditor());
+    await user.paste('{"foo":"bar"}');
     await user.click(screen.getByRole('button', { name: 'Create Role' }));
 
     expect(onSave).toHaveBeenCalledWith({
@@ -432,10 +433,8 @@ describe('saving a new role after editing as YAML', () => {
     await user.clear(await findTextEditor());
 
     onRoleUpdate.mockReset();
-    await user.type(
-      await findTextEditor(),
-      '{{"metadata":{{"description":"foo"}}'
-    );
+    await user.click(await findTextEditor());
+    await user.paste('{"metadata":{"description":"foo"}}');
     expect(onRoleUpdate).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Preview' }));
     expect(onRoleUpdate).toHaveBeenCalledTimes(1);
@@ -520,7 +519,8 @@ test('YAML editor is usable even if the standard one throws', async () => {
     })
   );
   await user.clear(await findTextEditor());
-  await user.type(await findTextEditor(), '{{"modified":1}');
+  await user.click(await findTextEditor());
+  await user.paste('{"modified":1}');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
 
   expect(onSave).toHaveBeenCalledWith({
@@ -559,7 +559,8 @@ it('YAML editor usable even if the initial conversion throws', async () => {
 
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
   await user.clear(await findTextEditor());
-  await user.type(await findTextEditor(), '{{"modified":1}');
+  await user.click(await findTextEditor());
+  await user.paste('{"modified":1}');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 
   expect(onSave).toHaveBeenCalledWith({
