@@ -693,7 +693,7 @@ export class FeatureTrust implements TeleportFeature {
 export class FeatureWorkloadIdentity implements TeleportFeature {
   category = NavigationCategory.MachineWorkloadId;
   route = {
-    title: 'Workload Identity',
+    title: 'Workload Identities',
     path: cfg.routes.workloadIdentities,
     exact: true,
     component: WorkloadIdentities,
