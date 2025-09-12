@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -67,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -259,7 +259,7 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	k8s, err := fakejoin.NewKubernetesSigner(srv.Clock())
+	k8s, err := fakeissuer.NewKubernetesSigner(srv.Clock())
 	require.NoError(t, err)
 	jwks, err := k8s.GetMarshaledJWKS()
 	require.NoError(t, err)

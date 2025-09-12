@@ -29,7 +29,6 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
-	zoidc "github.com/zitadel/oidc/v3/pkg/oidc"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
@@ -39,6 +38,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	tokenclaims "github.com/gravitational/teleport/lib/kube/token/claims"
 	"github.com/gravitational/teleport/lib/oidc"
 )
 
@@ -123,7 +123,7 @@ func unsafeGetTokenAudiences(token string) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	claims := &ServiceAccountClaims{}
+	claims := &tokenclaims.ServiceAccountClaims{}
 	err = jwt.UnsafeClaimsWithoutVerification(claims)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -253,39 +253,6 @@ func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
 	return kubeVersion.AtLeast(minKubeVersion), nil
 }
 
-// PodSubClaim are the Pod-specific claims we expect to find on a Kubernetes Service Account JWT.
-type PodSubClaim struct {
-	Name string `json:"name"`
-	UID  string `json:"uid"`
-}
-
-// ServiceAccountSubClaim are the Service Account-specific claims we expect to find on a Kubernetes Service Account JWT.
-type ServiceAccountSubClaim struct {
-	Name string `json:"name"`
-	UID  string `json:"uid"`
-}
-
-// KubernetesSubClaim are the Kubernetes-specific claims (under kubernetes.io)
-// we expect to find on a Kubernetes Service Account JWT.
-type KubernetesSubClaim struct {
-	Namespace      string                  `json:"namespace"`
-	ServiceAccount *ServiceAccountSubClaim `json:"serviceaccount"`
-	Pod            *PodSubClaim            `json:"pod"`
-}
-
-// ServiceAccountClaims are the claims we expect to find on a Kubernetes Service Account JWT.
-type ServiceAccountClaims struct {
-	josejwt.Claims
-	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
-}
-
-// OIDCServiceAccountClaims is a variant of `ServiceAccountClaims` intended for
-// use with the OIDC validator rather than plain JWKS.
-type OIDCServiceAccountClaims struct {
-	zoidc.TokenClaims
-	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
-}
-
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using a
 // configured JWKS.
 func ValidateTokenWithJWKS(
@@ -304,7 +271,7 @@ func ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	claims := ServiceAccountClaims{}
+	claims := tokenclaims.ServiceAccountClaims{}
 	if err := jwt.Claims(jwks, &claims); err != nil {
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
@@ -369,7 +336,7 @@ func ValidateTokenWithOIDC(
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	claims, err := oidc.ValidateToken[*OIDCServiceAccountClaims](
+	claims, err := oidc.ValidateToken[*tokenclaims.OIDCServiceAccountClaims](
 		ctx,
 		issuerURL,
 		clusterName,
