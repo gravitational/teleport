@@ -728,6 +728,12 @@ func (a *Server) makeGithubAuthResponse(
 		auth.HostSigners = append(auth.HostSigners, authority)
 	}
 
+	if o, err := a.ClientOptionsForLogin(userState); err == nil {
+		auth.ClientOptions = o
+	} else {
+		logger.WarnContext(ctx, "Failed to calculate client options for GitHub login", "username", userState.GetName(), "error", err)
+	}
+
 	return &auth, nil
 }
 
