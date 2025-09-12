@@ -511,7 +511,19 @@ An additional sort, by version, will also be included.
 
 ## Phase 2
 
-**tl;dr**: upgrades dashboard, service-level health, and `tbot` configuration
+**tl;dr**: upgrades dashboard and notices
+
+**Backports**: v17 and v18
+
+This phase adds a dashboard which will provide a high-level overview of the MWI estate, and is invaluable when dealing with a large fleet. This phase will provide the groundwork for data aggregation and reporting, and will pave the way for future visualizations.
+
+A visual breakdown of instance upgrade status will be added to allow cluster maintainers to easily judge the number of instances with upgrades required/available, and to identify those instances.
+
+There is a focuses on reducing the risk of users using deprecated config, or sub-optimal config while deploying `tbot`. This is done by allowing `tbot` to raise notices. Notices provide a way to surface helpful events and warnings to users, and are easily accessed via the web interface. Additionally, the dashboard will be expanded to include a breakdown of notices across all instances.
+
+## Phase 3
+
+**tl;dr**: service-level health, and `tbot` configuration
 
 **Backports**: v17 and v18
 
@@ -520,15 +532,3 @@ This phase focuses on the requirements of the dev/dev-ops teams, who deploy inst
 Giving users access to fine-grained health statuses (for each service/output) will help pinpoint areas where problems lie.
 
 Providing the resolved configuration will allow users to troubleshoot issues related to environment variables, flags and `tbot` config.
-
-An aggregated dashboard will help to give a high-level overview of the MWI estate, and is invaluable when dealing with a large fleet. This phase will provide the groundwork for data aggregation and reporting, and will pave the way for the rest of the proposed data visualizations.
-
-## Phase 3
-
-**tl;dr**: notices
-
-**Backports**: v17 and v18
-
-This phase focuses on reducing the risk of users using deprecated config, or sub-optimal config while deploying `tbot`. This is done by allowing `tbot` to raise notices. Notices provide a way to surface helpful events and warnings to users, and are easily accessed via the web interface.
-
-In addition, the instances dashboard will be expanded to include a breakdown of notices across all instances.
