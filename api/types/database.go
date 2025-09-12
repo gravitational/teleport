@@ -88,8 +88,12 @@ type Database interface {
 	SetAWSExternalID(id string)
 	// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
 	SetAWSAssumeRole(roleARN string)
+	// IsGCPHosted returns true if the database is hosted by GCP.
+	IsGCPHosted() bool
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
+	// GetGCPProjectID returns Project ID for GCP databases.
+	GetGCPProjectID() (string, error)
 	// GetAzure returns Azure database server metadata.
 	GetAzure() Azure
 	// SetStatusAzure sets the database Azure metadata in the status field.
@@ -560,6 +564,26 @@ func (d *DatabaseV3) GetCloud() string {
 func (d *DatabaseV3) IsGCPHosted() bool {
 	_, ok := d.getGCPType()
 	return ok
+}
+
+// GetGCPProjectID returns Project ID for GCP databases.
+func (d *DatabaseV3) GetGCPProjectID() (string, error) {
+	dbType, isGCP := d.getGCPType()
+
+	if !isGCP {
+		return "", trace.NotFound("%v is not a GCP database; db type: %v", d.GetName(), dbType)
+	}
+
+	switch dbType {
+	case DatabaseTypeAlloyDB:
+		info, err := gcputils.ParseAlloyDBConnectionURI(d.GetURI())
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return info.ProjectID, nil
+	default:
+		return d.GetGCP().ProjectID, nil
+	}
 }
 
 // getAWSType returns the gcp hosted database type.

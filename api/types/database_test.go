@@ -1340,6 +1340,59 @@ func TestDatabaseAlloyDB(t *testing.T) {
 	}
 }
 
+func TestGetGCPProjectID(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name       string
+		spec       DatabaseSpecV3
+		wantResult string
+		wantErr    string
+	}{
+		{
+			name: "alloydb",
+			spec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			wantResult: "my-project-123456",
+		},
+		{
+			name: "cloudsql",
+			spec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID:  "my-project-123456",
+					InstanceID: "instance-123",
+				},
+			},
+			wantResult: "my-project-123456",
+		},
+		{
+			name: "nongcp",
+			spec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:12345",
+			},
+			wantErr: "mydb is not a GCP database",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db, err := NewDatabaseV3(Metadata{Name: "mydb"}, test.spec)
+			require.NoError(t, err)
+
+			result, err := db.GetGCPProjectID()
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.wantResult, result)
+			}
+		})
+	}
+}
+
 func TestGetAdminUser(t *testing.T) {
 	t.Parallel()
 
