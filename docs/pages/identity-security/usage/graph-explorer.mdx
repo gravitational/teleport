@@ -9,6 +9,9 @@ tags:
 
 {/*TODO: use case paragraph */}
 {/*TODO: explain key terms and introduce the feature*/}
+{/*TODO: write about the "Browse Connections" sidebar button and how it lets you
+step through connections*/}
+{/*TODO: connect each H2 to use cases */}
 
 Teleport Access Graph feature can help you to answer questions like:
 
@@ -92,7 +95,7 @@ For example, a user can SSH into a node.
 
 Allow paths connect identities to resources. They show what an identity can access and what actions they can perform.
 
-![Allow Path](../../img/access-graph/allow-path.png)
+![Allow Path](../../../img/access-graph/allow-path.png)
 
 ### Deny actions
 
@@ -105,7 +108,7 @@ Deny paths connect identities to resources. They show what an identity cannot
 access and what actions they cannot perform. Deny paths take precedence over
 allow paths.
 
-![Deny Path](../../img/access-graph/deny-path.png)
+![Deny Path](../../../img/access-graph/deny-path.png)
 
 ### Temporary actions
 
@@ -129,26 +132,26 @@ Resources are the things that users can or cannot access. They can be servers, d
 
 ### Database Access Controls
 
-Teleport supports [object-level permissions](../enroll-resources/database-access/rbac.mdx) for select database protocols.
+Teleport supports [object-level permissions](../../enroll-resources/database-access/rbac.mdx) for select database protocols.
 
 The database objects-level access information is automatically synchronized to Identity Security, making it possible to see who has particular levels of access to the different parts of the database.
 
 When you inspect a particular user's access, the Teleport Access Graph will automatically display the database objects that the user can access.
 
-![Overview of access including individual database objects](../../img/access-graph/dac/overview.png)
+![Overview of access including individual database objects](../../../img/access-graph/dac/overview.png)
 
 To see more details about a specific database object, simply select it.
 
-![Details of an individual database object](../../img/access-graph/dac/db-object-details.png)
+![Details of an individual database object](../../../img/access-graph/dac/db-object-details.png)
 
 In the graph, database objects are connected by multiple edges:
 
 1. There is exactly one edge connecting the object to its parent database resource. This edge has "contains" label.
 
-![Database object and parent database resource](../../img/access-graph/dac/db-object-contains-relation.png)
+![Database object and parent database resource](../../../img/access-graph/dac/db-object-contains-relation.png)
 
 2. At least one edge shows the permissions associated with the object, such as `INSERT, SELECT, UPDATE`. If multiple roles grant permissions to the same object, additional edges of this type may be present. The permissions are presented as edge labels.
 
-![Specific object permissions](../../img/access-graph/dac/db-object-permissions-label.png)
+![Specific object permissions](../../../img/access-graph/dac/db-object-permissions-label.png)
 
 
