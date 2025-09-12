@@ -44,15 +44,19 @@ import { rotate360 } from 'design/keyframes';
 import Text from 'design/Text';
 
 import cfg from 'teleport/config';
-import type { Recording, RecordingType } from 'teleport/services/recordings';
+import {
+  type Recording,
+  type RecordingType,
+} from 'teleport/services/recordings';
+import { RECORDING_TYPES_WITH_THUMBNAILS } from 'teleport/services/recordings/recordings';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { RecordingThumbnail } from './RecordingThumbnail';
 import { Density, ViewMode } from './ViewSwitcher';
 
-// ActionSlot is a function that takes a sessionId and returns a ReactNode, for placing
-// a button on each session recording.
-export type ActionSlot = (sessionId: string) => ReactNode;
+// ActionSlot is a function that takes a sessionId and the type of the recording,
+// and returns a ReactNode, for placing a button on each session recording.
+export type ActionSlot = (sessionId: string, type: RecordingType) => ReactNode;
 
 export interface RecordingItemProps {
   actionSlot?: ActionSlot;
@@ -61,8 +65,6 @@ export interface RecordingItemProps {
   thumbnailStyles: string;
   viewMode: ViewMode;
 }
-
-const recordingTypesWithThumbnails: RecordingType[] = ['ssh', 'k8s'];
 
 export function RecordingItem({
   actionSlot,
@@ -92,11 +94,11 @@ export function RecordingItem({
   );
 
   const actions = useMemo(
-    () => (actionSlot ? actionSlot(recording.sid) : null),
-    [actionSlot, recording.sid]
+    () => actionSlot?.(recording.sid, recording.recordingType),
+    [actionSlot, recording.sid, recording.recordingType]
   );
 
-  const hasThumbnail = recordingTypesWithThumbnails.includes(
+  const hasThumbnail = RECORDING_TYPES_WITH_THUMBNAILS.includes(
     recording.recordingType
   );
 
