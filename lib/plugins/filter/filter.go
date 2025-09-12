@@ -27,6 +27,10 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// ErrUnknownFilter is returned when plugin sync filter
+// encounters an unknown filter type.
+var ErrUnknownFilter = &trace.BadParameterError{Message: "unknown PluginSyncFilter type"}
+
 // Filters is a collection of PluginSyncFilter.
 type Filters []*types.PluginSyncFilter
 
@@ -53,7 +57,7 @@ func (f Filters) validate() error {
 					return trace.Wrap(err)
 				}
 			default:
-				return trace.BadParameter("include filter type %T is not supported", filter)
+				return trace.WrapWithMessage(ErrUnknownFilter, "include filter: %T", filter)
 			}
 		}
 
@@ -68,7 +72,7 @@ func (f Filters) validate() error {
 					return trace.Wrap(err)
 				}
 			default:
-				return trace.BadParameter("exclude filter type %T is not supported", filter)
+				return trace.WrapWithMessage(ErrUnknownFilter, "exclude filter: %T", filter)
 			}
 		}
 	}

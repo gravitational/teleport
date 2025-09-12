@@ -194,7 +194,7 @@ func TestNew(t *testing.T) {
 			filters: []*types.PluginSyncFilter{
 				{Include: &unsupportedFilterType{}},
 			},
-			errorAssertion: require.NoError,
+			errorAssertion: require.Error,
 		},
 	}
 
