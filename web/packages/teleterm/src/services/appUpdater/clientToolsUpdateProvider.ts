@@ -29,6 +29,10 @@ import {
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 
+import { compare, major } from 'shared/utils/semVer';
+
+import { UnsupportedVersionError } from './errors';
+
 const CHECKSUM_FETCH_TIMEOUT = 5_000;
 // Example: 99a2fe26681073de56de4229dd9cd6655fef22759579b7b9bc359e018ea1007099a2fe26681073de56de4229dd9cd6655fef22759579b7b9bc359e018ea10070  Teleport Connect-17.5.4-mac.zip
 const CHECKSUM_FORMAT = /^.+\s+.+$/;
@@ -68,6 +72,11 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
     }
 
     const { baseUrl, version } = clientTools;
+    const updatesSupport = areManagedUpdatesSupportedInConnect(version);
+    if (updatesSupport.supported === false) {
+      throw new UnsupportedVersionError(version, updatesSupport.minVersion);
+    }
+
     const fileUrl = `${baseUrl}/${makeDownloadFilename(this.nativeUpdater, version)}`;
     const sha512 = await fetchChecksum(fileUrl);
 
@@ -145,4 +154,29 @@ async function fetchChecksum(fileUrl: string): Promise<string> {
   }
 
   return checksumText.split(' ').at(0);
+}
+
+// TODO(gzdunek) DELETE IN v20.0.0
+function areManagedUpdatesSupportedInConnect(
+  version: string
+): { supported: true } | { supported: false; minVersion: string } {
+  const thresholds = {
+    18: '18.2.0',
+    17: '17.7.3',
+  };
+
+  const majorVersion = major(version);
+  if (majorVersion >= 19) {
+    return { supported: true };
+  }
+
+  const minVersion = thresholds[majorVersion];
+  if (!minVersion) {
+    // For any lower version show v17 as the min supported version.
+    return { supported: false, minVersion: thresholds['17'] };
+  }
+
+  return compare(version, minVersion) >= 0
+    ? { supported: true }
+    : { supported: false, minVersion };
 }

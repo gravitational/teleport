@@ -21,8 +21,10 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -31,13 +33,17 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // graphVersion is the default version of the MS Graph API endpoint.
@@ -88,6 +94,7 @@ type Config struct {
 	PageSize int
 	// GraphEndpoint specifies root domain of the Graph API.
 	GraphEndpoint string
+	Logger        *slog.Logger
 }
 
 // SetDefaults sets the default values for optional fields.
@@ -106,6 +113,9 @@ func (cfg *Config) SetDefaults() {
 	}
 	if cfg.GraphEndpoint == "" {
 		cfg.GraphEndpoint = types.MSGraphDefaultEndpoint
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, "msgraph")
 	}
 }
 
@@ -130,6 +140,7 @@ type Client struct {
 	retryConfig   retryutils.RetryV2Config
 	baseURL       *url.URL
 	pageSize      int
+	logger        *slog.Logger
 }
 
 // NewClient returns a new client for the given config.
@@ -149,12 +160,15 @@ func NewClient(cfg Config) (*Client, error) {
 		retryConfig:   *cfg.RetryConfig,
 		baseURL:       base.JoinPath(graphVersion),
 		pageSize:      cfg.PageSize,
+		logger:        cfg.Logger,
 	}, nil
 }
 
 // request is the base function for HTTP API calls.
 // It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
-func (c *Client) request(ctx context.Context, method string, uri string, header map[string]string, payload []byte) (*http.Response, error) {
+// If the response from the Graph API has status code outside of [200, 400) range, request attempts
+// to parse the response body as [GraphError] and if successful returns it as error.
+func (c *Client) request(ctx context.Context, method string, uri string, header http.Header, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
 	if len(payload) > 0 {
 		body = bytes.NewReader(payload)
@@ -164,20 +178,33 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	for key := range header {
+		for _, value := range header.Values(key) {
+			req.Header.Add(key, value)
+		}
+	}
+
 	if body != nil {
-		req.Header.Add("Content-Type", "application/json")
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: scopes,
 	})
 	if err != nil {
+		authFailedError := &azidentity.AuthenticationFailedError{}
+		if ok := errors.As(err, &authFailedError); ok && authFailedError.RawResponse != nil &&
+			authFailedError.RawResponse.Body != nil {
+			resp := authFailedError.RawResponse
+			authError, conversionErr := readAuthError(resp.Body, resp.StatusCode)
+			resp.Body.Close()
+			if conversionErr == nil {
+				err = authError
+			}
+		}
 		return nil, trace.Wrap(err, "failed to get azure authentication token")
 	}
-	req.Header.Add("Authorization", "Bearer "+token.Token)
-	for i := range header {
-		req.Header.Add(i, header[i])
-	}
+	req.Header.Set("Authorization", "Bearer "+token.Token)
 
 	const maxRetries = 5
 	var retryAfter time.Duration
@@ -198,6 +225,10 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			}
 		}
 
+		requestID := uuid.NewString()
+		// https://learn.microsoft.com/en-us/graph/best-practices-concept#reliability-and-support
+		req.Header.Set("client-request-id", requestID)
+
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return nil, trace.Wrap(err) // hard I/O error, bail
@@ -207,8 +238,22 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			return resp, nil
 		}
 
-		graphError, err := readError(resp.Body)
-		resp.Body.Close()
+		respBody, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := resp.Body.Close(); err != nil {
+			c.logger.WarnContext(req.Context(), "Failed to close http.Responde body", "error", err)
+		}
+
+		c.logger.DebugContext(req.Context(), "Request failed",
+			"body", string(respBody),
+			"status", resp.StatusCode,
+			"url", req.URL,
+			"client_request_id", requestID,
+		)
+
+		graphError, err := readError(respBody, resp.StatusCode)
 		if err != nil {
 			lastErr = err // error while reading the graph error, relay
 		} else if graphError != nil {

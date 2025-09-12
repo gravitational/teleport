@@ -19,9 +19,23 @@
 import { createElement, useMemo, type ReactNode } from 'react';
 import styled from 'styled-components';
 
+export interface MarkdownOptions {
+  /**
+   * `true` if links should be rendered. Defaults to `false` to protect from
+   * rendering untrusted content posing as Teleport-approved link.
+   */
+  enableLinks?: boolean;
+}
+
 interface MarkdownParser {
+  condition?: (opts: MarkdownOptions) => boolean;
   pattern: RegExp;
-  render: (content: string, key: string, url?: string) => React.ReactNode;
+  render: (
+    activeParsers: MarkdownParser[],
+    content: string,
+    key: string,
+    url?: string
+  ) => React.ReactNode;
 }
 
 interface EarliestMatch {
@@ -40,23 +54,26 @@ const StyledLink = styled.a`
 const parsers: MarkdownParser[] = [
   {
     pattern: /\*\*(?<content>[^*]+?)\*\*/,
-    render: (content, key) => <strong key={key}>{parseLine(content)}</strong>,
+    render: (activeParsers, content, key) => (
+      <strong key={key}>{parseLine(activeParsers, content)}</strong>
+    ),
   },
   {
     pattern: /`(?<content>[^`]+)`/,
-    render: (content, key) => <code key={key}>{content}</code>,
+    render: (activeParsers, content, key) => <code key={key}>{content}</code>,
   },
   {
+    condition: (opts: MarkdownOptions) => !!opts.enableLinks,
     pattern: /\[(?<content>[^\]]*)](?:\((?<url>https?:\/\/[^)]+|[^:)]+)\))?/,
-    render: (content, key, url) => (
+    render: (activeParsers, content, key, url) => (
       <StyledLink key={key} href={url}>
-        {parseLine(content)}
+        {parseLine(activeParsers, content)}
       </StyledLink>
     ),
   },
 ];
 
-function parseLine(line: string): ReactNode[] {
+function parseLine(activeParsers: MarkdownParser[], line: string): ReactNode[] {
   const items: ReactNode[] = [];
 
   let remaining = line;
@@ -66,7 +83,7 @@ function parseLine(line: string): ReactNode[] {
   while (remaining.length > 0) {
     let earliestMatch: EarliestMatch | null = null;
 
-    for (const parser of parsers) {
+    for (const parser of activeParsers) {
       if (parser.pattern.test(remaining)) {
         const match = parser.pattern.exec(remaining);
 
@@ -94,7 +111,12 @@ function parseLine(line: string): ReactNode[] {
     key += 1;
 
     items.push(
-      parser.render(match.groups!.content, `inline-${key}`, match.groups?.url)
+      parser.render(
+        activeParsers,
+        match.groups!.content,
+        `inline-${key}`,
+        match.groups?.url
+      )
     );
 
     remaining = remaining.substring(match.index + match[0].length);
@@ -105,14 +127,41 @@ function parseLine(line: string): ReactNode[] {
 
 const headerRegex = /^(?<hashes>#{1,6})\s*(?<content>.*)$/;
 
-function processMarkdown(text: string) {
+const MAX_ITERATIONS = 10000;
+
+/**
+ * Turns a Markdown string into a list of React nodes. CAUTION: this function
+ * may handle untrusted user input, so think twice before extending it! If you
+ * extend it with something that may possibly cause a security issue if
+ * rendered, make sure to only enable it if a certain option is turned on and
+ * default to disabling it.
+ */
+function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
+  if (!text) {
+    return [];
+  }
+
+  const activeParsers = parsers.filter(p => {
+    if (!p.condition) return true;
+    return p.condition(options);
+  });
+
   const lines = text.split('\n');
 
   const items: ReactNode[] = [];
 
+  let iterations = 0;
   let i = 0;
 
   while (i < lines.length) {
+    if (++iterations > MAX_ITERATIONS) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `processMarkdown: Exceeded max iterations (${MAX_ITERATIONS})`
+      );
+      return items;
+    }
+
     const line = lines[i].trim();
 
     if (line.trim() === '') {
@@ -136,13 +185,27 @@ function processMarkdown(text: string) {
       }
     }
 
-    if (line.startsWith('- ')) {
+    if (line.trimStart().startsWith('- ')) {
       const listItems: ReactNode[] = [];
+      const startI = i;
 
-      while (i < lines.length && lines[i].startsWith('- ')) {
-        listItems.push(<li key={i}>{parseLine(lines[i].substring(2))}</li>);
+      while (i < lines.length && lines[i].trimStart().startsWith('- ')) {
+        const firstDashIndex = lines[i].indexOf('- ');
+
+        listItems.push(
+          <li key={i}>
+            {parseLine(
+              activeParsers,
+              lines[i].substring(firstDashIndex + 2).trim()
+            )}
+          </li>
+        );
 
         i += 1;
+
+        if (i - startI > MAX_ITERATIONS) {
+          break;
+        }
       }
 
       items.push(<ul key={i}>{listItems}</ul>);
@@ -151,6 +214,7 @@ function processMarkdown(text: string) {
     }
 
     const paragraphLines: string[] = [];
+    const startI = i;
 
     while (i < lines.length && lines[i].trim() !== '') {
       const currentLine = lines[i];
@@ -164,20 +228,35 @@ function processMarkdown(text: string) {
 
       paragraphLines.push(currentLine.trim());
       i += 1;
+
+      if (i - startI > MAX_ITERATIONS) {
+        break;
+      }
     }
 
     if (paragraphLines.length > 0) {
-      items.push(<p key={`p-${i}`}>{parseLine(paragraphLines.join(' '))}</p>);
+      items.push(
+        <p key={`p-${i}`}>
+          {parseLine(activeParsers, paragraphLines.join(' '))}
+        </p>
+      );
+    }
+
+    if (i === startI) {
+      i += 1;
     }
   }
 
   return items;
 }
 
-interface MarkdownProps {
+export interface MarkdownProps extends MarkdownOptions {
   text: string;
 }
 
-export function Markdown({ text }: MarkdownProps) {
-  return useMemo(() => processMarkdown(text), [text]);
+export function Markdown({ text, ...options }: MarkdownProps) {
+  return useMemo(
+    () => processMarkdown(text, options),
+    [text, ...Object.values(options)]
+  );
 }

@@ -101,7 +101,6 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 		Connected: cluster.Connected(),
 		LoggedInUser: &api.LoggedInUser{
 			Name:            loggedInUser.Name,
-			SshLogins:       loggedInUser.SSHLogins,
 			Roles:           loggedInUser.Roles,
 			ActiveRequests:  loggedInUser.ActiveRequests,
 			IsDeviceTrusted: cluster.HasDeviceTrustExtensions(),
@@ -155,9 +154,8 @@ func newAPILeafCluster(leaf clusters.LeafCluster) *api.Cluster {
 		Connected: leaf.Connected,
 		Leaf:      true,
 		LoggedInUser: &api.LoggedInUser{
-			Name:      leaf.LoggedInUser.Name,
-			SshLogins: leaf.LoggedInUser.SSHLogins,
-			Roles:     leaf.LoggedInUser.Roles,
+			Name:  leaf.LoggedInUser.Name,
+			Roles: leaf.LoggedInUser.Roles,
 		},
 	}
 }

@@ -19,7 +19,7 @@
 package db
 
 import (
-	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,13 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
 
 var (
 	wildcardLabels = map[string]string{types.Wildcard: types.Wildcard}
@@ -58,7 +64,7 @@ func mustMakeAWSFetchers(t *testing.T, cfg AWSFetcherFactoryConfig, matchers []t
 
 	fetcherFactory, err := NewAWSFetcherFactory(cfg)
 	require.NoError(t, err)
-	fetchers, err := fetcherFactory.MakeFetchers(context.Background(), matchers, discoveryConfigName)
+	fetchers, err := fetcherFactory.MakeFetchers(t.Context(), matchers, discoveryConfigName)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 
@@ -88,7 +94,7 @@ func mustGetDatabases(t *testing.T, fetchers []common.Fetcher) types.Databases {
 
 	var all types.Databases
 	for _, fetcher := range fetchers {
-		resources, err := fetcher.Get(context.TODO())
+		resources, err := fetcher.Get(t.Context())
 		require.NoError(t, err)
 
 		databases, err := resources.AsDatabases()

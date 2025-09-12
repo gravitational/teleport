@@ -1,7 +1,7 @@
 ---
 title: Using Teleport Connect
 description: Using Teleport Connect
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -159,6 +159,13 @@ The top bar of Teleport Connect consists of:
 
 The **status bar** at the bottom displays **cluster breadcrumbs** in the bottom left, indicating
 which cluster the current tab is bound to, and the **Share Feedback** button in the bottom right.
+
+### Background mode
+Teleport Connect can run in the background (via the menu bar or system tray),
+so you can continue using VNet and connections to databases, Kubernetes clusters,
+and apps without keeping the main window open.
+
+See [the `runInBackground` configuration option](#configuration).
 
 ## Connecting to an SSH server
 
@@ -591,6 +598,7 @@ Below is the list of the supported config properties.
 |-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.                                       |
 | `skipVersionCheck`            | `false`                                                                                                              | Skips the version check and hides the version compatibility warning when logging in to a cluster.          |
+| `runInBackground` | `true` on macOS/Windows, `false` on Linux | Keeps the app running in the menu bar/system tray even when the main window is closed. On Linux, displaying the system tray icon may require installing shell extensions. |
 | `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS `Consolas, monospace` on Windows `'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                                                              |
 | `terminal.fontSize`           | `15`                                                                                                                 | Font size for the terminal.                                                                                |
 | `terminal.windowsBackend` | `auto` | `auto` uses modern [ConPTY](https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/) system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available. |
@@ -612,7 +620,7 @@ Below is the list of the supported config properties.
 | `keymap.openClusters`         | `Command+E` on macOS `Ctrl+Shift+E` on Windows/Linux                                                             | Shortcut to open the cluster selector.                                                                     |
 | `keymap.openProfiles`         | `Command+I` on macOS `Ctrl+Shift+I` on Windows/Linux                                                             | Shortcut to open the profile selector.                                                                     |
 | `keymap.openSearchBar`        | `Command+K` on macOS `Ctrl+Shift+K` on Windows/Linux                                                             | Shortcut to open the search bar.                                                                           |
-| `headless.skipConfirm`        | `false`                                                                                                              | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
+| `headless.skipConfirm`        | `false`                                                                                                              | Skips the confirmation prompt for Headless Authentication approval and instead prompts for MFA immediately. |
 | `ssh.noResume`                | `false`                                                                                                              | Disables SSH connection resumption.                                                                        |
 | `ssh.forwardAgent`            | `false`                                                                                                              | Enables agent forwarding.                                                                                  |
 | `sshAgent.addKeysToAgent`     | `auto`                                                                                                               | Controls how keys are added to a local SSH agent. "auto" adds the keys only if the agent supports SSH certificates, "no" never attempts to add them, "yes" always attempts to add them, "only" always attempts to add the keys to the agent but it does not save them on disk. |
@@ -642,6 +650,20 @@ Available key codes:
 - `F1` to `F24`
 - `,`, `.`, `/`, `\`, `` ` ``, `-`, `=`, `;`, `'`, `[`, `]`
 - `Space`, `Tab`, `CapsLock`, `NumLock`, `ScrollLock`, `Backspace`, `Delete`, `Insert`, `Enter`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `Escape`, `IntlBackslash`
+
+### `tsh ssh` environment variables
+
+Under the hood, Teleport Connect uses `tsh ssh` to connect to SSH servers. As a result,
+Teleport Connect will respect many [tsh environment variables](../reference/cli/tsh.mdx#tsh-environment-variables)
+related to `tsh ssh`. This can make it easier to share common settings between `tsh` and Teleport Connect.
+
+Below is a list of environment variables supported by Teleport Connect for SSH connections:
+
+| Property | Default | Allowed Value(s) | Description |
+|----------|---------|------------------|-------------|
+| `TELEPORT_MFA_MODE` | `auto` | `auto`, `cross-platform`, `platform`, `otp`, or `sso` | Preferred mode for MFA and Passwordless assertions. |
+| `TELEPORT_ADD_KEYS_TO_AGENT` | `auto` | `auto`, `no`, `yes`, or `only` | Controls how keys are added to a local SSH agent. "auto" adds the keys only if the agent supports SSH certificates, "no" never attempts to add them, "yes" always attempts to add them, "only" always attempts to add the keys to the agent but it does not save them on disk. |
+| `TELEPORT_NO_RESUME` | `false` | `true` or `false` | Disables SSH connection resumption. |
 
 ## Telemetry
 

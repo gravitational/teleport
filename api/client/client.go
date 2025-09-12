@@ -935,6 +935,12 @@ func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingM
 	return recordingmetadatav1.NewRecordingMetadataServiceClient(c.conn)
 }
 
+// RecordingEncryptionServiceClient returns an unadorned client for the session
+// recording encryption service.
+func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
+	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
+}
+
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
@@ -1353,6 +1359,15 @@ func (c *Client) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 // GetAccessCapabilities requests the access capabilities of a user.
 func (c *Client) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	caps, err := c.grpc.GetAccessCapabilities(ctx, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
+// GetRemoteAccessCapabilities requests the access capabilities of a user.
+func (c *Client) GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	caps, err := c.grpc.GetRemoteAccessCapabilities(ctx, &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4303,7 +4318,7 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetGitServer()
 			default:
 				out.Resources = nil
-				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+				return out, trace.NotImplemented("resource type %q does not support pagination", req.ResourceType)
 			}
 
 			t, ok := resource.(T)
@@ -5575,4 +5590,16 @@ func (c *Client) DeleteHealthCheckConfig(ctx context.Context, name string) error
 		},
 	)
 	return trace.Wrap(err)
+}
+
+// ValidateTrustedCluster is called by the proxy on behalf of a cluster that
+// wishes to join this one as a leaf cluster.
+func (c *Client) ValidateTrustedCluster(
+	ctx context.Context, validateRequest *proto.ValidateTrustedClusterRequest,
+) (*proto.ValidateTrustedClusterResponse, error) {
+	resp, err := c.grpc.ValidateTrustedCluster(ctx, validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }

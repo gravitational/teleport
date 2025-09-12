@@ -41,7 +41,6 @@ const clusterOrange = makeRootCluster({
   loggedInUser: makeLoggedInUser({
     name: 'bob',
     roles: ['access', 'editor'],
-    sshLogins: ['root'],
   }),
   uri: '/clusters/orange',
 });
@@ -117,7 +116,6 @@ export function OneClusterWithActiveCluster() {
     loggedInUser: makeLoggedInUser({
       name: 'alice',
       roles: ['access', 'editor'],
-      sshLogins: ['root'],
     }),
   });
 
@@ -197,7 +195,6 @@ export function TrustedDeviceEnrolled() {
           loggedInUser: makeLoggedInUser({
             isDeviceTrusted: true,
             roles: ['circle-mark-app-access', 'grafana-lite-app-access'],
-            sshLogins: ['root'],
           }),
         }),
       ]}
@@ -216,7 +213,6 @@ export function TrustedDeviceRequiredButNotEnrolled() {
           loggedInUser: makeLoggedInUser({
             trustedDeviceRequirement: TrustedDeviceRequirement.REQUIRED,
             roles: ['circle-mark-app-access', 'grafana-lite-app-access'],
-            sshLogins: ['root'],
           }),
         }),
       ]}

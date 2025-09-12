@@ -1252,6 +1252,8 @@ enum PrivateKeyType {
 
 // SSHKeyPair is an SSH CA key pair.
 message SSHKeyPair {
+  option (gogoproto.equal) = true;
+
   // PublicKey is the SSH public key.
   bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
   // PrivateKey is the SSH private key.
@@ -2483,9 +2485,9 @@ message ManualKeyManagementConfig {
   // Enabled controls whether or recording encryption keys should be managed externally.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // ActiveKeys describe which keys should be queried for active recording encryption and replay.
-  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_key,omitempty"];
+  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_keys,omitempty"];
   // RotatedKeys describe which keys should be queried for historical replay.
-  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_key,omitempty"];
+  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_keys,omitempty"];
 }
 
 // SessionRecordingEncryptionConfig configures if and how session recordings
@@ -3303,6 +3305,34 @@ message AccessCapabilitiesRequest {
   // list of roles that the user can request should be filtered to only include
   // roles that allow access to the provided ResourceIDs.
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
+}
+
+// RemoteAccessCapabilities is a summary of the capabilites that a remote cluster
+// user is granted in target cluster.
+// buf:lint:ignore PAGINATION_REQUIRED
+message RemoteAccessCapabilities {
+  // ApplicableRolesForResources is a list of the remote-cluster roles applicable
+  // for access to a given set of resources. This will always be a subset of the
+  // SearchAsRoles supplied in the [RemoteAccessCapabilitiesRequest]
+  repeated string ApplicableRolesForResources = 1 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
+}
+
+// AccessCapabilitiesRequest encodes parameters for the GetRemoteAccessCapabilities method.
+// buf:lint:ignore PAGINATION_REQUIRED
+message RemoteAccessCapabilitiesRequest {
+  // user is the name of the target user on their home cluster
+  string User = 1 [(gogoproto.jsontag) = "user,omitempty"];
+
+  // SearchAsRoles holds the roles the target user may use when searching for
+  // resources on the user's home cluster
+  repeated string SearchAsRoles = 2 [(gogoproto.jsontag) = "remote_search_as_roles,omitempty"];
+
+  // ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+  // the necessary roles for.
+  repeated ResourceID ResourceIDs = 3 [
+    (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // RequestKubernetesResource is the Kubernetes resource identifier used
@@ -5121,6 +5151,7 @@ message KubernetesClusterV3List {
 message KubernetesServerV3 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
+
   // Kind is the Kubernetes server resource kind. Always "kube_server".
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
@@ -5137,6 +5168,8 @@ message KubernetesServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the Kubernetes server status.
+  KubernetesServerStatusV3 status = 6;
 }
 
 // KubernetesServerSpecV3 is the Kubernetes server spec.
@@ -5156,6 +5189,13 @@ message KubernetesServerSpecV3 {
   KubernetesClusterV3 Cluster = 5 [(gogoproto.jsontag) = "cluster"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+}
+
+// KubernetesServerStatusV3 is the Kubernetes cluster status.
+message KubernetesServerStatusV3 {
+  // TargetHealth is the health status of between the Teleport agent
+  // and Kubernetes cluster.
+  TargetHealth target_health = 1;
 }
 
 // WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
@@ -5366,6 +5406,33 @@ message OIDCConnectorSpecV3 {
   // requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
   // for authorization request parameters.
   string RequestObjectMode = 22 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
+  // EntraIDGroupsProvider configures out-of-band user groups provider.
+  // It works by following through the groups claim source, which is sent for the "groups"
+  // claim when the user's group membership exceeds 200 max item limit.
+  EntraIDGroupsProvider entra_id_groups_provider = 23;
+}
+
+// EntraIDGroupsProvider configures out-of-band user groups provider.
+// It works by following through the groups claim source, which is sent for
+// "groups" claim when the user's group membership exceeds 200 max item limit.
+message EntraIDGroupsProvider {
+  // Disabled specifies that the groups provider should be disabled
+  // even when Entra ID responds with a groups claim source.
+  // User may choose to disable it if they are using
+  // integrations such as SCIM or similar groups importer as
+  // connector based role mapping may be not needed in such a scenario.
+  bool disabled = 1;
+  // GroupType is a user group type filter. Defaults to "security-groups".
+  // Value can be "security-groups", "directory-roles", "all-groups".
+  string group_type = 2;
+  // GraphEndpoint is a Microsoft Graph API endpoint.
+  // The groups claim source endpoint provided by Entra ID points to the
+  // now-retired Azure AD Graph endpoint ("https://graph.windows.net").
+  // To convert it to the newer Microsoft Graph API endpoint,
+  // Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com").
+  // Update GraphEndpoint to point to a different Microsoft Graph national
+  // cloud deployment endpoint.
+  string graph_endpoint = 3;
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -5405,6 +5472,12 @@ message OIDCConnectorMFASettings {
   // 0 to always force re-authentication for MFA checks. This should only be set to a non-zero
   // value if the IdP is setup to perform MFA checks on top of active user sessions.
   int64 max_age = 6 [(gogoproto.casttype) = "Duration"];
+  // RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization
+  // requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
+  // for authorization request parameters. If omitted, MFA flows will default to the `RequestObjectMode` behavior
+  // specified in the base OIDC connector. Set this property to 'none' to explicitly disable request objects for
+  // the MFA client.
+  string RequestObjectMode = 7 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -6601,6 +6674,9 @@ message Participant {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "last_active,omitempty"
   ];
+
+  // Cluster is the cluster name the user is authenticated against.
+  string Cluster = 5 [(gogoproto.jsontag) = "cluster,omitempty"];
 }
 
 // UIConfigV1 represents the configuration for the web UI served by the proxy service
@@ -7702,6 +7778,7 @@ message PluginBootstrapCredentialsV1 {
 
 // PluginIdSecretCredential can be OAuth2-like client_id and client_secret or username and password.
 message PluginIdSecretCredential {
+  option (gogoproto.equal) = true;
   string id = 1;
   string secret = 2;
 }
@@ -8001,6 +8078,7 @@ message PluginOktaStatusSystemLogExporter {
 // PluginCredentialsV1 represents "live" credentials
 // that are used by the plugin to authenticate to the 3rd party API.
 message PluginCredentialsV1 {
+  option (gogoproto.equal) = true;
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
@@ -8010,6 +8088,8 @@ message PluginCredentialsV1 {
 }
 
 message PluginOAuth2AccessTokenCredentials {
+  option (gogoproto.equal) = true;
+
   string access_token = 1;
   string refresh_token = 2;
   google.protobuf.Timestamp expires = 3 [
@@ -8019,6 +8099,8 @@ message PluginOAuth2AccessTokenCredentials {
 }
 
 message PluginBearerTokenCredentials {
+  option (gogoproto.equal) = true;
+
   // Token is the literal bearer token to be submitted to the 3rd-party API provider.
   string token = 1;
 
@@ -8057,6 +8139,7 @@ message PluginStaticCredentialsV1 {
 
 // PluginStaticCredentialsSpecV1 is the specification for the static credentials object.
 message PluginStaticCredentialsSpecV1 {
+  option (gogoproto.equal) = true;
   oneof credentials {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
@@ -8068,6 +8151,8 @@ message PluginStaticCredentialsSpecV1 {
 
 // PluginStaticCredentialsBasicAuth represents username and password credentials for a plugin.
 message PluginStaticCredentialsBasicAuth {
+  option (gogoproto.equal) = true;
+
   // Username is the username to use for basic auth.
   string Username = 1 [(gogoproto.jsontag) = "username"];
 
@@ -8077,6 +8162,8 @@ message PluginStaticCredentialsBasicAuth {
 
 // PluginStaticCredentialsOAuthClientSecret represents an oauth client id and secret.
 message PluginStaticCredentialsOAuthClientSecret {
+  option (gogoproto.equal) = true;
+
   // ClientId is the client ID to use for OAuth client secret.
   string ClientId = 1 [(gogoproto.jsontag) = "client_id"];
 
@@ -8087,6 +8174,8 @@ message PluginStaticCredentialsOAuthClientSecret {
 // PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
 // for the integration or plugin.
 message PluginStaticCredentialsSSHCertAuthorities {
+  option (gogoproto.equal) = true;
+
   // CertAuthorities contains the active SSH CAs used for the integration or
   // plugin.
   repeated SSHKeyPair cert_authorities = 1;

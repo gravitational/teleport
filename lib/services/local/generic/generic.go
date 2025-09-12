@@ -185,7 +185,9 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
+		resource, err := s.unmarshalFunc(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -214,7 +216,9 @@ func (s *Service[T]) Resources(ctx context.Context, startKey, endKey string) ite
 				return
 			}
 
-			resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
+			resource, err := s.unmarshalFunc(item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision))
 			if err != nil {
 				// unmarshal errors are logged and skipped
 				slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
@@ -257,7 +261,9 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 			return nil, nil, "", trace.Wrap(err)
 		}
 
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
+		resource, err := s.unmarshalFunc(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
 		if err != nil {
 			// unmarshal errors are logged and skipped
 			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
@@ -292,7 +298,9 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 			return nil, "", trace.Wrap(err)
 		}
 
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
+		resource, err := s.unmarshalFunc(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
 		if err != nil {
 			// unmarshal errors are logged and skipped
 			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))

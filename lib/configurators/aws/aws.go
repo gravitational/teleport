@@ -238,6 +238,20 @@ var (
 		},
 		requireSecretsManager: true,
 	}
+	elastiCacheServerlessActions = databaseActions{
+		discovery: []string{
+			"ec2:DescribeSubnets",
+			"elasticache:DescribeServerlessCaches",
+			"elasticache:ListTagsForResource",
+		},
+		metadata: []string{
+			"elasticache:DescribeServerlessCaches",
+		},
+		iamAuth: []string{
+			"elasticache:Connect",
+			"elasticache:DescribeUsers",
+		},
+	}
 	// memoryDBActions contains IAM actions for types.AWSMatcherMemoryDB.
 	memoryDBActions = databaseActions{
 		discovery: []string{
@@ -887,6 +901,9 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	if hasElastiCacheDatabases(flags, targetCfg) {
 		allActions = append(allActions, elastiCacheActions)
 	}
+	if hasElastiCacheServerlessDatabases(flags, targetCfg) {
+		allActions = append(allActions, elastiCacheServerlessActions)
+	}
 	if hasMemoryDBDatabases(flags, targetCfg) {
 		allActions = append(allActions, memoryDBActions)
 	}
@@ -1044,6 +1061,16 @@ func hasElastiCacheDatabases(flags configurators.BootstrapFlags, targetCfg targe
 	}
 	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherElastiCache, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, apiawsutils.IsElastiCacheEndpoint)
+}
+
+// hasElastiCacheServerlessDatabases checks if the agent needs permission for
+// ElastiCache serverless databases.
+func hasElastiCacheServerlessDatabases(flags configurators.BootstrapFlags, targetCfg targetConfig) bool {
+	if flags.ForceElastiCacheServerlessPermissions {
+		return true
+	}
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherElastiCacheServerless, targetCfg.awsMatchers) ||
+		findEndpointIs(targetCfg.databases, apiawsutils.IsElastiCacheServerlessEndpoint)
 }
 
 // hasMemoryDBDatabases checks if the agent needs permission for

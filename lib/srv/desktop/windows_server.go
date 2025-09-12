@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -184,6 +185,8 @@ type WindowsServiceConfig struct {
 	Discovery []servicecfg.LDAPDiscoveryConfig
 	// DiscoveryInterval configures how frequently the discovery process runs.
 	DiscoveryInterval time.Duration
+	// PublishCRLInterval configures how frequently to publish CRLs.
+	PublishCRLInterval time.Duration
 	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
@@ -228,6 +231,7 @@ func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 	}
 
 	cfg.DiscoveryInterval = cmp.Or(cfg.DiscoveryInterval, 5*time.Minute)
+	cfg.PublishCRLInterval = cmp.Or(cfg.PublishCRLInterval, 5*time.Minute)
 
 	return nil
 }
@@ -379,9 +383,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := s.ca.Update(s.closeCtx, tc); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		go s.runCRLUpdateLoop(tc)
 	}
 
 	ok := false
@@ -856,6 +858,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
 		Tracker:               rdpc,
 		TeleportUser:          identity.Username,
+		UserOriginClusterName: identity.OriginClusterName,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MessageWriter:         &monitorErrorSender{tdpConn: tdpConn},
@@ -893,6 +896,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	err = rdpc.Run(ctx, certDER, keyDER)
 
 	// ctx may have been canceled, so emit with a separate context
+	audit.teardown(context.Background())
 	endEvent := audit.makeSessionEnd(recordSession)
 	s.record(context.Background(), recorder, endEvent)
 	s.emit(context.Background(), endEvent)
@@ -1050,9 +1054,11 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				s.emit(ctx, errorEvent)
 			}
 		case tdp.SharedDirectoryReadResponse:
-			s.emit(ctx, audit.makeSharedDirectoryReadResponse(msg))
+			// shared directory audit events can be noisy, so we use a compactor
+			// to retain and delay them in an attempt to coalesce contiguous events
+			audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(msg))
 		case tdp.SharedDirectoryWriteResponse:
-			s.emit(ctx, audit.makeSharedDirectoryWriteResponse(msg))
+			audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(msg))
 		}
 	}
 }
@@ -1258,7 +1264,8 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		ClusterName: s.clusterName,
 		Login:       windowsUser,
 		Participants: []types.Participant{{
-			User: id.Username,
+			User:    id.Username,
+			Cluster: id.OriginClusterName,
 		}},
 		HostUser: id.Username,
 		Created:  s.cfg.Clock.Now(),
@@ -1301,4 +1308,25 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	}
 
 	return len(s), nil
+}
+
+// runCRLUpdateLoop publishes the Certificate Revocation List to the given
+// LDAP server. It continues to do so every 5 minutes (by default) to make sure it is present
+// and in the correct location.
+func (s *WindowsService) runCRLUpdateLoop(tlsConfig *tls.Config) {
+	t := s.cfg.Clock.NewTicker(retryutils.SeventhJitter(s.cfg.PublishCRLInterval))
+	defer t.Stop()
+
+	for {
+		if err := s.ca.Update(s.closeCtx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
+			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to publish CRL", "error", err)
+		}
+
+		select {
+		case <-s.closeCtx.Done():
+			return
+		case <-t.Chan():
+			continue
+		}
+	}
 }

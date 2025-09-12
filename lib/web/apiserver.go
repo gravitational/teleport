@@ -103,10 +103,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -872,6 +870,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
+
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
 	h.GET("/webapi/sites/:site/sessionlength/:sid", h.WithClusterAuth(h.sessionLengthHandle))
 
@@ -1073,6 +1072,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS IAM Roles Anywhere Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsra-trust-anchor.sh", h.WithLimiter(h.awsRolesAnywhereConfigureTrustAnchor))
+	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/validate", h.WithClusterAuth(h.validateAWSRolesAnywhereIntegration))
 	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/ping", h.WithClusterAuth(h.awsRolesAnywherePing))
 	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/listprofiles", h.WithClusterAuth(h.awsRolesAnywhereListProfiles))
 
@@ -1176,8 +1176,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerGet))
 	h.DELETE("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerDelete))
 
-	h.GET("/webapi/sites/:site/session-recording/:session_id/thumbnail", h.WithClusterAuth(h.getSessionRecordingThumbnail))
-	h.GET("/webapi/sites/:site/session-recording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
+	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
+	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
+	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -2363,6 +2364,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			CSRFToken:         response.Req.CSRFToken,
 			Username:          response.Username,
 			SessionName:       response.Session.GetName(),
+			SessionExpiry:     response.Session.Expiry(),
 			ClientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
@@ -2704,7 +2706,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
-	if err := websession.SetCookie(w, req.User, webSession.GetName()); err != nil {
+	if err := websession.SetCookie(w, req.User, webSession.GetName(), webSession.Expiry()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2828,7 +2830,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := websession.SetCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
+	if err := websession.SetCookie(w, newSession.GetUser(), newSession.GetName(), newSession.Expiry()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2905,7 +2907,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	if err := websession.SetCookie(w, sess.GetUser(), sess.GetName()); err != nil {
+	if err := websession.SetCookie(w, sess.GetUser(), sess.GetName(), sess.Expiry()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3110,7 +3112,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	// Fetch user from session, user is empty for passwordless requests.
 	user := session.GetUser()
-	if err := websession.SetCookie(w, user, session.GetName()); err != nil {
+	if err := websession.SetCookie(w, user, session.GetName(), session.Expiry()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3258,26 +3260,6 @@ type loginGetter interface {
 	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
 }
 
-// calculateSSHLogins returns the subset of the allowedLogins that exist in
-// the principals of the identity. This is required because SSH authorization
-// only allows using a login that exists in the certificates valid principals.
-// When connecting to servers in a leaf cluster, the root certificate is used,
-// so we need to ensure that we only present the allowed logins that would
-// result in a successful connection, if any exists.
-func calculateSSHLogins(identity *tlsca.Identity, allowedLogins []string) ([]string, error) {
-	allowed := set.New(allowedLogins...)
-
-	var logins []string
-	for _, local := range identity.Principals {
-		if allowed.Contains(local) {
-			logins = append(logins, local)
-		}
-	}
-
-	slices.Sort(logins)
-	return logins, nil
-}
-
 // calculateAppLogins determines the app logins allowed for the provided
 // resource.
 //
@@ -3358,7 +3340,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.Server:
 			switch enriched.GetKind() {
 			case types.KindNode:
-				logins, err := calculateSSHLogins(identity, enriched.Logins)
+				logins, err := client.CalculateSSHLogins(identity.Principals, enriched.Logins)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -3457,7 +3439,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			continue
 		}
 
-		logins, err := calculateSSHLogins(identity, resource.Logins)
+		logins, err := client.CalculateSSHLogins(identity.Principals, resource.Logins)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3820,7 +3802,7 @@ func (f SessionControllerFunc) AcquireSessionContext(ctx context.Context, sctx *
 func (h *Handler) siteNodeConnect(
 	w http.ResponseWriter,
 	r *http.Request,
-	p httprouter.Params,
+	_ httprouter.Params,
 	sessionCtx *SessionContext,
 	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
@@ -4243,6 +4225,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		parties = append(parties, session.Party{
 			ID:         session.ID(participant.ID),
 			User:       participant.User,
+			Cluster:    participant.Cluster,
 			ServerID:   tracker.GetAddress(),
 			LastActive: participant.LastActive,
 			// note: we don't populate the RemoteAddr field since it isn't used and we don't have an equivalent value
@@ -5372,6 +5355,10 @@ type SSOCallbackResponse struct {
 	// SessionName is the name of the session generated by auth server if
 	// requested in the SSO request.
 	SessionName string
+	// SessionExpiry is the expiration of the session. This is used
+	// to set the expiration time of the cookie. If no expiraton is set,
+	// the cookie with be a "session cookie", which is removed when the browser closes.
+	SessionExpiry time.Time
 	// ClientRedirectURL is the URL to redirect back to on completion of
 	// the SSO login process.
 	ClientRedirectURL string
@@ -5396,7 +5383,7 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		}
 	}
 
-	if err := websession.SetCookie(w, response.Username, response.SessionName); err != nil {
+	if err := websession.SetCookie(w, response.Username, response.SessionName, response.SessionExpiry); err != nil {
 		return trace.Wrap(err)
 	}
 

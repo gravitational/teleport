@@ -26,6 +26,7 @@ import {
   useState,
 } from 'react';
 
+import { deserializeError } from 'teleterm/mainProcess/ipcSerializer';
 import { type AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -48,7 +49,12 @@ export function AppUpdaterContextProvider(props: PropsWithChildren) {
 
   useEffect(() => {
     const { cleanup: cleanUpEvents } =
-      appContext.mainProcessClient.subscribeToAppUpdateEvents(setUpdateEvent);
+      appContext.mainProcessClient.subscribeToAppUpdateEvents(event => {
+        if (event.kind === 'error') {
+          event.error = deserializeError(event.error);
+        }
+        setUpdateEvent(event);
+      });
     const { cleanup: cleanUpDialog } =
       appContext.mainProcessClient.subscribeToOpenAppUpdateDialog(openDialog);
 

@@ -2,9 +2,10 @@
 title: MySQL Automatic User Provisioning
 sidebar_label: MySQL
 description: Configure automatic user provisioning for MySQL.
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 Teleport can automatically create an account in your MySQL database when a
@@ -131,6 +132,8 @@ database queries in the Teleport Audit Logs, when the Teleport username is over
 ## Step 3/3. Connect to the database
 
 (!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="MySQL Workbench"!)
+
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="MySQL"!)
 
 ## Troubleshooting
 

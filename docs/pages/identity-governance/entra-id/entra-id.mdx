@@ -1,8 +1,10 @@
 ---
 title: Entra ID Integration
 description: Describes how Entra ID integration works in Teleport.
-labels:
+tags:
  - identity-governance
+ - azure
+ - privileged-access
 ---
 
 The Entra ID integration enables the following features in Teleport:
@@ -45,11 +47,13 @@ authentication method.
 
 #### System credentials
 
-Designed for air-gapped Teleport clusters that are not publicly accessible, this setup 
-accommodates environments where Entra ID cannot validate OIDC tokens issued by Teleport. 
+In this setup, Teleport relies on the Microsoft Graph API credentials available where the 
+Teleport Auth Service is running. The setup typically involves configuring a managed identity
+for Teleport Auth Service and assigning that managed identity with the Microsoft Graph API 
+permissions required by the Teleport Entra ID integration.
 
-Instead, Teleport relies on API credentials available where the Teleport 
-Auth Service is running.
+This method is best suited for an air-gapped Teleport clusters where the Teleport Proxy Service
+is not publicly accessible.
 
 ### Choosing guided or manual Entra ID configuration method
 
@@ -68,5 +72,6 @@ configuration methods, for both Teleport as OIDC IdP and system credential based
 
 ## Guides
 
-- [Getting Started with Entra ID integration](getting-started.mdx)
-- [Manual Entra ID configuration](manual-installation.mdx)
+- [Getting Started with the Entra ID Integration](getting-started.mdx)
+- [Configure the Entra ID Integration using Azure Portal](manual-installation.mdx)
+- [Configure the Entra ID Integration using Terraform](terraform.mdx)

@@ -49,7 +49,7 @@ func TestHealthCheckConfig(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*healthcheckconfigv1.HealthCheckConfig]{
+	testResources153(t, p, testFuncs[*healthcheckconfigv1.HealthCheckConfig]{
 		newResource: func(name string) (*healthcheckconfigv1.HealthCheckConfig, error) {
 			return newHealthCheckConfig(t, name), nil
 		},
@@ -66,10 +66,10 @@ func TestHealthCheckConfig(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		deleteAll: p.healthCheckConfig.DeleteAllHealthCheckConfigs,
-		cacheList: func(ctx context.Context) ([]*healthcheckconfigv1.HealthCheckConfig, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*healthcheckconfigv1.HealthCheckConfig, error) {
 			items, _, err := p.cache.ListHealthCheckConfigs(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		cacheGet: p.cache.GetHealthCheckConfig,
-	})
+	}, withSkipPaginationTest())
 }

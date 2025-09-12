@@ -475,15 +475,10 @@ func TestStart(t *testing.T) {
 
 	// Fetch the services.App that the service heartbeat.
 	var servers []types.AppServer
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		apps, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, defaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		if !assert.Len(t, apps, 3) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, apps, 3)
 		servers = apps
 	}, 10*time.Second, 100*time.Millisecond)
 

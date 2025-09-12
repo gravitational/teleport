@@ -25,6 +25,8 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
+	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -32,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -39,28 +42,18 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-// It takes forever to generate RSA4096 keys so we generate and cache a few to be used by the fakeKeyStore
-// instead of actually generating a new key every time a test needs one. This cuts down flaky test execution
-// time to ~20-30s instead of timing out at >10m
-var cachedDecrypters = initDecrypters()
-
-func initDecrypters() []crypto.Decrypter {
-	var decrypters []crypto.Decrypter
-	for range 10 {
-		decrypter, err := cryptosuites.GenerateDecrypterWithAlgorithm(cryptosuites.RSA4096)
-		if err != nil {
-			panic("failed to generate RSA 4096 key")
-		}
-
-		decrypters = append(decrypters, decrypter)
-	}
-
-	return decrypters
+func TestMain(m *testing.M) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 type oaepDecrypter struct {
@@ -76,30 +69,36 @@ type fakeKeyStore struct {
 	keyType   types.PrivateKeyType // abusing this field as a way to simulate different auth servers
 	keys      map[string][]crypto.Decrypter
 	currLabel types.KeyLabel
-
-	cacheIdx int
 }
 
 func newFakeKeyStore(keyType types.PrivateKeyType) *fakeKeyStore {
 	return &fakeKeyStore{
 		keys:    make(map[string][]crypto.Decrypter),
 		keyType: keyType,
+		currLabel: types.KeyLabel{
+			Type:  "pkcs11",
+			Label: "test",
+		},
 	}
 }
 
 func (f *fakeKeyStore) genKeys() (crypto.Decrypter, []byte, error) {
-	decrypter := cachedDecrypters[f.cacheIdx]
-	f.cacheIdx += 1
-	if f.cacheIdx >= len(cachedDecrypters) {
-		f.cacheIdx = 0
-	}
-
-	publicKey, err := x509.MarshalPKIXPublicKey(decrypter.Public())
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA4096)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return decrypter, publicKey, nil
+	private, ok := signer.(*rsa.PrivateKey)
+	if !ok {
+		return nil, nil, trace.Errorf("expected RSA key")
+	}
+
+	publicKey, err := x509.MarshalPKIXPublicKey(&private.PublicKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return private, publicKey, nil
 }
 
 func (f *fakeKeyStore) createKey() (crypto.Decrypter, []byte, error) {
@@ -439,4 +438,218 @@ func TestUnwrapKey(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, fileKey, unwrappedKey)
+}
+
+func TestRotateKey(t *testing.T) {
+	ctx, bk := newLocalBackend(t)
+
+	config := newManagerConfig(t, bk, types.PrivateKeyType_RAW)
+	manager, err := recordingencryption.NewManager(ctx, config)
+	require.NoError(t, err)
+
+	req := &types.SessionRecordingConfigV2{}
+	require.NoError(t, req.CheckAndSetDefaults())
+	req.Spec.Encryption = &types.SessionRecordingEncryptionConfig{
+		Enabled: true,
+	}
+
+	// setup initial state
+	src, err := manager.CreateSessionRecordingConfig(ctx, req)
+	require.NoError(t, err)
+	encryptionKeys := src.GetEncryptionKeys()
+	require.Len(t, encryptionKeys, 1)
+
+	encryption, err := config.Backend.GetRecordingEncryption(ctx)
+	require.NoError(t, err)
+	activePairs := encryption.GetSpec().GetActiveKeyPairs()
+	require.Len(t, activePairs, 1)
+	initialKey := activePairs[0]
+	require.NotNil(t, initialKey.KeyPair)
+	require.NotEmpty(t, initialKey.KeyPair.PrivateKey)
+	require.NotEmpty(t, initialKey.KeyPair.PublicKey)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKey.State)
+
+	// rotate key
+	err = manager.RotateKey(ctx)
+	require.NoError(t, err)
+
+	encryption, err = config.Backend.GetRecordingEncryption(ctx)
+	require.NoError(t, err)
+	activePairs = encryption.GetSpec().GetActiveKeyPairs()
+	require.Len(t, activePairs, 2)
+
+	var foundInitialPair bool
+	var newPair *recordingencryptionv1.KeyPair
+	for _, pair := range activePairs {
+		if slices.Equal(initialKey.KeyPair.PublicKey, pair.KeyPair.PublicKey) {
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, pair.State)
+			foundInitialPair = true
+		} else {
+			newPair = pair
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, pair.State)
+		}
+	}
+
+	require.True(t, foundInitialPair && newPair != nil)
+
+	// complete rotation
+	err = manager.CompleteRotation(ctx)
+	require.NoError(t, err)
+
+	encryption, err = config.Backend.GetRecordingEncryption(ctx)
+	require.NoError(t, err)
+	activePairs = encryption.GetSpec().GetActiveKeyPairs()
+	require.Len(t, activePairs, 1)
+
+	require.Equal(t, newPair.KeyPair.PublicKey, activePairs[0].KeyPair.PublicKey)
+	require.Equal(t, newPair.KeyPair.PrivateKey, activePairs[0].KeyPair.PrivateKey)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, activePairs[0].State)
+
+	pubKey, err := x509.ParsePKIXPublicKey(initialKey.KeyPair.PublicKey)
+	require.NoError(t, err)
+
+	fingerprint, err := recordingencryption.Fingerprint(pubKey)
+	require.NoError(t, err)
+
+	rotatedKey, err := config.Backend.GetRotatedKey(ctx, fingerprint)
+	require.NoError(t, err)
+
+	require.Equal(t, initialKey.KeyPair.PublicKey, rotatedKey.Spec.EncryptionKeyPair.PublicKey)
+	require.Equal(t, initialKey.KeyPair.PrivateKey, rotatedKey.Spec.EncryptionKeyPair.PrivateKey)
+}
+
+func TestRotateRollback(t *testing.T) {
+	ctx, bk := newLocalBackend(t)
+
+	config := newManagerConfig(t, bk, types.PrivateKeyType_RAW)
+	manager, err := recordingencryption.NewManager(ctx, config)
+	require.NoError(t, err)
+
+	req := &types.SessionRecordingConfigV2{}
+	require.NoError(t, req.CheckAndSetDefaults())
+	req.Spec.Encryption = &types.SessionRecordingEncryptionConfig{
+		Enabled: true,
+	}
+
+	// setup initial state
+	src, err := manager.CreateSessionRecordingConfig(ctx, req)
+	require.NoError(t, err)
+	encryptionKeys := src.GetEncryptionKeys()
+	require.Len(t, encryptionKeys, 1)
+
+	encryption, err := config.Backend.GetRecordingEncryption(ctx)
+	require.NoError(t, err)
+	activePairs := encryption.GetSpec().GetActiveKeyPairs()
+	require.Len(t, activePairs, 1)
+	initialKey := proto.CloneOf(activePairs[0])
+	require.NotNil(t, initialKey.KeyPair)
+	require.NotEmpty(t, initialKey.KeyPair.PrivateKey)
+	require.NotEmpty(t, initialKey.KeyPair.PublicKey)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKey.State)
+
+	// rotate key
+	err = manager.RotateKey(ctx)
+	require.NoError(t, err)
+
+	encryption, err = config.Backend.GetRecordingEncryption(ctx)
+	require.NoError(t, err)
+	activePairs = encryption.GetSpec().GetActiveKeyPairs()
+	require.Len(t, activePairs, 2)
+
+	var foundInitialPair bool
+	var newPair *recordingencryptionv1.KeyPair
+	for _, pair := range activePairs {
+		if slices.Equal(initialKey.KeyPair.PublicKey, pair.KeyPair.PublicKey) {
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, pair.State)
+			foundInitialPair = true
+		} else {
+			newPair = pair
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, pair.State)
+		}
+	}
+
+	require.True(t, foundInitialPair && newPair != nil)
+
+	// rollback rotation
+	err = manager.RollbackRotation(ctx)
+	require.NoError(t, err)
+
+	encryption, err = config.Backend.GetRecordingEncryption(ctx)
+	require.NoError(t, err)
+	activePairs = encryption.GetSpec().GetActiveKeyPairs()
+	require.Len(t, activePairs, 1)
+
+	require.Equal(t, initialKey.KeyPair.PublicKey, activePairs[0].KeyPair.PublicKey)
+	require.Equal(t, initialKey.KeyPair.PrivateKey, activePairs[0].KeyPair.PrivateKey)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, activePairs[0].State)
+
+	pubKey, err := x509.ParsePKIXPublicKey(initialKey.KeyPair.PublicKey)
+	require.NoError(t, err)
+
+	fingerprint, err := recordingencryption.Fingerprint(pubKey)
+	require.NoError(t, err)
+
+	// no rotated key should be found after a rollback
+	_, err = config.Backend.GetRotatedKey(ctx, fingerprint)
+	require.Error(t, err)
+}
+
+func TestRotateKeyDisabled(t *testing.T) {
+	ctx, bk := newLocalBackend(t)
+
+	config := newManagerConfig(t, bk, types.PrivateKeyType_RAW)
+	manager, err := recordingencryption.NewManager(ctx, config)
+	require.NoError(t, err)
+
+	req := &types.SessionRecordingConfigV2{}
+	require.NoError(t, req.CheckAndSetDefaults())
+	req.Spec.Encryption = &types.SessionRecordingEncryptionConfig{
+		Enabled: false,
+	}
+
+	// setup initial state
+	src, err := manager.CreateSessionRecordingConfig(ctx, req)
+	require.NoError(t, err)
+
+	err = manager.RotateKey(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	_, err = manager.GetRotationState(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	err = manager.CompleteRotation(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	err = manager.RollbackRotation(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	_, err = config.KeyStore.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
+	require.NoError(t, err)
+
+	cfg, ok := src.(*types.SessionRecordingConfigV2)
+	require.True(t, ok, "expected SessionRecordingConfigV2")
+
+	cfg.Spec.Encryption.Enabled = true
+	cfg.Spec.Encryption.ManualKeyManagement = &types.ManualKeyManagementConfig{
+		Enabled: true,
+		ActiveKeys: []*types.KeyLabel{{
+			Type:  "pkcs11",
+			Label: "test",
+		}},
+	}
+
+	_, err = manager.UpdateSessionRecordingConfig(ctx, req)
+	require.NoError(t, err)
+
+	err = manager.RotateKey(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	_, err = manager.GetRotationState(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	err = manager.CompleteRotation(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	err = manager.RollbackRotation(ctx)
+	require.True(t, trace.IsNotFound(err))
 }

@@ -35,145 +35,144 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
-func newClusterPeers(clusterName string) *clusterPeers {
-	return &clusterPeers{
+func newExpectedLeafClusters(clusterName string) *expectedLeafClusters {
+	return &expectedLeafClusters{
 		clusterName: clusterName,
-		peers:       make(map[string]*clusterPeer),
+		clusters:    make(map[string]*expectedLeafCluster),
 	}
 }
 
-// clusterPeers is a collection of cluster peers to a given cluster
-type clusterPeers struct {
+// expectedLeafClusters is a collection of placeholders for a given cluster.
+type expectedLeafClusters struct {
 	clusterName string
-	peers       map[string]*clusterPeer
+	clusters    map[string]*expectedLeafCluster
 }
 
-func (p *clusterPeers) GetTunnelsCount() int {
-	return len(p.peers)
+func (p *expectedLeafClusters) GetTunnelsCount() int {
+	return len(p.clusters)
 }
 
-func (p *clusterPeers) pickPeer() (*clusterPeer, error) {
-	var currentPeer *clusterPeer
-	for _, peer := range p.peers {
-		if currentPeer == nil || peer.getConnInfo().GetLastHeartbeat().After(currentPeer.getConnInfo().GetLastHeartbeat()) {
-			currentPeer = peer
+func (p *expectedLeafClusters) pickCluster() (*expectedLeafCluster, error) {
+	var currentCluster *expectedLeafCluster
+	for _, cluster := range p.clusters {
+		if currentCluster == nil || cluster.getConnInfo().GetLastHeartbeat().After(currentCluster.getConnInfo().GetLastHeartbeat()) {
+			currentCluster = cluster
 		}
 	}
-	if currentPeer == nil {
-		return nil, trace.NotFound("no active peers found for %v", p.clusterName)
+	if currentCluster == nil {
+		return nil, trace.NotFound("no active clusters found for %v", p.clusterName)
 	}
-	return currentPeer, nil
+	return currentCluster, nil
 }
 
-func (p *clusterPeers) updatePeer(conn types.TunnelConnection) bool {
-	peer, ok := p.peers[conn.GetName()]
+func (p *expectedLeafClusters) updateCluster(conn types.TunnelConnection) bool {
+	cluster, ok := p.clusters[conn.GetName()]
 	if !ok {
 		return false
 	}
-	peer.setConnInfo(conn)
+	cluster.setConnInfo(conn)
 	return true
 }
 
-func (p *clusterPeers) addPeer(peer *clusterPeer) {
-	p.peers[peer.getConnInfo().GetName()] = peer
+func (p *expectedLeafClusters) addCluster(cluster *expectedLeafCluster) {
+	p.clusters[cluster.getConnInfo().GetName()] = cluster
 }
 
-func (p *clusterPeers) removePeer(connInfo types.TunnelConnection) {
-	delete(p.peers, connInfo.GetName())
+func (p *expectedLeafClusters) removeCluster(connInfo types.TunnelConnection) {
+	delete(p.clusters, connInfo.GetName())
 }
 
-func (p *clusterPeers) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
-	peer, err := p.pickPeer()
+func (p *expectedLeafClusters) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
+	cluster, err := p.pickCluster()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return peer.CachingAccessPoint()
+	return cluster.CachingAccessPoint()
 }
 
-func (p *clusterPeers) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	peer, err := p.pickPeer()
+func (p *expectedLeafClusters) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+	cluster, err := p.pickCluster()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return peer.NodeWatcher()
+	return cluster.NodeWatcher()
 }
 
-func (p *clusterPeers) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	peer, err := p.pickPeer()
+func (p *expectedLeafClusters) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+	cluster, err := p.pickCluster()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return peer.GitServerWatcher()
+	return cluster.GitServerWatcher()
 }
 
-func (p *clusterPeers) GetClient() (authclient.ClientI, error) {
-	peer, err := p.pickPeer()
+func (p *expectedLeafClusters) GetClient() (authclient.ClientI, error) {
+	cluster, err := p.pickCluster()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return peer.GetClient()
+	return cluster.GetClient()
 }
 
-func (p *clusterPeers) String() string {
-	return fmt.Sprintf("clusterPeer(%v)", p.clusterName)
+func (p *expectedLeafClusters) String() string {
+	return fmt.Sprintf("expectedLeafClusters(%v)", p.clusterName)
 }
 
-func (p *clusterPeers) GetStatus() string {
-	peer, err := p.pickPeer()
+func (p *expectedLeafClusters) GetStatus() string {
+	cluster, err := p.pickCluster()
 	if err != nil {
 		return teleport.RemoteClusterStatusOffline
 	}
-	return peer.GetStatus()
+	return cluster.GetStatus()
 }
 
-func (p *clusterPeers) GetName() string {
+func (p *expectedLeafClusters) GetName() string {
 	return p.clusterName
 }
 
-func (p *clusterPeers) GetLastConnected() time.Time {
-	peer, err := p.pickPeer()
+func (p *expectedLeafClusters) GetLastConnected() time.Time {
+	cluster, err := p.pickCluster()
 	if err != nil {
 		return time.Time{}
 	}
-	return peer.GetLastConnected()
+	return cluster.GetLastConnected()
 }
 
-func (p *clusterPeers) DialAuthServer(reversetunnelclient.DialParams) (net.Conn, error) {
+func (p *expectedLeafClusters) DialAuthServer(reversetunnelclient.DialParams) (net.Conn, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial to auth server, this proxy has not been discovered yet, try again later")
 }
 
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
-// located in a remote connected site, the connection goes through the
+// located in a leaf cluster, the connection goes through the
 // reverse proxy tunnel.
-func (p *clusterPeers) Dial(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
+func (p *expectedLeafClusters) Dial(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	return p.DialTCP(params)
 }
 
-func (p *clusterPeers) DialTCP(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
+func (p *expectedLeafClusters) DialTCP(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy has not been discovered yet, try again later")
 }
 
-// IsClosed always returns false because clusterPeers is never closed.
-func (p *clusterPeers) IsClosed() bool { return false }
+// IsClosed always returns false because expectedLeafCluster is never closed.
+func (p *expectedLeafClusters) IsClosed() bool { return false }
 
-// Close always returns nil because a clusterPeers isn't closed.
-func (p *clusterPeers) Close() error { return nil }
+// Close is noop.
+func (p *expectedLeafClusters) Close() error { return nil }
 
-// newClusterPeer returns new cluster peer
-func newClusterPeer(srv *server, connInfo types.TunnelConnection, offlineThreshold time.Duration) (*clusterPeer, error) {
-	clusterPeer := &clusterPeer{
+// newExpectedLeafCluster returns new cluster placeholder.
+func newExpectedLeafCluster(srv *server, connInfo types.TunnelConnection, offlineThreshold time.Duration) *expectedLeafCluster {
+	return &expectedLeafCluster{
 		srv:              srv,
 		connInfo:         connInfo,
 		clock:            clockwork.NewRealClock(),
 		offlineThreshold: offlineThreshold,
 	}
 
-	return clusterPeer, nil
 }
 
-// clusterPeer is a remote cluster that has established
-// a tunnel to the peers
-type clusterPeer struct {
+// expectedLeafCluster represents a connection to a leaf
+// cluster that has yet to register any tunnels
+type expectedLeafCluster struct {
 	mu       sync.Mutex
 	connInfo types.TunnelConnection
 	srv      *server
@@ -186,66 +185,66 @@ type clusterPeer struct {
 	offlineThreshold time.Duration
 }
 
-func (s *clusterPeer) getConnInfo() types.TunnelConnection {
+func (s *expectedLeafCluster) getConnInfo() types.TunnelConnection {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.connInfo
 }
 
-func (s *clusterPeer) setConnInfo(ci types.TunnelConnection) {
+func (s *expectedLeafCluster) setConnInfo(ci types.TunnelConnection) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.connInfo = ci
 }
 
-func (s *clusterPeer) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
+func (s *expectedLeafCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
 }
 
-func (s *clusterPeer) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+func (s *expectedLeafCluster) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 
-func (s *clusterPeer) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+func (s *expectedLeafCluster) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch git server watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 
-func (s *clusterPeer) GetClient() (authclient.ClientI, error) {
+func (s *expectedLeafCluster) GetClient() (authclient.ClientI, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch client, this proxy %v has not been discovered yet, try again later", s)
 }
 
-func (s *clusterPeer) String() string {
+func (s *expectedLeafCluster) String() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return fmt.Sprintf("clusterPeer(%v)", s.connInfo)
+	return fmt.Sprintf("expectedLeafCluster(%v)", s.connInfo)
 }
 
-func (s *clusterPeer) GetStatus() string {
+func (s *expectedLeafCluster) GetStatus() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return services.TunnelConnectionStatus(s.clock, s.connInfo, s.offlineThreshold)
 }
 
-func (s *clusterPeer) GetName() string {
+func (s *expectedLeafCluster) GetName() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.connInfo.GetClusterName()
 }
 
-func (s *clusterPeer) GetLastConnected() time.Time {
+func (s *expectedLeafCluster) GetLastConnected() time.Time {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.connInfo.GetLastHeartbeat()
 }
 
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
-// located in a remote connected site, the connection goes through the
+// located in a leaf clsuter, the connection goes through the
 // reverse proxy tunnel.
-func (s *clusterPeer) Dial(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
+func (s *expectedLeafCluster) Dial(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy %v has not been discovered yet, try again later", s)
 }
 
-// Close closes cluster peer connections
-func (s *clusterPeer) Close() error {
+// Close is a noop.
+func (s *expectedLeafCluster) Close() error {
 	return nil
 }
