@@ -90,7 +90,7 @@ func (c *Client) DialContext(ctx context.Context, n, addr string) (net.Conn, err
 	)
 	defer span.End()
 
-	// create a new connWrapper to propagate the current ctx to the ssh.OpenChannel span.
+	// create a new connWrapper to propagate the span ctx to child (ssh.OpenChannel).
 	wrapper := &connWrapper{
 		capability: c.capability,
 		Conn:       c.Client.Conn,
@@ -166,7 +166,7 @@ func (c *Client) OpenChannel(
 // NewSession opens a new Session for this client.
 func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		"ssh.NewSession",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -181,7 +181,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	)
 	defer span.End()
 
-	// create a new connWrapper to propagate the current ctx to child (ssh.ChannelRequests).
+	// create a new connWrapper to propagate the span ctx to child (ssh.ChannelRequest).
 	wrapper := &connWrapper{
 		capability: c.capability,
 		Conn:       c.Client.Conn,
