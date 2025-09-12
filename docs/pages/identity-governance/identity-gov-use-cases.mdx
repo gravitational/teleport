@@ -11,94 +11,75 @@ The following use cases highlight practical ways to apply Teleport's governance 
 with device and identity providers, monitoring risky access patterns, and extending controls into external services. 
 Each scenario links to detailed guides so you can quickly put these capabilities into practice.
 
+## Identity integrations
+
+Teleport supports multiple identity options so you can plug into your existing stack or make Teleport your source of truth. 
+Use **AWS IAM Identity Center**, **Okta,** or **Microsoft Entra ID** to authenticate users into Teleport via SSO and sync groups to roles 
+for least-privilege access across infrastructure. If you prefer, you can also run **Teleport as an identity provider**, issuing 
+short-lived credentials and federating access to downstream apps and services. These integrations enable centralized onboarding/offboarding, 
+group-to-role mapping, and consistent policy enforcement across all your resources.
+
 <TileGrid
   tiles={[
     {
-      icon: <img src="../../img/identity-center/<placeholder>" alt="Access Requests" />,
-      to: "./access-requests/access-requests.mdx",
-      name: "Just-in-time Access Requests",
-    },
-        {
-      icon: <img src="../../img/identity-center/<placeholder>" alt="Access Request plugins" />,
-      to: "./access-request-plugins/access-request-plugins.mdx",
-      name: "Just-in-time Access Request plugins",
+      icon: <Icon name="AWS-IAM-IdentityCenter" size="xl" />,
+      to: "/identity-governance/aws-iam-identity-center",
+      name: "AWS IAM Identity Center",
     },
     {
-      icon: <img src="../../img/identity-center/<placeholder>" alt="Access Lists" />,
-      to: "./access-lists/access-lists.mdx",
-      name: "Access Lists",
+      icon: <Icon name="oktaIntegration" size="xl" />,
+      to: "/identity-governance/okta",
+      name: "Okta Integration",
     },
     {
-      icon: <img src="../../img/identity-center/<placeholder>" alt="Okta integration" />,
-      to: "./okta/okta.mdx",
-      name: "Teleport Okta integration",
+      icon: <Icon name="entraIDIntegration" size="xl" />,
+      to: "/identity-governance/entra-id/getting-started",
+      name: "Entra ID Integration",
     },
     {
-      icon: <img src="../../img/identity-center/<placeholder>" alt="Device Trust" />,
-      to: "./device-trust/device-trust.mdx",
-      name: "Device Trust",
-    },
-    {
-      icon: <img src="../../img/identity-center/<placeholder>" alt="Locking" />,
-      to: "./locking.mdx",
-      name: "Session and Identity Locking",
-    },
-    {
-      icon: <img src="../../img/identity-center/<placeholder>" alt="Monitoring" />,
-      to: "./access-monitoring.mdx",
-      name: "Access Monitoring",
+      icon: <Icon name="teleportIdentity provider" size="xl" />,
+      to: "/identity-governance/idps",
+      name: "Teleport as an identity provider",
     }
   ]}
 />
 
 ## Just-in-time Access Requests
 
-Grant temporary access when it's needed.
+[Grant temporary access when it's needed](./access-requests/access-requests.mdx).
 Developers request elevated roles only for the specific task and duration required. 
 Approvals are tracked in the audit log, and Teleport issues short-lived certificates 
 so access automatically expires without manual cleanup.
 
 ## Just-in-time Access Request plugins
 
-Manage requests via third-party tools.
+[Manage requests via third-party tools](./access-request-plugins/access-request-plugins.mdx).
 Review and approve requests where your team already works, such as Slack, Microsoft Teams, PagerDuty, Jira, ServiceNow, and more. 
 Plugins enforce your reviewer policies, post status updates, and keep a complete, auditable trail.
 
 ## Access Lists
 
-Grant auditable access by user group.
+[Grant auditable access by user group](./access-lists/access-lists.mdx).
 Define membership-based access with owners, eligibility rules, and time-boxed enrollment. 
 Access Lists map groups to Teleport roles, require periodic reviews, and provide a clear record of who had access and why.
 
-## Teleport Okta integration
-
-Import and grant Okta access through Teleport.
-Use Okta for SSO and group management, then map groups to Teleport roles for least-privilege access across infrastructure. 
-Changes in Okta propagate to Teleport immediately, simplifying onboarding and deprovisioning.
-
 ## Device Trust
 
-Enforce trusted registered device access.
+[Enforce trusted registered device access](./device-trust/device-trust.mdx).
 Require users to log in from registered, healthy devices before Teleport issues credentials. 
 Device identity and posture checks help block access from unknown or non-compliant laptops by policy.
 
 ## Session and Identity Locking
 
-Lock compromised users and resources.
+[Lock compromised users and resources](./locking.mdx).
 Instantly quarantine a user, device, or node to cut off access in an incident. Locks terminate active sessions, 
 prevent new certificate issuance, and are fully scoped and time-limited for safe rollback.
 
-## Access Monitoring
-
-Monitor access patterns and detect risky behaviors.
-Leverage audit events, session recordings, and Access Graph queries to see who can reach what, and who actually did. 
-Export signals to your SIEM for alerting on unusual activity and continuous compliance.
-
 ## Further reading
 
-- Read about all of the ways you can configure Access Requests in the [Access
-  Request Configuration Guide](access-request-configuration.mdx).
+- Read about all of the ways you can configure Access Requests in the 
+[Access Request Configuration Guide](../identity-governance/access-requests/access-request-configuration.mdx).
 - To read more about the architecture of an Access Request plugin, and start writing your own, 
-read our [Access Request plugin development guide](access-plugin.mdx).
-- Learn how [nested Access Lists](./nested-access-lists.mdx) grants inheritance work.
-- Learn how [SCIM](/okta/scim-integration.mdx) (System for Cross-domain Identity Management) integration supports automated user management.
+read our [Access Request plugin development guide](../identity-governance/access-request-plugins/access-plugin.mdx).
+- Learn how [nested Access Lists](../identity-governance/access-lists/nested-access-lists.mdx) grants inheritance work.
+- Learn how [SCIM](./okta/scim-integration.mdx) (System for Cross-domain Identity Management) integration supports automated user management.
