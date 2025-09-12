@@ -198,6 +198,18 @@ type Config struct {
 	// Remote host to connect
 	Host string
 
+	// SFTPSrcHost is the remote host to connect to for sftp sources.
+	SFTPSrcHost string
+
+	// SFTPSrcLogin is the remote login to use for sftp sources.
+	SFTPSrcLogin string
+
+	// SFTPDestHost is the remote host to connect to for the sftp destination.
+	SFTPDestHost string
+
+	// SFTPDestLogin is the remote login to use for the sftp destination.
+	SFTPDestLogin string
+
 	// SearchKeywords host to connect
 	SearchKeywords []string
 
@@ -1584,24 +1596,30 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 	)
 	defer span.End()
 
-	if options != nil && options.HostAddress != "" {
-		return &TargetNode{
-			Hostname: options.HostAddress,
-			Addr:     options.HostAddress,
-		}, nil
+	defaultHost := tc.Host
+	if options != nil {
+		if options.HostAddress != "" {
+			return &TargetNode{
+				Hostname: options.HostAddress,
+				Addr:     options.HostAddress,
+			}, nil
+		}
+		if options.DefaultHost != "" {
+			defaultHost = options.DefaultHost
+		}
 	}
 
 	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
-		log.DebugContext(ctx, "Using provided host", "host", tc.Host)
+		log.DebugContext(ctx, "Using provided host", "host", defaultHost)
 
 		// detect the common error when users use host:port address format
-		_, port, err := net.SplitHostPort(tc.Host)
+		_, port, err := net.SplitHostPort(defaultHost)
 		// client has used host:port notation
 		if err == nil {
 			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
 		}
 
-		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+		addr := net.JoinHostPort(defaultHost, strconv.Itoa(tc.HostPort))
 		return &TargetNode{
 			Hostname: tc.Host,
 			Addr:     addr,
@@ -1896,6 +1914,9 @@ type SSHOptions struct {
 	// HostAddress is the address of the target host. If specified it
 	// will be used instead of the target provided when `tsh ssh` was invoked.
 	HostAddress string
+	// DefaultHost overrides the default host to use when connecting to a node
+	// with no provided labels, search keywords, or predicate expression.
+	DefaultHost string
 	// LocalCommandExecutor should be used to execute the command on the local
 	// machine. If provided, it will be used instead of establishing a connection
 	// to the target host and executing the command remotely.
@@ -2572,8 +2593,25 @@ func PlayFile(ctx context.Context, filename, sid string, speed float64, skipIdle
 	return playSession(ctx, sid, speed, streamer, skipIdleTime)
 }
 
-// SFTP securely copies files between Nodes or SSH servers using SFTP
-func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination string, opts sftp.Options) (err error) {
+// SFTPRequests controls aspects of a file transfer.
+type SFTPRequest struct {
+	// Sources are the source paths to transfer from, with optional user and host.
+	Sources []string
+	// Destination is the destination path to transfer to, with optional user and host.
+	Destination string
+	// Recursive indicates recursive file transfer.
+	Recursive bool
+	// PreserveAttrs preserves access and modification times
+	// from the original file.
+	PreserveAttrs bool
+	// Quiet indicates whether progress should be displayed.
+	Quiet bool
+	// ProgressWriter is used to write the progress output.
+	ProgressWriter io.Writer
+}
+
+// SFTP securely copies files between Nodes or SSH servers using SFTP.
+func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SFTP",
@@ -2581,53 +2619,76 @@ func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination
 	)
 	defer span.End()
 
-	isDownload := strings.ContainsRune(source[0], ':')
-	isUpload := strings.ContainsRune(destination, ':')
-
-	if !isUpload && !isDownload {
-		return trace.BadParameter("no remote destination specified")
-	}
-
 	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer clt.Close()
 
-	// Respect any proxy templates and attempt host resolution.
-	target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
+	// Parse sources and destination.
+	sources, err := sftp.ParseSources(req.Sources, tc.HostPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	var cfg *sftp.Config
-	switch {
-	case isDownload:
-		dest, err := sftp.ParseDestination(source[0])
+	if sources.Addr != nil {
+		// Respect any proxy templates and attempt host resolution.
+		target, err := tc.GetTargetNode(ctx, clt.AuthClient, &SSHOptions{
+			DefaultHost: sources.Addr.Host(),
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg, err = sftp.CreateDownloadConfig(dest.Path, destination, opts)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	case isUpload:
-		dest, err := sftp.ParseDestination(destination)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg, err = sftp.CreateUploadConfig(source, dest.Path, opts)
-		if err != nil {
+		if err := sources.Addr.Set(target.Addr); err != nil {
 			return trace.Wrap(err)
 		}
 	}
+	if sources.Login == "" {
+		sources.Login = tc.HostLogin
+	}
+	dest, err := sftp.ParseTarget(req.Destination, tc.HostPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if dest.Addr != nil {
+		// Respect any proxy templates and attempt host resolution.
+		target, err := tc.GetTargetNode(ctx, clt.AuthClient, &SSHOptions{
+			DefaultHost: dest.Addr.Host(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := dest.Addr.Set(target.Addr); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if dest.Login == "" {
+		dest.Login = tc.HostLogin
+	}
 
-	return trace.Wrap(tc.TransferFiles(ctx, clt, tc.HostLogin, target.Addr, cfg))
+	sftpReq := sftp.FileTransferRequest{
+		Sources:     sources,
+		Destination: dest,
+		DialHost: func(ctx context.Context, login, addr string) (*ssh.Client, error) {
+			nodeClient, err := tc.ConnectToNode(ctx, clt, NodeDetails{
+				Addr:    addr,
+				Cluster: clt.ClusterName(),
+			}, login)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nodeClient.Client.Client, nil
+		},
+		Recursive:      req.Recursive,
+		PreserveAttrs:  req.PreserveAttrs,
+		Quiet:          req.Quiet,
+		ProgressWriter: req.ProgressWriter,
+	}
+	return trace.Wrap(tc.TransferFiles(ctx, sftpReq))
 }
 
 // TransferFiles copies files between the current machine and the
 // specified Node using the supplied config
-func (tc *TeleportClient) TransferFiles(ctx context.Context, clt *ClusterClient, hostLogin, nodeAddr string, cfg *sftp.Config) error {
+func (tc *TeleportClient) TransferFiles(ctx context.Context, req sftp.FileTransferRequest) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/TransferFiles",
@@ -2635,27 +2696,17 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, clt *ClusterClient,
 	)
 	defer span.End()
 
-	if hostLogin == "" {
-		return trace.BadParameter("host login is not specified")
-	}
-	if nodeAddr == "" {
-		return trace.BadParameter("node address is not specified")
-	}
+	if err := sftp.TransferFiles(ctx, req); err != nil {
+		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
+		// a trace.BadParameter error when ~user path expansion was rejected, and
+		// reauthentication logic is attempted on BadParameter errors.
+		if trace.IsBadParameter(err) && strings.Contains(err.Error(), "expanding remote ~user paths is not supported") {
+			return trace.Wrap(&NonRetryableError{Err: err})
+		}
 
-	nodeClient, err := tc.ConnectToNode(
-		ctx,
-		clt,
-		NodeDetails{
-			Addr:    nodeAddr,
-			Cluster: clt.ClusterName(),
-		},
-		hostLogin,
-	)
-	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	return trace.Wrap(nodeClient.TransferFiles(ctx, cfg))
+	return nil
 }
 
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
