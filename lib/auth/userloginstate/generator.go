@@ -327,22 +327,12 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 		state.Spec.Traits[k] = utils.Deduplicate(v)
 	}
 
-	// If there are no roles, don't bother filtering out non-existent roles
-	if len(state.Spec.Roles) == 0 {
-		return nil
-	}
-
 	// Make sure all the roles exist. If they don't, error out.
-	var existingRoles []string
 	for _, role := range state.Spec.Roles {
-		_, err := g.access.GetRole(ctx, role)
-		if err == nil {
-			existingRoles = append(existingRoles, role)
-		} else {
+		if _, err := g.access.GetRole(ctx, role); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	state.Spec.Roles = existingRoles
 
 	return nil
 }
