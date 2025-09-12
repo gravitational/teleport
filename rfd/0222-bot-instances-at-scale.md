@@ -388,8 +388,7 @@ enum BotInstanceHealthStatus {
 | Join token name |  |  | Once per auth |  |
 | Join method |  | github, iam, kubernetes | Once per auth |  |
 | Join attributes | Metadata specific to a join method | GitHub repository name | Once per auth |  |
-| Health status |  | INITIALIZING, HEALTHY, UNHEALTHY,
-UNKNOWN | Once per service |  |
+| Health status |  | INITIALIZING, HEALTHY, UNHEALTHY, UNKNOWN | Once per service |  |
 
 ## Resource storage (backend)
 
@@ -400,6 +399,14 @@ Configuration will be limited before it is sent by `tbot`. It will be stored as 
 Service health scales with the number of services/outputs `tbot` is configured with. It doesn't make sense to limit the number of service records, as this would no longer provide a complete picture of the instance. Service health items will be extracted to their own resources (`BotInstanceServiceHealth`) in `/bot_instance/:bot_name/:uuid/service_health/:service_name`. An instance can have any number of service records, but only one per user-provided service name. New data will overwrite existing data.
 
 Notices will be limited in number (likely 50) per instance, and older items will be discarded - much the same way as heartbeats and authentications work today. Notices for an instance are cleared when the instance starts-up (denoted by the heartbeat field `is_startup`). Notices will be stored as part of an instance's state, alongside heartbeats and authentications. Notice are required for filtering the list of bot instance in the web UI and CLI, and so need to remain local to the instance itself.
+
+To mitigate the risk of unforeseen consequences related to storing and serving additional data as part of `tbot` heartbeats (notice, service health and config), the auth server will respect an environment variable which will disable the ingestion of this additional data.
+
+```
+TELEPORT_DISABLE_TBOT_HEARTBEAT_EXTRAS=true|false teleport start
+```
+
+While `tbot` will continue to send the extra heartbeat data, and it will continue to be relayed by proxies, the auth server will discard it. The UI and CLI will not be aware of this configuration and will simply receive no data when requesting notices, service health or `tbot` config and display an empty state.
 
 ## Notices
 
@@ -464,6 +471,14 @@ To avoid the need to "elect" a leader to calculate these metrics, each auth serv
 | **GET /webapi/sites/:site/machine-id/bot/:name/bot-instance/:id/service_health** | A new paginated endpoint to return a list of health statuses, one for each instance service/output. Sorting will not be configurable, and will be in alphabetical order based on user-provided service name. No filtering is supported. |
 | **GET /webapi/sites/:site/machine-id/bot/:name/bot-instance/:id/notice** | A new paginated endpoint to return a list of notices for an instance. Sorting by recency is supported, with the most recent first by default. No filtering is supported. |
 | **GET /webapi/:site/machine-id/bot-instance/dashboard** | A new endpoint to return summary data for bot instances. The result will contain multiple named datasets (one for each supported visualization). A “last updated at” timestamp will be included to give users a sense of recency. |
+
+To mitigate the risk of unforeseen consequences related to storing and serving additional data as part of `tbot` heartbeats (notice, service health and config), the auth server will respect an environment variable which will disable the ingestion of this additional data.
+
+```
+TELEPORT_DISABLE_TBOT_HEARTBEAT_EXTRAS=true|false teleport start
+```
+
+While `tbot` will continue to send the extra heartbeat data, and it will continue to be relayed by proxies, the auth server will discard it. The UI and CLI will not be aware of this configuration and will simply receive no data when requesting notices, service health or `tbot` config and display an empty state.
 
 ## Backward Compatibility
 
