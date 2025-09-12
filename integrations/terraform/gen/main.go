@@ -292,6 +292,21 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
+	samlIdpServiceProvider = payload{
+		Name:                   "SAMLIdPServiceProvider",
+		TypeName:               "SAMLIdPServiceProviderV1",
+		VarName:                "samlIdpServiceProvider",
+		GetMethod:              "GetSAMLIdPServiceProvider",
+		CreateMethod:           "CreateSAMLIdPServiceProvider",
+		UpdateMethod:           "UpdateSAMLIdPServiceProvider",
+		DeleteMethod:           "DeleteSAMLIdPServiceProvider",
+		ID:                     "samlIdpServiceProvider.Metadata.Name",
+		Kind:                   "saml",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_saml_idp_service_provider",
+		HasCheckAndSetDefaults: true,
+	}
+
 	provisionToken = payload{
 		Name:                   "ProvisionToken",
 		TypeName:               "ProvisionTokenV2",
@@ -690,6 +705,8 @@ func genTFSchema() {
 	generateDataSource(oidcConnector, pluralDataSource)
 	generateResource(samlConnector, pluralResource)
 	generateDataSource(samlConnector, pluralDataSource)
+	generateResource(samlIdpServiceProvider, pluralResource)
+	generateDataSource(samlIdpServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
 	generateResource(role, pluralResource)

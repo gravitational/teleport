@@ -804,6 +804,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindOktaImportRule, RW()),
 					types.NewRule(types.KindRole, RW()),
 					types.NewRule(types.KindSAML, RW()),
+					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					types.NewRule(types.KindSessionRecordingConfig, RW()),
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
