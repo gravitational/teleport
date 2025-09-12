@@ -164,16 +164,14 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Ser
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cluster, err := tunnel.Cluster(ctx, clusterName)
-		if !assert.NoError(t, err, "site not found") {
-			return
-		}
+		require.NoError(t, err, "site not found")
 
-		assert.GreaterOrEqual(t, cluster.GetTunnelsCount(), expectedCount, "missing tunnels for site")
+		require.GreaterOrEqual(t, cluster.GetTunnelsCount(), expectedCount, "missing tunnels for site")
 
-		assert.Equal(t, teleport.RemoteClusterStatusOnline, cluster.GetStatus(), "cluster not online")
+		require.Equal(t, teleport.RemoteClusterStatusOnline, cluster.GetStatus(), "cluster not online")
 
 		_, err = cluster.GetClient()
-		assert.NoError(t, err, "cluster not yet available")
+		require.NoError(t, err, "cluster not yet available")
 	},
 		90*time.Second,
 		time.Second,

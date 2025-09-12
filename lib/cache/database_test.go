@@ -145,7 +145,7 @@ func TestDatabasesPagination(t *testing.T) {
 
 	// Wait for all the Databases to be replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.Equal(t, len(expected), p.cache.collections.dbs.store.len())
+		require.Equal(t, len(expected), p.cache.collections.dbs.store.len())
 	}, 15*time.Second, 100*time.Millisecond)
 
 	out, err := p.cache.GetDatabases(t.Context())

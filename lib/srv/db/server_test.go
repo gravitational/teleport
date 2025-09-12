@@ -472,15 +472,9 @@ func TestShutdown(t *testing.T) {
 			// the configured databases exist in the inventory.
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.Len(t, dbServers, 1) {
-					return
-				}
-				if !assert.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
-					return
-				}
+				require.NoError(t, err)
+				require.Len(t, dbServers, 1)
+				require.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 			}, 10*time.Second, 100*time.Millisecond)
 
 			require.NoError(t, server.Shutdown(ctx))
@@ -500,12 +494,8 @@ func TestShutdown(t *testing.T) {
 			} else {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-					if !assert.NoError(t, err) {
-						return
-					}
-					if !assert.Empty(t, dbServersAfterShutdown) {
-						return
-					}
+					require.NoError(t, err)
+					require.Empty(t, dbServersAfterShutdown)
 				}, 10*time.Second, 100*time.Millisecond)
 			}
 		})
@@ -606,7 +596,7 @@ func TestCloseWithActiveConnections(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		select {
 		case err := <-connErrCh:
-			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+			require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 		default:
 		}
 	}, time.Second, 100*time.Millisecond)
@@ -676,7 +666,7 @@ func TestHealthCheck(t *testing.T) {
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := testCtx.authServer.GetHealthCheckConfig(ctx, "match-all")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}, time.Second, time.Millisecond*100, "waiting for health check config")
 
 	// Generate ephemeral cert returned from mock GCP API.
@@ -767,7 +757,7 @@ func TestHealthCheck(t *testing.T) {
 				return
 			}
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				assert.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
+				require.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
 			}, 30*time.Second, time.Millisecond*250, "waiting for database %s to become healthy", db.GetName())
 		})
 	}

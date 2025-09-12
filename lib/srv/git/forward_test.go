@@ -270,7 +270,7 @@ func TestForwardServer(t *testing.T) {
 			if test.verifyEvent != nil {
 				// Server emits exec event after sending result to client.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					assert.NotNil(t, mockEmitter.LastEvent())
+					require.NotNil(t, mockEmitter.LastEvent())
 				}, time.Second*2, time.Millisecond*100, "Timeout waiting for audit event.")
 				test.verifyEvent(t, mockEmitter.LastEvent())
 			}

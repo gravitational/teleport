@@ -1069,18 +1069,18 @@ func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, c
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cluster, err := server.Cluster(ctx, clusterName)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		ap, err := cluster.CachingAccessPoint()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		apps, err := ap.GetApplicationServers(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		wantNames := sliceutils.Map(cfgApps, func(app servicecfg.App) string {
 			return app.Name
 		})
-		assert.Subset(t,
+		require.Subset(t,
 			slices.Collect(types.ResourceNames(apps)),
 			wantNames,
 		)

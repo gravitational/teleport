@@ -198,8 +198,8 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 		return
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.NoError(t, f())
-		assert.NoError(t, f())
+		require.NoError(t, f())
+		require.NoError(t, f())
 	}, 10*time.Second, 250*time.Millisecond, "admin client failed test call to GetClusterName")
 }
 

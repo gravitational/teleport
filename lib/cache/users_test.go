@@ -125,14 +125,16 @@ func TestUsers(t *testing.T) {
 	})
 
 	t.Run("ListUsers pagination", func(t *testing.T) {
+		ctx := t.Context()
+
 		err := p.usersS.DeleteAllUsers(t.Context())
 		require.NoError(t, err)
 
 		waitForUsersCacheLen := func(expected int) {
-			require.EventuallyWithT(t, func(c *assert.CollectT) {
-				got, err := p.cache.GetUsers(t.Context(), false)
-				require.NoError(c, err)
-				require.Len(c, got, expected)
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				got, err := p.cache.GetUsers(ctx, false)
+				require.NoError(t, err)
+				require.Len(t, got, expected)
 			}, 3*time.Second, time.Millisecond*100)
 		}
 		waitForUsersCacheLen(0)

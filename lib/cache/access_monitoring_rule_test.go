@@ -205,9 +205,9 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				results, next, err := p.cache.ListAccessMonitoringRules(ctx, 0, "")
-				assert.NoError(t, err)
-				assert.Empty(t, next)
-				assert.Len(t, results, 1)
+				require.NoError(t, err)
+				require.Empty(t, next)
+				require.Len(t, results, 1)
 			},
 				15*time.Second, 100*time.Millisecond)
 

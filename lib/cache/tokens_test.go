@@ -209,7 +209,7 @@ func TestTokensCacheFilters(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "")
 		require.NoError(t, err)
-		assert.Len(t, result, len(tokens))
+		require.Len(t, result, len(tokens))
 	}, 10*time.Second, 100*time.Millisecond)
 
 	t.Run("roles filter", func(t *testing.T) {

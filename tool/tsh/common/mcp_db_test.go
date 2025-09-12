@@ -154,10 +154,10 @@ func TestMCPDBCommand(t *testing.T) {
 		Version: "1.0.0",
 	}
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		_, err = clt.Initialize(t.Context(), req)
-		require.NoError(collect, err)
-		require.NoError(collect, clt.Ping(t.Context()))
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err = clt.Initialize(ctx, req)
+		require.NoError(t, err)
+		require.NoError(t, clt.Ping(ctx))
 	}, time.Second, 100*time.Millisecond)
 
 	tools, err := clt.ListTools(t.Context(), mcp.ListToolsRequest{})
