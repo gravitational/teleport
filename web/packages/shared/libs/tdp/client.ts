@@ -802,6 +802,14 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.sendSharedDirectoryAnnounce();
   }
 
+  async clearDirectory() {
+    if (!this.sharedDirectory) {
+      throw new Error('No directory currently shared');
+    }
+    this.sharedDirectory = undefined;
+    this.sendSharedDirectoryRemove();
+  }
+
   sendSharedDirectoryAnnounce() {
     const name = this.sharedDirectory.getDirectoryName();
     this.send(
@@ -812,6 +820,15 @@ export class TdpClient extends EventEmitter<EventMap> {
         directoryId: 2,
         name,
       })
+    );
+  }
+
+  sendSharedDirectoryRemove() {
+    this.send(
+      // Hardcode directoryId for now since we only support sharing 1 directory.
+      // We're using 2 because the smartcard device is hardcoded to 1 in the backend.
+      // Reuse of device ids is allowed per MS-RDPEFS: 2.2.3.2
+      this.codec.encodeSharedDirectoryRemove(2)
     );
   }
 

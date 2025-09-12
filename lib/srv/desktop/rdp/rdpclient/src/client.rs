@@ -42,16 +42,17 @@ use ironrdp_dvc::{DvcProcessor, DynamicVirtualChannel};
 use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
 };
+
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::NegoRequestData;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
-use ironrdp_pdu::rdp::client_info::PerformanceFlags;
+use ironrdp_pdu::rdp::client_info::{PerformanceFlags, TimezoneInfo};
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduError;
 use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{encode_err, pdu_other_err};
-use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
+use ironrdp_rdpdr::pdu::efs::{ClientDeviceListAnnounce, ClientDeviceListRemove};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
@@ -81,6 +82,7 @@ use crate::ssl::TlsStream;
 #[cfg(feature = "fips")]
 use tokio_boring::HandshakeError;
 use url::Url;
+use ironrdp_pdu::rdp::capability_sets::{BitmapCodecs, Codec, CodecProperty, RemoteFxContainer, RfxClientCapsContainer, CaptureFlags, RfxICap, RfxICapFlags, EntropyBits, RfxCaps, RfxCapset};
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -195,11 +197,11 @@ impl Client {
         });
         let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
 
-        let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
-            .with_server_addr(server_socket_addr)
-            .with_static_channel(drdynvc_client) // require for resizing
-            .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
-            .with_static_channel(rdpdr); // required for smart card + directory sharing
+        let mut connector =
+            ironrdp_connector::ClientConnector::new(connector_config.clone(), server_socket_addr)
+                .with_static_channel(drdynvc_client) // require for resizing
+                .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
+                .with_static_channel(rdpdr); // required for smart card + directory sharing
 
         if params.allow_clipboard {
             connector = connector.with_static_channel(Cliprdr::new(Box::new(
@@ -377,7 +379,6 @@ impl Client {
                                         &mut read_stream,
                                         sequence.as_mut(),
                                         &mut buf,
-                                        None,
                                     )
                                     .await?;
 
@@ -451,6 +452,10 @@ impl Client {
                 }
                 ClientFunction::HandleTdpSdAnnounce(sda) => {
                     Client::handle_tdp_sd_announce(&mut write_stream, x224_processor.clone(), sda)
+                        .await?;
+                }
+                ClientFunction::HandleTdpSdRemove(sdr) => {
+                    Client::handle_tdp_sd_remove(&mut write_stream, x224_processor.clone(), sdr)
                         .await?;
                 }
                 ClientFunction::HandleTdpSdInfoResponse(res) => {
@@ -805,6 +810,22 @@ impl Client {
         Ok(())
     }
 
+    async fn handle_tdp_sd_remove(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        sdr: tdp::SharedDirectoryRemove,
+    ) -> ClientResult<()> {
+        debug!("received tdp: {:?}", sdr);
+        let pdu = Self::remove_drive(x224_processor.clone(), sdr.directory_id).await?;
+        Self::write_rdpdr(
+            write_stream,
+            x224_processor,
+            RdpdrPdu::ClientDeviceListRemove(pdu),
+        )
+        .await?;
+        Ok(())
+    }
+
     async fn handle_tdp_sd_info_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryInfoResponse,
@@ -926,6 +947,21 @@ impl Client {
             let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
             let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
             Ok(pdu)
+        })
+        .await?
+    }
+
+    async fn remove_drive(
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        device_id: u32,
+    ) -> ClientResult<ClientDeviceListRemove> {
+        task::spawn_blocking(move || {
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
+            if let Some(pdu) = rdpdr.remove_device(device_id) {
+                return Ok(pdu);
+            }
+            Err(ClientError::UnknownDevice(device_id))
         })
         .await?
     }
@@ -1089,6 +1125,8 @@ enum ClientFunction {
     WriteScreenResize(u32, u32),
     /// Corresponds to [`Client::handle_tdp_sd_announce`]
     HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
+    /// Corresponds to [`Client::handle_tdp_sd_remove`]
+    HandleTdpSdRemove(tdp::SharedDirectoryRemove),
     /// Corresponds to [`Client::handle_tdp_sd_info_response`]
     HandleTdpSdInfoResponse(tdp::SharedDirectoryInfoResponse),
     /// Corresponds to [`Client::handle_tdp_sd_create_response`]
@@ -1178,6 +1216,10 @@ impl ClientHandle {
 
     pub fn handle_tdp_sd_announce(&self, sda: tdp::SharedDirectoryAnnounce) -> ClientResult<()> {
         self.blocking_send(ClientFunction::HandleTdpSdAnnounce(sda))
+    }
+
+    pub fn handle_tdp_sd_remove(&self, sda: tdp::SharedDirectoryRemove) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdRemove(sda))
     }
 
     pub async fn handle_tdp_sd_announce_async(
@@ -1374,6 +1416,8 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
             width: params.screen_width,
             height: params.screen_height,
         },
+        enable_audio_playback: false,
+        timezone_info: TimezoneInfo::default(),
         enable_tls: true,
         enable_credssp: params.ad && params.nla,
         credentials: Credentials::SmartCard {
@@ -1397,18 +1441,31 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         keyboard_functional_keys_count: 12,
         keyboard_layout: params.keyboard_layout,
         ime_file_name: "".to_string(),
+        //bitmap: None,
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
             // Changing this to 16 gets us uncompressed bitmaps on machines configured like
             // https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
             color_depth: 32,
+            codecs: BitmapCodecs(vec![Codec {
+                id: 0x03, // RemoteFX
+                property: CodecProperty::RemoteFx(RemoteFxContainer::ClientContainer(
+                    RfxClientCapsContainer {
+                        capture_flags: CaptureFlags::empty(),
+                        caps_data: RfxCaps(RfxCapset(vec![RfxICap {
+                            flags: RfxICapFlags::empty(),
+                            entropy_bits: EntropyBits::Rlgr3,
+                        }])),
+                    },
+                )),
+            }]),
         }),
         dig_product_id: "".to_string(),
         // `client_dir` is apparently unimportant, however most RDP clients hardcode this value (including FreeRDP):
         // https://github.com/FreeRDP/FreeRDP/blob/4e24b966c86fdf494a782f0dfcfc43a057a2ea60/libfreerdp/core/settings.c#LL49C34-L49C70
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         platform: MajorPlatformType::UNSPECIFIED,
-        no_server_pointer: false,
+        enable_server_pointer: true,
         autologon: true,
         pointer_software_rendering: false,
         // Send the username in the request cookie, which is sent in the initial connection request.
@@ -1461,6 +1518,7 @@ pub enum ClientError {
     InternalError(String),
     UnknownAddress,
     InputEventError(InputEventError),
+    UnknownDevice(u32),
     UrlError(url::ParseError),
     #[cfg(feature = "fips")]
     ErrorStack(ErrorStack),
@@ -1479,6 +1537,9 @@ impl Display for ClientError {
                 Reason(reason) => Display::fmt(reason, f),
                 _ => Display::fmt(e, f),
             },
+            ClientError::UnknownDevice(id) => {
+                Display::fmt(format!("unknown device: {}", id).as_str(), f)
+            }
             // TODO(zmb3, probakowski): improve the formatting on the IronRDP side
             // https://github.com/Devolutions/IronRDP/blob/master/crates/ironrdp-connector/src/lib.rs#L263
             ClientError::ConnectorError(e) => match &e.kind {

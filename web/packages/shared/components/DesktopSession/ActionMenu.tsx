@@ -20,7 +20,7 @@ import * as Icons from 'design/Icon';
 import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 
 export default function ActionMenu(props: Props) {
-  const { showShareDirectory, onShareDirectory, onDisconnect, onCtrlAltDel } =
+  const { showShareDirectory, onShareDirectory, clearSharing, onDisconnect, onCtrlAltDel } =
     props;
 
   return (
@@ -43,6 +43,10 @@ export default function ActionMenu(props: Props) {
         <MenuItemIcon as={Icons.Keyboard} mr="2" />
         Send Ctrl+Alt+Del
       </MenuItem>
+      <MenuItem onClick={clearSharing}>
+        <MenuItemIcon as={Icons.Keyboard} mr="2" />
+        Unshare Directory
+      </MenuItem>
       <MenuItem onClick={onDisconnect}>
         <MenuItemIcon as={Icons.PowerSwitch} mr="2" />
         Disconnect
@@ -54,6 +58,7 @@ export default function ActionMenu(props: Props) {
 type Props = {
   showShareDirectory: boolean;
   onShareDirectory: VoidFunction;
+  clearSharing: VoidFunction;
   onDisconnect: VoidFunction;
   onCtrlAltDel: VoidFunction;
 };
