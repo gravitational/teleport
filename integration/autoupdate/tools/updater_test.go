@@ -219,6 +219,7 @@ func TestUpdateForOSSBuild(t *testing.T) {
 
 	// Enable OSS build.
 	t.Setenv(updater.TestBuild, modules.BuildOSS)
+	t.Setenv(autoupdate.BaseURLEnvVar, "")
 
 	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
 	updater := tools.NewUpdater(
