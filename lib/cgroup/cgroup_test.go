@@ -200,7 +200,7 @@ func TestRootSkipUnmount(t *testing.T) {
 	require.NoDirExists(t, filepath.Join(service.teleportRoot, sessionID))
 
 	require.NoError(t, service.unmount())
-	
+
 	// Check whether cgroup mount path is no longer mounted as cgroup
 	isCgroupMounted, err = isCgroupDir(service.MountPath)
 	require.NoError(t, err)
@@ -213,14 +213,11 @@ func isRoot() bool {
 	return os.Geteuid() == 0
 }
 
-// https://elixir.bootlin.com/linux/v6.16.6/source/include/uapi/linux/magic.h#L71
-const CGROUP2_SUPER_MAGIC = 0x63677270
-
 func isCgroupDir(path string) (bool, error) {
 	var st unix.Statfs_t
 	if err := unix.Statfs(path, &st); err != nil {
 		return false, err
 	}
 
-	return st.Type == CGROUP2_SUPER_MAGIC, nil
+	return st.Type == unix.CGROUP2_SUPER_MAGIC, nil
 }
