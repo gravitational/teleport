@@ -5207,6 +5207,14 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	}
 
 	fmt.Printf("%vProfile URL:        %v\n", prefix, proxyURL)
+	switch {
+	case p.RelayAddr == "" && p.DefaultRelayAddr != "":
+		fmt.Printf("  Relay address:      %v (default)\n", p.DefaultRelayAddr)
+	case p.RelayAddr != "" && p.DefaultRelayAddr != "":
+		fmt.Printf("  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
+	case p.RelayAddr != "" && p.DefaultRelayAddr == "":
+		fmt.Printf("  Relay address:      %v\n", p.RelayAddr)
+	}
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
 	if len(p.ActiveRequests) != 0 {
 		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
@@ -5401,6 +5409,8 @@ func onStatus(cf *CLIConf) error {
 
 type profileInfo struct {
 	ProxyURL           string                 `json:"profile_url"`
+	RelayAddr          string                 `json:"relay_addr,omitempty"`
+	DefaultRelayAddr   string                 `json:"default_relay_addr,omitempty"`
 	Username           string                 `json:"username"`
 	ActiveRequests     []string               `json:"active_requests,omitempty"`
 	Cluster            string                 `json:"cluster"`
@@ -5451,6 +5461,8 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	selectedKubeCluster, _ := kubeconfig.SelectedKubeCluster("", p.Cluster)
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
+		RelayAddr:          p.RelayAddr,
+		DefaultRelayAddr:   p.DefaultRelayAddr,
 		Username:           p.Username,
 		ActiveRequests:     p.ActiveRequests,
 		Cluster:            p.Cluster,
