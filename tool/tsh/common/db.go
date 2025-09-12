@@ -1312,8 +1312,8 @@ func isDatabaseNameRequired(protocol string) bool {
 		return true
 	}
 	switch protocol {
-	case defaults.ProtocolOracle:
-		// Always require database name for the Oracle protocol.
+	// Always require database name for these protocols.
+	case defaults.ProtocolOracle, defaults.ProtocolSQLServer:
 		return true
 	}
 	return false
