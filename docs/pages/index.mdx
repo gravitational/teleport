@@ -1,10 +1,10 @@
 ---
 h1: Introduction to Teleport
-title: "Introduction to the Teleport Access Platform: Zero Trust Security for Your Infrastructure"
+title: "The Teleport Infrastructure Identity Platform"
 description: Read an overview of the Teleport Access Platform. Learn how to implement Zero Trust Security across all your infrastructure for enhanced protection and streamlined access control.
 tocDepth: 3
-hide_table_of_contents: true
-labels:
+template: "landing-page"
+tags:
  - get-started
  - platform-wide
 ---
@@ -18,6 +18,24 @@ import autoDiscoverySvg from "@site/src/components/Icon/teleport-svg/auto-discov
 import cloudProvidersSvg from "@site/src/components/Icon/teleport-svg/cloud-providers.svg";
 import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
 import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/Resources";
+import DocsHeader, { DocsHeaderProps } from "@site/src/components/Pages/Homepage/DocsHeader";
+
+<DocsHeader
+  quickActions={[
+    { 
+      label: "Enroll Kubernetes cluster", 
+      href: "./enroll-resources/kubernetes-access/getting-started/" 
+    },
+    { 
+      label: "Set up SSO with GitHub", 
+      href: "./zero-trust-access/sso/github-sso/" 
+    },
+    { 
+      label: "Set up Slack Access Request Plugin", 
+      href: "./identity-governance/access-request-plugins/ssh-approval-slack/" 
+    }
+  ]}
+/>
 
 Teleport is the easiest and most secure way to access and protect all your
 infrastructure.

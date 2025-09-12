@@ -1,5 +1,40 @@
 # Changelog
 
+## 16.5.15 (09/02/25)
+
+* The following Helm charts now support obtaining the plugin credentials using tbot: `teleport-plugin-discord`, `teleport-plugin-email`, `teleport-plugin-jira`, `teleport-plugin-mattermost`, `teleport-plugin-msteams`, `teleport-plugin-pagerduty`, `teleport-plugin-event-handler`. [#58302](https://github.com/gravitational/teleport/pull/58302)
+* Fixed failure to close user accounting session. [#58165](https://github.com/gravitational/teleport/pull/58165)
+* Fixed an uncaught exception in Teleport Connect on Windows when closing the app while the `TELEPORT_TOOLS_VERSION` environment variable is set. [#58133](https://github.com/gravitational/teleport/pull/58133)
+* Added paginated API ListDatabases, deprecated GetDatabases. [#58112](https://github.com/gravitational/teleport/pull/58112)
+* Fixed a Teleport Connect crash that occurred when assuming an access request while an application or database connection was active. [#58111](https://github.com/gravitational/teleport/pull/58111)
+* Fixed modifier keys getting stuck during remote desktop sessions. [#58101](https://github.com/gravitational/teleport/pull/58101)
+* Enabled Azure joining with VMSS. [#58092](https://github.com/gravitational/teleport/pull/58092)
+* Windows desktop LDAP discovery now auto-populates the resource's description field. [#58080](https://github.com/gravitational/teleport/pull/58080)
+* TBot now emits a log message stating the current version on startup. [#58058](https://github.com/gravitational/teleport/pull/58058)
+* Improved error message when a User without any MFA devices enrolled attempts to access a resource that requires MFA. [#58045](https://github.com/gravitational/teleport/pull/58045)
+* Added `TELEPORT_UNSTABLE_GRPC_RECV_SIZE` env var which can be set to overwrite client side max grpc message size. [#58027](https://github.com/gravitational/teleport/pull/58027)
+* Fixed auto-updated client tools not using the intended version. [#57872](https://github.com/gravitational/teleport/pull/57872)
+* Updated Go to 1.24.6. [#57861](https://github.com/gravitational/teleport/pull/57861)
+* Newly enrolled Kubernetes agents in will now use Managed Updates by default. [#57782](https://github.com/gravitational/teleport/pull/57782)
+* Fixed Alt+Click not being registered in remote desktop sessions. [#57755](https://github.com/gravitational/teleport/pull/57755)
+* Kubernetes Access: `kubectl port-forward` now exits cleanly when backend pods are removed. [#57741](https://github.com/gravitational/teleport/pull/57741)
+* Kubernetes Access: Fixed a bug when forwarding multiple ports to a single pod. [#57739](https://github.com/gravitational/teleport/pull/57739)
+* Fixed unlink-package during upgrade/downgrade. [#57722](https://github.com/gravitational/teleport/pull/57722)
+* Teleport `event-handler` now accepts HTTP Status Code 204 from the recipient. This adds support for sending events to Grafana Alloy and newer Fluentd versions. [#57682](https://github.com/gravitational/teleport/pull/57682)
+* Enriched the windows.desktop.session.start audit event with additional certificate metadata. [#57679](https://github.com/gravitational/teleport/pull/57679)
+* The `tctl top` command can now display raw prometheus metrics. [#57633](https://github.com/gravitational/teleport/pull/57633)
+* Fixed a bug in the default discovery script that can happen discovering instances whose `PATH` doesn't contain `/usr/local/bin`. [#57532](https://github.com/gravitational/teleport/pull/57532)
+* Make it easier to identify Windows desktop certificate issuance on the audit log page. [#57519](https://github.com/gravitational/teleport/pull/57519)
+* Fixed a bug on Windows where a forwarded SSH agent would become dysfunctional after a single connection using the agent. [#57514](https://github.com/gravitational/teleport/pull/57514)
+* The `tctl top` now respects local teleport config file. [#57352](https://github.com/gravitational/teleport/pull/57352)
+* Disabled NLA in FIPS mode. [#57309](https://github.com/gravitational/teleport/pull/57309)
+* Allow YubiKeys running 5.7.4+ firmware to be usable as PIV hardware keys. [#57218](https://github.com/gravitational/teleport/pull/57218)
+* Fixed using relative path TELEPORT_HOME env with client tools managed update. [#56952](https://github.com/gravitational/teleport/pull/56952)
+* Client tools managed updates support multi-cluster environments and track each version in the configuration file. [#56952](https://github.com/gravitational/teleport/pull/56952)
+
+Enterprise:
+* Slightly optimized access token refresh logic for Jamf integration when using API credentials
+
 ## 16.5.14 (07/25/25)
 
 * Fixed fallback for web login when second factor is set to `on` but only OTP is configured. [#57160](https://github.com/gravitational/teleport/pull/57160)

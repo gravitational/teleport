@@ -1,37 +1,32 @@
 ---
-title: Teleport Authentication with Azure Active Directory (AD)
-description: How to configure Teleport access with Azure Active Directory.
-labels:
+title: Teleport Authentication with Microsoft Entra ID (formerly Azure AD)
+description: How to configure Teleport access with Microsoft Entra ID.
+tags:
  - how-to
  - zero-trust
 ---
-
-{/* 
-Don't lint the presence of "Azure AD" until we change the guide to apply to
-Entra ID: https://github.com/gravitational/teleport/issues/47776
-*/}
-
-{/* vale 3rd-party-products.former-names = NO */}
 
 This guide will cover how to configure Microsoft Azure Active Directory to issue
 credentials to specific groups of users with a SAML Authentication Connector.
 When used in combination with role-based access control (RBAC), it allows Teleport
 administrators to define policies like:
 
-- Only members of the "DBA" Azure AD group can connect to PostgreSQL databases.
+- Only members of the "DBA" Entra ID group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.
 
 The following steps configure an example SAML authentication connector matching
-Azure AD groups with security roles. You can choose to configure other options.
+Entra ID groups with security roles. You can choose to configure other options.
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
 Before you get started, you’ll need:
 
-- An Azure AD admin account with access to creating non-gallery applications
+- An Entra ID admin account with access to creating non-gallery applications
   (P2 License).
 - To register one or more users in the directory.
-- To create at least two security groups in Azure AD and assign one or more
+- To create at least two security groups in Entra ID and assign one or more
   users to each group.
 - A Teleport role with access to maintaining `saml` resources. This is available
   in the default `editor` role.
@@ -40,11 +35,11 @@ Before you get started, you’ll need:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Configure Azure AD
+## Step 1/3. Configure Entra ID
 
 ### Create an enterprise application
 
-1. Select **Azure AD -> Enterprise Applications**
+1. Select **Entra ID -> Enterprise Applications**
 
    ![Select Enterprise Applications From Manage](../../../img/azuread/azuread-1-home.png)
 
@@ -102,7 +97,7 @@ Before you get started, you’ll need:
 
    ![Put in Security group claim](../../../img/azuread/azuread-8b-groupclaim.png)
 
-1. (optional) Add a claim that transforms the format of the Azure AD username to lower case, in order to use it inside
+1. (optional) Add a claim that transforms the format of the Entra ID username to lower case, in order to use it inside
    Teleport roles as the `{{external.username}}` property.
 
    Set the Source to "Transformation". In the new panel:
@@ -172,7 +167,7 @@ $ cat azure-connector.yaml | tctl sso test
 ```
 
 Your browser should open and log you in to the Teleport cluster using your
-Azure AD credentials. If there are any problems, the CLI output will help you
+Entra ID credentials. If there are any problems, the CLI output will help you
 debug the connector configuration.
 
 
@@ -185,7 +180,7 @@ $ tctl create -f azure-connector.yaml
 ## Step 3/3. Create a new Teleport role
 
 Create a Teleport role resource that will use external username data from the
-Azure AD connector to determine which Linux logins to allow on a host.
+Entra ID connector to determine which Linux logins to allow on a host.
 
 Create a file called `dev.yaml` with the following content:
 
@@ -206,7 +201,7 @@ spec:
 
 Users with the `dev` role are only allowed to log in to nodes with the `access:
 relaxed` Teleport label. They can log in as either `ubuntu` or a username that
-is passed in from the Azure AD connector using the `windowsaccountname`
+is passed in from the Entra ID connector using the `windowsaccountname`
 attribute.
 
 The login
@@ -228,19 +223,19 @@ $ tctl create dev.yaml
 
 ## Token encryption (Optional)
 
-Azure AD's SAML token encryption encrypts the SAML assertions sent to Teleport
+Entra ID's SAML token encryption encrypts the SAML assertions sent to Teleport
 during SSO redirect.
 
 Token encryption is an Azure Active Directory premium feature and requires a
-separate license. Since traffic between Azure AD and the Teleport Proxy Service
+separate license. Since traffic between Entra ID and the Teleport Proxy Service
 already uses HTTPS, token encryption is optional. To determine whether you
-should enable token encryption, read the Azure AD
+should enable token encryption, read the Entra ID
 [documentation](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption).
 
 ### Set up Teleport token encryption
 
 Start with generating a public/private key and a certificate. You will set up
-the public certificate with Azure AD and the private key with Teleport.
+the public certificate with Entra ID and the private key with Teleport.
 
 ```code
 $ openssl req -nodes -new -x509 -keyout server.key -out server.cer

@@ -42,7 +42,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/mediatailor"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/migrationhubstrategyrecommendations"
-	"github.com/aws/aws-sdk-go/service/mobile"
 	"github.com/aws/aws-sdk-go/service/pinpoint"
 	"github.com/aws/aws-sdk-go/service/pinpointsmsvoice"
 	"github.com/aws/aws-sdk-go/service/pricing"
@@ -182,7 +181,6 @@ var signingNameToEndpointsID = map[string]string{
 	"aws-marketplace":                       marketplacecatalog.EndpointsID,
 	"awsiottwinmaker":                       iottwinmaker.EndpointsID,
 	"awsmigrationhubstrategyrecommendation": migrationhubstrategyrecommendations.EndpointsID,
-	"awsmobilehubservice":                   mobile.EndpointsID,
 	"awsproton20200720":                     proton.EndpointsID,
 	"awsssooidc":                            ssooidc.EndpointsID,
 	"awsssoportal":                          sso.EndpointsID,
