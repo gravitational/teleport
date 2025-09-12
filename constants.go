@@ -600,6 +600,10 @@ const MaxHTTPRequestSize = 10 * 1024 * 1024
 // to prevent resource exhaustion attacks.
 const MaxHTTPResponseSize = 10 * 1024 * 1024
 
+// MaxUsernameLength is the maximum allowed length (characters) for usernames.
+// This limit prevents sending extremely long usernames that could clog up logs or exhaust resources.
+const MaxUsernameLength = 1000
+
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older
 	// versions of OpenSSH.
