@@ -1,5 +1,14 @@
 # Changelog
 
+## 19.0.0 (xx/xx/xx)
+
+### Breaking changes
+
+#### macOS 12
+
+The minimum version of macOS required to run Teleport or associated client tools
+is now macOS 12 (Monterey).
+
 ## 18.0.0 (xx/xx/xx)
 
 ### Breaking changes
