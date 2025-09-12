@@ -150,6 +150,10 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	proxyAddr, err := process.ProxyWebAddr()
 	require.NoError(t, err)
 
+	appServers, err := rootClient.GetApplicationServers(ctx, "default")
+	require.NoError(t, err)
+	require.Len(t, appServers, 1)
+
 	proxyServiceConfig := &ProxyServiceConfig{
 		Listen:   "localhost:12345",
 		Listener: botListener,
