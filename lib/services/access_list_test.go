@@ -505,6 +505,72 @@ spec:
   added_by: "test-user1"
 `
 
+func TestCreateAccessListNextKey(t *testing.T) {
+	al, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: "test-access-list",
+		},
+		accesslist.Spec{
+			Title: "zephyr",
+			Audit: accesslist.Audit{
+				NextAuditDate: time.Date(2025, 9, 11, 0, 0, 0, 0, time.UTC),
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		indexName   string
+		expected    string
+		expectError bool
+		withNoAudit bool
+	}{
+		{
+			name:      "name index",
+			indexName: "name",
+			expected:  "test-access-list",
+		},
+		{
+			name:      "auditNextDate index",
+			indexName: "auditNextDate",
+			expected:  "2025-09-11/test-access-list",
+		},
+		{
+			name:        "auditNextDate index without review",
+			indexName:   "auditNextDate",
+			expected:    "z/test-access-list",
+			withNoAudit: true,
+		},
+		{
+			name:      "title index",
+			indexName: "title",
+			expected:  "F9IN0Q3PE8/test-access-list",
+		},
+		{
+			name:        "unsupported index",
+			indexName:   "unsupported",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.withNoAudit {
+				al.Spec.Audit.NextAuditDate = time.Time{}
+			}
+			result, err := CreateAccessListNextKey(al, tt.indexName)
+			if tt.expectError {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
 var accessListReviewYAML = `---
 kind: access_list_review
 version: v1

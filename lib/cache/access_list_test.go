@@ -283,7 +283,8 @@ func TestListAccessListsV2(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
+	baseTime := time.Date(1984, 4, 4, 0, 0, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(baseTime)
 
 	names := []string{"apple-list", "banana-access", "cherry-management", "apple-admin", "zebra-test"}
 
@@ -293,6 +294,7 @@ func TestListAccessListsV2(t *testing.T) {
 		// add arbitrary date so we can make sure its not just sorted by name
 		if name == "banana-access" {
 			auditDate = clock.Now().Add(100 * (time.Hour) * 24)
+			al.Spec.Title = "bananatitle"
 		}
 		al.Spec.Audit.NextAuditDate = auditDate
 
@@ -322,6 +324,16 @@ func TestListAccessListsV2(t *testing.T) {
 			name:          "sort by audit date",
 			sortBy:        &types.SortBy{Field: "auditNextDate", IsDesc: false},
 			expectedNames: []string{"apple-list", "cherry-management", "apple-admin", "zebra-test", "banana-access"},
+		},
+		{
+			name:          "sort by title",
+			sortBy:        &types.SortBy{Field: "title", IsDesc: false},
+			expectedNames: []string{"banana-access", "apple-admin", "apple-list", "cherry-management", "zebra-test"},
+		},
+		{
+			name:          "sort by title reverse",
+			sortBy:        &types.SortBy{Field: "title", IsDesc: true},
+			expectedNames: []string{"zebra-test", "cherry-management", "apple-list", "apple-admin", "banana-access"},
 		},
 		{
 			name:          "sort by audit date reverse",
