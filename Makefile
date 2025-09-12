@@ -328,8 +328,8 @@ endif
 
 ifeq ("$(OS)","darwin")
 # Set the minimum version for macOS builds for Go, Rust and Xcode builds.
-# (as of Go 1.23 we require macOS 11)
-MINIMUM_SUPPORTED_MACOS_VERSION = 11.0
+# (as of Go 1.25 we require macOS 12)
+MINIMUM_SUPPORTED_MACOS_VERSION = 12.0
 MACOSX_VERSION_MIN_FLAG = -mmacosx-version-min=$(MINIMUM_SUPPORTED_MACOS_VERSION)
 
 # Go
