@@ -1452,8 +1452,7 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 	}, nil
 }
 
-// UserState is a representation of a user's current state.
-type UserState interface {
+type UserAccessState interface {
 	// GetName returns the username associated with the user state.
 	GetName() string
 
@@ -1462,6 +1461,11 @@ type UserState interface {
 
 	// GetTraits returns the traits associated with the user's current sate.
 	GetTraits() map[string][]string
+}
+
+// UserState is a representation of a user's current state.
+type UserState interface {
+	UserAccessState
 
 	// GetUserType returns the user type for the user login state.
 	GetUserType() types.UserType
@@ -1482,7 +1486,7 @@ type UserState interface {
 // traits held be the given user state. This should only be used in cases where the
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
-func AccessInfoFromUserState(user UserState) *AccessInfo {
+func AccessInfoFromUserState(user UserAccessState) *AccessInfo {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
 	return &AccessInfo{
