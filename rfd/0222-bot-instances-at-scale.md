@@ -227,6 +227,9 @@ message BotInstanceStatus {
   // tbot's configuration and restarting it clears any warnings from a previous
   // bad configuration.
   repeated BotInstanceNotice notices = 5;
+
+  // The health of the services/output `tbot` is running.
+  repeated BotInstanceServiceHealth service_health = 6;
 }
 ```
 
@@ -396,7 +399,7 @@ This proposal adds a number of extra data fields pertaining to bot instances; na
 
 Configuration will be limited before it is sent by `tbot`. It will be stored as its own resource (`BotInstanceConfig`) in `/bot_instance/:bot_name/:uuid/tbot_config`. Only one config record is stored per bot instance, and its value is overwritten when new data arrives.
 
-Service health scales with the number of services/outputs `tbot` is configured with. It doesn't make sense to limit the number of service records, as this would no longer provide a complete picture of the instance. Service health items will be extracted to their own resources (`BotInstanceServiceHealth`) in `/bot_instance/:bot_name/:uuid/service_health/:service_name`. An instance can have any number of service records, but only one per user-provided service name. New data will overwrite existing data.
+Service health scales with the number of services/outputs `tbot` is configured with. It doesn't make sense to limit the number of service records, as this would no longer provide a complete picture of the instance. As such, if there are more configured services than a maximum, then none will be sent and a notice will be raised against the instance informing the user. Service health records for an instance will be cleared when the instance starts-up (denoted by the heartbeat field `is_startup`). Service health records will be stored as part of an instance's state, alongside heartbeats and authentications. Service health records may be used for filtering the list of bot instance in the web UI and CLI in the future, and so will remain local to the instance itself.
 
 Notices will be limited in number per instance, and older items will be discarded - much the same way as heartbeats and authentications work today. Notices for an instance will be cleared when the instance starts-up (denoted by the heartbeat field `is_startup`). Notices will be stored as part of an instance's state, alongside heartbeats and authentications. Notices are required for filtering the list of bot instance in the web UI and CLI, and so need to remain local to the instance itself.
 
