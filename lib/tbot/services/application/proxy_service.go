@@ -264,6 +264,8 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		return err
 	}
 
+	// TODO(noah): We could cache the httpClient itself for each upstream, this
+	// would potentially allow performance improvements by caching connections.
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
