@@ -524,6 +524,7 @@ func TestCreateAccessListNextKey(t *testing.T) {
 		indexName   string
 		expected    string
 		expectError bool
+		withNoAudit bool
 	}{
 		{
 			name:      "name index",
@@ -534,6 +535,12 @@ func TestCreateAccessListNextKey(t *testing.T) {
 			name:      "auditNextDate index",
 			indexName: "auditNextDate",
 			expected:  "2025-09-11/test-access-list",
+		},
+		{
+			name:        "auditNextDate index without review",
+			indexName:   "auditNextDate",
+			expected:    "z/test-access-list",
+			withNoAudit: true,
 		},
 		{
 			name:      "title index",
@@ -549,6 +556,9 @@ func TestCreateAccessListNextKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.withNoAudit {
+				al.Spec.Audit.NextAuditDate = time.Time{}
+			}
 			result, err := CreateAccessListNextKey(al, tt.indexName)
 			if tt.expectError {
 				require.Error(t, err)
