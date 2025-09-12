@@ -780,6 +780,10 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 func (a *Server) ClientOptionsForLogin(userState services.UserState) (authclient.ClientOptions, error) {
 	var opts authclient.ClientOptions
 
+	if t := userState.GetTraits()["teleport.dev/default-relay-addr"]; len(t) == 1 {
+		opts.DefaultRelayAddr = t[0]
+	}
+
 	return opts, nil
 }
 
