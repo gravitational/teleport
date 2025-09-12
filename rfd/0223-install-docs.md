@@ -65,66 +65,66 @@ Teleport includes a large number of independently installable components that re
 instructions for an even larger number of target platforms:
 
 1. Cluster Installation
-  1. Self-Hosted on Linux
-  2. Self-Hosted on Kubernetes
-    1. Digital Ocean
-    2. Helm
-    3. Helm with ArgoCD
-    4. EKS
-    5. GKE
-    6. AKS
-    7. IBM Cloud
-    8. Helm “Custom”
-  3. Self-Hosted on Docker
-  4. Self-Hosted on EC2
-  5. Self-Hosted on GCP
-  6. Self-Hosted on OCI
-  7. Self-Hosted on Azure
-  8. Self-Hosted via Source Code
+   1. Self-Hosted on Linux
+   2. Self-Hosted on Kubernetes
+      1. Digital Ocean
+      2. Helm
+      3. Helm with ArgoCD
+      4. EKS
+      5. GKE
+      6. AKS
+      7. IBM Cloud
+      8. Helm “Custom”
+   3. Self-Hosted on Docker
+   4. Self-Hosted on EC2
+   5. Self-Hosted on GCP
+   6. Self-Hosted on OCI
+   7. Self-Hosted on Azure
+   8. Self-Hosted via Source Code
 2. Agent Installation
-  1. Agent on Kubernetes
-  2. Agent on Docker
-  3. Agent on EC2
-    1. Teleport AMI
-    2. Custom AMI
-  4. Agent on GCP
-  5. Agent on OCI
-  6. Agent on Azure
+   1. Agent on Kubernetes
+   2. Agent on Docker
+   3. Agent on EC2
+      1. Teleport AMI
+      2. Custom AMI
+   4. Agent on GCP
+   5. Agent on OCI
+   6. Agent on Azure
 3. Client Installation
-  1. Human
-    1. Linux
-      1. Resource Access via tsh
-      2. Resource Access via Connect
-      3. Cluster Admin via tctl
-    2. MacOS
-      1. Resource Access via tsh
-      2. Resource Access via Connect
-      3. Cluster Admin via tctl
-    3. Windows
-      1. Resource Access via tsh
-      2. Resource Access via Connect
-      3. Cluster Admin via tctl
-  2. Machine
-    1. Linux
-      1. Resource Access via tbot
-    2. MacOS
-      1. Resource Access via tbot
-    3. Windows
-      1. Resource Access via tbot
+   1. Human
+      1. Linux
+         1. Resource Access via tsh
+         2. Resource Access via Connect
+         3. Cluster Admin via tctl
+      2. MacOS
+         1. Resource Access via tsh
+         2. Resource Access via Connect
+         3. Cluster Admin via tctl
+      3. Windows
+         1. Resource Access via tsh
+         2. Resource Access via Connect
+         3. Cluster Admin via tctl
+   2. Machine
+      1. Linux
+         1. Resource Access via tbot
+      2. MacOS
+         1. Resource Access via tbot
+      3. Windows
+         1. Resource Access via tbot
 4. Integrations
-  1. Plugins
-    1. Event Handler
-    2. Discord
-    3. Email
-    4. JIRA
-    5. Mattermost
-    6. Slack
-    7. Msteams
-    8. Datadog
-    9. Pagerduty
-  2. Configuration Systems
-    1. Kubernetes API via Teleport Operator
-    2. Terraform via Teleport Terraform Provider
+   1. Plugins
+      1. Event Handler
+      2. Discord
+      3. Email
+      4. JIRA
+      5. Mattermost
+      6. Slack
+      7. Msteams
+      8. Datadog
+      9. Pagerduty
+   2. Configuration Systems
+      1. Kubernetes API via Teleport Operator
+      2. Terraform via Teleport Terraform Provider
 
 Users will generally know which target platform they need to perform the installation on, but they may not know
 which Teleport component they need to install.
