@@ -244,6 +244,13 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// Resolve Application Name via either URL or Host Header
 	appName := cmp.Or(req.URL.Host, req.Header.Get("Host"))
 
+	// Pre-emptively block CONNECT requests as we do not currently support them
+	// but, proxying them forward as normal requests would make it difficult for
+	// us to introduce CONNECT support later without breaking compat.
+	if req.Method == http.MethodConnect {
+		return trace.NotImplemented("Proxy does not support CONNECT method")
+	}
+
 	ctx := req.Context()
 
 	var appCert *tls.Certificate
