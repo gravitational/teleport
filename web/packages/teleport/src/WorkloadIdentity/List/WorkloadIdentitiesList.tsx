@@ -17,13 +17,11 @@
  */
 
 import { ReactElement } from 'react';
-import styled from 'styled-components';
 
 import { Cell, LabelCell } from 'design/DataTable/Cells';
 import Table from 'design/DataTable/Table';
 import { FetchingConfig, SortType } from 'design/DataTable/types';
 import Flex from 'design/Flex';
-import Text from 'design/Text';
 import { SearchPanel } from 'shared/components/Search/SearchPanel';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
@@ -85,19 +83,17 @@ export function WorkloadIdetitiesList({
             return spiffe_id ? (
               <Cell>
                 <Flex inline alignItems={'center'} gap={1} mr={0}>
-                  <MonoText>
-                    {spiffe_id
-                      .split('/')
-                      .reduce<(ReactElement | string)[]>((acc, cur, i) => {
-                        if (i === 0) {
-                          acc.push(cur);
-                        } else {
-                          // Add break opportunities after each slash
-                          acc.push('/', <wbr key={cur} />, cur);
-                        }
-                        return acc;
-                      }, [])}
-                  </MonoText>
+                  {spiffe_id
+                    .split('/')
+                    .reduce<(ReactElement | string)[]>((acc, cur, i) => {
+                      if (i === 0) {
+                        acc.push(cur);
+                      } else {
+                        // Add break opportunities after each slash
+                        acc.push('/', <wbr key={cur} />, cur);
+                      }
+                      return acc;
+                    }, [])}
                   <CopyButton name={spiffe_id} />
                 </Flex>
               </Cell>
@@ -129,10 +125,6 @@ export function WorkloadIdetitiesList({
     />
   );
 }
-
-const MonoText = styled(Text)`
-  font-family: ${({ theme }) => theme.fonts.mono};
-`;
 
 function valueOrEmpty(value: string | null | undefined, empty = '-') {
   return value || empty;
