@@ -261,7 +261,7 @@ $ tctl create -f ./teleport/github_bot_join_token.yaml
 
 ## Step 5/5 Access a resource from GitHub Actions
 
-We have several published [Actions](../reference/machine-id/github-actions.mdx#github-actions-helpers)
+We have several published [Actions](../reference/machine-workload-identity/machine-id/github-actions.mdx#github-actions-helpers)
 for convenience, but for this guide we will look at things explicitly to aid understanding.
 
 <Tabs>
@@ -433,7 +433,7 @@ without distributing long-lived credentials, making the process more secure and 
   configuring `tbot` in a production-ready way for your platform.
 - Check out the [access guides](./machine-id/access-guides/access-guides.mdx) to learn about configuring
   `tbot` for other use cases than SSH and Kubernetes.
-- Read the [configuration reference](../reference/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
   all the available configuration options.
 - Learn how [Workload Identities](../machine-workload-identity/workload-identity/introduction.mdx) enable the same capabilities
   for resources like cloud APIs that can't be protected with the Teleport proxy.
