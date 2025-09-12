@@ -49,6 +49,7 @@ import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
 import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import { ItemLoginSelect } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/AppLogins';
 import {
   LongTermGroupingErrors,
   shouldShowLongTermGroupingErrors,
@@ -63,6 +64,8 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
 import { pluralize } from 'shared/utils/text';
+
+import { getResourceIdUri } from 'e-teleport/Workflow/NewRequest/kube';
 
 import { AccessDurationRequest } from '../../AccessDuration';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
@@ -146,6 +149,15 @@ export const RequestCheckoutWithSlider = forwardRef<
     );
   }
 );
+
+type DisplayRow<T extends PendingListItem> = T & {
+  logins?: { name: string; id: string }[];
+};
+
+const displayRowHasLogins = <T extends PendingListItem>(
+  r: DisplayRow<T>
+): r is DisplayRow<T> & { logins: NonNullable<DisplayRow<T>['logins']> } =>
+  !!r.logins?.length;
 
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
@@ -283,6 +295,80 @@ export function RequestCheckout<T extends PendingListItem>({
     item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
   ).length;
 
+  const groupedWithLogins = useMemo<DisplayRow<T>[]>(() => {
+    const m: DisplayRow<T>[] = [];
+    pendingAccessRequests.forEach(r => {
+      if (r.kind !== 'app' || !r.subResourceName) {
+        m.push({ ...r });
+        return;
+      }
+      let parentIdx = m.findIndex(
+        p =>
+          p.kind === r.kind &&
+          p.id === r.id &&
+          p.clusterName === r.clusterName &&
+          !p.subResourceName
+      );
+      if (parentIdx !== -1) {
+        if (!m[parentIdx].logins) {
+          m[parentIdx].logins = [];
+        }
+      } else {
+        parentIdx =
+          m.push({
+            ...r,
+            subResourceName: undefined,
+            logins: [],
+            name: r.id,
+          }) - 1;
+      }
+      m[parentIdx].logins.push({ id: r.subResourceName, name: r.name });
+    });
+    return m;
+  }, [pendingAccessRequests]);
+
+  const toggleGroupedResource = (item: DisplayRow<T>) => {
+    pendingAccessRequests
+      .filter(
+        r =>
+          r.kind === item.kind &&
+          r.id === item.id &&
+          r.clusterName === item.clusterName
+      )
+      .forEach(item => {
+        if (item.kind === 'app' && item.subResourceName) {
+          item.id = getResourceIdUri({
+            resourceKind: 'app',
+            resourceName: item.id,
+            teleportClusterName: item.clusterName,
+            subResourceName: item.subResourceName,
+          });
+        }
+        toggleResource(item);
+      });
+  };
+  const toggleLogin = (loginId: string) => (item: DisplayRow<T>) => {
+    const pendingItem = pendingAccessRequests.find(r => {
+      return (
+        r.kind === item.kind &&
+        r.id === item.id &&
+        r.clusterName === item.clusterName &&
+        r.subResourceName === loginId
+      );
+    });
+    if (pendingItem) {
+      toggleResource({
+        ...pendingItem,
+        id: getResourceIdUri({
+          resourceKind: 'app',
+          resourceName: pendingItem.id,
+          teleportClusterName: pendingItem.clusterName,
+          subResourceName: pendingItem.subResourceName,
+        }),
+      });
+    }
+  };
+
   const DefaultHeader = () => {
     return (
       <Flex mb={3} alignItems="center">
@@ -303,7 +389,42 @@ export function RequestCheckout<T extends PendingListItem>({
     );
   };
 
-  function customRow(item: T) {
+  function customRow(item: DisplayRow<T>) {
+    if (displayRowHasLogins(item)) {
+      return (
+        <td colSpan={showClusterNameColumn ? 4 : 3}>
+          <Flex>
+            <Flex flexWrap="wrap">
+              <Flex
+                gap={2}
+                justifyContent="space-between"
+                width="100%"
+                alignItems="center"
+              >
+                <Flex gap={5}>
+                  {showClusterNameColumn && <Box>{item.clusterName}</Box>}
+                  <Box>{getPrettyResourceKind(item.kind)}</Box>
+                  <Box>{item.name}</Box>
+                </Flex>
+                <CrossIcon
+                  item={item}
+                  toggleResource={toggleGroupedResource}
+                  clearAttempt={clearAttempt}
+                  createAttempt={createAttempt}
+                />
+              </Flex>
+              <ItemLoginSelect
+                item={item}
+                toggleLogin={toggleLogin}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+              />
+            </Flex>
+          </Flex>
+        </td>
+      );
+    }
+
     if (item.kind === 'kube_cluster') {
       const unsupported =
         requestKind === RequestKind.LongTerm &&
@@ -355,7 +476,7 @@ export function RequestCheckout<T extends PendingListItem>({
   }
 
   const getStyle = useMemo(
-    () => (item: T) => {
+    () => (item: DisplayRow<T>) => {
       if (
         !shouldShowLongTermGroupingErrors({
           requestKind,
@@ -496,9 +617,7 @@ export function RequestCheckout<T extends PendingListItem>({
                     />
                   )}
                   <StyledTable
-                    data={pendingAccessRequests.filter(
-                      d => d.kind !== 'namespace'
-                    )}
+                    data={groupedWithLogins.filter(d => d.kind !== 'namespace')}
                     row={{
                       customRow,
                       getStyle,
