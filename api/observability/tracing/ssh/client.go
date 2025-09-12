@@ -34,8 +34,9 @@ import (
 // Client is a wrapper around ssh.Client that adds tracing support.
 type Client struct {
 	*ssh.Client
-	opts       []tracing.Option
-	capability tracingCapability
+	opts          []tracing.Option
+	capability    tracingCapability
+	sessionClient *sshutils.SessionClient
 }
 
 type tracingCapability int
@@ -56,9 +57,10 @@ const (
 // of whether they should provide tracing context.
 func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) *Client {
 	clt := &Client{
-		Client:     ssh.NewClient(c, chans, reqs),
-		opts:       opts,
-		capability: tracingUnsupported,
+		Client:        ssh.NewClient(c, chans, reqs),
+		sessionClient: sshutils.NewSessionClient(),
+		opts:          opts,
+		capability:    tracingUnsupported,
 	}
 
 	if bytes.HasPrefix(clt.ServerVersion(), []byte("SSH-2.0-Teleport")) {
@@ -89,8 +91,8 @@ func (c *Client) DialContext(ctx context.Context, n, addr string) (net.Conn, err
 	)
 	defer span.End()
 
-	// create the wrapper while the lock is held
-	wrapper := &clientWrapper{
+	// create a new connWrapper to propagate the span ctx to child (ssh.OpenChannel).
+	wrapper := &connWrapper{
 		capability: c.capability,
 		Conn:       c.Client.Conn,
 		opts:       c.opts,
@@ -162,23 +164,9 @@ func (c *Client) OpenChannel(
 	}, reqs, err
 }
 
-// NewSession creates a new SSH session that is passed tracing context
-// so that spans may be correlated properly over the ssh connection.
+// NewSession opens a new Session for this client.
 func (c *Client) NewSession(ctx context.Context) (*Session, error) {
-	return c.newSession(ctx, nil)
-}
-
-// NewSessionWithRequestCallback creates a new SSH session that is passed
-// tracing context so that spans may be correlated properly over the ssh
-// connection. The handling of channel requests from the underlying SSH
-// session can be controlled with chanReqCallback.
-func (c *Client) NewSessionWithRequestCallback(ctx context.Context, chanReqCallback sshutils.ChannelRequestCallback) (*Session, error) {
-	return c.newSession(ctx, chanReqCallback)
-}
-
-func (c *Client) newSession(ctx context.Context, chanReqCallback sshutils.ChannelRequestCallback) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
-
 	ctx, span := tracer.Start(
 		ctx,
 		"ssh.NewSession",
@@ -194,8 +182,8 @@ func (c *Client) newSession(ctx context.Context, chanReqCallback sshutils.Channe
 	)
 	defer span.End()
 
-	// create the wrapper while the lock is still held
-	wrapper := &clientWrapper{
+	// create a new connWrapper to propagate the span ctx to child (ssh.ChannelRequest).
+	wrapper := &connWrapper{
 		capability: c.capability,
 		Conn:       c.Client.Conn,
 		opts:       c.opts,
@@ -203,17 +191,108 @@ func (c *Client) newSession(ctx context.Context, chanReqCallback sshutils.Channe
 		contexts:   make(map[string][]context.Context),
 	}
 
-	// get a session from the wrapper
-	session, err := wrapper.NewSession(chanReqCallback)
-	return session, trace.Wrap(err)
+	session, err := c.sessionClient.NewSession(wrapper)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// wrap the session so all session requests on the channel
+	// can be traced
+	return &Session{
+		Session: session,
+		wrapper: wrapper,
+	}, nil
 }
 
-// clientWrapper wraps the ssh.Conn for individual ssh.Client
+// HandleChannelOpen starts a goroutine to handle any incoming [ssh.NewChannel] requests matching
+// the provided type using the provided handler. If the type already is being handled,
+// an error is returned.
+//
+// This should be called before NewSession to ensure new channels of this type are
+// not rejected before the handler is registered.
+func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, handleFn func(ctx context.Context, ch ssh.NewChannel)) error {
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
+	ch := c.Client.HandleChannelOpen(channelType)
+	if ch == nil {
+		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", channelType)
+	}
+
+	go func() {
+		for newCh := range ch {
+			ctx, span := tracer.Start(
+				ctx,
+				fmt.Sprintf("ssh.HandleChannelOpen/%s", channelType),
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					append(
+						peerAttr(c.Conn.RemoteAddr()),
+						semconv.RPCServiceKey.String("ssh.Client"),
+						semconv.RPCMethodKey.String("OpenChannel"),
+						semconv.RPCSystemKey.String("ssh"),
+					)...,
+				),
+			)
+
+			handleFn(ctx, newCh)
+			span.End()
+		}
+	}()
+	return nil
+}
+
+// HandleChannelOpenNoTrace returns a channel on which NewChannel requests
+// for the given type are sent. If the type already is being handled,
+// nil is returned. The channel is closed when the connection is closed.
+//
+// This method uses the base [ssh.Client] and thus does not create traces for
+// channels opened by this method. Traces should be created manually in the handling
+// of new channels, or HandleChannelOpen should be used.
+func (c *Client) HandleChannelOpenNoTrace(channelType string) <-chan ssh.NewChannel {
+	return c.Client.HandleChannelOpen(channelType)
+}
+
+// HandleRequests starts a goroutine to handle any incoming [ssh.Request] matching
+// the provided type using the provided handler. If the type already is being handled,
+// an error is returned.
+//
+// This should be called before NewSession to ensure requests of this type are
+// not processed before the handler is registered.
+func (c *Client) HandleRequests(ctx context.Context, requestType string, handleFn func(ctx context.Context, ch *ssh.Request)) error {
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
+	ch := c.sessionClient.HandleRequests(requestType)
+	if ch == nil {
+		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", requestType)
+	}
+
+	go func() {
+		for req := range ch {
+			ctx, span := tracer.Start(
+				ctx,
+				fmt.Sprintf("ssh.HandleRequests/%s", requestType),
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					append(
+						peerAttr(c.Conn.RemoteAddr()),
+						semconv.RPCServiceKey.String("ssh.Client"),
+						semconv.RPCMethodKey.String("HandleRequests"),
+						semconv.RPCSystemKey.String("ssh"),
+					)...,
+				),
+			)
+
+			handleFn(ctx, req)
+			span.End()
+		}
+	}()
+	return nil
+}
+
+// connWrapper wraps the ssh.Conn for individual ssh.Client
 // operations to intercept internal calls by the ssh.Client to
 // OpenChannel. This allows for internal operations within the
 // ssh.Client to have their payload wrapped in an Envelope to
 // forward tracing context when tracing is enabled.
-type clientWrapper struct {
+type connWrapper struct {
 	// Conn is the ssh.Conn that requests will be forwarded to
 	ssh.Conn
 	// capability the tracingCapability of the ssh server
@@ -229,30 +308,8 @@ type clientWrapper struct {
 	contexts map[string][]context.Context
 }
 
-// NewSession opens a new Session for this client.
-func (c *clientWrapper) NewSession(callback sshutils.ChannelRequestCallback) (*Session, error) {
-	// create a client that will defer to us when
-	// opening the "session" channel so that we
-	// can add an Envelope to the request
-	client := &ssh.Client{
-		Conn: c,
-	}
-
-	session, err := sshutils.NewSession(client, callback)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// wrap the session so all session requests on the channel
-	// can be traced
-	return &Session{
-		Session: session,
-		wrapper: c,
-	}, nil
-}
-
 // Dial initiates a connection to the addr from the remote host.
-func (c *clientWrapper) Dial(n, addr string) (net.Conn, error) {
+func (c *connWrapper) Dial(n, addr string) (net.Conn, error) {
 	// create a client that will defer to us when
 	// opening the "direct-tcpip" channel so that we
 	// can add an Envelope to the request
@@ -265,7 +322,7 @@ func (c *clientWrapper) Dial(n, addr string) (net.Conn, error) {
 
 // addContext adds the provided context.Context to the end of
 // the list for the provided channel name
-func (c *clientWrapper) addContext(ctx context.Context, name string) {
+func (c *connWrapper) addContext(ctx context.Context, name string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -274,7 +331,7 @@ func (c *clientWrapper) addContext(ctx context.Context, name string) {
 
 // nextContext returns the first context.Context for the provided
 // channel name
-func (c *clientWrapper) nextContext(name string) context.Context {
+func (c *connWrapper) nextContext(name string) context.Context {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -294,7 +351,7 @@ func (c *clientWrapper) nextContext(name string) context.Context {
 // OpenChannel tries to open a channel. If tracing is enabled,
 // the provided payload is wrapped in an Envelope to forward
 // any tracing context.
-func (c *clientWrapper) OpenChannel(name string, data []byte) (_ ssh.Channel, _ <-chan *ssh.Request, err error) {
+func (c *connWrapper) OpenChannel(name string, data []byte) (_ ssh.Channel, _ <-chan *ssh.Request, err error) {
 	config := tracing.NewConfig(c.opts)
 	tracer := config.TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start(
@@ -323,7 +380,7 @@ func (c *clientWrapper) OpenChannel(name string, data []byte) (_ ssh.Channel, _ 
 // contain tracing context.
 type channelWrapper struct {
 	ssh.Channel
-	manager *clientWrapper
+	manager *connWrapper
 }
 
 // SendRequest sends a channel request. If tracing is enabled,

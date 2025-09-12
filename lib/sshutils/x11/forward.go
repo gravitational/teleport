@@ -25,6 +25,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 const (
@@ -55,14 +57,14 @@ type ForwardRequestPayload struct {
 // authProto and authCookie are required to set up authentication with the Server. screenNumber is used
 // by the server to determine which screen should be connected to for X11 forwarding. singleConnection is
 // an optional argument to request X11 forwarding for a single connection.
-func RequestForwarding(sess *ssh.Session, xauthEntry *XAuthEntry) error {
+func RequestForwarding(ctx context.Context, sess *tracessh.Session, xauthEntry *XAuthEntry) error {
 	payload := ForwardRequestPayload{
 		AuthProtocol: xauthEntry.Proto,
 		AuthCookie:   xauthEntry.Cookie,
 		ScreenNumber: uint32(xauthEntry.Display.ScreenNumber),
 	}
 
-	ok, err := sess.SendRequest(ForwardRequest, true, ssh.Marshal(payload))
+	ok, err := sess.SendRequest(ctx, ForwardRequest, true, ssh.Marshal(payload))
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {
@@ -78,34 +80,6 @@ type ChannelRequestPayload struct {
 	OriginatorAddress string
 	// OriginatorPort is the port of the server requesting an X11 channel
 	OriginatorPort uint32
-}
-
-type x11ChannelHandler func(ctx context.Context, nch ssh.NewChannel)
-
-// ServeChannelRequests opens an X11 channel handler and starts a
-// goroutine to serve any channels received with the handler provided.
-func ServeChannelRequests(ctx context.Context, clt *ssh.Client, handler x11ChannelHandler) error {
-	channels := clt.HandleChannelOpen(ChannelRequest)
-	if channels == nil {
-		return trace.Wrap(trace.AlreadyExists("X11 forwarding channel already open"))
-	}
-
-	go func() {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		for {
-			select {
-			case nch := <-channels:
-				if nch == nil {
-					return
-				}
-				go handler(ctx, nch)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	return nil
 }
 
 // ServerConfig is a server configuration for X11 forwarding

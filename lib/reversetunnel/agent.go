@@ -88,7 +88,7 @@ type SSHClient interface {
 	SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error)
 	Principals() []string
 	GlobalRequests() <-chan *ssh.Request
-	HandleChannelOpen(channelType string) <-chan ssh.NewChannel
+	HandleChannelOpenNoTrace(channelType string) <-chan ssh.NewChannel
 	Reply(*ssh.Request, bool, []byte) error
 }
 
@@ -381,8 +381,8 @@ func (a *agent) connect() error {
 	startupCtx, cancel := context.WithCancel(a.ctx)
 
 	// Add channel handlers immediately to avoid rejecting a channel.
-	a.discoveryC = a.client.HandleChannelOpen(chanDiscovery)
-	a.transportC = a.client.HandleChannelOpen(constants.ChanTransport)
+	a.discoveryC = a.client.HandleChannelOpenNoTrace(chanDiscovery)
+	a.transportC = a.client.HandleChannelOpenNoTrace(constants.ChanTransport)
 
 	// Temporarily reply to global requests during startup. This is necessary
 	// due to the server sending a version request when we connect.

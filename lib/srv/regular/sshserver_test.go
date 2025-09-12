@@ -512,7 +512,7 @@ func TestSessionAuditLog(t *testing.T) {
 	// Request x11 forwarding, event should be emitted immediately.
 	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
 	require.NoError(t, err)
-	err = x11.RequestForwarding(se.Session, clientXAuthEntry)
+	err = x11.RequestForwarding(ctx, se, clientXAuthEntry)
 	require.NoError(t, err)
 
 	x11Event := nextEvent()
@@ -1425,8 +1425,8 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// Handle any x11 channel requests received from the server
 	// and start x11 forwarding to the client display.
-	err = x11.ServeChannelRequests(ctx, clt.Client, func(ctx context.Context, nch ssh.NewChannel) {
-		sch, sin, err := nch.Accept()
+	err = clt.HandleChannelOpen(ctx, x11.ChannelRequest, func(ctx context.Context, ch ssh.NewChannel) {
+		sch, sin, err := ch.Accept()
 		assert.NoError(t, err)
 		defer sch.Close()
 
@@ -1452,7 +1452,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	// Client requests x11 forwarding for the server session.
 	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
 	require.NoError(t, err)
-	err = x11.RequestForwarding(se.Session, clientXAuthEntry)
+	err = x11.RequestForwarding(ctx, se, clientXAuthEntry)
 	require.NoError(t, err)
 
 	// prepare to send virtual "keyboard input" into the shell:
@@ -2845,7 +2845,7 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// register X11 channel handler before requesting forwarding to avoid races
-	xchs := clt.HandleChannelOpen(x11.ChannelRequest)
+	xchs := clt.Client.HandleChannelOpen(x11.ChannelRequest)
 	require.NotNil(t, xchs)
 
 	// Send an X11 forwarding request to the server
