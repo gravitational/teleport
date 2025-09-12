@@ -277,11 +277,12 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 
 	// Build the Application Request
 	upstreamReq := req.Clone(req.Context())
-	// TODO(noah): At a later date, it'd be nice to support fetching the
-	// public_url from the app resource and using that instead relying on the
-	// fact that the Teleport Proxy is going to route based on RouteToApp
-	// certificate extensions. This will ensure if the Teleport Proxy is ever
-	// modified to not route based on certs, this will still work.
+	// For now, we redirect all requests to the proxy web's address. However,
+	// it would be a potential improvement for us to switch to fetching the
+	// public address from the App resource. This would reduce the chance of
+	// breakage if the Proxy is eventually modified to consider SNI. The problem
+	// with doing this is that the public address does not include a port, which
+	// we could guess from the Proxy's public web address.
 	upstreamReq.Host = s.proxyAddr
 	// TODO: Are there any headers we should override, add, or remove on the
 	// upstream request?
