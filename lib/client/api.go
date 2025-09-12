@@ -96,7 +96,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -5462,11 +5461,14 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 // so we need to ensure that we only present the allowed logins that would
 // result in a successful connection, if any exists.
 func CalculateSSHLogins(identityPrincipals []string, allowedLogins []string) ([]string, error) {
-	allowed := set.New(allowedLogins...)
+	allowed := make(map[string]struct{})
+	for _, login := range allowedLogins {
+		allowed[login] = struct{}{}
+	}
 
 	var logins []string
 	for _, local := range identityPrincipals {
-		if allowed.Contains(local) {
+		if _, ok := allowed[local]; ok {
 			logins = append(logins, local)
 		}
 	}
