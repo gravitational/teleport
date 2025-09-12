@@ -379,7 +379,7 @@ enum BotInstanceHealthStatus {
 | Instance heartbeat | Self-reported by each bot instance |  | 0-10 per instance (max enforced) | Data is **not** validated by the auth server, and cannot be used for making access decisions. |
 | config (tbot) | The effective `tbot` configuration |  | 1 per instance | `tbot` wont send config bigger than 32Kb |
 | Service | An independent, internal part of `tbot`. Generally maps 1:1 with configured outputs/tunnels. | `application-tunnel`, `workload-identity-api` | 1-30+ per instance |  |
-| Notice | An item created by `tbot` to capture an unusual event, configuration warning, or important status |  | 0-50 per instance (max enforced) |  |
+| Notice | An item created by `tbot` to capture an unusual event, configuration warning, or important status |  | 0-10 per instance (max enforced) |  |
 | OS | Operating system from `runtime.GOOS` | linux, windows or darwin | Once per heartbeat |  |
 | Version | Version of `tbot` | 18.1.0 | Once per heartbeat |  |
 | Hostname |  |  | Once per heartbeat |  |
@@ -398,7 +398,7 @@ Configuration will be limited before it is sent by `tbot`. It will be stored as 
 
 Service health scales with the number of services/outputs `tbot` is configured with. It doesn't make sense to limit the number of service records, as this would no longer provide a complete picture of the instance. Service health items will be extracted to their own resources (`BotInstanceServiceHealth`) in `/bot_instance/:bot_name/:uuid/service_health/:service_name`. An instance can have any number of service records, but only one per user-provided service name. New data will overwrite existing data.
 
-Notices will be limited in number (likely 50) per instance, and older items will be discarded - much the same way as heartbeats and authentications work today. Notices for an instance are cleared when the instance starts-up (denoted by the heartbeat field `is_startup`). Notices will be stored as part of an instance's state, alongside heartbeats and authentications. Notice are required for filtering the list of bot instance in the web UI and CLI, and so need to remain local to the instance itself.
+Notices will be limited in number per instance, and older items will be discarded - much the same way as heartbeats and authentications work today. Notices for an instance will be cleared when the instance starts-up (denoted by the heartbeat field `is_startup`). Notices will be stored as part of an instance's state, alongside heartbeats and authentications. Notices are required for filtering the list of bot instance in the web UI and CLI, and so need to remain local to the instance itself.
 
 To mitigate the risk of unforeseen consequences related to storing and serving additional data as part of `tbot` heartbeats (notice, service health and config), the auth server will respect an environment variable which will disable the ingestion of this additional data.
 
@@ -436,13 +436,13 @@ type NoticeLogger interface {
 
 Notices emitted using the `NoticeLogger` will be buffered in-memory and flushed to the auth server on the bot’s next heartbeat. Once notices have been sent to the auth server, `tbot` will delete them from memory. To avoid unbounded memory growth if the heartbeat service becomes unavailable, notices will be stored in fixed-size data structure such as a ring buffer, although the volume of notices should be low enough for this not to be a problem anyway.
 
-On the auth server, notices will be stored outside the bot instance record. The server will keep a limited number (e.g. 50 per instance) of the most recent notices and discard the rest. We do not need to worry about concurrent writers because the `tbot`'s heartbeat service is a singleton and except in rare misconfigurations, it’s only possible for a single `tbot` process to use a bot instance’s identity at a time.
+On the auth server, notices will be stored outside the bot instance record. The server will keep a limited number (10 per instance) of the most recent notices and discard the rest. We do not need to worry about concurrent writers because the `tbot`'s heartbeat service is a singleton and except in rare misconfigurations, it’s only possible for a single `tbot` process to use a bot instance’s identity at a time.
 
 If the heartbeat message’s `is_startup` flag is set, the auth server will discard all previous notices so that if the user fixes their configuration and restarts `tbot`, any warnings from their previous bad configuration will be immediately cleared to avoid confusion. This decision will also prevent us from treating notices as a general logging solution, as they will inherently be ephemeral and only representative of the most recent run.
 
 ## Configuration
 
-For visibility, `tbot` will also send its full configuration to the auth server. To avoid exceeding backend storage limits, if the config is beyond 32Kb it will not be sent. As we do not yet support dynamically reloading `tbot`'s configuration (e.g. by sending a `SIGHUP`) we will only include it in the first heartbeat after the bot starts up, but this may change if we support dynamic configuration in the future.
+For visibility, `tbot` will also send its full configuration to the auth server. To avoid exceeding backend storage limits, if the config is beyond 32Kb it will not be sent, and instead a notice will be raised against the bot instance informing the user. As we do not yet support dynamically reloading `tbot`'s configuration (e.g. by sending a `SIGHUP`) we will only include it in the first heartbeat after the bot starts up, but this may change if we support dynamic configuration in the future.
 
 **Effective vs Literal Configuration**
 
