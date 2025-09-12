@@ -303,6 +303,7 @@ export enum ResourceKind {
   WebToken = 'web_token',
   WindowsDesktop = 'windows_desktop',
   WindowsDesktopService = 'windows_desktop_service',
+  WorkloadIdentity = 'workload_identity',
 
   // Resources that have no actual data representation, but serve for checking
   // access to various features.

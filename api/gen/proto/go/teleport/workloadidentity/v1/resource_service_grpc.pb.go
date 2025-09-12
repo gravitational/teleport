@@ -34,12 +34,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorkloadIdentityResourceService_CreateWorkloadIdentity_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/CreateWorkloadIdentity"
-	WorkloadIdentityResourceService_UpdateWorkloadIdentity_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/UpdateWorkloadIdentity"
-	WorkloadIdentityResourceService_UpsertWorkloadIdentity_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/UpsertWorkloadIdentity"
-	WorkloadIdentityResourceService_GetWorkloadIdentity_FullMethodName    = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/GetWorkloadIdentity"
-	WorkloadIdentityResourceService_DeleteWorkloadIdentity_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/DeleteWorkloadIdentity"
-	WorkloadIdentityResourceService_ListWorkloadIdentities_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/ListWorkloadIdentities"
+	WorkloadIdentityResourceService_CreateWorkloadIdentity_FullMethodName   = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/CreateWorkloadIdentity"
+	WorkloadIdentityResourceService_UpdateWorkloadIdentity_FullMethodName   = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/UpdateWorkloadIdentity"
+	WorkloadIdentityResourceService_UpsertWorkloadIdentity_FullMethodName   = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/UpsertWorkloadIdentity"
+	WorkloadIdentityResourceService_GetWorkloadIdentity_FullMethodName      = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/GetWorkloadIdentity"
+	WorkloadIdentityResourceService_DeleteWorkloadIdentity_FullMethodName   = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/DeleteWorkloadIdentity"
+	WorkloadIdentityResourceService_ListWorkloadIdentities_FullMethodName   = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/ListWorkloadIdentities"
+	WorkloadIdentityResourceService_ListWorkloadIdentitiesV2_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/ListWorkloadIdentitiesV2"
 )
 
 // WorkloadIdentityResourceServiceClient is the client API for WorkloadIdentityResourceService service.
@@ -69,6 +70,10 @@ type WorkloadIdentityResourceServiceClient interface {
 	// ListWorkloadIdentities of all workload identities, pagination semantics are
 	// applied.
 	ListWorkloadIdentities(ctx context.Context, in *ListWorkloadIdentitiesRequest, opts ...grpc.CallOption) (*ListWorkloadIdentitiesResponse, error)
+	// ListWorkloadIdentities of all workload identities, pagination semantics are
+	// applied. Sorting by name or spiffe id is supported, and results can be
+	// filtered using a search term
+	ListWorkloadIdentitiesV2(ctx context.Context, in *ListWorkloadIdentitiesV2Request, opts ...grpc.CallOption) (*ListWorkloadIdentitiesResponse, error)
 }
 
 type workloadIdentityResourceServiceClient struct {
@@ -139,6 +144,16 @@ func (c *workloadIdentityResourceServiceClient) ListWorkloadIdentities(ctx conte
 	return out, nil
 }
 
+func (c *workloadIdentityResourceServiceClient) ListWorkloadIdentitiesV2(ctx context.Context, in *ListWorkloadIdentitiesV2Request, opts ...grpc.CallOption) (*ListWorkloadIdentitiesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWorkloadIdentitiesResponse)
+	err := c.cc.Invoke(ctx, WorkloadIdentityResourceService_ListWorkloadIdentitiesV2_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkloadIdentityResourceServiceServer is the server API for WorkloadIdentityResourceService service.
 // All implementations must embed UnimplementedWorkloadIdentityResourceServiceServer
 // for forward compatibility.
@@ -166,6 +181,10 @@ type WorkloadIdentityResourceServiceServer interface {
 	// ListWorkloadIdentities of all workload identities, pagination semantics are
 	// applied.
 	ListWorkloadIdentities(context.Context, *ListWorkloadIdentitiesRequest) (*ListWorkloadIdentitiesResponse, error)
+	// ListWorkloadIdentities of all workload identities, pagination semantics are
+	// applied. Sorting by name or spiffe id is supported, and results can be
+	// filtered using a search term
+	ListWorkloadIdentitiesV2(context.Context, *ListWorkloadIdentitiesV2Request) (*ListWorkloadIdentitiesResponse, error)
 	mustEmbedUnimplementedWorkloadIdentityResourceServiceServer()
 }
 
@@ -193,6 +212,9 @@ func (UnimplementedWorkloadIdentityResourceServiceServer) DeleteWorkloadIdentity
 }
 func (UnimplementedWorkloadIdentityResourceServiceServer) ListWorkloadIdentities(context.Context, *ListWorkloadIdentitiesRequest) (*ListWorkloadIdentitiesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListWorkloadIdentities not implemented")
+}
+func (UnimplementedWorkloadIdentityResourceServiceServer) ListWorkloadIdentitiesV2(context.Context, *ListWorkloadIdentitiesV2Request) (*ListWorkloadIdentitiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWorkloadIdentitiesV2 not implemented")
 }
 func (UnimplementedWorkloadIdentityResourceServiceServer) mustEmbedUnimplementedWorkloadIdentityResourceServiceServer() {
 }
@@ -324,6 +346,24 @@ func _WorkloadIdentityResourceService_ListWorkloadIdentities_Handler(srv interfa
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkloadIdentityResourceService_ListWorkloadIdentitiesV2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkloadIdentitiesV2Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkloadIdentityResourceServiceServer).ListWorkloadIdentitiesV2(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkloadIdentityResourceService_ListWorkloadIdentitiesV2_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkloadIdentityResourceServiceServer).ListWorkloadIdentitiesV2(ctx, req.(*ListWorkloadIdentitiesV2Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkloadIdentityResourceService_ServiceDesc is the grpc.ServiceDesc for WorkloadIdentityResourceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -354,6 +394,10 @@ var WorkloadIdentityResourceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListWorkloadIdentities",
 			Handler:    _WorkloadIdentityResourceService_ListWorkloadIdentities_Handler,
+		},
+		{
+			MethodName: "ListWorkloadIdentitiesV2",
+			Handler:    _WorkloadIdentityResourceService_ListWorkloadIdentitiesV2_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

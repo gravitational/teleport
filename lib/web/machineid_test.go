@@ -755,6 +755,60 @@ func TestListBotInstancesPaging(t *testing.T) {
 	}
 }
 
+func TestListBotInstancesSorting(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	env := newWebPack(t, 1, withWebPackAuthCacheEnabled(true))
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot-instance",
+	)
+
+	for i := range 10 {
+		now := time.Now()
+		_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+			Kind:    types.KindBotInstance,
+			Version: types.V1,
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    "bot-1",
+				InstanceId: uuid.New().String(),
+			},
+			Status: &machineidv1.BotInstanceStatus{
+				InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+					RecordedAt: &timestamppb.Timestamp{
+						Seconds: now.Unix() + int64(i),
+					},
+				},
+			},
+		})
+		require.NoError(t, err, "failed to create BotInstance index:%d", i)
+	}
+
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{
+		"page_token": []string{""}, // default to the start
+		"page_size":  []string{"0"},
+		"sort":       []string{"active_at_latest:desc"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+
+	var resp ListBotInstancesResponse
+	require.NoError(t, json.Unmarshal(response.Bytes(), &resp), "invalid response received")
+
+	prevValue := "~"
+	for _, r := range resp.BotInstances {
+		assert.Less(t, r.ActiveAtLatest, prevValue)
+		prevValue = r.ActiveAtLatest
+	}
+}
+
 func TestListBotInstancesWithBotFilter(t *testing.T) {
 	t.Parallel()
 
