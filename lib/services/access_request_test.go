@@ -1295,9 +1295,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 	}
 }
 
-func TestPruneRequestRoles(t *testing.T) {
-	ctx := context.Background()
-
+func newFixture(t *testing.T) (*mockGetter, string) {
 	clusterName := "my-cluster"
 
 	g := &mockGetter{
@@ -1478,6 +1476,13 @@ func TestPruneRequestRoles(t *testing.T) {
 	require.NoError(t, err)
 	g.desktops[desktop.GetName()] = desktop
 
+	return g, user
+}
+
+func TestPruneMappedSearchAs(t *testing.T) {
+	ctx := context.Background()
+	g, user := newFixture(t)
+
 	testCases := []struct {
 		desc               string
 		requestResourceIDs []types.ResourceID
@@ -1489,7 +1494,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "without login hint",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
@@ -1502,7 +1507,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "label expression role",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "responders-node",
 				},
@@ -1513,7 +1518,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "user login hint",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
@@ -1526,12 +1531,12 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "multiple nodes",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node-2",
 				},
@@ -1544,7 +1549,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "root login hint",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
@@ -1557,7 +1562,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "root login unavailable",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "denied-node",
 				},
@@ -1570,7 +1575,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "kube request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindKubernetesCluster,
 					Name:        "kube",
 				},
@@ -1582,7 +1587,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "db request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindDatabase,
 					Name:        "db",
 				},
@@ -1594,7 +1599,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "app request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindApp,
 					Name:        "app",
 				},
@@ -1606,7 +1611,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "windows request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindWindowsDesktop,
 					Name:        "windows",
 				},
@@ -1618,27 +1623,27 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "mixed request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindKubernetesCluster,
 					Name:        "kube",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindDatabase,
 					Name:        "db",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindApp,
 					Name:        "app",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindWindowsDesktop,
 					Name:        "windows",
 				},
@@ -1691,6 +1696,251 @@ func TestPruneRequestRoles(t *testing.T) {
 			require.Len(t, req.GetRoleThresholdMapping(), len(req.GetRoles()),
 				"Length of rtm does not match number of roles. rtm: %v roles %v",
 				req.GetRoleThresholdMapping(), req.GetRoles())
+		})
+	}
+}
+
+// requireBadParameter is a [require.ErrorAssertionFunc] that asserts the supplied error value is a BadParameter error
+func requireBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
+	var bpe *trace.BadParameterError
+	require.ErrorAs(t, err, &bpe, msgAndArgs...)
+}
+
+// remoteCapsAssertion is the signature for functions assrting the properties of
+type remoteCapsAssertion func(t require.TestingT, actual []string, msgAndArgs ...any)
+
+// expectRoles is a [remoteCapsAssertion] that asserts the returned role set contains a specific set of roles.
+// The role order is ignored, but otherwise the role sets must be identical.
+func expectRoles(expected ...string) remoteCapsAssertion {
+	return func(t require.TestingT, actual []string, msgAndArgs ...any) {
+		require.ElementsMatch(t, expected, actual, msgAndArgs...)
+	}
+}
+
+// undefinedRoles is a [remoteCapsAssertion] that makes no assertions about the supplied capabilities.
+// The correct value is literally undefined.
+func undefinedRoles(require.TestingT, []string, ...any) {
+}
+
+func TestPruneMappedRoles(t *testing.T) {
+	ctx := context.Background()
+	g, username := newFixture(t)
+
+	// GIVEN a user state with no standing roles, implying that the search-as roles *must*
+	// come from the supplied list...
+	userState, ok := g.userStates[username]
+	require.True(t, ok, "user should exist")
+	userState.Spec.Roles = nil
+
+	testCases := []struct {
+		desc               string
+		loginHint          string
+		requestResourceIDs []types.ResourceID
+		errorAssertion     require.ErrorAssertionFunc
+		capsAssertion      remoteCapsAssertion
+		expectRoles        []string
+	}{
+		{
+			desc: "without login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			errorAssertion: require.NoError,
+			capsAssertion:  expectRoles("node-admins", "node-access"),
+		},
+		{
+			desc: "label expression role",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "responders-node",
+				},
+			},
+			errorAssertion: require.NoError,
+			capsAssertion:  expectRoles("node-team", "node-access"),
+		},
+		{
+			desc: "user login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			loginHint:      "responder",
+			errorAssertion: require.NoError,
+			// With "responder" login hint, only request node-access.
+			capsAssertion: expectRoles("node-access"),
+		},
+		{
+			desc: "multiple nodes with login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node-2",
+				},
+			},
+			loginHint:      "responder",
+			errorAssertion: require.NoError,
+			// With "responder" login hint, only request node-access.
+			capsAssertion: expectRoles("node-access"),
+		},
+		{
+			desc: "root login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			loginHint:      "root",
+			errorAssertion: require.NoError,
+			// With "root" login hint, request node-admins.
+			capsAssertion: expectRoles("node-admins"),
+		},
+		{
+			desc: "root login unavailable",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "denied-node",
+				},
+			},
+			loginHint: "root",
+			// No roles grant access with the desired login, return an error.
+			errorAssertion: requireBadParameter,
+			capsAssertion:  undefinedRoles,
+		},
+		{
+			desc: "kube request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindKubernetesCluster,
+					Name:        "kube",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for kube cluster should only request kube-admins
+			capsAssertion: expectRoles("kube-admins"),
+		},
+		{
+			desc: "db request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindDatabase,
+					Name:        "db",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for db should only request db-admins
+			capsAssertion: expectRoles("db-admins"),
+		},
+		{
+			desc: "app request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindApp,
+					Name:        "app",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for app should only request app-admins
+			capsAssertion: expectRoles("app-admins"),
+		},
+		{
+			desc: "windows request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindWindowsDesktop,
+					Name:        "windows",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for windows should only request windows-admins
+			capsAssertion: expectRoles("windows-admins"),
+		},
+		{
+			desc: "mixed request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindKubernetesCluster,
+					Name:        "kube",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindDatabase,
+					Name:        "db",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindApp,
+					Name:        "app",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindWindowsDesktop,
+					Name:        "windows",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for different kinds should request all necessary roles
+			capsAssertion: expectRoles("node-access", "node-admins", "kube-admins", "db-admins", "app-admins", "windows-admins"),
+		},
+		{
+			desc: "foreign resource",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: "leaf",
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			errorAssertion: requireBadParameter,
+			capsAssertion:  undefinedRoles,
+		},
+	}
+
+	localSearchAsRoles := []string{
+		"node-admins",
+		"node-access",
+		"node-team",
+		"kube-admins",
+		"db-admins",
+		"app-admins",
+		"windows-admins",
+		"empty",
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			clock := clockwork.NewFakeClock()
+			caps, err := PruneMappedSearchAsRoles(ctx, clock, g, userState, localSearchAsRoles, testCase.requestResourceIDs, testCase.loginHint)
+			testCase.errorAssertion(t, err)
+			testCase.capsAssertion(t, caps)
 		})
 	}
 }

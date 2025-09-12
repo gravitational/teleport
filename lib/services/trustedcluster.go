@@ -21,12 +21,15 @@ package services
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // ValidateTrustedCluster checks and sets Trusted Cluster defaults
@@ -99,27 +102,30 @@ func parseRoleMap(r types.RoleMap) (map[string][]string, error) {
 	return directMatch, nil
 }
 
-// MapRoles maps local roles to remote roles
-func MapRoles(r types.RoleMap, remoteRoles []string) ([]string, error) {
-	_, err := parseRoleMap(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func mapRoles(remoteUserRoles []string, r types.RoleMap) (map[string]set.Set[string], error) {
+	// define a mapping from local roles to the possible remote roles that may
+	// have granted them access
+	index := make(map[string]set.Set[string])
+	addToIndex := func(localRole, remoteRole string) {
+		remoteRoles, ok := index[localRole]
+		if !ok {
+			index[localRole] = set.New[string](remoteRole)
+			return
+		}
+		remoteRoles.Add(remoteRole)
 	}
-	seen := make(map[string]struct{})
-	var outRoles []string
-	// when no remote roles are specified, assume that
-	// there is a single empty remote role (that should match wildcards)
-	if len(remoteRoles) == 0 {
-		remoteRoles = []string{""}
-	}
+
+	// Run the role mapping forwards over the remote roles, collecting which
+	// localRoles are granted by which remote roles
 	for _, mapping := range r {
 		expression := mapping.Remote
-		for _, remoteRole := range remoteRoles {
+		for _, remoteRole := range remoteUserRoles {
 			// never map default implicit role, it is always
 			// added by default
 			if remoteRole == constants.DefaultImplicitRole {
 				continue
 			}
+
 			for _, replacementRole := range mapping.Local {
 				replacement, err := utils.ReplaceRegexp(expression, replacementRole, remoteRole)
 				switch {
@@ -129,11 +135,7 @@ func MapRoles(r types.RoleMap, remoteRoles []string) ([]string, error) {
 					if replacement == "" {
 						continue
 					}
-					if _, ok := seen[replacement]; ok {
-						continue
-					}
-					seen[replacement] = struct{}{}
-					outRoles = append(outRoles, replacement)
+					addToIndex(replacement, remoteRole)
 				case errors.Is(err, utils.ErrReplaceRegexNotFound):
 					continue
 				default:
@@ -142,7 +144,50 @@ func MapRoles(r types.RoleMap, remoteRoles []string) ([]string, error) {
 			}
 		}
 	}
-	return outRoles, nil
+
+	return index, nil
+}
+
+// MapRoles maps remote roles to local roles
+func MapRoles(r types.RoleMap, remoteRoles []string) ([]string, error) {
+	_, err := parseRoleMap(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// when no remote roles are specified, assume that
+	// there is a single empty remote role (that should match wildcards)
+	if len(remoteRoles) == 0 {
+		remoteRoles = []string{""}
+	}
+
+	index, err := mapRoles(remoteRoles, r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return slices.Collect(maps.Keys(index)), nil
+}
+
+// UnmapRoles attempts to deduce what remote-cluster roles a user might have,
+// given the set of local roles the user has.
+func UnmapRoles(r types.RoleMap, remoteUserRoles, localRoles []string) ([]string, error) {
+	index, err := mapRoles(remoteUserRoles, r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// collect the remote roles of interest
+	remoteRoleSet := set.New[string]()
+	for _, localRole := range localRoles {
+		rr, ok := index[localRole]
+		if !ok {
+			return nil, trace.BadParameter("not all local roles could be mapped to remote roles")
+		}
+		remoteRoleSet.Add(rr.Elements()...)
+	}
+
+	return remoteRoleSet.Elements(), nil
 }
 
 // UnmarshalTrustedCluster unmarshals the TrustedCluster resource from JSON.
