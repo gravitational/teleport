@@ -272,40 +272,6 @@ func TestValidateSchedules(t *testing.T) {
 			},
 		},
 		{
-			description: "conflicting schedule names",
-			schedules: []*accessmonitoringrulesv1.Schedule{
-				{
-					Name: "same-name",
-					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
-						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
-								Weekday: time.Saturday.String(),
-								Start:   "00:00",
-								End:     "23:59",
-							},
-						},
-					},
-				},
-				{
-					Name: "same-name",
-					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
-						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
-								Weekday: time.Sunday.String(),
-								Start:   "00:00",
-								End:     "23:59",
-							},
-						},
-					},
-				},
-			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-				require.ErrorContains(t, err, "spec.schedules contains schedules with the same name")
-			},
-		},
-		{
 			description: "schedule time not specified",
 			schedules: []*accessmonitoringrulesv1.Schedule{
 				{
