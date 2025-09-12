@@ -377,7 +377,7 @@ enum BotInstanceHealthStatus {
 | Bot instance | A unique joined instance of `tbot` in either a long-running or ephemeral environment |  | 1-300+ per bot |  |
 | Authentication record | Created for each join or renewal |  | 0-10 per instance (max enforced) |  |
 | Instance heartbeat | Self-reported by each bot instance |  | 0-10 per instance (max enforced) | Data is **not** validated by the auth server, and cannot be used for making access decisions. |
-| config (tbot) | The effective `tbot` configuration |  | 1 per instance | `tbot` wont send config bigger than 320Kb |
+| config (tbot) | The effective `tbot` configuration |  | 1 per instance | `tbot` wont send config bigger than 32Kb |
 | Service | An independent, internal part of `tbot`. Generally maps 1:1 with configured outputs/tunnels. | `application-tunnel`, `workload-identity-api` | 1-30+ per instance |  |
 | Notice | An item created by `tbot` to capture an unusual event, configuration warning, or important status |  | 0-50 per instance (max enforced) |  |
 | OS | Operating system from `runtime.GOOS` | linux, windows or darwin | Once per heartbeat |  |
@@ -435,7 +435,7 @@ If the heartbeat message’s `is_startup` flag is set, the auth server will disc
 
 ## Configuration
 
-For visibility, `tbot` will also send its full configuration to the auth server. To avoid exceeding backend storage limits, if the config is beyond 320Kb it will not be sent. As we do not yet support dynamically reloading `tbot`'s configuration (e.g. by sending a `SIGHUP`) we will only include it in the first heartbeat after the bot starts up, but this may change if we support dynamic configuration in the future.
+For visibility, `tbot` will also send its full configuration to the auth server. To avoid exceeding backend storage limits, if the config is beyond 32Kb it will not be sent. As we do not yet support dynamically reloading `tbot`'s configuration (e.g. by sending a `SIGHUP`) we will only include it in the first heartbeat after the bot starts up, but this may change if we support dynamic configuration in the future.
 
 **Effective vs Literal Configuration**
 
