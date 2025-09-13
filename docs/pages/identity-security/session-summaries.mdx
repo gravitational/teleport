@@ -12,11 +12,9 @@ summaries for shell and database sessions. This allows you to see at a glance
 what your users do and estimate legitimacy of their actions before digging
 deeper and reviewing the entire recording.
 
-<Admonition type="warning">
-This feature is powered by AI, and as such, its accuracy may vary.
-
-Teleport doesn't currently support any spend controls; controlling the LLM
-token budget is your responsibility.
+<Admonition type="note">
+Session Recording Summaries are available only to Teleport Enterprise customers with Teleport Identity Security. 
+[Learn more about the features included in Teleport Identity Security](../feature-matrix.mdx#teleport-identity-security).
 </Admonition>
 
 ## How it works
@@ -43,6 +41,14 @@ There are three fundamental concepts to that underpin session summarization:
   Teleport configuration resources that provide model settings.
 - **Inference policies** indicate *what* gets summarized and which inference
   model is used in given case.
+
+<Admonition type="warning">
+This feature is powered by AI, and as such, its accuracy may vary.
+
+Teleport doesn't currently support any spend controls; controlling the LLM
+token budget is your responsibility.
+</Admonition>
+
 
 ## Prerequisites
 
