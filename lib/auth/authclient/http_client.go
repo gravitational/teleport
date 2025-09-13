@@ -600,6 +600,9 @@ type OIDCAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
@@ -615,12 +618,13 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 		return nil, trace.Wrap(err)
 	}
 	response := OIDCAuthResponse{
-		Username: rawResponse.Username,
-		Identity: rawResponse.Identity,
-		Cert:     rawResponse.Cert,
-		Req:      rawResponse.Req,
-		TLSCert:  rawResponse.TLSCert,
-		MFAToken: rawResponse.MFAToken,
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		MFAToken:      rawResponse.MFAToken,
+		ClientOptions: rawResponse.ClientOptions,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -672,6 +676,9 @@ type SAMLAuthRawResponse struct {
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
@@ -689,12 +696,13 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, samlResponse, con
 		return nil, trace.Wrap(err)
 	}
 	response := SAMLAuthResponse{
-		Username: rawResponse.Username,
-		Identity: rawResponse.Identity,
-		Cert:     rawResponse.Cert,
-		Req:      rawResponse.Req,
-		TLSCert:  rawResponse.TLSCert,
-		MFAToken: rawResponse.MFAToken,
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		MFAToken:      rawResponse.MFAToken,
+		ClientOptions: rawResponse.ClientOptions,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -738,6 +746,9 @@ type githubAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
@@ -752,11 +763,12 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		return nil, trace.Wrap(err)
 	}
 	response := GithubAuthResponse{
-		Username: rawResponse.Username,
-		Identity: rawResponse.Identity,
-		Cert:     rawResponse.Cert,
-		Req:      rawResponse.Req,
-		TLSCert:  rawResponse.TLSCert,
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		ClientOptions: rawResponse.ClientOptions,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(
