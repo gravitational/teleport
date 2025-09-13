@@ -75,15 +75,17 @@ func (c *SessionCtx) checkAndSetDefaults() error {
 		c.Identity = c.AuthCtx.Identity.GetIdentity()
 	}
 	if c.sessionID == "" {
-		transportType := types.GetMCPServerTransportType(c.App.GetURI())
-		switch transportType {
-		case types.MCPTransportHTTP:
+		if isStreamableHTTP(c.App) {
 			c.sessionID = session.ID(c.Identity.RouteToApp.SessionID)
-		default:
+		} else {
 			c.sessionID = session.NewID()
 		}
 	}
 	return nil
+}
+
+func isStreamableHTTP(app types.Application) bool {
+	return types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
 }
 
 func (c *SessionCtx) getAccessState(authPref types.AuthPreference) services.AccessState {
@@ -182,7 +184,11 @@ func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string)
 }
 
 func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
-	s.emitNotificationEvent(ctx, notification)
+	s.emitNotificationEvent(ctx, notification, nil)
+}
+
+func (s *sessionHandler) processServerNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+	s.logger.DebugContext(ctx, "Received server notification.", "method", notification.Method)
 }
 
 func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
@@ -204,6 +210,7 @@ func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWrit
 
 func (s *sessionHandler) onServerNotification(clientResponseWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
 	return func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+		s.processServerNotification(ctx, notification)
 		return trace.Wrap(clientResponseWriter.WriteMessage(ctx, notification))
 	}
 }
@@ -224,16 +231,25 @@ const (
 
 func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, replyDirection) {
 	s.idTracker.PushRequest(req)
+	reply, authErr := s.processClientRequestNoAudit(ctx, req)
+	if authErr != nil {
+		s.emitRequestEvent(ctx, req, authErr)
+		return reply, replyToClient
+	}
+	s.emitRequestEvent(ctx, req, nil)
+	return reply, replyToServer
+}
+
+func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
+	s.idTracker.PushRequest(req)
 	switch req.Method {
 	case mcp.MethodToolsCall:
 		methodName, _ := req.Params.GetName()
 		if authErr := s.checkAccessToTool(ctx, methodName); authErr != nil {
-			s.emitRequestEvent(ctx, req, authErr)
-			return makeToolAccessDeniedResponse(req, authErr), replyToClient
+			return makeToolAccessDeniedResponse(req, authErr), trace.Wrap(authErr)
 		}
 	}
-	s.emitRequestEvent(ctx, req, nil)
-	return req, replyToServer
+	return req, nil
 }
 
 func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {

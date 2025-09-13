@@ -2599,6 +2599,33 @@ func (m *MCPSessionNotification) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *MCPSessionListenSSEStream) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
+func (m *MCPSessionBadHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Path = ""
+	out.Body = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.Path)
+	if len(out.Body) > 0 {
+		customFieldsCount += 1
+	}
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Path = trimStr(m.Path, maxFieldsSize)
+	out.Body = []byte(trimStr(string(m.Body), maxFieldsSize))
+	return out
+}
+
 func (m *BoundKeypairRecovery) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {

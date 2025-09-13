@@ -21,12 +21,12 @@ import { formatDistanceStrict } from 'date-fns';
 import { pluralize } from 'shared/utils/text';
 
 import {
-  Event,
-  EventCode,
-  eventCodes,
-  Formatters,
-  RawEvent,
-  RawEvents,
+    Event,
+    EventCode,
+    eventCodes,
+    Formatters,
+    RawEvent,
+    RawEvents,
 } from './types';
 
 const formatElasticsearchEvent: (
@@ -2209,6 +2209,14 @@ export const formatters: Formatters = {
       return `User [${user}] has disconnected from MCP server [${app_name}]`;
     },
   },
+    [eventCodes.MCP_SESSION_END_FAILURE]: {
+        type: 'mcp.session.end',
+        desc: 'MCP Session End Failure',
+        format: event => {
+            const { user, app_name } = event;
+            return `User [${user}] has failed to disconnect from MCP server [${app_name}]`;
+        },
+    },
   [eventCodes.MCP_SESSION_REQUEST]: {
     type: 'mcp.session.request',
     desc: 'MCP Session Request',
@@ -2224,9 +2232,9 @@ export const formatters: Formatters = {
     desc: 'MCP Session Request Failure',
     format: ({ user, app_name, message }) => {
       if (message.params?.name) {
-        return `User [${user}] was denied access to an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
+        return `User [${user}] attempted to send an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}] and failed`;
       }
-      return `User [${user}] was denied access to an MCP request [${message.method}] to MCP server [${app_name}]`;
+      return `User [${user}] attempted to send an MCP request [${message.method}] to MCP server [${app_name}] and failed`;
     },
   },
   [eventCodes.MCP_SESSION_NOTIFICATION]: {
@@ -2236,6 +2244,34 @@ export const formatters: Formatters = {
       return `User [${user}] sent an MCP notification [${message.method}] to MCP server [${app_name}]`;
     },
   },
+  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: {
+      type: 'mcp.session.notification',
+      desc: 'MCP Session Notification Failure',
+      format: ({ user, app_name, message }) => {
+          return `User [${user}] attempted to send an MCP notification [${message.method}] to MCP server [${app_name}] but failed`;
+      },
+  },
+    [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: {
+        type: 'mcp.session.listen_sse_stream',
+        desc: 'MCP Session Listen',
+        format: ({ user, app_name }) => {
+            return `User [${user}] has started listening events from MCP server [${app_name}]`;
+        },
+    },
+    [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: {
+        type: 'mcp.session.listen_sse_stream',
+        desc: 'MCP Session Listen Failure',
+        format: ({ user, app_name }) => {
+            return `User [${user}] has attempted to start listening events from MCP server [${app_name}] but failed`;
+        },
+    },
+    [eventCodes.MCP_SESSION_BAD_HTTP_REQUEST]: {
+        type: 'mcp.session.bad_http_request',
+        desc: 'MCP Session Invalid Request',
+        format: ({ user, app_name }) => {
+            return `User [${user}] has attempted to send an invalid request to MCP server [${app_name}]`;
+        },
+    },
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: {
     type: 'join_token.bound_keypair.recovery',
     desc: 'Bound Keypair Recovery',

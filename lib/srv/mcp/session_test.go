@@ -96,7 +96,7 @@ func Test_sessionHandler(t *testing.T) {
 			for _, allowedTool := range tt.allowedTools {
 				t.Run("allow tools call "+allowedTool, func(t *testing.T) {
 					clientReq := requestBuilder.makeToolsCallRequest(allowedTool)
-					msg, dir := handler.processClientRequest(ctx, clientReq)
+					msg, dir := handler.processClientRequest(ctx, clientReq, true)
 					require.Equal(t, replyToServer, dir)
 					require.Equal(t, clientReq, msg)
 
@@ -113,7 +113,7 @@ func Test_sessionHandler(t *testing.T) {
 			for _, deniedTool := range tt.deniedTools {
 				t.Run("deny tools call "+deniedTool, func(t *testing.T) {
 					clientReq := requestBuilder.makeToolsCallRequest(deniedTool)
-					msg, dir := handler.processClientRequest(ctx, clientReq)
+					msg, dir := handler.processClientRequest(ctx, clientReq, true)
 					require.Equal(t, replyToClient, dir)
 					errMsg, ok := msg.(mcp.JSONRPCError)
 					require.True(t, ok)
@@ -134,7 +134,7 @@ func Test_sessionHandler(t *testing.T) {
 
 				// First make a request so the handler can track the method by ID.
 				clientReq := requestBuilder.makeToolsListRequest()
-				_, dir := handler.processClientRequest(ctx, clientReq)
+				_, dir := handler.processClientRequest(ctx, clientReq, true)
 				require.Equal(t, replyToServer, dir)
 
 				// tools/list does not trigger audit event.

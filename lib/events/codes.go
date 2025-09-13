@@ -743,14 +743,27 @@ const (
 	MCPSessionStartCode = "TMCP001I"
 	// MCPSessionEndCode is the event code for mcp.session.end.
 	MCPSessionEndCode = "TMCP002I"
+	// MCPSessionEndFailureCode is the event code for mcp.session.end when the
+	// end request is denied by the MCP server.
+	MCPSessionEndFailureCode = "TMCP002E"
 	// MCPSessionRequestCode is the event code for mcp.session.request.
 	MCPSessionRequestCode = "TMCP003I"
 	// MCPSessionRequestFailureCode is the event code for mcp.session.request
-	// when the request is denied by Teleport.
+	// when the request is denied by Teleport or the MCP server.
 	MCPSessionRequestFailureCode = "TMCP003E"
 	// MCPSessionNotificationCode is the event code for
 	// mcp.session.notification.
 	MCPSessionNotificationCode = "TMCP004I"
+	// MCPSessionNotificationFailureCode is the event code for
+	// mcp.session.notification when the notification is denied by the MCP
+	// server.
+	MCPSessionNotificationFailureCode = "TMCP004E"
+	// TODO
+	MCPSessionListenSSEStreamCode = "TMCP005I"
+	// TODO
+	MCPSessionListenSSEStreamFailureCode = "TMCP005E"
+	// TODO
+	MCPSessionBadHTTPRequestCode = "TMCP006E"
 
 	// BoundKeypairRecoveryCode is the event code for
 	// join_token.bound_keypair.recovery.

@@ -902,6 +902,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MCPSessionNotification{
 			MCPSessionNotification: e,
 		}
+	case *MCPSessionListenSSEStream:
+		out.Event = &OneOf_MCPSessionListenSSEStream{
+			MCPSessionListenSSEStream: e,
+		}
+	case *MCPSessionBadHTTPRequest:
+		out.Event = &OneOf_MCPSessionBadHTTPRequest{
+			MCPSessionBadHTTPRequest: e,
+		}
 	case *BoundKeypairRecovery:
 		out.Event = &OneOf_BoundKeypairRecovery{
 			BoundKeypairRecovery: e,

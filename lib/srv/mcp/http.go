@@ -22,53 +22,29 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
-type httpResponseProcessor struct {
-	*sessionHandler
-}
-
-func newHTTPResponseProcessor(sessionHandler *sessionHandler) *httpResponseProcessor {
-	return &httpResponseProcessor{
-		sessionHandler: sessionHandler,
-	}
-}
-
-func (p *httpResponseProcessor) ProcessResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
-	return p.processServerResponse(ctx, resp)
-}
-func (p *httpResponseProcessor) ProcessNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) mcp.JSONRPCMessage {
-	p.logger.DebugContext(ctx, "Processing server notification.", "method", notification.Method)
-	return notification
-}
-
 func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCtx) error {
 	s.cfg.Log.InfoContext(ctx, "Handle streamable HTTP request")
 	defer s.cfg.Log.InfoContext(ctx, "Handle streamable HTTP request completed")
 
-	// TODO(greedy52) cache session similar to how app access handles chunks for
-	// recording purpose.
 	session, err := s.makeSessionHandler(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "setting up session handler")
@@ -90,29 +66,20 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 				// Nothing to modify here. we are exiting the session.
 				return nil
 			}
-			return trace.Wrap(mcputils.ReplaceHTTPResponse(ctx, resp, newHTTPResponseProcessor(session)))
+			return trace.Wrap(mcputils.ReplaceHTTPResponse(ctx, resp, newHTTPResponseReplacer(session)))
 		}),
 	)
 	if err != nil {
 		return trace.Wrap(err, "creating reverse proxy")
 	}
 
-	server := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			proxy.ServeHTTP(w, req)
-		}),
-	}
-	// Single use listener returns io.EOF on the second Accept so Serve here
-	// returns once the connection is passed to the handler in a go-routine.
-	if err = server.Serve(
-		listenerutils.NewSingleUseListener(sessionCtx.ClientConn),
-	); err != nil && !utils.IsOKNetworkError(err) {
+	// Serve a single request.
+	waitConn := utils.NewCloserConn(sessionCtx.ClientConn)
+	listener := listenerutils.NewSingleUseListener(waitConn)
+	if err = http.Serve(listener, proxy); err != nil && !utils.IsOKNetworkError(err) {
 		return trace.Wrap(err)
 	}
-	// Graceful shutdown to wait for the request to be processed.
-	if err := server.Shutdown(ctx); err != nil && !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) {
-		return trace.Wrap(err)
-	}
+	waitConn.Wait()
 	return nil
 }
 
@@ -128,11 +95,10 @@ func (s *Server) makeStreamableHTTPTransport(ctx context.Context, session *sessi
 	}
 	targetURI.Scheme = strings.TrimPrefix(targetURI.Scheme, "mcp+")
 
-	tr, err := defaults.Transport()
+	tr, err := s.makeHTTPTransport(session.App)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO configure TLS
 	return &sessionTransport{
 		sessionHandler: session,
 		targetURI:      targetURI,
@@ -150,27 +116,95 @@ type sessionTransport struct {
 	traits    wrappers.Traits
 }
 
-func (t *sessionTransport) setExternalSessionID(id string) {
-	if id == "" {
-		return
-	}
+func (t *sessionTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	t.setExternalSessionID(r.Header)
+	t.rewriteRequest(r)
 
-	// Store the external session ID.
-	t.sessionCtx.mcpSessionID.Store(&id)
+	switch r.Method {
+	case http.MethodDelete:
+		return t.handleSessionEndRequest(r)
+	case http.MethodGet:
+		return t.handleListenSSEStreamRequest(r)
+	case http.MethodPost:
+		return t.handleMCPMessage(r)
 
-	// Use the external session ID for our session ID, if it's already a UUID.
-	// If not, do a UUID hash.
-	if parsedID, err := uuid.Parse(id); err == nil {
-		t.sessionID = session.ID(parsedID.String())
-	} else {
-		t.sessionID = session.ID(uuid.NewSHA1(uuid.Nil, []byte(id)).String())
-
+	default:
+		// Some clients like MCP inspector may send OPTIONS requests which are
+		// not documented in the MCP spec ¯\_(ツ)_/¯.
+		t.emitBadHTTPRequest(t.parentCtx, r)
+		return &http.Response{
+			Request:    r,
+			StatusCode: http.StatusMethodNotAllowed,
+		}, nil
 	}
 }
 
-func (t *sessionTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	t.setExternalSessionID(r.Header.Get("Mcp-Session-Id"))
+func (t *sessionTransport) handleSessionEndRequest(r *http.Request) (*http.Response, error) {
+	resp, err := t.tr.RoundTrip(r)
+	t.emitEndEvent(t.parentCtx, err)
+	return resp, trace.Wrap(err)
+}
 
+func (t *sessionTransport) handleListenSSEStreamRequest(r *http.Request) (*http.Response, error) {
+	resp, err := t.tr.RoundTrip(r)
+	t.emitListenSSEStreamEvent(t.parentCtx, err)
+	return resp, trace.Wrap(err)
+}
+
+func (t *sessionTransport) handleMCPMessage(r *http.Request) (*http.Response, error) {
+	var baseMessage mcputils.BaseJSONRPCMessage
+	if reqBody, err := utils.GetAndReplaceRequestBody(r); err != nil {
+		t.emitBadHTTPRequest(t.parentCtx, r)
+		return nil, trace.BadParameter(err.Error())
+	} else if err := json.Unmarshal(reqBody, &baseMessage); err != nil {
+		t.emitBadHTTPRequest(t.parentCtx, r)
+		return nil, trace.BadParameter(err.Error())
+	}
+
+	switch {
+	case baseMessage.IsRequest():
+		mcpRequest := baseMessage.MakeRequest()
+		if errResp, authErr := t.sessionHandler.processClientRequestNoAudit(r.Context(), mcpRequest); authErr != nil {
+			return t.handleRequestAuthError(r, mcpRequest, errResp, authErr)
+		}
+	case baseMessage.IsNotification():
+		// nothing to do, yet.
+	default:
+		// Not sending it to the server if we don't understand it.
+		t.emitBadHTTPRequest(t.parentCtx, r)
+		return nil, trace.BadParameter("not a MCP request or notification")
+	}
+
+	resp, err := t.tr.RoundTrip(r)
+	if resp != nil {
+		// Prefer session ID from server response if present. For example,
+		// "initialize" request does not have an ID but the server response to it
+		// will.
+		t.setExternalSessionID(resp.Header)
+	}
+
+	// Take of audit events.
+	switch {
+	case baseMessage.IsRequest():
+		mcpRequest := baseMessage.MakeRequest()
+		// Only emit session start if "initialize" succeeded.
+		if mcpRequest.Method == "initialize" && err == nil {
+			t.emitStartEvent(t.parentCtx)
+		}
+		t.emitRequestEvent(t.parentCtx, mcpRequest, err)
+	case baseMessage.IsNotification():
+		t.emitNotificationEvent(t.parentCtx, baseMessage.MakeNotification(), err)
+	}
+	return resp, trace.Wrap(err)
+}
+
+func (t *sessionTransport) setExternalSessionID(header http.Header) {
+	if id := header.Get("Mcp-Session-Id"); id != "" {
+		t.sessionCtx.mcpSessionID.Store(&id)
+	}
+}
+
+func (t *sessionTransport) rewriteRequest(r *http.Request) {
 	r.URL.Scheme = t.targetURI.Scheme
 	r.URL.Host = t.targetURI.Host
 
@@ -184,63 +218,41 @@ func (t *sessionTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	// Add headers from rewrite configuration.
 	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), t.App.GetRewrite(), t.logger)
 	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.traits, t.logger)
+}
 
-	reqBody, err := utils.GetAndReplaceRequestBody(r)
+func (t *sessionTransport) handleRequestAuthError(r *http.Request, mcpRequest *mcputils.JSONRPCRequest, errResp mcp.JSONRPCMessage, authErr error) (*http.Response, error) {
+	t.emitRequestEvent(t.parentCtx, mcpRequest, authErr)
+
+	errRespAsBody, err := json.Marshal(errResp)
 	if err != nil {
+		// Should not happen. If it does, we are failing the request either way.
 		return nil, trace.Wrap(err)
 	}
 
-	var initReq *mcputils.JSONRPCRequest
-	switch {
-	case r.Method == http.MethodDelete:
-		t.emitEndEvent(t.parentCtx)
-		return t.tr.RoundTrip(r)
-	case len(reqBody) > 0:
-		var baseMessage mcputils.BaseJSONRPCMessage
-		if err := json.Unmarshal(reqBody, &baseMessage); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		switch {
-		case baseMessage.IsRequest():
-			req := baseMessage.MakeRequest()
-			switch req.Method {
-			case "initialize":
-				// TODO(greedy52) handle this in a more automatic way
-				initReq = req
-			default:
-				errResp, replyDir := t.sessionHandler.processClientRequest(r.Context(), req)
-				errRespAsBody, err := json.Marshal(errResp)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				if replyDir == replyToClient {
-					t.logger.WarnContext(r.Context(), "=== blocking request", "accept", r.Header.Get("accept"))
-					httpResp := &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(errRespAsBody)),
-						Header:     make(http.Header),
-					}
-					httpResp.Header.Set("Content-Type", "application/json")
-					httpResp.Header.Set("Mcp-Session-Id", r.Header.Get("Mcp-Session-Id"))
-					return httpResp, nil
-				}
-			}
-		case baseMessage.IsNotification():
-			t.sessionHandler.processClientNotification(r.Context(), baseMessage.MakeNotification())
-		default:
-			return nil, trace.BadParameter("todo something went wrong")
-		}
+	httpResp := &http.Response{
+		Request:    r,
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(errRespAsBody)),
+		Header:     make(http.Header),
 	}
+	httpResp.Header.Set("Content-Type", "application/json")
+	return httpResp, nil
+}
 
-	resp, err := t.tr.RoundTrip(r)
-	if err != nil {
-		// TODO(greedy52) emit start failure?
-		return nil, trace.Wrap(err)
+type httpResponseReplacer struct {
+	*sessionHandler
+}
+
+func newHTTPResponseReplacer(sessionHandler *sessionHandler) *httpResponseReplacer {
+	return &httpResponseReplacer{
+		sessionHandler: sessionHandler,
 	}
-	if initReq != nil {
-		t.setExternalSessionID(resp.Header.Get("Mcp-Session-Id"))
-		t.emitStartEvent(t.parentCtx)
-		t.emitRequestEvent(t.parentCtx, initReq, nil)
-	}
-	return resp, nil
+}
+
+func (p *httpResponseReplacer) ProcessResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
+	return p.processServerResponse(ctx, resp)
+}
+func (p *httpResponseReplacer) ProcessNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) mcp.JSONRPCMessage {
+	p.processServerNotification(ctx, notification)
+	return notification
 }

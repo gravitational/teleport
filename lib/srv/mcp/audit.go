@@ -21,6 +21,7 @@ package mcp
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -29,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
@@ -103,8 +105,8 @@ func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
 	})
 }
 
-func (a *sessionAuditor) emitEndEvent(ctx context.Context) {
-	a.emitEvent(ctx, &apievents.MCPSessionEnd{
+func (a *sessionAuditor) emitEndEvent(ctx context.Context, err error) {
+	event := &apievents.MCPSessionEnd{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionEndEvent,
 			events.MCPSessionEndCode,
@@ -114,14 +116,23 @@ func (a *sessionAuditor) emitEndEvent(ctx context.Context) {
 		UserMetadata:       a.makeUserMetadata(),
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
-	})
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+	if err != nil {
+		event.Metadata.Code = events.MCPSessionEndFailureCode
+		event.Status.Success = false
+		event.Status.Error = err.Error()
+	}
+	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification) {
+func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, err error) {
 	if !a.shouldEmitEvent(msg.Method) {
 		return
 	}
-	a.emitEvent(ctx, &apievents.MCPSessionNotification{
+	event := &apievents.MCPSessionNotification{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionNotificationEvent,
 			events.MCPSessionNotificationCode,
@@ -134,7 +145,16 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 			Method:  string(msg.Method),
 			Params:  msg.Params.GetEventParams(),
 		},
-	})
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+	if err != nil {
+		event.Metadata.Code = events.MCPSessionNotificationCode
+		event.Status.Success = false
+		event.Status.Error = err.Error()
+	}
+	a.emitEvent(ctx, event)
 }
 
 func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, err error) {
@@ -164,6 +184,44 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 		event.Metadata.Code = events.MCPSessionRequestFailureCode
 		event.Status.Success = false
 		event.Status.Error = err.Error()
+	}
+	a.emitEvent(ctx, event)
+}
+
+func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error) {
+	event := &apievents.MCPSessionListenSSEStream{
+		Metadata: a.makeEventMetadata(
+			events.MCPSessionListenSSEStream,
+			events.MCPSessionListenSSEStreamCode,
+		),
+		SessionMetadata: a.makeSessionMetadata(),
+		UserMetadata:    a.makeUserMetadata(),
+		AppMetadata:     a.makeAppMetadata(),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+	if err != nil {
+		event.Metadata.Code = events.MCPSessionListenSSEStreamFailureCode
+		event.Status.Success = false
+		event.Status.Error = err.Error()
+	}
+	a.emitEvent(ctx, event)
+}
+
+func (a *sessionAuditor) emitBadHTTPRequest(ctx context.Context, r *http.Request) {
+	body, _ := utils.GetAndReplaceRequestBody(r)
+	event := &apievents.MCPSessionBadHTTPRequest{
+		Metadata: a.makeEventMetadata(
+			events.MCPSessionBadHTTPRequest,
+			events.MCPSessionBadHTTPRequestCode,
+		),
+		SessionMetadata: a.makeSessionMetadata(),
+		UserMetadata:    a.makeUserMetadata(),
+		AppMetadata:     a.makeAppMetadata(),
+		Path:            r.URL.Path,
+		Method:          r.Method,
+		Body:            body,
 	}
 	a.emitEvent(ctx, event)
 }
