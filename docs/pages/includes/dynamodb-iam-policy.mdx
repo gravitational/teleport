@@ -44,7 +44,15 @@ The audit event table must have the following attribute definitions:
 |`CreatedAtDate`|`S`|
 |`CreatedAt`|`N`|
 
-The table must also have the following key schema elements:
+The table must have the following key schema elements:
+
+|Name|Type|
+|---|---|
+|`SessionID`|`HASH`|
+|`EventIndex`|`RANGE`|
+
+The table must also have a global secondary index named `timesearchV2` with the
+following key schema elements:
 
 |Name|Type|
 |---|---|
