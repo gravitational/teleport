@@ -25,6 +25,7 @@ default.etcd
 out
 build
 !/web/packages/build
+/web/packages/shared/libs/ironrdp/pkg/**
 *.o
 *.a
 *.so
