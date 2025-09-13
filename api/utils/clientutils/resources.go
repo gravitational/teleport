@@ -21,8 +21,10 @@ package clientutils
 import (
 	"context"
 	"iter"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/defaults"
 )
@@ -66,11 +68,26 @@ type rangeParams[T any] struct {
 	// This key is used when a given range end key is given to compare against.
 	// Backend keys are assumed to be sorted lexigraphically.
 	keyFunc func(item T) string
+	// clock for the testing wait times.
+	clock clockwork.Clock
+	// waitTimeBetweenPages to allow reducing CPU spikes. Optional.
+	waitTimeBetweenPages time.Duration
+	// waitTimeBetweenPagesJitterFn is an optional jitter wait between pages time.
+	waitTimeBetweenPagesJitterFn func(time.Duration) time.Duration
 }
 
 // rangeInternal is the internal implementation of resource range getter.
 // The iterator will only produce an error if one is encountered retrieving a page.
 func rangeInternal[T any](ctx context.Context, params rangeParams[T]) iter.Seq2[T, error] {
+	if params.waitTimeBetweenPages > 0 {
+		if params.clock == nil {
+			params.clock = clockwork.NewRealClock()
+		}
+		if params.waitTimeBetweenPagesJitterFn == nil {
+			params.waitTimeBetweenPagesJitterFn = func(d time.Duration) time.Duration { return d }
+		}
+	}
+
 	return func(yield func(T, error) bool) {
 		pageToken := params.start
 		pageSize := params.pageSize
@@ -91,7 +108,8 @@ func rangeInternal[T any](ctx context.Context, params rangeParams[T]) iter.Seq2[
 					continue
 				}
 
-				yield(*new(T), trace.Wrap(err))
+				var zero T
+				yield(zero, trace.Wrap(err))
 				return
 			}
 
@@ -109,9 +127,19 @@ func rangeInternal[T any](ctx context.Context, params rangeParams[T]) iter.Seq2[
 			if nextToken == "" {
 				return
 			}
+
+			if params.waitTimeBetweenPages > 0 {
+				waitTime := params.waitTimeBetweenPagesJitterFn(params.waitTimeBetweenPages)
+				select {
+				case <-params.clock.After(waitTime):
+				case <-ctx.Done():
+					var zero T
+					yield(zero, trace.Wrap(ctx.Err()))
+					return
+				}
+			}
 		}
 	}
-
 }
 
 // ResourcesWithPageSize returns an iterator over all resources from every page, limited to pageSize, produced from the pageFunc.
@@ -123,12 +151,51 @@ func ResourcesWithPageSize[T any](ctx context.Context, pageFunc func(context.Con
 	})
 }
 
+type resourcesOptions struct {
+	clock                        clockwork.Clock
+	waitTimeBetweenPages         time.Duration
+	waitTimeBetweenPagesJitterFn func(time.Duration) time.Duration
+}
+
+// ResourcesOpt are options for the [Resources] func. Look for With* funcs in the package to find
+// available options.
+type ResourcesOpt func(*resourcesOptions)
+
+// WithClocks allows to set clock for the testing purposes.
+func WithClock(clock clockwork.Clock) ResourcesOpt {
+	return func(o *resourcesOptions) {
+		o.clock = clock
+	}
+}
+
+// WithWaitTimeBetweenPages sets time to wait between pages to reduce CPU spikes. Jitter can be
+// applied [WithWaitTimeBetweenPagesJitterFn].
+func WithWaitTimeBetweenPages(waitTime time.Duration) ResourcesOpt {
+	return func(o *resourcesOptions) {
+		o.waitTimeBetweenPages = waitTime
+	}
+}
+
+// WithWaitTimeBetweenPagesJitterFn applies jitter to the wait time between pages if it is set.
+func WithWaitTimeBetweenPagesJitterFn(jitterFn func(time.Duration) time.Duration) ResourcesOpt {
+	return func(o *resourcesOptions) {
+		o.waitTimeBetweenPagesJitterFn = jitterFn
+	}
+}
+
 // Resources returns an iterator over all resources from every page produced from the pageFunc.
 // The iterator will only produce an error if one is encountered retrieving a page.
-func Resources[T any](ctx context.Context, pageFunc func(context.Context, int, string) ([]T, string, error)) iter.Seq2[T, error] {
+func Resources[T any](ctx context.Context, pageFunc func(context.Context, int, string) ([]T, string, error), opts ...ResourcesOpt) iter.Seq2[T, error] {
+	options := resourcesOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
 	return rangeInternal(ctx, rangeParams[T]{
-		pageFunc: pageFunc,
-		pageSize: defaults.DefaultChunkSize,
+		pageFunc:                     pageFunc,
+		pageSize:                     defaults.DefaultChunkSize,
+		clock:                        options.clock,
+		waitTimeBetweenPages:         options.waitTimeBetweenPages,
+		waitTimeBetweenPagesJitterFn: options.waitTimeBetweenPagesJitterFn,
 	})
 }
 

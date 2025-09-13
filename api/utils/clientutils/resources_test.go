@@ -21,10 +21,13 @@ package clientutils
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -242,4 +245,63 @@ func TestRangeResources(t *testing.T) {
 			assert.Equal(t, tc.expectedListCalls, paginator.pageCalls)
 		})
 	}
+}
+
+func TestResources_WithTimeBetweenPages_defaulting(t *testing.T) {
+	ctx := t.Context()
+
+	paginator := mockPaginator{}
+	assert.Equal(t, 0, paginator.pageCalls)
+
+	itemCnt := 0
+	for _, err := range Resources(ctx,
+		paginator.List,
+		WithWaitTimeBetweenPages(1),
+	) {
+		require.NoError(t, err)
+		itemCnt++
+	}
+
+	expectedPages := int(math.Ceil(float64(totalItems) / defaults.DefaultChunkSize))
+
+	assert.Equal(t, totalItems, itemCnt)
+	assert.Equal(t, expectedPages, paginator.pageCalls)
+}
+
+func TestResources_WithTimeBetweenPages_waiting(t *testing.T) {
+	ctx := t.Context()
+
+	paginator := mockPaginator{}
+	assert.Equal(t, 0, paginator.pageCalls)
+
+	clock := clockwork.NewFakeClock()
+	waitTime := 10 * time.Second
+	predictableJitterFn := func(d time.Duration) time.Duration { return d / 2 }
+
+	doneCh := make(chan int)
+	go func() {
+		var itemCnt int
+		for _, err := range Resources(ctx,
+			paginator.List,
+			WithClock(clock),
+			WithWaitTimeBetweenPages(waitTime),
+			WithWaitTimeBetweenPagesJitterFn(predictableJitterFn),
+		) {
+			require.NoError(t, err)
+			itemCnt++
+		}
+		doneCh <- itemCnt
+	}()
+
+	expectedPages := int(math.Ceil(float64(totalItems) / defaults.DefaultChunkSize))
+
+	for range expectedPages - 1 {
+		clock.BlockUntilContext(ctx, 1)
+		clock.Advance(predictableJitterFn(waitTime))
+	}
+
+	itemCnt := <-doneCh
+
+	assert.Equal(t, totalItems, itemCnt)
+	assert.Equal(t, expectedPages, paginator.pageCalls)
 }
