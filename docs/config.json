@@ -886,6 +886,11 @@
       "permanent": true
     },
     {
+      "source": "/machine-workload-identity/machine-id/deployment/bound-keypair/",
+      "destination": "/reference/machine-id/bound-keypair/getting-started/",
+      "permanent": true
+    },
+    {
       "source": "/enroll-resources/workload-identity/",
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
