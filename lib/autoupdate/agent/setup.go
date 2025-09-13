@@ -246,7 +246,7 @@ func (ns *Namespace) Init() (lockFile string, err error) {
 // Afterwords, Setup reloads systemd and enables the timer with --now.
 func (ns *Namespace) Setup(ctx context.Context, path string, rev Revision, installSELinux bool) error {
 	if installSELinux {
-		if err := ns.installSELinux(ctx); err != nil {
+		if err := ns.installSELinux(ctx, rev); err != nil {
 			ns.log.WarnContext(ctx, "Failed to install SELinux module.", errorKey, err)
 		}
 	} else {
@@ -307,14 +307,15 @@ func (ns *Namespace) Setup(ctx context.Context, path string, rev Revision, insta
 	return nil
 }
 
-func (ns *Namespace) installSELinux(ctx context.Context) error {
+func (ns *Namespace) installSELinux(ctx context.Context, rev Revision) error {
 	ns.log.InfoContext(ctx, "Installing SELinux module.")
 
 	if err := ns.checkSELinux(ctx, true); err != nil {
 		return trace.Wrap(err)
 	}
 
-	fileCtxs, err := selinux.FileContexts(ns.dataDir, ns.configFile)
+	binaryPath := filepath.Join(ns.Dir(), versionsDirName, rev.Dir(), "bin", "teleport")
+	fileCtxs, err := selinux.FileContexts(ns.dataDir, ns.configFile, binaryPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
