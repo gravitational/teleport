@@ -59,6 +59,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodTPM,
 	types.JoinMethodTerraformCloud,
 	types.JoinMethodBitbucket,
+	types.JoinMethodOracle,
 	types.JoinMethodBoundKeypair,
 }
 
