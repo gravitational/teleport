@@ -348,10 +348,8 @@ func TestTerminalSizeRequest(t *testing.T) {
 		// initiating the client request for the window size to prevent flakiness.
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			size, err := f.ssh.srv.termHandlers.SessionRegistry.GetTerminalSize(sessionID)
-			if assert.NoError(t, err) {
-				return
-			}
-			assert.Empty(t, cmp.Diff(expectedSize, size, cmp.AllowUnexported(term.Winsize{})))
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expectedSize, *size, cmp.AllowUnexported(term.Winsize{})))
 		}, 10*time.Second, 100*time.Millisecond)
 
 		// Send a request for the window size now that we know the window change
