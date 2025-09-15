@@ -102,98 +102,32 @@ This resulted in the following Teleport roles:
 - `access`, which maps to `edit` and can do most CRUD operations.
 - `auditor`, which maps to `view` and can do read-only operations.
 
-#### New Teleport preset roles
+#### New Kubernetes Bindings
 
 In order to be consistent and allow for seamless use of Kubernetes within
-Teleport, we will introduce the following new preset roles:
+Teleport, we will introduce the following new preset bindings:
 
-- `kube-access`: Maps to the Kubernetes preset `edit`. Can CRUD most basic
-  builtin resources and read some limited administrative resources.
-  This would be used in conjunction with the `access` Teleport role to grant
-  most non-administrative access to users.
-- `kube-editor`: Maps to the Kubernetes preset `cluster-admin`. Provides full
-  access to all Kubernetes resources, including CRDs.
-  This would be used in conjunction with the `editor` Teleport role to grant
-  full administrative access to users.
-- `kube-auditor`: Maps the the Kubernetes preset `view`. Provides read-only
-  access to some Kubernetes resources.
-  This would be used in conjunction with the `auditor` Teleport role to grant
-  read-only access to users.
+- `kubernetes_groups` -> `ClusterRole`
+- `teleport:preset:edit` -> `edit`
+  Can CRUD most basic builtin resources and read some limited administrative resources.
+- `teleport:preset:cluster-admin` -> `cluster-admin`
+  Provides full access to all Kubernetes resources, including CRDs.
+- `teleport:preset:view` -> `view`
+  Provides read-only access to some Kubernetes resources.
 
-#### Kubernetes Bindings
-
-On the Kubernetes side, in order to be able to use those presets, we will need
-to create the corresponding `ClusterRoleBindings` based on `kubernetes_groups`.
+On the Kubernetes side, we will create the corresponding `ClusterRoleBindings` based on `kubernetes_groups`.
 
 While there is an existing binding for `cluster-admin` via `system:masters`, it
 is not available everywhere and there are no binding for `edit` nor `view`.
 For consistency and reliability, we will create one binding for each preset
 role.
 
-- `kubernetes_groups` -> `ClusterRole`
-- `teleport:preset:access` -> `edit`
-- `teleport:preset:editor` -> `cluster-admin`
-- `teleport:preset:auditor` -> `view`
+Those bindings will be available to Teleport users via the user trait feature.
 
-#### Preset definitions
+Example:
 
-The Teleport roles will look like this:
-
-```yaml
----
-kind: role
-version: v8
-metadata:
-  name: kube-access
-spec:
-  allow:
-    kubernetes_groups:
-      - 'teleport:preset:access'
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-      - api_group: '*'
-        kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs:
-          - '*'
----
-kind: role
-version: v8
-metadata:
-  name: kube-editor
-spec:
-  allow:
-    kubernetes_groups:
-      - 'teleport:preset:editor'
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-      - api_group: '*'
-        kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs:
-          - '*'
----
-kind: role
-version: v8
-metadata:
-  name: kube-auditor
-spec:
-  allow:
-    kubernetes_groups:
-      - 'teleport:preset:auditor'
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-      - api_group: '*'
-        kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs:
-          - '*'
+```bash
+tctl users add hugo --logins root --kubernetes-group teleport:preset:edit --roles=access
 ```
 
 ### Provisioning
@@ -214,12 +148,12 @@ authToken: foo
 proxyAddr: example.devteleport.com:443
 kubeClusterName: myCluster
 rbac:
-  accessClusterRoleBindingName: teleport:preset:access
-  accessGroupName: teleport:preset:access
-  editorClusterRoleBindingName: teleport:preset:editor
-  editorGroupName: teleport:preset:editor
-  auditorClusterRoleBindingName: teleport:preset:auditor
-  auditorGroupName: teleport:preset:auditor
+  accessClusterRoleBindingName: teleport:preset:edit
+  accessGroupName: teleport:preset:edit
+  editorClusterRoleBindingName: teleport:preset:cluster-admin
+  editorGroupName: teleport:preset:cluster-admin
+  auditorClusterRoleBindingName: teleport:preset:view
+  auditorGroupName: teleport:preset:view
 ```
 
 Note that if a user decides to change the preset names, they will not be able
