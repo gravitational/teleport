@@ -441,6 +441,8 @@ roles: ${yamlRoles}
 authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
+updater:
+    enabled: true 
 labels:
     teleport.internal/resource-id: ${data.resourceId}${joinLabelsText}
 ${extraYAMLConfig}EOF
