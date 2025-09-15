@@ -543,6 +543,206 @@ func testDeleteAccessListRequireOK(t *testing.T, clt *TestWebClient, accessListI
 	require.Equal(t, http.StatusOK, resp.Code())
 }
 
+func TestListAccessLists(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
+	webPack := s.newAuthWebPack(t, "foo")
+	authClient := s.newAdminAuthClient(s.ctx, t)
+
+	ctx := context.Background()
+
+	// Create access lists with different owners and roles for filtering tests
+	accessListConfigs := []struct {
+		name   string
+		owners []accesslist.Owner
+		roles  []string
+	}{
+		{
+			name:   "apple",
+			owners: []accesslist.Owner{{Name: "alice", Description: "alice desc"}},
+			roles:  []string{"viewer"},
+		},
+		{
+			name:   "banana",
+			owners: []accesslist.Owner{{Name: "bob", Description: "bob desc"}},
+			roles:  []string{"editor"},
+		},
+		{
+			name:   "cherry",
+			owners: []accesslist.Owner{{Name: "alice", Description: "alice desc"}},
+			roles:  []string{"admin"},
+		},
+		{
+			name:   "appletwo",
+			owners: []accesslist.Owner{{Name: "charlie", Description: "charlie desc"}},
+			roles:  []string{"viewer"},
+		},
+		{
+			name:   "orange",
+			owners: []accesslist.Owner{{Name: "bob", Description: "bob desc"}},
+			roles:  []string{"admin"},
+		},
+	}
+
+	for _, config := range accessListConfigs {
+		accessList, err := accesslist.NewAccessList(header.Metadata{Name: config.name}, accesslist.Spec{
+			Title:             config.name,
+			Audit:             accesslist.Audit{NextAuditDate: s.clock.Now()},
+			Owners:            config.owners,
+			OwnershipRequires: accesslist.Requires{Roles: []string{"admin"}},
+			Grants:            accesslist.Grants{Roles: config.roles},
+		})
+		require.NoError(t, err)
+		_, err = authClient.AccessListClient().UpsertAccessList(ctx, accessList)
+		require.NoError(t, err)
+	}
+
+	testCases := []struct {
+		name                     string
+		queryParams              url.Values
+		expectedLen              int
+		expectedListNamesInOrder []string
+		expectedNext             string
+	}{
+		{
+			name: "filter by search",
+			queryParams: url.Values{
+				"search": []string{"apple"},
+				"limit":  []string{"2"},
+			},
+			expectedLen:              2,
+			expectedListNamesInOrder: []string{"apple", "appletwo"},
+		},
+		{
+			name: "next page exists",
+			queryParams: url.Values{
+				"limit": []string{"2"},
+			},
+			expectedLen:              2,
+			expectedListNamesInOrder: []string{"apple", "appletwo"},
+			expectedNext:             "banana",
+		},
+		{
+			name: "using nextKey in params",
+			queryParams: url.Values{
+				"limit":    []string{"2"},
+				"startKey": []string{"banana"},
+			},
+			expectedLen:              2,
+			expectedListNamesInOrder: []string{"banana", "cherry"},
+			expectedNext:             "orange",
+		},
+		{
+			name: "filter by single owner",
+			queryParams: url.Values{
+				"owners": []string{"alice"},
+			},
+			expectedLen:              2,
+			expectedListNamesInOrder: []string{"apple", "cherry"},
+		},
+		{
+			name: "filter by multiple owners",
+			queryParams: url.Values{
+				"owners": []string{"alice", "bob"},
+			},
+			expectedLen:              4,
+			expectedListNamesInOrder: []string{"apple", "banana", "cherry", "orange"},
+		},
+		{
+			name: "filter by nonexistent owner",
+			queryParams: url.Values{
+				"owners": []string{"nonexistent"},
+			},
+			expectedLen:              0,
+			expectedListNamesInOrder: []string{},
+		},
+		{
+			name: "filter by single role",
+			queryParams: url.Values{
+				"roles": []string{"viewer"},
+			},
+			expectedLen:              2,
+			expectedListNamesInOrder: []string{"apple", "appletwo"},
+		},
+		{
+			name: "filter by multiple roles",
+			queryParams: url.Values{
+				"roles": []string{"admin", "editor"},
+			},
+			expectedLen:              3,
+			expectedListNamesInOrder: []string{"banana", "cherry", "orange"},
+		},
+		{
+			name: "filter by nonexistent role",
+			queryParams: url.Values{
+				"roles": []string{"nonexistent"},
+			},
+		},
+		{
+			name: "filter by owner and role both match",
+			queryParams: url.Values{
+				"owners": []string{"bob"},
+				"roles":  []string{"admin"},
+			},
+			expectedLen:              1,
+			expectedListNamesInOrder: []string{"orange"},
+		},
+		{
+			name: "filter by owner and role - no matches",
+			queryParams: url.Values{
+				"owners": []string{"alice"},
+				"roles":  []string{"editor"},
+			},
+		},
+		{
+			name: "filter by search, owner, and role combined",
+			queryParams: url.Values{
+				"search": []string{"apple"},
+				"owners": []string{"alice"},
+				"roles":  []string{"viewer"},
+			},
+			expectedLen:              1,
+			expectedListNamesInOrder: []string{"apple"},
+		},
+		{
+			name: "filter by search with owner filter - search doesn't match",
+			queryParams: url.Values{
+				"search": []string{"nonexistent"},
+				"owners": []string{"alice"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			endpoint := webPack.clt.Endpoint("v2", "enterprise", "accesslists")
+			resp, err := webPack.clt.Get(s.ctx, endpoint, tc.queryParams)
+			require.NoError(t, err)
+
+			var accessListResp ui.AccessListsResponse
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
+
+			require.Len(t, accessListResp.AccessLists, tc.expectedLen)
+			require.Equal(t, tc.expectedNext, accessListResp.StartKey)
+
+			for i, expectedName := range tc.expectedListNamesInOrder {
+				require.Equal(t, expectedName, accessListResp.AccessLists[i].GetName())
+			}
+		})
+	}
+}
+
 func getAccessList(t *testing.T, webPack *authWebPack, s *webSuite, accessListName string) ui.AccessListResponse {
 	t.Helper()
 

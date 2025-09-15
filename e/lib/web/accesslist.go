@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -43,6 +44,70 @@ func (e *readOnlyAccessListError) Unwrap() error {
 	return &trace.BadParameterError{
 		Message: e.Error(),
 	}
+}
+
+// listAccessLists is the handler for GET /v2/enterprise/accesslists with filtering and sorting support.
+func (p *Plugin) listAccessLists(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *web.SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values := r.URL.Query()
+
+	startKey := values.Get("startKey")
+
+	limit, err := web.QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	searchFilter := values.Get("search")
+	ownersFilter := r.URL.Query()["owners"]
+	rolesFilter := r.URL.Query()["roles"]
+
+	// default to name:asc
+	sortBy := types.SortBy{
+		Field:  "name",
+		IsDesc: false,
+	}
+	sortParam := values.Get("sort")
+	if sortParam != "" {
+		sortBy = types.GetSortByFromString(values.Get("sort"))
+	}
+
+	req := &accesslistv1.ListAccessListsV2Request{
+		PageToken: startKey,
+		SortBy:    &sortBy,
+		PageSize:  limit,
+		Filter: &accesslistv1.AccessListsFilter{
+			Search: searchFilter,
+			Owners: ownersFilter,
+			Roles:  rolesFilter,
+		},
+	}
+	accessListClient := clt.AccessListClient()
+
+	page, nextKey, err := accessListClient.ListAccessListsV2(r.Context(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*ui.AccessList, 0, len(page))
+
+	for _, accessList := range page {
+		uiList := &ui.AccessList{
+			AccessList:             accessList,
+			MembersCount:           accessList.GetStatus().MemberCount,
+			MemberListCount:        accessList.GetStatus().MemberListCount,
+			CurrentUserAssignments: accessList.GetStatus().CurrentUserAssignments,
+		}
+		accessLists = append(accessLists, uiList)
+	}
+
+	return ui.AccessListsResponse{
+		AccessLists: accessLists,
+		StartKey:    nextKey,
+	}, nil
 }
 
 // getAccessLists is the handler for GET /v1/enterprise/accesslist.

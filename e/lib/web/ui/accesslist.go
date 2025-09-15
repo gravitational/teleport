@@ -41,6 +41,7 @@ type AccessListReviewsResponse struct {
 // AccessListsResponse is a UI representation of access lists response.
 type AccessListsResponse struct {
 	AccessLists []*AccessList `json:"accessLists,omitempty"`
+	StartKey    string        `json:"startKey"`
 }
 
 // UpsertAccessListRequest is a UI representation of an upsert access list request.

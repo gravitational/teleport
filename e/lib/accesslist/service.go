@@ -292,7 +292,73 @@ func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessL
 	}, nil
 }
 
+// ListAccessListsV2 returns a paginated list of all access lists.
+func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) (*accesslistv1.ListAccessListsV2Response, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pageSize := int(req.PageSize)
+
+	if pageSize == 0 {
+		pageSize = defaultAccessListPageSize
+	}
+	// We don't return the auth error right away because this endpoint can still return results based on the calling user's
+	// ownership/membership to particular access lists.
+	authErr := authCtx.CheckAccessToKind(types.KindAccessList, types.VerbRead, types.VerbList)
+
+	var results []*accesslist.AccessList
+	var nextToken string
+	for {
+		var page []*accesslist.AccessList
+		var getErr error
+		page, nextToken, getErr = s.cache.ListAccessListsV2(ctx, req)
+
+		var err error
+		page, err = s.filterResults(ctx, page, true, getErr, authErr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		results = append(results, page...)
+		if len(results) >= (pageSize) || nextToken == "" {
+			break
+		}
+		req.PageToken = nextToken
+	}
+
+	if len(results) == 0 && authErr != nil {
+		return nil, trace.Wrap(authErr)
+	}
+	sortBy := req.GetSortBy()
+	indexName := "name"
+	if sortBy != nil {
+		indexName = sortBy.Field
+	}
+
+	// Truncate the results.
+	if len(results) > pageSize {
+		nextToken, err = services.CreateAccessListNextKey(results[pageSize], indexName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		results = results[:pageSize]
+	}
+
+	accessLists := make([]*accesslistv1.AccessList, len(results))
+	for i, r := range results {
+		accessLists[i] = conv.ToProto(r)
+	}
+
+	return &accesslistv1.ListAccessListsV2Response{
+		AccessLists:   accessLists,
+		NextPageToken: nextToken,
+	}, nil
+}
+
 // ListAccessLists returns a paginated list of all access lists.
+// Deprecated: Use [ListAccessListsV2] instead.
 func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsRequest) (*accesslistv1.ListAccessListsResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {

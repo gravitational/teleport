@@ -280,7 +280,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.GET("/enterprise/accessrequest/:requestId/suggestions/accesslist", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
 	h.POST("/enterprise/accessrequest/:requestId/promote", h.WithClusterClientProvider(p.accessRequestPromoteHandle))
 
+	// Deprecated: use /v2/enterprise/accesslists instead.
 	h.GET("/enterprise/accesslist", h.WithAuth(p.getAccessLists))
+	h.GET("/v2/enterprise/accesslists", h.WithAuth(p.listAccessLists))
 	h.GET("/enterprise/accesslist/:accessListId", h.WithAuth(p.getAccessList))
 	// use the same handler for create and update
 	h.POST("/enterprise/accesslist", h.WithAuth(p.upsertAccessList))
