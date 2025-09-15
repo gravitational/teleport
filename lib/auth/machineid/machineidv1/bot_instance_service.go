@@ -21,15 +21,19 @@ package machineidv1
 import (
 	"context"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -46,6 +50,11 @@ const (
 	// ensure the instance remains accessible until shortly after the last
 	// issued certificate expires.
 	ExpiryMargin = time.Minute * 5
+
+	// MetricRefreshInterval is the interval at which the pre-aggregated bot
+	// instance metrics (e.g. count by version) will be refreshed, with some
+	// added jitter.
+	MetricRefreshInterval = time.Minute * 5
 )
 
 // BotInstancesCache is the subset of the cached resources that the Service queries.
@@ -103,6 +112,12 @@ type BotInstanceService struct {
 	cache      BotInstancesCache
 	logger     *slog.Logger
 	clock      clockwork.Clock
+	metrics    atomic.Pointer[metrics]
+}
+
+type metrics struct {
+	updatedAt      time.Time
+	countByVersion map[string]int64
 }
 
 // DeleteBotInstance deletes a bot specific bot instance
@@ -219,4 +234,97 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	}
 
 	return &pb.SubmitHeartbeatResponse{}, nil
+}
+
+// BotInstanceMetrics returns the pre-calculated bot instance metrics.
+func (b *BotInstanceService) BotInstanceMetrics(ctx context.Context, _ *pb.BotInstanceMetricsRequest) (*pb.BotInstanceMetricsResponse, error) {
+	authCtx, err := b.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	metrics := b.metrics.Load()
+	if metrics == nil {
+		return nil, trace.NotFound("Bot instance metrics are not ready yet, please try again shortly")
+	}
+	return &pb.BotInstanceMetricsResponse{
+		UpdatedAt:      timestamppb.New(metrics.updatedAt),
+		CountByVersion: metrics.countByVersion,
+	}, nil
+}
+
+// RunMetricsRefresher periodically recalculates the bot instance metrics until
+// the given context is cancelled or reaches its deadline. You should run it in
+// a new goroutine.
+func (b *BotInstanceService) RunMetricsRefresher(ctx context.Context) {
+	// We periodically refresh the metrics by iterating over every bot instance,
+	// rather than watching the event stream and incrementally updating counters.
+	//
+	// This, of course, means metrics will often be stale, but that's acceptable
+	// because they are only intended to be approximate. The benefit is a simpler
+	// implementation that will scale with the number of instances rather than
+	// the number of heartbeats (as heartbeats are currently stored directly on
+	// the instance record).
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+
+	for {
+		if err := b.calculateMetrics(ctx); err != nil {
+			// If recalculating metrics fails, just wait until the next refresh
+			// interval. It doesn't hugely matter if they're a little bit stale.
+			b.logger.ErrorContext(ctx, "Failed to calculate metrics", "error", err)
+		}
+
+		timer.Reset(retryutils.SeventhJitter(MetricRefreshInterval))
+
+		select {
+		case <-timer.C:
+			b.logger.DebugContext(ctx, "Recalculating metrics")
+		case <-ctx.Done():
+			b.logger.DebugContext(ctx, "Metrics refresh loop shutting down")
+			return
+		}
+	}
+}
+
+func (b *BotInstanceService) calculateMetrics(ctx context.Context) error {
+	metrics := &metrics{
+		updatedAt:      time.Now(),
+		countByVersion: make(map[string]int64),
+	}
+
+	var nextToken string
+	for {
+		var (
+			instances []*pb.BotInstance
+			err       error
+		)
+
+		// List all instances.
+		instances, nextToken, err = b.cache.ListBotInstances(ctx, "", defaults.DefaultChunkSize, nextToken, "", nil)
+		if err != nil {
+			return trace.Wrap(err, "failed to list bot instances")
+		}
+
+		// Increment the version counters.
+		for _, instance := range instances {
+			heartbeats := instance.Status.GetLatestHeartbeats()
+			if len(heartbeats) == 0 {
+				continue
+			}
+			latest := heartbeats[len(heartbeats)-1]
+			metrics.countByVersion[latest.GetVersion()]++
+		}
+
+		// Reached the end of the list.
+		if nextToken == "" || len(instances) == 0 {
+			break
+		}
+	}
+
+	b.metrics.Store(metrics)
+	return nil
 }

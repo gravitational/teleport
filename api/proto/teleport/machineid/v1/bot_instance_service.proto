@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.machineid.v1;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 
@@ -78,6 +79,21 @@ message SubmitHeartbeatResponse {
   // Empty
 }
 
+// The request for BotInstanceMetrics.
+message BotInstanceMetricsRequest {
+  // Empty
+}
+
+// The response from BotInstanceMetrics, containing pre-aggregated metrics about
+// tbot version usage etc.
+message BotInstanceMetricsResponse {
+  // The time at which the metrics were last re-calculated.
+  google.protobuf.Timestamp updated_at = 1;
+
+  // The number of instances of `tbot` broken down by version number.
+  map<string, int64> count_by_version = 2;
+}
+
 // BotInstanceService provides functions to record and manage bot instances.
 service BotInstanceService {
   // GetBotInstance returns the specified BotInstance resource.
@@ -88,4 +104,6 @@ service BotInstanceService {
   rpc DeleteBotInstance(DeleteBotInstanceRequest) returns (google.protobuf.Empty);
   // SubmitHeartbeat submits a heartbeat for a BotInstance.
   rpc SubmitHeartbeat(SubmitHeartbeatRequest) returns (SubmitHeartbeatResponse);
+  // BotInstanceMetrics returns the pre-aggregated metrics about BotInstances.
+  rpc BotInstanceMetrics(BotInstanceMetricsRequest) returns (BotInstanceMetricsResponse);
 }

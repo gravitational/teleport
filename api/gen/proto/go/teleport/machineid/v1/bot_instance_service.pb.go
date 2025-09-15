@@ -25,6 +25,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -374,11 +375,104 @@ func (*SubmitHeartbeatResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{5}
 }
 
+// The request for BotInstanceMetrics.
+type BotInstanceMetricsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BotInstanceMetricsRequest) Reset() {
+	*x = BotInstanceMetricsRequest{}
+	mi := &file_teleport_machineid_v1_bot_instance_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BotInstanceMetricsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BotInstanceMetricsRequest) ProtoMessage() {}
+
+func (x *BotInstanceMetricsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_machineid_v1_bot_instance_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BotInstanceMetricsRequest.ProtoReflect.Descriptor instead.
+func (*BotInstanceMetricsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{6}
+}
+
+// The response from BotInstanceMetrics, containing pre-aggregated metrics about
+// tbot version usage etc.
+type BotInstanceMetricsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The time at which the metrics were last re-calculated.
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// The number of instances of `tbot` broken down by version number.
+	CountByVersion map[string]int64 `protobuf:"bytes,2,rep,name=count_by_version,json=countByVersion,proto3" json:"count_by_version,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *BotInstanceMetricsResponse) Reset() {
+	*x = BotInstanceMetricsResponse{}
+	mi := &file_teleport_machineid_v1_bot_instance_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BotInstanceMetricsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BotInstanceMetricsResponse) ProtoMessage() {}
+
+func (x *BotInstanceMetricsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_machineid_v1_bot_instance_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BotInstanceMetricsResponse.ProtoReflect.Descriptor instead.
+func (*BotInstanceMetricsResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *BotInstanceMetricsResponse) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *BotInstanceMetricsResponse) GetCountByVersion() map[string]int64 {
+	if x != nil {
+		return x.CountByVersion
+	}
+	return nil
+}
+
 var File_teleport_machineid_v1_bot_instance_service_proto protoreflect.FileDescriptor
 
 const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
-	"0teleport/machineid/v1/bot_instance_service.proto\x12\x15teleport.machineid.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\"S\n" +
+	"0teleport/machineid/v1/bot_instance_service.proto\x12\x15teleport.machineid.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\"S\n" +
 	"\x15GetBotInstanceRequest\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
@@ -399,12 +493,21 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"instanceId\"i\n" +
 	"\x16SubmitHeartbeatRequest\x12O\n" +
 	"\theartbeat\x18\x01 \x01(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\theartbeat\"\x19\n" +
-	"\x17SubmitHeartbeatResponse2\xbd\x03\n" +
+	"\x17SubmitHeartbeatResponse\"\x1b\n" +
+	"\x19BotInstanceMetricsRequest\"\x8b\x02\n" +
+	"\x1aBotInstanceMetricsResponse\x129\n" +
+	"\n" +
+	"updated_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12o\n" +
+	"\x10count_by_version\x18\x02 \x03(\v2E.teleport.machineid.v1.BotInstanceMetricsResponse.CountByVersionEntryR\x0ecountByVersion\x1aA\n" +
+	"\x13CountByVersionEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x012\xb8\x04\n" +
 	"\x12BotInstanceService\x12b\n" +
 	"\x0eGetBotInstance\x12,.teleport.machineid.v1.GetBotInstanceRequest\x1a\".teleport.machineid.v1.BotInstance\x12s\n" +
 	"\x10ListBotInstances\x12..teleport.machineid.v1.ListBotInstancesRequest\x1a/.teleport.machineid.v1.ListBotInstancesResponse\x12\\\n" +
 	"\x11DeleteBotInstance\x12/.teleport.machineid.v1.DeleteBotInstanceRequest\x1a\x16.google.protobuf.Empty\x12p\n" +
-	"\x0fSubmitHeartbeat\x12-.teleport.machineid.v1.SubmitHeartbeatRequest\x1a..teleport.machineid.v1.SubmitHeartbeatResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
+	"\x0fSubmitHeartbeat\x12-.teleport.machineid.v1.SubmitHeartbeatRequest\x1a..teleport.machineid.v1.SubmitHeartbeatResponse\x12y\n" +
+	"\x12BotInstanceMetrics\x120.teleport.machineid.v1.BotInstanceMetricsRequest\x1a1.teleport.machineid.v1.BotInstanceMetricsResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
 
 var (
 	file_teleport_machineid_v1_bot_instance_service_proto_rawDescOnce sync.Once
@@ -418,7 +521,7 @@ func file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP() []byte 
 	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescData
 }
 
-var file_teleport_machineid_v1_bot_instance_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_machineid_v1_bot_instance_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_machineid_v1_bot_instance_service_proto_goTypes = []any{
 	(*GetBotInstanceRequest)(nil),      // 0: teleport.machineid.v1.GetBotInstanceRequest
 	(*ListBotInstancesRequest)(nil),    // 1: teleport.machineid.v1.ListBotInstancesRequest
@@ -426,28 +529,36 @@ var file_teleport_machineid_v1_bot_instance_service_proto_goTypes = []any{
 	(*DeleteBotInstanceRequest)(nil),   // 3: teleport.machineid.v1.DeleteBotInstanceRequest
 	(*SubmitHeartbeatRequest)(nil),     // 4: teleport.machineid.v1.SubmitHeartbeatRequest
 	(*SubmitHeartbeatResponse)(nil),    // 5: teleport.machineid.v1.SubmitHeartbeatResponse
-	(*types.SortBy)(nil),               // 6: types.SortBy
-	(*BotInstance)(nil),                // 7: teleport.machineid.v1.BotInstance
-	(*BotInstanceStatusHeartbeat)(nil), // 8: teleport.machineid.v1.BotInstanceStatusHeartbeat
-	(*emptypb.Empty)(nil),              // 9: google.protobuf.Empty
+	(*BotInstanceMetricsRequest)(nil),  // 6: teleport.machineid.v1.BotInstanceMetricsRequest
+	(*BotInstanceMetricsResponse)(nil), // 7: teleport.machineid.v1.BotInstanceMetricsResponse
+	nil,                                // 8: teleport.machineid.v1.BotInstanceMetricsResponse.CountByVersionEntry
+	(*types.SortBy)(nil),               // 9: types.SortBy
+	(*BotInstance)(nil),                // 10: teleport.machineid.v1.BotInstance
+	(*BotInstanceStatusHeartbeat)(nil), // 11: teleport.machineid.v1.BotInstanceStatusHeartbeat
+	(*timestamppb.Timestamp)(nil),      // 12: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),              // 13: google.protobuf.Empty
 }
 var file_teleport_machineid_v1_bot_instance_service_proto_depIdxs = []int32{
-	6, // 0: teleport.machineid.v1.ListBotInstancesRequest.sort:type_name -> types.SortBy
-	7, // 1: teleport.machineid.v1.ListBotInstancesResponse.bot_instances:type_name -> teleport.machineid.v1.BotInstance
-	8, // 2: teleport.machineid.v1.SubmitHeartbeatRequest.heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
-	0, // 3: teleport.machineid.v1.BotInstanceService.GetBotInstance:input_type -> teleport.machineid.v1.GetBotInstanceRequest
-	1, // 4: teleport.machineid.v1.BotInstanceService.ListBotInstances:input_type -> teleport.machineid.v1.ListBotInstancesRequest
-	3, // 5: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:input_type -> teleport.machineid.v1.DeleteBotInstanceRequest
-	4, // 6: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:input_type -> teleport.machineid.v1.SubmitHeartbeatRequest
-	7, // 7: teleport.machineid.v1.BotInstanceService.GetBotInstance:output_type -> teleport.machineid.v1.BotInstance
-	2, // 8: teleport.machineid.v1.BotInstanceService.ListBotInstances:output_type -> teleport.machineid.v1.ListBotInstancesResponse
-	9, // 9: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:output_type -> google.protobuf.Empty
-	5, // 10: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:output_type -> teleport.machineid.v1.SubmitHeartbeatResponse
-	7, // [7:11] is the sub-list for method output_type
-	3, // [3:7] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	9,  // 0: teleport.machineid.v1.ListBotInstancesRequest.sort:type_name -> types.SortBy
+	10, // 1: teleport.machineid.v1.ListBotInstancesResponse.bot_instances:type_name -> teleport.machineid.v1.BotInstance
+	11, // 2: teleport.machineid.v1.SubmitHeartbeatRequest.heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
+	12, // 3: teleport.machineid.v1.BotInstanceMetricsResponse.updated_at:type_name -> google.protobuf.Timestamp
+	8,  // 4: teleport.machineid.v1.BotInstanceMetricsResponse.count_by_version:type_name -> teleport.machineid.v1.BotInstanceMetricsResponse.CountByVersionEntry
+	0,  // 5: teleport.machineid.v1.BotInstanceService.GetBotInstance:input_type -> teleport.machineid.v1.GetBotInstanceRequest
+	1,  // 6: teleport.machineid.v1.BotInstanceService.ListBotInstances:input_type -> teleport.machineid.v1.ListBotInstancesRequest
+	3,  // 7: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:input_type -> teleport.machineid.v1.DeleteBotInstanceRequest
+	4,  // 8: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:input_type -> teleport.machineid.v1.SubmitHeartbeatRequest
+	6,  // 9: teleport.machineid.v1.BotInstanceService.BotInstanceMetrics:input_type -> teleport.machineid.v1.BotInstanceMetricsRequest
+	10, // 10: teleport.machineid.v1.BotInstanceService.GetBotInstance:output_type -> teleport.machineid.v1.BotInstance
+	2,  // 11: teleport.machineid.v1.BotInstanceService.ListBotInstances:output_type -> teleport.machineid.v1.ListBotInstancesResponse
+	13, // 12: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:output_type -> google.protobuf.Empty
+	5,  // 13: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:output_type -> teleport.machineid.v1.SubmitHeartbeatResponse
+	7,  // 14: teleport.machineid.v1.BotInstanceService.BotInstanceMetrics:output_type -> teleport.machineid.v1.BotInstanceMetricsResponse
+	10, // [10:15] is the sub-list for method output_type
+	5,  // [5:10] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_teleport_machineid_v1_bot_instance_service_proto_init() }
@@ -462,7 +573,7 @@ func file_teleport_machineid_v1_bot_instance_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_bot_instance_service_proto_rawDesc), len(file_teleport_machineid_v1_bot_instance_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

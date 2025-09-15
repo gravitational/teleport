@@ -79,6 +79,16 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbDelete},
 		},
 		{
+			name: "BotInstanceMetrics",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.KubeVerbList},
+		},
+		{
 			name: "SubmitHeartbeat",
 
 			// SubmitHeartbeat has its own authz and does not follow normal RBAC rules
@@ -430,6 +440,72 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 		wantHostname := strconv.Itoa(i + extraHeartbeats)
 		assert.Equal(t, wantHostname, bi.Status.LatestHeartbeats[i].Hostname)
 	}
+}
+
+func TestBotInstanceMetrics(t *testing.T) {
+	t.Parallel()
+
+	backend := newBotInstanceBackend(t)
+	ctx := t.Context()
+
+	// Create instance in the backend.
+	instance := newBotInstance("test-bot")
+	_, err := backend.CreateBotInstance(ctx, instance)
+	require.NoError(t, err)
+
+	botName := instance.GetSpec().GetBotName()
+	botInstanceID := instance.GetSpec().GetInstanceId()
+
+	// Create one service where the bot is authenticated to submit heartbeats.
+	heartbeatService, err := NewBotInstanceService(BotInstanceServiceConfig{
+		Backend: backend,
+		Cache:   backend,
+		Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+			return &authz.Context{
+				Identity: identityGetterFn(func() tlsca.Identity {
+					return tlsca.Identity{
+						BotName:       botName,
+						BotInstanceID: botInstanceID,
+					}
+				}),
+			}, nil
+		}),
+	})
+	require.NoError(t, err)
+
+	// Create another service where the user is authenticated to request metrics.
+	checker := fakeChecker{allowedVerbs: []string{types.VerbList}}
+	userService := newBotInstanceService(t, backend, authz.AdminActionAuthNotRequired, checker)
+
+	// Submit initial heartbeat where version is v17.
+	_, err = heartbeatService.SubmitHeartbeat(ctx, &machineidv1.SubmitHeartbeatRequest{
+		Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			Version: "v17.0.0",
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, userService.calculateMetrics(ctx))
+
+	metricsRsp, err := userService.BotInstanceMetrics(ctx, &machineidv1.BotInstanceMetricsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, map[string]int64{
+		"v17.0.0": 1,
+	}, metricsRsp.CountByVersion)
+
+	// Submit another heartbeat where version is v18.
+	_, err = heartbeatService.SubmitHeartbeat(ctx, &machineidv1.SubmitHeartbeatRequest{
+		Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			Version: "v18.0.0",
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, userService.calculateMetrics(ctx))
+
+	metricsRsp, err = userService.BotInstanceMetrics(ctx, &machineidv1.BotInstanceMetricsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, map[string]int64{
+		"v18.0.0": 1,
+	}, metricsRsp.CountByVersion)
 }
 
 var allAdminStates = map[authz.AdminActionAuthState]string{

@@ -5568,6 +5568,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating bot instance service")
 	}
 	machineidv1pb.RegisterBotInstanceServiceServer(server, botInstanceService)
+	go botInstanceService.RunMetricsRefresher(cfg.AuthServer.CloseContext())
 
 	workloadIdentityService, err := machineidv1.NewWorkloadIdentityService(machineidv1.WorkloadIdentityServiceConfig{
 		Authorizer: cfg.Authorizer,
