@@ -284,6 +284,10 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// with doing this is that the public address does not include a port, which
 	// we could guess from the Proxy's public web address.
 	upstreamReq.Host = s.proxyAddr
+	upstreamReq.URL.Host = s.proxyAddr
+	upstreamReq.URL.Scheme = "https"
+	// RequestURI must be empty when making client requests.
+	upstreamReq.RequestURI = ""
 	// TODO: Are there any headers we should override, add, or remove on the
 	// upstream request?
 

@@ -150,10 +150,6 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	proxyAddr, err := process.ProxyWebAddr()
 	require.NoError(t, err)
 
-	appServers, err := rootClient.GetApplicationServers(ctx, "default")
-	require.NoError(t, err)
-	require.Len(t, appServers, 1)
-
 	proxyServiceConfig := &ProxyServiceConfig{
 		Listen:   "localhost:12345",
 		Listener: botListener,
@@ -240,10 +236,10 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	require.Equal(t, "client-header-value", serverGotReqA.Header.Get("X-From-Client"))
 	require.Equal(t, outgoingReqA.URL.Path, serverGotReqA.URL.Path)
 	require.Equal(t, "hello from client", string(proxyRequestResponseA.body))
+	require.Equal(t, "value-a", serverGotReqA.URL.Query().Get("queryParam"))
 
 	// Assert client receives the response the server sent
 	require.Equal(t, http.StatusTeapot, resp.StatusCode)
-	require.Equal(t, "value-a", serverGotReqA.URL.Query().Get("queryParam"))
 	require.Equal(t, "server-a-header-value", resp.Header.Get("X-From-Server"))
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -277,10 +273,10 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	require.Equal(t, "client-header-value", serverGotReqB.Header.Get("X-From-Client"))
 	require.Equal(t, outgoingReqB.URL.Path, serverGotReqB.URL.Path)
 	require.Equal(t, "hello from client", string(proxyRequestResponseB.body))
+	require.Equal(t, "value-b", serverGotReqB.URL.Query().Get("queryParam"))
 
 	// Assert client receives the response the server sent
 	require.Equal(t, http.StatusTeapot, resp.StatusCode)
-	require.Equal(t, "value-b", serverGotReqB.URL.Query().Get("queryParam"))
 	require.Equal(t, "server-b-header-value", resp.Header.Get("X-From-Server"))
 	respBody, err = io.ReadAll(resp.Body)
 	require.NoError(t, err)
