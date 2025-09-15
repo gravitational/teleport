@@ -6631,6 +6631,9 @@ message Participant {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "last_active,omitempty"
   ];
+
+  // Cluster is the cluster name the user is authenticated against.
+  string Cluster = 5 [(gogoproto.jsontag) = "cluster,omitempty"];
 }
 
 // UIConfigV1 represents the configuration for the web UI served by the proxy service

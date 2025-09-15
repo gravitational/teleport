@@ -711,6 +711,11 @@ type SessionAccessEvaluator interface {
 	CanJoin(user moderation.SessionAccessContext) []types.SessionParticipantMode
 }
 
+type sessionInitiatorInfo struct {
+	user    string
+	cluster string
+}
+
 // session struct describes an active (in progress) SSH session. These sessions
 // are managed by 'SessionRegistry' containers which are attached to SSH servers.
 type session struct {
@@ -770,7 +775,7 @@ type session struct {
 
 	tracker *SessionTracker
 
-	initiator string
+	initiator sessionInitiatorInfo
 
 	scx *ServerContext
 
@@ -850,21 +855,24 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, r.Srv.Component()),
 			"session_id", id,
 		),
-		id:                             id,
-		registry:                       r,
-		parties:                        make(map[rsession.ID]*party),
-		participants:                   make(map[rsession.ID]*party),
-		login:                          scx.Identity.Login,
-		stopC:                          make(chan struct{}),
-		startTime:                      startTime,
-		emitter:                        scx.srv,
-		serverCtx:                      scx.srv.Context(),
-		access:                         &access,
-		scx:                            scx,
-		presenceEnabled:                scx.Identity.UnmappedIdentity.MFAVerified != "",
-		io:                             NewTermManager(),
-		doneCh:                         make(chan struct{}),
-		initiator:                      scx.Identity.TeleportUser,
+		id:              id,
+		registry:        r,
+		parties:         make(map[rsession.ID]*party),
+		participants:    make(map[rsession.ID]*party),
+		login:           scx.Identity.Login,
+		stopC:           make(chan struct{}),
+		startTime:       startTime,
+		emitter:         scx.srv,
+		serverCtx:       scx.srv.Context(),
+		access:          &access,
+		scx:             scx,
+		presenceEnabled: scx.Identity.UnmappedIdentity.MFAVerified != "",
+		io:              NewTermManager(),
+		doneCh:          make(chan struct{}),
+		initiator: sessionInitiatorInfo{
+			user:    scx.Identity.TeleportUser,
+			cluster: scx.Identity.OriginClusterName,
+		},
 		displayParticipantRequirements: utils.AsBool(scx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
 		serverMeta:                     scx.srv.TargetMetadata(),
 	}
@@ -1227,13 +1235,27 @@ func (s *session) emitSessionEndEvent() {
 	}
 
 	for _, p := range s.participants {
-		sessionEndEvent.Participants = append(sessionEndEvent.Participants, p.user)
+		username := services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              p.user,
+				OriginClusterName: p.originCluster,
+				LocalClusterName:  ctx.ClusterName,
+			},
+		)
+		sessionEndEvent.Participants = append(sessionEndEvent.Participants, username)
 	}
 
 	// If there are 0 participants, this is an exec session.
 	// Use the user from the session context.
 	if len(s.participants) == 0 {
-		sessionEndEvent.Participants = []string{s.scx.Identity.TeleportUser}
+		username := services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              s.scx.Identity.TeleportUser,
+				OriginClusterName: s.scx.Identity.OriginClusterName,
+				LocalClusterName:  ctx.ClusterName,
+			},
+		)
+		sessionEndEvent.Participants = []string{username}
 	}
 
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionEndEvent)
@@ -1816,7 +1838,7 @@ func (s *session) checkPresence(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, participant := range tracker.GetParticipants() {
-		if participant.User == s.initiator {
+		if participant.User == s.initiator.user && participant.Cluster == s.initiator.cluster {
 			continue
 		}
 
@@ -1859,7 +1881,7 @@ func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, e
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range req.approvers {
-		if party.ctx.Identity.TeleportUser == s.initiator {
+		if party.ctx.Identity.TeleportUser == s.initiator.user && party.ctx.Identity.OriginClusterName == s.initiator.cluster {
 			continue
 		}
 
@@ -2043,7 +2065,8 @@ func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range s.parties {
-		if party.ctx.Identity.TeleportUser == s.initiator {
+		if party.ctx.Identity.TeleportUser == s.initiator.user &&
+			party.ctx.Identity.OriginClusterName == s.initiator.cluster {
 			continue
 		}
 
@@ -2181,7 +2204,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 }
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
-	if scx.Identity.TeleportUser != s.initiator {
+	if scx.Identity.TeleportUser != s.initiator.user || scx.Identity.OriginClusterName != s.initiator.cluster {
 		accessContext := moderation.SessionAccessContext{
 			Username: scx.Identity.TeleportUser,
 			Roles:    scx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
@@ -2210,6 +2233,7 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 	participant := &types.Participant{
 		ID:         p.id.String(),
 		User:       p.user,
+		Cluster:    p.originCluster,
 		Mode:       string(p.mode),
 		LastActive: time.Now().UTC(),
 	}
@@ -2236,19 +2260,20 @@ func (s *session) getParties() (parties []*party) {
 type party struct {
 	sync.Mutex
 
-	log        *slog.Logger
-	login      string
-	user       string
-	serverID   string
-	site       string
-	id         rsession.ID
-	s          *session
-	sconn      *ssh.ServerConn
-	ch         ssh.Channel
-	ctx        *ServerContext
-	lastActive time.Time
-	mode       types.SessionParticipantMode
-	closeOnce  sync.Once
+	log           *slog.Logger
+	login         string
+	user          string
+	originCluster string
+	serverID      string
+	site          string
+	id            rsession.ID
+	s             *session
+	sconn         *ssh.ServerConn
+	ch            ssh.Channel
+	ctx           *ServerContext
+	lastActive    time.Time
+	mode          types.SessionParticipantMode
+	closeOnce     sync.Once
 }
 
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
@@ -2258,16 +2283,17 @@ func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx
 			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			"party_id", pid,
 		),
-		user:     ctx.Identity.TeleportUser,
-		login:    ctx.Identity.Login,
-		serverID: s.registry.Srv.ID(),
-		site:     ctx.ServerConn.RemoteAddr().String(),
-		id:       rsession.NewID(),
-		ch:       ch,
-		ctx:      ctx,
-		s:        s,
-		sconn:    ctx.ServerConn,
-		mode:     mode,
+		user:          ctx.Identity.TeleportUser,
+		originCluster: ctx.Identity.OriginClusterName,
+		login:         ctx.Identity.Login,
+		serverID:      s.registry.Srv.ID(),
+		site:          ctx.ServerConn.RemoteAddr().String(),
+		id:            rsession.NewID(),
+		ch:            ch,
+		ctx:           ctx,
+		s:             s,
+		sconn:         ctx.ServerConn,
+		mode:          mode,
 	}
 }
 
@@ -2342,6 +2368,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 			{
 				ID:         p.id.String(),
 				User:       p.user,
+				Cluster:    p.originCluster,
 				Mode:       string(p.mode),
 				LastActive: s.registry.clock.Now().UTC(),
 			},

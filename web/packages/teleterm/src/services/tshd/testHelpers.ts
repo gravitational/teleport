@@ -42,6 +42,7 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   addr: '127.0.0.1:3022',
   labels: [],
   subKind: 'teleport',
+  logins: ['ec2-user'],
   ...props,
 });
 
@@ -254,7 +255,6 @@ export const makeLoggedInUser = (
   isDeviceTrusted: false,
   trustedDeviceRequirement: TrustedDeviceRequirement.NOT_REQUIRED,
   acl: makeAcl(),
-  sshLogins: [],
   roles: [],
   requestableRoles: [],
   suggestedReviewers: [],

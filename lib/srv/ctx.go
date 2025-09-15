@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -170,7 +169,7 @@ type Server interface {
 	Context() context.Context
 
 	// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
-	GetUserAccountingPaths() (utmp, wtmp, btmp string)
+	GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string)
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
@@ -740,6 +739,11 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 		return nil
 	}
 
+	// check if proxying permit is defined and authorizes file copying
+	if permit := c.Identity.ProxyingPermit; permit != nil && permit.SSHFileCopy {
+		return nil
+	}
+
 	return trace.Wrap(errRoleFileCopyingNotPermitted)
 }
 
@@ -1191,23 +1195,13 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	addr := c.ConnectionContext.ServerConn.RemoteAddr()
-	hostname, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	preparedAddr, err := uacc.PrepareAddr(addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	utmpPath, wtmpPath, btmpPath := c.srv.GetUserAccountingPaths()
-
+	utmpPath, wtmpPath, btmpPath, wtmpdbPath := c.srv.GetUserAccountingPaths()
 	return &UaccMetadata{
-		Hostname:   hostname,
-		RemoteAddr: preparedAddr,
+		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 		BtmpPath:   btmpPath,
+		WtmpdbPath: wtmpdbPath,
 	}, nil
 }
 

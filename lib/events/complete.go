@@ -372,7 +372,7 @@ loop:
 				desktopSessionEnd.Code = DesktopSessionEndCode
 				desktopSessionEnd.ClusterName = e.ClusterName
 				desktopSessionEnd.StartTime = e.Time
-				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, e.User)
+				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
 				desktopSessionEnd.Recorded = true
 				desktopSessionEnd.UserMetadata = e.UserMetadata
 				desktopSessionEnd.SessionMetadata = e.SessionMetadata
@@ -396,10 +396,10 @@ loop:
 				sshSessionEnd.InitialCommand = e.InitialCommand
 				sshSessionEnd.SessionRecording = e.SessionRecording
 				sshSessionEnd.Interactive = e.TerminalSize != ""
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
 
 			case *events.SessionJoin:
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
 			}
 
 		case err := <-errors:
@@ -443,4 +443,14 @@ loop:
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func transformedUsername(u events.UserMetadata, localCluster string) string {
+	return services.UsernameForCluster(
+		services.UsernameForClusterConfig{
+			User:              u.User,
+			OriginClusterName: u.UserClusterName,
+			LocalClusterName:  localCluster,
+		},
+	)
 }

@@ -1,7 +1,7 @@
 ---
 title: Machine ID with Argo CD
 description: How to use Machine ID to enable Argo CD to connect to external Kubernetes clusters
-labels:
+tags:
  - how-to
  - mwi
 ---
@@ -12,7 +12,17 @@ runs in Kubernetes and can deploy applications to the same cluster or to other
 
 In this guide, you will configure the Machine ID agent, `tbot`, to manage Argo
 CD's cluster credentials, enabling it to securely deploy applications using
-Teleport Kubernetes Access.
+Teleport.
+
+## How it works
+
+Argo CD supports declaratively managing clusters using Kubernetes secrets (see
+the [Argo CD
+documentation](https://argo-cd.readthedocs.io/en/latest/operator-manual/declarative-setup/#clusters).
+The Argo CD application controller reads these secrets in order to retrieve
+cluster credentials. When configured to use the Argo CD output, `tbot` writes
+Teleport-signed Kubernetes cluster credentials into secrets that Argo CD can
+then use to access Teleport-protected Kubernetes clusters.
 
 ## Prerequisite
 

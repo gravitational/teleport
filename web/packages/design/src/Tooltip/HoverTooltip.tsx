@@ -77,6 +77,11 @@ type HoverTooltipProps = {
    * Don't transition the tooltip in/out on mount/unmount.
    */
   disableTransitions?: boolean;
+  /**
+   * Optional HTMLElement to render the portal into.
+   * Defaults to `document.body`.
+   */
+  portalRoot?: HTMLElement;
 };
 
 export const HoverTooltip = ({
@@ -90,6 +95,7 @@ export const HoverTooltip = ({
   delay = 0,
   disableFlip = false,
   disableTransitions = false,
+  portalRoot,
 }: PropsWithChildren<HoverTooltipProps>) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
@@ -176,7 +182,7 @@ export const HoverTooltip = ({
     >
       {children}
       {isMounted && (
-        <FloatingPortal>
+        <FloatingPortal root={portalRoot}>
           <StyledTooltip
             data-testid="tooltip"
             ref={refs.setFloating}

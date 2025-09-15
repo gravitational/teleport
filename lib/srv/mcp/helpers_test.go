@@ -73,17 +73,8 @@ func withRole(role types.Role) setupTestContextOptionFunc {
 // tools.
 func withAdminRole(t *testing.T) setupTestContextOptionFunc {
 	t.Helper()
-	role, err := types.NewRole("admin", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			AppLabels: map[string]apiutils.Strings{
-				types.Wildcard: {types.Wildcard},
-			},
-			MCP: &types.MCPPermissions{
-				Tools: []string{types.Wildcard},
-			},
-		},
-	})
-	require.NoError(t, err)
+	role := services.NewPresetMCPUserRole()
+	require.NoError(t, services.CheckAndSetDefaults(role))
 	return withRole(role)
 }
 

@@ -93,6 +93,7 @@ import (
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -508,15 +509,14 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
-			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
 			interceptors.WithMFAUnaryInterceptor(c.PerformMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelStreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			interceptors.GRPCClientStreamErrorInterceptor,
 			breaker.StreamClientInterceptor(cb),
@@ -551,25 +551,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	return nil
 }
-
-// We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
-// because each time this is called, they create a new underlying metric. If
-// something (e.g tbot) is repeatedly creating new clients and closing them,
-// then this leads to a memory leak since the underlying metric is not cleaned
-// up.
-// See https://github.com/gravitational/teleport/issues/30759
-// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
-var otelStreamClientInterceptor = sync.OnceValue(func() grpc.StreamClientInterceptor {
-	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-	return otelgrpc.StreamClientInterceptor()
-})
-
-var otelUnaryClientInterceptor = sync.OnceValue(func() grpc.UnaryClientInterceptor {
-	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-	return otelgrpc.UnaryClientInterceptor()
-})
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
@@ -837,6 +818,12 @@ func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) 
 		return nil, trace.Wrap(err)
 	}
 	return types.DeviceToResource(upserted), nil
+}
+
+// ScopedAccessServiceClient returns an unadorned Scoped Access Service client, using the underlying
+// Auth gRPC connection.
+func (c *Client) ScopedAccessServiceClient() scopedaccessv1.ScopedAccessServiceClient {
+	return scopedaccessv1.NewScopedAccessServiceClient(c.conn)
 }
 
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying

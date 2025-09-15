@@ -40,6 +40,8 @@ func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 		return getRedshiftPolicyDocument(db)
 	case types.DatabaseTypeElastiCache:
 		return getElastiCachePolicyDocument(db)
+	case types.DatabaseTypeElastiCacheServerless:
+		return getElastiCacheServerlessPolicyDocument(db)
 	case types.DatabaseTypeMemoryDB:
 		return getMemoryDBPolicyDocument(db)
 	default:
@@ -258,6 +260,34 @@ func getElastiCachePolicyDocument(db types.Database) (*awslib.PolicyDocument, Pl
 		Actions: awslib.SliceOrString{"elasticache:Connect"},
 		Resources: awslib.SliceOrString{
 			fmt.Sprintf("arn:%v:elasticache:%v:%v:replicationgroup:%v", partition, region, accountID, replicationGroupID),
+			fmt.Sprintf("arn:%v:elasticache:%v:%v:user:*", partition, region, accountID),
+		},
+	})
+	return policyDoc, placeholders, nil
+}
+
+// getElastiCacheServerlessPolicyDocument returns the policy document used for
+// ElastiCache databases.
+//
+// https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/auth-iam.html
+func getElastiCacheServerlessPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
+	meta := db.GetAWS()
+	partition := awsutils.GetPartitionFromRegion(meta.Region)
+	region := meta.Region
+	accountID := meta.AccountID
+	cacheName := meta.ElastiCacheServerless.CacheName
+
+	placeholders := Placeholders(nil).
+		setPlaceholderIfEmpty(&region, "{region}").
+		setPlaceholderIfEmpty(&partition, "{partition}").
+		setPlaceholderIfEmpty(&accountID, "{account_id}").
+		setPlaceholderIfEmpty(&cacheName, "{cache_name}")
+
+	policyDoc := awslib.NewPolicyDocument(&awslib.Statement{
+		Effect:  awslib.EffectAllow,
+		Actions: awslib.SliceOrString{"elasticache:Connect"},
+		Resources: awslib.SliceOrString{
+			fmt.Sprintf("arn:%v:elasticache:%v:%v:serverlesscache:%v", partition, region, accountID, cacheName),
 			fmt.Sprintf("arn:%v:elasticache:%v:%v:user:*", partition, region, accountID),
 		},
 	})

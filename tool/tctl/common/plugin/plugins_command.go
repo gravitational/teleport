@@ -53,6 +53,11 @@ type pluginInstallArgs struct {
 	github  githubArgs
 }
 
+type pluginEditArgs struct {
+	cmd   *kingpin.CmdClause
+	awsIC awsICEditArgs
+}
+
 type scimArgs struct {
 	cmd           *kingpin.CmdClause
 	connector     string
@@ -73,6 +78,7 @@ type PluginsCommand struct {
 	dryRun     bool
 	install    pluginInstallArgs
 	delete     pluginDeleteArgs
+	edit       pluginEditArgs
 }
 
 // Initialize creates the plugins command and subcommands
@@ -88,6 +94,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 
 	p.initInstall(pluginsCommand, config)
 	p.initDelete(pluginsCommand)
+	p.initEdit(pluginsCommand)
 }
 
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
@@ -106,6 +113,11 @@ func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
 	p.delete.cmd.
 		Arg("name", "The name of the SCIM plugin resource to delete").
 		StringVar(&p.delete.name)
+}
+
+func (p *PluginsCommand) initEdit(parent *kingpin.CmdClause) {
+	p.edit.cmd = parent.Command("edit", "Edits a plugin's or an integration's settings")
+	p.initEditAWSIC(p.edit.cmd)
 }
 
 // Delete implements `tctl plugins delete`, deleting a plugin from the Teleport cluster
@@ -215,6 +227,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallGithub
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
+	case p.edit.awsIC.cmd.FullCommand():
+		commandFunc = p.EditAWSIC
 	default:
 		return false, nil
 	}

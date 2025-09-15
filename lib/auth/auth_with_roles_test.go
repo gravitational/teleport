@@ -53,7 +53,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -82,14 +82,13 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
-	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -6507,21 +6506,19 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 	withMatchingAccountAssignment := withAccountAssignment(types.Allow,
 		validAccountID, validPermissionSetARN)
 
-	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test-account",
-				Labels: map[string]string{
-					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-				},
+	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "test-account",
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:   validAccountID,
-				Arn:  "some:account:arn",
-				Name: "Test Account",
-			},
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:   validAccountID,
+			Arn:  "some:account:arn",
+			Name: "Test Account",
 		},
 	})
 	require.NoError(t, err)
@@ -6532,8 +6529,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 
 	inlineEventually(t,
 		func() bool {
-			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(accounts) == 1
 		},
@@ -9941,10 +9937,10 @@ func TestScopedRoleEvents(t *testing.T) {
 	watcher, err := client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{
-				Kind: scopedrole.KindScopedRole,
+				Kind: scopedaccess.KindScopedRole,
 			},
 			{
-				Kind: scopedrole.KindScopedRoleAssignment,
+				Kind: scopedaccess.KindScopedRoleAssignment,
 			},
 		},
 	})
@@ -9973,19 +9969,19 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpInit, event.Type)
 
 	// Create a ScopedRole and verify create event is well-formed.
-	role := &accessv1.ScopedRole{
-		Kind: scopedrole.KindScopedRole,
+	role := &scopedaccessv1.ScopedRole{
+		Kind: scopedaccess.KindScopedRole,
 		Metadata: &headerv1.Metadata{
 			Name: "test-role",
 		},
 		Scope: "/",
-		Spec: &accessv1.ScopedRoleSpec{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{"/foo", "/bar"},
 		},
 		Version: types.V1,
 	}
 
-	crsp, err := service.CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
+	crsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
 	})
 	require.NoError(t, err)
@@ -9993,11 +9989,11 @@ func TestScopedRoleEvents(t *testing.T) {
 	event = getNextEvent()
 	require.Equal(t, types.OpPut, event.Type)
 
-	resource := (event.Resource).(types.Resource153UnwrapperT[*accessv1.ScopedRole]).UnwrapT()
+	resource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
 	require.Empty(t, cmp.Diff(crsp.Role, resource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the role and verify delete event is well-formed.
-	_, err = service.DeleteScopedRole(ctx, &accessv1.DeleteScopedRoleRequest{
+	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
 		Name: role.Metadata.Name,
 	})
 	require.NoError(t, err)
@@ -10006,29 +10002,29 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedrole.KindScopedRole,
+		Kind: scopedaccess.KindScopedRole,
 		Metadata: types.Metadata{
 			Name: role.Metadata.Name,
 		},
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
-	crsp, err = service.CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
+	crsp, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
 	})
 	require.NoError(t, err)
 
 	_ = getNextEvent() // drain the role create event
 
-	assignment := &accessv1.ScopedRoleAssignment{
-		Kind: scopedrole.KindScopedRoleAssignment,
+	assignment := &scopedaccessv1.ScopedRoleAssignment{
+		Kind: scopedaccess.KindScopedRoleAssignment,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
 		Scope: "/",
-		Spec: &accessv1.ScopedRoleAssignmentSpec{
+		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "alice",
-			Assignments: []*accessv1.Assignment{
+			Assignments: []*scopedaccessv1.Assignment{
 				{
 					Role:  role.Metadata.Name,
 					Scope: "/foo",
@@ -10038,7 +10034,7 @@ func TestScopedRoleEvents(t *testing.T) {
 		Version: types.V1,
 	}
 
-	acrsp, err := service.CreateScopedRoleAssignment(ctx, &accessv1.CreateScopedRoleAssignmentRequest{
+	acrsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment,
 		RoleRevisions: map[string]string{
 			role.Metadata.Name: crsp.Role.Metadata.Revision,
@@ -10048,11 +10044,11 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	event = getNextEvent()
 	require.Equal(t, types.OpPut, event.Type)
-	assignmentResource := (event.Resource).(types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]).UnwrapT()
+	assignmentResource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT()
 	require.Empty(t, cmp.Diff(acrsp.Assignment, assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the assignment and verify delete event is well-formed.
-	_, err = service.DeleteScopedRoleAssignment(ctx, &accessv1.DeleteScopedRoleAssignmentRequest{
+	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name: assignment.Metadata.Name,
 	})
 	require.NoError(t, err)
@@ -10061,7 +10057,7 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedrole.KindScopedRoleAssignment,
+		Kind: scopedaccess.KindScopedRoleAssignment,
 		Metadata: types.Metadata{
 			Name: assignment.Metadata.Name,
 		},
@@ -10514,26 +10510,23 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		},
 	}
 
-	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx,
-		services.IdentityCenterAccount{
-			Account: &identitycenterv1.Account{
-				Kind:    types.KindIdentityCenterAccount,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: accountID,
-					Labels: map[string]string{
-						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-					},
-				},
-				Spec: &identitycenterv1.AccountSpec{
-					Id:                accountID,
-					Arn:               "aws:arn:test:account",
-					Name:              "Test Account",
-					Description:       "An account for testing",
-					PermissionSetInfo: permissionSets,
-				},
+	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: accountID,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-		})
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:                accountID,
+			Arn:               "aws:arn:test:account",
+			Name:              "Test Account",
+			Description:       "An account for testing",
+			PermissionSetInfo: permissionSets,
+		},
+	})
 	require.NoError(t, err)
 
 	// GIVEN a role that allows access to all permission sets on the target
@@ -10562,8 +10555,7 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 	// EXPECT that the IC Account has made it to the cache
 	inlineEventually(t,
 		func() bool {
-			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(testAssignments) == 1
 		},

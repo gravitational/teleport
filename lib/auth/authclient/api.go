@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -1267,12 +1266,16 @@ type Cache interface {
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 
 	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
-	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
 	GetIdentityCenterAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
 
+	// ListIdentityCenterAccounts fetches a paginated list of IdentityCenter Accounts.
+	ListIdentityCenterAccounts(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Account, string, error)
 	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
 	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
+	// ListPrincipalAssignments fetches a paginated list of IdentityCenter Principal Assignments.
+	ListPrincipalAssignments(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PrincipalAssignment, string, error)
+	// ListProvisioningStatesForAllDownstreams fetches a paginated list of ProvisioningStates.
+	ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error)
 
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)

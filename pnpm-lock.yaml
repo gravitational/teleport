@@ -521,11 +521,8 @@ importers:
         specifier: ^14.2.0
         version: 14.2.0
       zod:
-        specifier: ^3.24.4
-        version: 3.24.4
-      zod-to-json-schema:
-        specifier: ^3.24.5
-        version: 3.24.5(zod@3.24.4)
+        specifier: ^4.1.5
+        version: 4.1.5
 
 packages:
 
@@ -7046,6 +7043,9 @@ packages:
 
   zod@3.24.4:
     resolution: {integrity: sha512-OdqJE9UDRPwWsrHjLN2F8bPxvwJBK22EHLWtanu0LSYr5YqzsaaW3RMgmjwr8Rypg5k+meEJdSPXJZXE/yqOMg==}
+
+  zod@4.1.5:
+    resolution: {integrity: sha512-rcUUZqlLJgBC33IT3PNMgsCq6TzLQEG/Ei/KTCU0PedSWRMAXoOUN+4t/0H+Q8bdnLPdqUYnvboJT0bn/229qg==}
 
   zone.js@0.15.0:
     resolution: {integrity: sha512-9oxn0IIjbCZkJ67L+LkhYWRyAy7axphb3VgE2MBDlOqnmHMPWGYMxJxBYFueFq/JGY2GMwS0rU+UCLunEmy5UA==}
@@ -14796,5 +14796,7 @@ snapshots:
       zod: 3.24.4
 
   zod@3.24.4: {}
+
+  zod@4.1.5: {}
 
   zone.js@0.15.0: {}

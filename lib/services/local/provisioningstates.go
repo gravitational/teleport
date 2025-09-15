@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 const (
@@ -125,16 +124,12 @@ func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, do
 
 // ListProvisioningStates fetches a page of provisioning state records from the supplied
 // downstream
-func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, downstreamID services.DownstreamID, pageSize int, page *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
-	token, err := page.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	resp, nextPage, err := ss.ListProvisioningStates2(ctx, downstreamID, pageSize, token)
+func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, downstreamID services.DownstreamID, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
+	resp, nextPage, err := ss.ListProvisioningStates2(ctx, downstreamID, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing provisioning state records")
 	}
-	return resp, pagination.NextPageToken(nextPage), nil
+	return resp, nextPage, nil
 }
 
 // ListProvisioningStates fetches a page of provisioning state records from the supplied
@@ -154,17 +149,13 @@ func (ss *ProvisioningStateService) ListProvisioningStates2(ctx context.Context,
 func (ss *ProvisioningStateService) ListProvisioningStatesForAllDownstreams(
 	ctx context.Context,
 	pageSize int,
-	page *pagination.PageRequestToken,
-) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
-	token, err := page.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
+	token string,
+) ([]*provisioningv1.PrincipalState, string, error) {
 	resp, nextPage, err := ss.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, token)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	return resp, pagination.NextPageToken(nextPage), nil
+	return resp, nextPage, nil
 }
 
 // ListProvisioningStatesForAllDownstreams2 lists all provisioning state records for all

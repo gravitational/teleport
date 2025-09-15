@@ -204,10 +204,10 @@ export function RecordingTimeline({
         const deltaZoom = -event.deltaY * ZOOM_SENSITIVITY;
 
         renderer.accumulateZoom(event.clientX, deltaZoom);
+      } else if (event.deltaX !== 0) {
+        renderer.accumulatePan(event.deltaX);
       } else if (event.shiftKey && event.deltaY !== 0) {
         renderer.accumulatePan(event.deltaY);
-      } else if (!event.shiftKey && event.deltaX !== 0) {
-        renderer.accumulatePan(event.deltaX);
       }
     }
 

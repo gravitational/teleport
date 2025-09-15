@@ -91,6 +91,8 @@ type BootstrapFlags struct {
 	ForceRedshiftServerlessPermissions bool
 	// ForceElastiCachePermissions forces the presence of ElastiCache permissions.
 	ForceElastiCachePermissions bool
+	// ForceElastiCacheServerlessPermissions forces the presence of ElastiCacheServerless permissions.
+	ForceElastiCacheServerlessPermissions bool
 	// ForceMemoryDBPermissions forces the presence of MemoryDB permissions.
 	ForceMemoryDBPermissions bool
 	// ForceEC2Permissions forces the presence of EC2 permissions.

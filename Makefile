@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.2.0
+VERSION=18.2.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -1177,7 +1177,7 @@ integration:  $(TEST_LOG_DIR) ensure-gotestsum
 INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
-integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v 'integration/autoupdate')
 integration-kube: $(TEST_LOG_DIR) ensure-gotestsum
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
@@ -1227,8 +1227,8 @@ lint-tools: lint-build-tooling lint-backport
 
 #
 # Checks that testing symbols and the testify library is not included in binaries.
-# 
-# 
+#
+#
 .PHONY: lint-test-symbols
 lint-test-symbols: ensure-goda
 	@testing_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \

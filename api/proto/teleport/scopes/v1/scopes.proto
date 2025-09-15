@@ -18,6 +18,26 @@ package teleport.scopes.v1;
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1";
 
+// Pin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
+// information for access-control evaluation at that scope.
+message Pin {
+  // scope is the target scope that this pin is associated with. This is the scope that the certificate/identity is
+  // pinned to. Any resources in parent/orthogonal scopes are not necessarily subject to the privileges/policies
+  // conveyed by this pin.
+  string scope = 1;
+
+  // assignments encodes the scoped role assignments relevant to access-control decisions about the pinned identity. This may
+  // include assignments to parents of the pinned scope as well as assignments to equivalent/child scopes. Effectively, this
+  // means all assignments that are not orthogonal to the pinned scope.
+  map<string, PinnedAssignments> assignments = 2;
+}
+
+// PinnedAssignments is a collection of scoped role assignments that are relevant to the pinned identity at the target scope.
+message PinnedAssignments {
+  // roles is a list of scoped roles that are assigned to the pinned identity at the target scope.
+  repeated string roles = 1;
+}
+
 // Mode determines the mode of scoping when a query specifies a scope. When a query specifies a scope,
 // one of two questions is typically trying to be answered.  Either, what resources are "in" and/or "subject to"
 // a given scope, or what policies are "applicable to" a given scope.

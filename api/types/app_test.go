@@ -623,6 +623,7 @@ func TestNewAppV3(t *testing.T) {
 				Metadata: Metadata{
 					Name:      "mcp-everything",
 					Namespace: "default",
+					Labels:    map[string]string{AppSubKindLabel: "mcp"},
 				},
 				Spec: AppSpecV3{
 					URI: "mcp+stdio://",
@@ -678,6 +679,7 @@ func TestNewAppV3(t *testing.T) {
 					Namespace: "default",
 					Labels: map[string]string{
 						TeleportInternalResourceType: DemoResource,
+						AppSubKindLabel:              "mcp",
 					},
 				},
 				Spec: AppSpecV3{
