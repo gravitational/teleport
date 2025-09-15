@@ -223,7 +223,6 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 			RawQuery: "queryParam=value-a",
 		},
 	}
-
 	outgoingReqA = outgoingReqA.WithContext(ctx)
 	resp, err := httpClient.Do(outgoingReqA)
 	require.NoError(t, err)
@@ -259,9 +258,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 			RawQuery: "queryParam=value-b",
 		},
 	}
-
 	outgoingReqB = outgoingReqB.WithContext(ctx)
-
 	resp, err = httpClient.Do(outgoingReqB)
 	require.NoError(t, err)
 
