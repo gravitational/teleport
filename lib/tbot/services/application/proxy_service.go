@@ -84,7 +84,10 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	l := s.cfg.Listener
 
 	if l == nil {
-		s.log.DebugContext(ctx, "Opening listener for application tunnel", "listen", s.cfg.Listen)
+		s.log.DebugContext(
+			ctx, "Opening listener for application proxy",
+			"listen", s.cfg.Listen,
+		)
 		var err error
 		l, err = internal.CreateListener(ctx, s.log, s.cfg.Listen)
 		if err != nil {
@@ -113,11 +116,13 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	// made after the context is canceled.
 	var errCh = make(chan error, 1)
 	go func() {
-		s.log.DebugContext(ctx, "Starting proxy goroutine")
+		s.log.DebugContext(ctx, "Starting proxy request handler goroutine")
 		errCh <- s.startProxy(ctx)
 	}()
-	s.log.InfoContext(ctx, "Listening for proxy connections.", "address", l.Addr().String())
-
+	s.log.InfoContext(
+		ctx, "Listening for proxy connections",
+		"address", l.Addr().String(),
+	)
 	s.statusReporter.Report(readyz.Healthy)
 
 	select {
@@ -163,7 +168,10 @@ func (s *ProxyService) issueCert(
 	}
 	defer func() {
 		if err := impersonatedClient.Close(); err != nil {
-			s.log.ErrorContext(ctx, "Failed to close impersonated client.", "error", err)
+			s.log.ErrorContext(
+				ctx, "Failed to close impersonated client",
+				"error", err,
+			)
 		}
 	}()
 	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), impersonatedClient, appName)
@@ -171,12 +179,10 @@ func (s *ProxyService) issueCert(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	s.log.DebugContext(ctx, "Requesting issuance of certificate for ProxyService proxy.")
 	routedIdent, err := s.identityGenerator.Generate(ctx, append(identityOpts, identity.WithRouteToApp(route))...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	s.log.InfoContext(ctx, "Certificate issued for ProxyService proxy.")
 
 	return routedIdent.TLSCert, app, nil
 }
@@ -242,11 +248,18 @@ func (s *ProxyService) handleProxyError(w http.ResponseWriter, err error) {
 
 func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Request) error {
 	ctx := req.Context()
+	s.log.DebugContext(
+		ctx, "Received request to proxy",
+		"url", req.URL.String(),
+		"method", req.Method,
+		"remote_addr", req.RemoteAddr,
+	)
+
 	// Pre-emptively block CONNECT requests as we do not currently support them
 	// but, proxying them forward as normal requests would make it difficult for
 	// us to introduce CONNECT support later without breaking compat.
 	if req.Method == http.MethodConnect {
-		return trace.NotImplemented("Proxy does not support CONNECT method")
+		return trace.NotImplemented("proxy does not support CONNECT method")
 	}
 
 	// Resolve Application Name via either URL or Host Header
@@ -255,7 +268,10 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	var appCert *tls.Certificate
 	var err error
 	appCert, err = utils.FnCacheGet(ctx, s.cache, appName, func(ctx context.Context) (*tls.Certificate, error) {
-		s.log.InfoContext(ctx, fmt.Sprintf("(Re)issuing application Certificate for %s\n", appName))
+		s.log.InfoContext(
+			ctx, "Issuing app cert",
+			"app", appName,
+		)
 		cert, _, err := s.issueCert(ctx, appName)
 		return cert, err
 	})
