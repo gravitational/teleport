@@ -84,45 +84,62 @@ session establishment. The new RPC supports both MFA-required and MFA-optional f
 handle MFA challenges as needed.
 
 ```proto
+// api/proto/teleport/transport/v2/transport_service.proto
+
 service TransportServiceV2 {
-   // ProxySSHWithMFA establishes an SSH connection to the target host over a bidirectional stream.
-   // Upon stream establishment, the server will send an MFAAuthenticateChallenge as the first message if MFA is required.
-   // If MFA is not required, the server will not send a challenge and the client can send the dial_target directly.
-   // This RPC supports both MFA-required and MFA-optional flows, and the client determines if MFA is needed by
-   // inspecting the first response from the server.
-   // All SSH and agent frames are sent as raw bytes and are not interpreted by the proxy.
-   rpc ProxySSHWithMFA(stream ProxySSHWithMFARequest) returns (stream ProxySSHWithMFAResponse);
+  // ProxySSHWithMFA establishes an SSH connection to the target host over a bidirectional stream.
+  // Upon stream establishment, the server will send an MFAAuthenticateChallenge as the first message if MFA is required.
+  // If MFA is not required, the server will not send a challenge and the client can send the dial_target directly.
+  // This RPC supports both MFA-required and MFA-optional flows, and the client determines if MFA is needed by
+  // inspecting the first response from the server.
+  // All SSH and agent frames are sent as raw bytes and are not interpreted by the proxy.
+  rpc ProxySSHWithMFA(stream ProxySSHWithMFARequest) returns (stream ProxySSHWithMFAResponse);
 }
 
 message ProxySSHWithMFARequest {
-   // Only one of these fields should be set per message.
-   // - If MFA is required, client sends MFAAuthenticateResponse after receiving challenge.
-   // - If MFA is not required, client sends dial_target directly.
-   // - After connection is established, client sends SSH or agent frames as raw bytes.
-   //
-   // Validation: The server MUST validate that exactly one field in the oneof payload is set per message.
-   // If zero or more than one field is set, the server MUST reject the message and terminate the stream with an error.
-   oneof payload {
-      MFAAuthenticateResponse mfa_response = 1; // Sent by client after receiving MFA challenge (if required)
-      TargetHost dial_target = 2;              // Sent by client after successful MFA or if MFA is not required
-      Frame ssh = 3;                           // SSH payload
-      Frame agent = 4;                         // SSH Agent payload
-   }
-   }
+  // Only one of these fields should be set per message.
+  // - If MFA is required, client sends MFAAuthenticateResponse after receiving challenge.
+  // - If MFA is not required, client sends dial_target directly.
+  // - After connection is established, client sends SSH or agent frames as raw bytes.
+  //
+  // Validation: The server MUST validate that exactly one field in the oneof payload is set per message.
+  // If zero or more than one field is set, the server MUST reject the message and terminate the stream with an error.
+  oneof payload {
+    MFAAuthenticateResponse mfa_response = 1; // Sent by client after receiving MFA challenge (if required)
+    TargetHost dial_target = 2;              // Sent by client after successful MFA or if MFA is not required
+    Frame ssh = 3;                           // SSH payload
+    Frame agent = 4;                         // SSH Agent payload
+  }
 }
 
 message ProxySSHWithMFAResponse {
-   // Only one of these fields will be set per message.
-   // The first message from the server will be:
-   // - MFAAuthenticateChallenge if MFA is required (client must respond with MFAAuthenticateResponse)
-   // - ClusterDetails if MFA is not required (client can send dial_target immediately)
-   // After MFA (or if not required), server sends ClusterDetails and then SSH/agent frames.
-   oneof payload {
-      MFAAuthenticateChallenge mfa_challenge = 1; // Sent by server as first message if MFA is required
-      ClusterDetails details = 2;                 // Sent by server as first message if MFA is not required, and after MFA if required
-      Frame ssh = 3;                              // SSH payload
-      Frame agent = 4;                            // SSH Agent payload
-   }
+  // Only one of these fields will be set per message.
+  // The first message from the server will be:
+  // - MFAAuthenticateChallenge if MFA is required (client must respond with MFAAuthenticateResponse)
+  // - ClusterDetails if MFA is not required (client can send dial_target immediately)
+  // After MFA (or if not required), server sends ClusterDetails and then SSH/agent frames.
+  oneof payload {
+    MFAAuthenticateChallenge mfa_challenge = 1; // Sent by server as first message if MFA is required
+    ClusterDetails details = 2;                 // Sent by server as first message if MFA is not required, and after MFA if required
+    Frame ssh = 3;                              // SSH payload
+    Frame agent = 4;                            // SSH Agent payload
+  }
+}
+```
+
+The `DialRequest` message will be updated to include a new field called `Permit`, which contains the serialized
+`SSHAccessPermit` that authorized the connection. See [Session-Bound Certificates](#session-bound-certificates) for more
+details.
+
+```proto
+// api/proto/teleport/legacy/client/proto/proxyservice.proto
+
+// DialRequest contains details for connecting to a node.
+message DialRequest {
+  // ... existing fields ...
+
+  // Permit is the serialized SSHAccessPermit that authorized this connection.
+  bytes permit = 5;
 }
 ```
 
@@ -200,7 +217,7 @@ sequenceDiagram
    end
 ```
 
-### Session-Bound Certificates
+#### Session-Bound Certificates
 
 The Proxy issues a session-bound SSH certificate per connection after successful authentication and authorization.
 Certificates are kept in-memory in the Proxy (not stored or exposed elsewhere).
