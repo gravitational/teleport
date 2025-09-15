@@ -19,6 +19,7 @@ package cache
 
 import (
 	"context"
+	"encoding/base32"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -134,7 +135,11 @@ func keyForWorkloadIdentityNameIndex(r *workloadidentityv1pb.WorkloadIdentity) s
 }
 
 func keyForWorkloadIdentitySpiffeIDIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
+	// Encode the id avoid; "a/b" + "/" + "c" vs. "a" + "/" + "b/c"
+	// Base32 hex maintains original ordering.
+	encodedId := unpaddedBase32hex.EncodeToString([]byte(r.GetSpec().GetSpiffe().GetId()))
 	// SPIFFE IDs may not be unique, so append the resource name
-	// Join using a "|" to avoid the "a/b" + "/" + "c" vs "a" + "/" + "b/c" problem.
-	return r.GetSpec().GetSpiffe().GetId() + "|" + r.GetMetadata().GetName()
+	return encodedId + "/" + r.GetMetadata().GetName()
 }
+
+var unpaddedBase32hex = base32.HexEncoding.WithPadding(base32.NoPadding)
