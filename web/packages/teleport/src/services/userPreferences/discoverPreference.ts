@@ -47,7 +47,6 @@ export enum DiscoverGuideId {
 
   // MCP Servers:
   MCPServerStdioTransport = 'mcp-stdio',
-  MCPServerDemo = 'mcp-demo',
 
   // Windows Desktops:
   WindowsDesktopsActiveDirectory = 'windows-desktops-active-directory',
