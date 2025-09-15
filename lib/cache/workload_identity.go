@@ -19,6 +19,7 @@ package cache
 
 import (
 	"context"
+	"encoding/base32"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -84,17 +85,17 @@ func (c *Cache) ListWorkloadIdentities(
 	index := workloadIdentityNameIndex
 	keyFn := keyForWorkloadIdentityNameIndex
 	isDesc := options.GetSortDesc()
-	if options.GetSortField() != "" {
-		switch options.GetSortField() {
-		case "name":
-			index = workloadIdentityNameIndex
-			keyFn = keyForWorkloadIdentityNameIndex
-		case "spiffe_id":
-			index = workloadIdentitySpiffeIDIndex
-			keyFn = keyForWorkloadIdentitySpiffeIDIndex
-		default:
-			return nil, "", trace.BadParameter("unsupported sort %q but expected name or spiffe_id", options.GetSortField())
-		}
+	switch options.GetSortField() {
+	case "name":
+		index = workloadIdentityNameIndex
+		keyFn = keyForWorkloadIdentityNameIndex
+	case "spiffe_id":
+		index = workloadIdentitySpiffeIDIndex
+		keyFn = keyForWorkloadIdentitySpiffeIDIndex
+	case "":
+		// default ordering as defined above
+	default:
+		return nil, "", trace.BadParameter("unsupported sort %q but expected name or spiffe_id", options.GetSortField())
 	}
 
 	lister := genericLister[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
@@ -108,9 +109,7 @@ func (c *Cache) ListWorkloadIdentities(
 		filter: func(b *workloadidentityv1pb.WorkloadIdentity) bool {
 			return services.MatchWorkloadIdentity(b, options.GetFilterSearchTerm())
 		},
-		nextToken: func(t *workloadidentityv1pb.WorkloadIdentity) string {
-			return keyFn(t)
-		},
+		nextToken: keyFn,
 	}
 	out, next, err := lister.list(ctx, pageSize, nextToken)
 	return out, next, trace.Wrap(err)
@@ -136,6 +135,11 @@ func keyForWorkloadIdentityNameIndex(r *workloadidentityv1pb.WorkloadIdentity) s
 }
 
 func keyForWorkloadIdentitySpiffeIDIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
+	// Encode the id avoid; "a/b" + "/" + "c" vs. "a" + "/" + "b/c"
+	// Base32 hex maintains original ordering.
+	encodedId := unpaddedBase32hex.EncodeToString([]byte(r.GetSpec().GetSpiffe().GetId()))
 	// SPIFFE IDs may not be unique, so append the resource name
-	return r.GetSpec().GetSpiffe().GetId() + "/" + r.GetMetadata().GetName()
+	return encodedId + "/" + r.GetMetadata().GetName()
 }
+
+var unpaddedBase32hex = base32.HexEncoding.WithPadding(base32.NoPadding)
