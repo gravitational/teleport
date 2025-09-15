@@ -556,6 +556,8 @@ message DesktopClipboardReceive {
   string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
   // Length is the number of bytes of data received from the remote clipboard.
   int32 Length = 6 [(gogoproto.jsontag) = "length"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 7 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DesktopClipboardSend is emitted when clipboard data is
@@ -589,6 +591,8 @@ message DesktopClipboardSend {
   string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
   // Length is the number of bytes of data sent.
   int32 Length = 6 [(gogoproto.jsontag) = "length"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 7 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DesktopSharedDirectoryStart is emitted when Teleport
@@ -630,6 +634,8 @@ message DesktopSharedDirectoryStart {
   string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
   // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
   uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 9 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DesktopSharedDirectoryRead is emitted when Teleport
@@ -678,6 +684,8 @@ message DesktopSharedDirectoryRead {
   uint32 Length = 10 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were read from.
   uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 12 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DesktopSharedDirectoryWrite is emitted when Teleport
@@ -726,6 +734,8 @@ message DesktopSharedDirectoryWrite {
   uint32 Length = 10 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were written to.
   uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 12 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // SessionReject event happens when a user hits a session control restriction.
