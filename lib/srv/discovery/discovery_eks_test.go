@@ -249,6 +249,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				ctx := t.Context()
 				fakeConfigProvider := mocks.AWSConfigProvider{
+					AWSConfig: &aws.Config{},
 					OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
 						Integration: awsOIDCIntegration,
 					},
