@@ -272,21 +272,22 @@ These flags are available to all `tbot start` commands. Note that
 `tbot start legacy` supports slightly different options, so refer to its
 specific section for details when using a YAML config file or legacy output.
 
-| Flag                 | Description |
-|----------------------|-------------|
-| `-d/--debug`         | Enable verbose logging to stderr. |
-| `--[no-]fips`        | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary. |
-| `--log-format`       | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`. |
-| `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using `--proxy-server` where possible. |
-| `--proxy-server`     | Address of the Teleport Proxy Server. |
-| `--token`            | A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect. |
-| `--ca-pin`           | CA pin to validate the Teleport Auth Service; used on first connect. |
-| `--certificate-ttl`  | TTL of short-lived machine certificates. |
-| `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
-| `--join-method`      | Method to use to join the cluster. One of: `azure`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud` |
-| `--[no-]oneshot`     | If set, quit after the first renewal. |
-| `--diag-addr`        | If set and the bot is in debug mode, a diagnostics service will listen on specified address. |
-| `--storage`          | A destination URI for tbot's internal storage, e.g. `file:///foo/bar`. See [Destination URIs](#destination-uris) for more info. |
+| Flag                    | Description |
+|-------------------------|-------------|
+| `-d/--debug`            | Enable verbose logging to stderr. |
+| `--[no-]fips`           | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary. |
+| `--log-format`          | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`. |
+| `-a/--auth-server`      | Address of the Teleport Auth Service. Prefer using `--proxy-server` where possible. |
+| `--proxy-server`        | Address of the Teleport Proxy Service. |
+| `--token`               | A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect. |
+| `--ca-pin`              | CA pin to validate the Teleport Auth Service; used on first connect. |
+| `--certificate-ttl`     | TTL of short-lived machine certificates. |
+| `--renewal-interval`    | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
+| `--join-method`         | Method to use to join the cluster. One of: `azure`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud` |
+| `--[no-]oneshot`        | If set, quit after the first renewal. |
+| `--diag-addr`           | If set and the bot is in debug mode, a diagnostics service will listen on specified address. |
+| `--storage`             | A destination URI for tbot's internal storage, e.g. `file:///foo/bar`. See [Destination URIs](#destination-uris) for more info. |
+| `--registration-secret` | An optional joining secret to use on first join with the `bound_keypair` join method. |
 
 ## tbot start legacy
 
@@ -712,6 +713,49 @@ $ tbot install systemd \
    --config=/etc/tbot.yaml \
    --write
 ```
+
+## tbot keypair create
+
+Generates a keypair for use with `bound_keypair` joining and stores it in the
+specified bot internal storage directory. If a key already exists in the storage
+directory, no new key will be generated and the existing public key will be
+printed to the console; use the `--overwrite` flag to force the generation of a
+new keypair.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--storage`      | A destination URI to be used for bot internal storage. Required. |
+| `--proxy-server` | A Teleport Proxy Service address. Required. |
+| `--overwrite`    | If set, always generate a new key. If unset, the existing public key will be printed if one already exists in the destination specified by `--storage` |
+
+### Examples
+
+First, ensure the desired internal storage directory exists:
+```code
+$ mkdir -p /var/lib/teleport/bot
+```
+
+Next, generate a keypair:
+```code
+$ tbot keypair create --proxy-server example.teleport.sh:443 --storage /var/lib/teleport/bot
+2025-07-09T00:00:00.000-00:00 INFO [TBOT]      keypair has been written to storage storage:directory: /var/lib/teleport/bot tbot/keypair.go:135
+
+To register the keypair with Teleport, include this public key in the token's
+`spec.bound_keypair.onboarding.initial_public_key`:
+
+	ssh-ed25519 <data>
+```
+
+This public key, including the algorithm identifier (`ssh-ed25519`, but may vary
+depending on your cluster configuration) can then be copied into a Bound Keypair
+join token to be used as a
+[preregistered key](../machine-id/bound-keypair/concepts.mdx#onboarding).
+
+Note that the Teleport Proxy Service address is required to fetch the currently
+enabled [signature suite](../signature-algorithms.mdx). No authentication takes
+place at this time.
 
 ## Destination URIs
 
