@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev-k8s-health.1"
+.version: &version "19.0.0-dev-k8s-health.4"
 
 apiVersion: v2
 name: teleport-plugin-slack
