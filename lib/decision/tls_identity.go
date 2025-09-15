@@ -41,6 +41,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 
 	return &tlsca.Identity{
 		Username:                id.Username,
+		ScopePin:                id.ScopePin,
 		Impersonator:            id.Impersonator,
 		Groups:                  id.Groups,
 		SystemRoles:             id.SystemRoles,
@@ -90,6 +91,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 
 	return &decisionpb.TLSIdentity{
 		Username:                id.Username,
+		ScopePin:                id.ScopePin,
 		Impersonator:            id.Impersonator,
 		Groups:                  id.Groups,
 		SystemRoles:             id.SystemRoles,

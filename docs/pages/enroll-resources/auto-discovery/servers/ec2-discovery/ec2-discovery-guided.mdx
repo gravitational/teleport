@@ -1,9 +1,11 @@
 ---
 title: Guided EC2 Auto-Discovery Configuration
 description: How to configure Teleport EC2 auto-discovery using Teleport to configure permissions
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
+ - aws
 ---
 
 This guide shows you how to configure Teleport to automatically enroll EC2
@@ -18,8 +20,8 @@ instance and join it to the cluster as a Teleport-protected server. `teleport`
 commands allow you to create IAM policies that enable the Discovery Service to
 enroll EC2 instances as servers in your Teleport cluster.
 
-To manual configure IAM policies and SSM documents instead, read [Manual EC2
-Auto-Discovery Configuration](ec2-discovery-guided.mdx).
+To manually configure IAM policies and SSM documents instead, read [Manual EC2
+Auto-Discovery Configuration](ec2-discovery-manual.mdx).
 
 ## Prerequisites
 

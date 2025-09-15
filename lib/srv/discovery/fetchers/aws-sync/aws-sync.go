@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -119,6 +120,8 @@ type awsClientProvider interface {
 	getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client
 	// getSTSClient provides an [stsClient].
 	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
+	// getKMSClient provides a [kmsClient].
+	getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient
 }
 
 type defaultAWSClients struct{}
@@ -137,6 +140,10 @@ func (defaultAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)
 
 func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
 	return stsutils.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient {
+	return kms.NewFromConfig(cfg, optFns...)
 }
 
 // AssumeRole is the configuration for assuming an AWS role.
@@ -201,6 +208,8 @@ type Resources struct {
 	SAMLProviders []*accessgraphv1alpha.AWSSAMLProviderV1
 	// OIDCProviders is a list of OIDC providers.
 	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
+	// KMSKeys is a list of KMS keys.
+	KMSKeys []*accessgraphv1alpha.AWSKMSKeyV1
 }
 
 func (r *Resources) count() int {
@@ -356,6 +365,11 @@ func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, erro
 	if features.IDP {
 		eGroup.Go(a.pollAWSSAMLProviders(ctx, result, collectErr))
 		eGroup.Go(a.pollAWSOIDCProviders(ctx, result, collectErr))
+	}
+
+	// fetch AWS KMS keys, including HSM keys
+	if features.KMS {
+		eGroup.Go(a.pollAWSKMSKeys(ctx, result, collectErr))
 	}
 
 	if err := eGroup.Wait(); err != nil {

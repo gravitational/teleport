@@ -28,6 +28,7 @@ const (
 	awsS3        = awsNamespace + "/" + "s3"
 	awsRoles     = awsNamespace + "/" + "roles"
 	awsIDP       = awsNamespace + "/" + "idp"
+	awsKMS       = awsNamespace + "/" + "kms"
 )
 
 // Features is the list of supported resources by the server.
@@ -48,6 +49,8 @@ type Features struct {
 	S3 bool
 	// IDP enables sync of AWS IAM identity providers.
 	IDP bool
+	// KMS enables AWS KMS sync.
+	KMS bool
 }
 
 // BuildFeatures builds the feature flags based on supported types returned by Access Graph
@@ -72,6 +75,8 @@ func BuildFeatures(values ...string) Features {
 			features.Roles = true
 		case awsIDP:
 			features.IDP = true
+		case awsKMS:
+			features.KMS = true
 		}
 	}
 	return features

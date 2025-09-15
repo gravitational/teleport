@@ -234,6 +234,27 @@ func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Databa
 	return trace.Wrap(requireContainsDatabaseURLAndEndpointType(databases, database, cluster))
 }
 
+func (c *urlChecker) checkElastiCacheServerless(ctx context.Context, database types.Database) error {
+	meta := database.GetAWS()
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clt := c.awsClients.getElastiCacheClient(awsCfg)
+	cache, err := describeElastiCacheServerlessCache(ctx, clt, meta.ElastiCacheServerless.CacheName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fetchedDB, err := common.NewDatabaseFromElastiCacheServerlessCache(cache, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(requireContainsDatabaseURLAndEndpointType(types.Databases{fetchedDB}, database, cache))
+}
+
 func (c *urlChecker) checkMemoryDB(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
 	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
