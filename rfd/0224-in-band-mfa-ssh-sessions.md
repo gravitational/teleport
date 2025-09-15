@@ -1,0 +1,265 @@
+---
+authors: Chris Thach (chris.thach@goteleport.com)
+state: draft
+---
+
+# RFD 0224 - In-Band MFA for SSH Sessions
+
+## Required Approvers
+
+- Engineering: @rosstimothy
+
+TODO: Add more approvers
+
+## What
+
+This RFD proposes centralizing SSH authentication and authorization at the Teleport Proxy service, integrating in-band
+multi-factor authentication (MFA) into session establishment. The Proxy will leverage the [Access Control Decision API
+(RFD 0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md) to
+consistently enforce policy decisions and MFA requirements for all SSH sessions.
+
+## Why
+
+In the current implementation, authentication and authorization decisions are handled by the Teleport Agent, which has
+the following issues:
+
+1. Per-session MFA is performed separately from session creation, which can introduce security gaps. For example, in
+   [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc), the MFA
+   challenge was not properly tied to the session, allowing an attacker to bypass it if they forged a certificate
+   attesting that they had completed MFA.
+1. Higher latency from multiple round trips between the Teleport Agent, Proxy service, and Auth service for
+   authentication and policy decisions.
+1. Complexity in managing and auditing access controls, since much of the logic currently resides in client code rather
+   than being enforced server-side. This makes policy updates cumbersome, as changes require updating the Teleport
+   Agent.
+
+By centralizing these responsibilities at the Proxy, the new design directly addresses the above issues:
+
+1. In-band MFA enforcement is tightly integrated with session creation, ensuring that authentication factors are
+   directly bound to each session and mitigating the risk of bypasses like those seen in
+   [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc).
+1. Latency is reduced by consolidating authentication and authorization flows at the Proxy, eliminating unnecessary
+   communication between Teleport Agents and the Auth service.
+1. Policy enforcement and auditing become simpler and more robust, as access controls are managed server-side and
+   updates no longer require changes to Teleport Agents.
+
+This centralized approach significantly enhances security, reduces latency, and simplifies management while maintaining
+strict access controls.
+
+## Details
+
+### Non-Goals/Limitations
+
+1. SSH session certificate renewal and revocation are not in scope for this proposal. It is assumed that sessions will
+   continue to follow the constraints as defined in [Per-session MFA (RFD 14)](0014-session-2FA.md).
+
+### Overview
+
+All SSH traffic destined for target nodes will be proxied through the Proxy service, which will handle authentication,
+authorization, and session establishment. Direct SSH connections to nodes will no longer be allowed.
+
+The Proxy service will leverage the [Access Control Decision API (RFD
+0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), which
+evaluates both per-role and global policy, to make consistent policy decisions for all SSH sessions. If any role or the
+global policy requires session MFA, the Proxy will enforce MFA for the session, following the logic in [RFD
+14](0014-session-2FA.md). Upon successful authentication and authorization, the Proxy will establish a connection to the
+target Teleport Agent using a session-bound SSH certificate and proxy the SSH traffic between the client and the node.
+
+### UX
+
+There will be no changes to the UX as a result of this proposal as all changes are internal to the Teleport
+architecture.
+
+### Security
+
+This proposal introduces no new security risks. Centralizing SSH traffic through the Teleport Proxy strengthens policy
+enforcement, improves monitoring, and reduces the attack surface by preventing direct Node access.
+
+### Proto Specification
+
+A new service called `TransportServiceV2` will be introduced. `TransportServiceV2` will include a new RPC called
+`ProxySSHWithMFA`. `TransportServiceV2` will replace the existing `TransportService`. The `ProxySSH` RPC will be
+deprecated in favor of `TransportServiceV2`'s `ProxySSHWithMFA` RPC, which provides in-band MFA enforcement during SSH
+session establishment. The new RPC supports both MFA-required and MFA-optional flows, allowing clients to dynamically
+handle MFA challenges as needed.
+
+```proto
+service TransportServiceV2 {
+   // ProxySSHWithMFA establishes an SSH connection to the target host over a bidirectional stream.
+   // Upon stream establishment, the server will send an MFAAuthenticateChallenge as the first message if MFA is required.
+   // If MFA is not required, the server will not send a challenge and the client can send the dial_target directly.
+   // This RPC supports both MFA-required and MFA-optional flows, and the client determines if MFA is needed by
+   // inspecting the first response from the server.
+   // All SSH and agent frames are sent as raw bytes and are not interpreted by the proxy.
+   rpc ProxySSHWithMFA(stream ProxySSHWithMFARequest) returns (stream ProxySSHWithMFAResponse);
+}
+
+message ProxySSHWithMFARequest {
+   // Only one of these fields should be set per message.
+   // - If MFA is required, client sends MFAAuthenticateResponse after receiving challenge.
+   // - If MFA is not required, client sends dial_target directly.
+   // - After connection is established, client sends SSH or agent frames as raw bytes.
+   //
+   // Validation: The server MUST validate that exactly one field in the oneof payload is set per message.
+   // If zero or more than one field is set, the server MUST reject the message and terminate the stream with an error.
+   oneof payload {
+      MFAAuthenticateResponse mfa_response = 1; // Sent by client after receiving MFA challenge (if required)
+      TargetHost dial_target = 2;              // Sent by client after successful MFA or if MFA is not required
+      Frame ssh = 3;                           // SSH payload
+      Frame agent = 4;                         // SSH Agent payload
+   }
+   }
+}
+
+message ProxySSHWithMFAResponse {
+   // Only one of these fields will be set per message.
+   // The first message from the server will be:
+   // - MFAAuthenticateChallenge if MFA is required (client must respond with MFAAuthenticateResponse)
+   // - ClusterDetails if MFA is not required (client can send dial_target immediately)
+   // After MFA (or if not required), server sends ClusterDetails and then SSH/agent frames.
+   oneof payload {
+      MFAAuthenticateChallenge mfa_challenge = 1; // Sent by server as first message if MFA is required
+      ClusterDetails details = 2;                 // Sent by server as first message if MFA is not required, and after MFA if required
+      Frame ssh = 3;                              // SSH payload
+      Frame agent = 4;                            // SSH Agent payload
+   }
+}
+```
+
+#### ProxySSHWithMFA RPC
+
+The `ProxySSHWithMFA` RPC establishes a bidirectional stream for SSH session establishment with integrated MFA. When the
+stream initializes, the server first checks if MFA is required for the session based on policy.
+
+For sessions where MFA is required, the server begins by sending an MFA challenge as the initial message. The client
+must then respond with valid authentication factors before proceeding further. The session can only continue after
+successful MFA verification. If the MFA verification fails, the stream is immediately terminated. Similarly, any
+connectivity issues with the authentication service result in the session being denied. See [RFD
+14](0014-session-2FA.md) for more details on session termination logic.
+
+In cases where MFA is optional, or after successful MFA verification, the server sends `ClusterDetails` to the client.
+At this point, the client can proceed with their `DialTarget` request, and the server establishes an SSH connection with
+the target node.
+
+Once the connection is established, the server functions as a pure proxy, treating both SSH and Agent frames as opaque
+raw bytes. No interpretation of the SSH protocol occurs - the frames are simply forwarded as-is. Both SSH and Agent
+frames are multiplexed over the same stream. This architectural approach ensures in-band MFA enforcement while
+maintaining the proxy's protocol-agnostic nature, which simplifies maintenance and allows for future extensibility.
+
+```mermaid
+sequenceDiagram
+   autoNumber
+
+   participant Client
+   participant Proxy
+   participant Auth
+   participant Node
+
+   Client->>Proxy: Open ProxySSHWithMFA stream
+
+   Proxy->>Proxy: Check MFA Requirement
+
+   alt MFA Required
+      Proxy->>Client: MFAAuthenticateChallenge
+      Client->>Proxy: MFAAuthenticateResponse
+      Proxy->>Auth: Verify MFA
+      Auth->>Proxy: MFA Verification Response
+
+      break MFA Failure
+         Proxy->>Client: MFA Failure (stream closes)
+         Note over Client,Proxy: Session denied, connection terminated
+      end
+   end
+
+   Proxy->>Client: ClusterDetails
+   Client->>Proxy: TargetHost (dial_target)
+
+   Proxy->>Auth: Generate SSH Certificate
+   Auth->>Proxy: SSH Certificate
+   Proxy->>Proxy: Bind SSH Certificate to Session
+
+   Proxy->>Node: Establish SSH connection
+   Note over Proxy,Node: Using SSH Certificate
+   break SSH Connection Failure
+      Proxy->>Client: SSH Connection Failure
+      Note over Client,Proxy: Session terminated
+   end
+
+   Node->>Proxy: SSH Connection Established
+   Proxy->>Client: SSH Connection Established
+
+   loop Proxy SSH/Agent Frames
+      Client->>Proxy: SSH/Agent Frames
+      Proxy->>Node: Forward SSH/Agent Frames
+      Node->>Proxy: SSH/Agent Frames
+      Proxy->>Client: Forward SSH/Agent Frames
+
+      break SSH Connection Failure
+         Proxy->>Client: SSH Connection Failure
+         Note over Client,Proxy: Session terminated
+      end
+   end
+```
+
+### Backward Compatibility
+
+The existing `TransportService` and its `ProxySSH` RPC will be deprecated but remain fully supported during a transition
+period lasting at least 2 major releases. During this time, requests using the deprecated RPC will continue to succeed
+as before, ensuring no disruption for existing clients.
+
+To facilitate migration, any client invoking the deprecated `ProxySSH` RPC will receive a warning message indicating
+that `ProxySSH` is deprecated and they will need to upgrade their client in order to continue using SSH features in a
+future release.
+
+After the transition period, the deprecated RPC will be removed and clients will be required to use the new
+`TransportServiceV2` RPCs exclusively.
+
+### Audit Events
+
+All audit events for SSH sessions established via in-band MFA will continue to include the MFA device UUID (under
+`SessionMetadata.WithMFA`), as required by [Per-session MFA (RFD 14)](0014-session-2FA.md) and [RFD
+15](0015-2fa-management.md).
+
+### Observability
+
+The `TransportServiceV2` will follow the established convention of using OpenTelemetry's auto-instrumentation, as this
+is already implemented for `TransportService`. No changes to observability patterns are needed.
+
+### Product Usage
+
+No changes in product usage are expected since this is an internal change to an existing service.
+
+### Test Plan
+
+Since SSH access is an existing feature and is already covered in the test plan, no changes are required for the
+existing tests.
+
+However, a new test should be added to ensure backward compatibility with the deprecated `TransportService` RPCs. This
+test should verify that clients using the old `ProxySSH` RPC can still establish SSH sessions during the transition
+period and while receiving appropriate deprecation notices.
+
+### Implementation
+
+#### Phase 1
+
+1. Create `TransportServiceV2` in `api/proto/teleport/transport/v2/transport_service.proto` and generate the
+   corresponding Go code using `protoc`.
+1. Deprecate `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
+1. Implement `TransportServiceV2` in `lib/srv/transport/transportv2/`.
+1. Ensure server can handle clients using the deprecated `TransportService` RPCs, while supporting the new
+   `TransportServiceV2` RPCs.
+1. Ensure server/node can bind a SSH certificate to a user session.
+1. Update client code in `api/client/proxy/client.go` to use `TransportServiceV2`. Client should fallback to
+   `TransportService` if `TransportServiceV2` is not available.
+1. Update clients so they handle MFA challenges and responses as a part of the SSH session establishment process.
+1. Remove the ability to establish direct SSH connections to nodes.
+
+#### Phase 2
+
+1. Delete `TransportService`'s `ProxySSH` RPC after the migration to `TransportServiceV2` is complete.
+1. Update test plan to remove tests for the deprecated `TransportService`.
+
+## Future Considerations
+
+1. Extend in-band MFA enforcement and session-bound certificate logic to additional protocols e.g., Kubernetes API
+   requests, database connections, desktop access, etc.
