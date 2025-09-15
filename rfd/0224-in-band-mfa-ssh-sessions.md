@@ -134,8 +134,7 @@ stream initializes, the server first checks if MFA is required for the session b
 For sessions where MFA is required, the server begins by sending an MFA challenge as the initial message. The client
 must then respond with valid authentication factors before proceeding further. The session can only continue after
 successful MFA verification. If the MFA verification fails, the stream is immediately terminated. Similarly, any
-connectivity issues with the authentication service result in the session being denied. See
-[Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
+connectivity issues with the authentication service result in the session being denied. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
 
 In cases where MFA is optional, or after successful MFA verification, the server sends `ClusterDetails` to the client.
 At this point, the client can proceed with their `DialTarget` request, and the server establishes an SSH connection with
@@ -203,18 +202,16 @@ sequenceDiagram
 
 ### Session-Bound Certificates
 
-To ensure that SSH sessions are tied to the authenticated user and their MFA status, the Proxy service will self-issue
-session-bound SSH certificates for each connection to a target node. The certificates will not be stored or exposed
-outside the Proxy service.
+The Proxy issues a session-bound SSH certificate per connection after successful authentication and authorization.
+Certificates are kept in-memory in the Proxy (not stored or exposed elsewhere).
 
-These certificates will include metadata linking them to the specific user session, such as the session ID and MFA
-device UUID. This binding ensures that the certificate cannot be reused outside the context of the original session.
-
-Upon dialing to the target node, the Proxy will staple the `Permit` from the Decision API response, will includes the
-SSH certificates, public keys, and other relevant session metadata. The target node will validate the certificate and
-ensure it matches the session context before allowing access.
-
-TODO: Is the `Permit` cryptographically signed? How does the target node validate it and ensure its integrity?
+Per the [Relocate Phase of the Access Control Decision API (RFD
+0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md#relocate-phase),
+the reverse tunnel and proxy peering protocols will be updated to include the `Permit` from the Decision API response,
+which includes relevant session metadata, to be forwarded from Proxy to agent as part of an incoming dial. The target
+agent will parse the permit and validate the certificate and ensure it matches the session context before allowing
+access to the underlying resource (i.e., access-control decisions will be made at the control plane before establishing
+the connection).
 
 ### Backward Compatibility
 
