@@ -241,9 +241,7 @@ func (s *ProxyService) handleProxyError(w http.ResponseWriter, err error) {
 }
 
 func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Request) error {
-	// Resolve Application Name via either URL or Host Header
-	appName := cmp.Or(req.URL.Host, req.Header.Get("Host"))
-
+	ctx := req.Context()
 	// Pre-emptively block CONNECT requests as we do not currently support them
 	// but, proxying them forward as normal requests would make it difficult for
 	// us to introduce CONNECT support later without breaking compat.
@@ -251,7 +249,8 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		return trace.NotImplemented("Proxy does not support CONNECT method")
 	}
 
-	ctx := req.Context()
+	// Resolve Application Name via either URL or Host Header
+	appName := cmp.Or(req.URL.Host, req.Header.Get("Host"))
 
 	var appCert *tls.Certificate
 	var err error
@@ -261,7 +260,7 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		return cert, err
 	})
 	if err != nil {
-		return err
+		return trace.Wrap(err, "fetching certificate")
 	}
 
 	// TODO(noah): We could cache the httpClient itself for each upstream, this
@@ -308,7 +307,7 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// Send status code and then copy the body.
 	w.WriteHeader(resp.StatusCode)
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		return err
+		return trace.Wrap(err, "copying response body")
 	}
 
 	return nil
