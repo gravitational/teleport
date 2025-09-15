@@ -261,7 +261,7 @@ func provisionRedshiftAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pg
 
 func waitForRedshiftAutoUserDeactivate(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// `Query` documents that it is always safe to attempt to read from the
 		// returned rows even if an error is returned.
 		// It also documents that the same error will be in rows.Err() and
@@ -271,36 +271,28 @@ func waitForRedshiftAutoUserDeactivate(t *testing.T, ctx context.Context, conn *
 		rows, _ := conn.Query(ctx, "SELECT 1 FROM pg_user_info as a WHERE a.usename = $1", user)
 		gotRow := rows.Next()
 		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		if !assert.True(c, gotRow, "user %q should not have been dropped after disconnecting", user) {
-			return
-		}
+		require.NoError(t, rows.Err())
+
+		require.True(t, gotRow, "user %q should not have been dropped after disconnecting", user)
 
 		rows, _ = conn.Query(ctx, "SELECT 1 FROM pg_user_info WHERE usename = $1 AND useconnlimit != 0", user)
 		gotRow = rows.Next()
 		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		if !assert.False(c, gotRow, "user %q should not be able to login after deactivating", user) {
-			return
-		}
+		require.NoError(t, rows.Err())
+		require.False(t, gotRow, "user %q should not be able to login after deactivating", user)
 
 		rows, _ = conn.Query(ctx, "SELECT 1 FROM svv_user_grants as a WHERE a.user_name = $1 AND a.role_name != 'teleport-auto-user'", user)
 		gotRow = rows.Next()
 		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		assert.False(c, gotRow, "user %q should have lost all additional roles after deactivating", user)
+		require.NoError(t, rows.Err())
+
+		require.False(t, gotRow, "user %q should have lost all additional roles after deactivating", user)
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be deactivated", user)
 }
 
 func waitForRedshiftAutoUserDrop(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// `Query` documents that it is always safe to attempt to read from the
 		// returned rows even if an error is returned.
 		// It also documents that the same error will be in rows.Err() and
@@ -310,9 +302,7 @@ func waitForRedshiftAutoUserDrop(t *testing.T, ctx context.Context, conn *pgConn
 		rows, _ := conn.Query(ctx, "SELECT 1 FROM pg_user_info WHERE usename=$1", user)
 		gotRow := rows.Next()
 		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		assert.False(c, gotRow, "user %q should have been dropped automatically after disconnecting", user)
+		require.NoError(t, rows.Err())
+		require.False(t, gotRow, "user %q should have been dropped automatically after disconnecting", user)
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be dropped", user)
 }

@@ -2128,7 +2128,7 @@ func TestTerminal(t *testing.T) {
 
 			// Validate that the node terminates the session
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				assert.Zero(t, s.node.ActiveConnections())
+				require.Zero(t, s.node.ActiveConnections())
 			}, 30*time.Second, 250*time.Millisecond)
 		})
 	}
@@ -4729,15 +4729,13 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	// request and verify enabled features are eventually enabled.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err := clt.Get(ctx, endpoint, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		require.NoError(t, err)
+		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
-		assert.Empty(t, diff)
+		require.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
@@ -4766,15 +4764,14 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	// request and verify again
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err := clt.Get(ctx, endpoint, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		require.NoError(t, err)
+
+		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
-		assert.Empty(t, diff)
+		require.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
 }
 
@@ -4853,19 +4850,17 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		// Make a request.
 		endpoint := clt.Endpoint("web", "config.js")
 		re, err := clt.Get(ctx, endpoint, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		require.NoError(t, err)
+		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 
 		// Response is type application/javascript, we need to strip off the variable name
 		// and the semicolon at the end, then we are left with json like object.
 		var cfg webclient.WebConfig
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
-		assert.Empty(t, diff)
+		require.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
 }
 
@@ -10322,8 +10317,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		s.clock.Advance(3 * time.Minute)
-		assert.NoError(t, waitForOutputWithDuration(moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		assert.NoError(t, waitForOutputWithDuration(peerTerm, "Process exited with status 255", 3*time.Second))
+		require.NoError(t, waitForOutputWithDuration(moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
+		require.NoError(t, waitForOutputWithDuration(peerTerm, "Process exited with status 255", 3*time.Second))
 	}, 15*time.Second, 500*time.Millisecond)
 }
 
