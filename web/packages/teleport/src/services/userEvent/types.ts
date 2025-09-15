@@ -228,7 +228,6 @@ export enum DiscoverEventResource {
 
   SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
 
-  MCPDemo = 'DISCOVER_RESOURCE_MCP_DEMO',
   MCPStdio = 'DISCOVER_RESOURCE_MCP_STDIO',
 }
 

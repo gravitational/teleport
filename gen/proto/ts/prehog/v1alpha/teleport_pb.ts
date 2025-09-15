@@ -3865,21 +3865,17 @@ export enum DiscoverResource {
      */
     APPLICATION_AWS_CONSOLE = 41,
     /**
-     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_DEMO = 42;
+     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_STDIO = 42;
      */
-    MCP_DEMO = 42,
+    MCP_STDIO = 42,
     /**
-     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_STDIO = 43;
+     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_SSE = 43;
      */
-    MCP_STDIO = 43,
+    MCP_SSE = 43,
     /**
-     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_SSE = 44;
+     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP = 44;
      */
-    MCP_SSE = 44,
-    /**
-     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP = 45;
-     */
-    MCP_STREAMABLE_HTTP = 45
+    MCP_STREAMABLE_HTTP = 44
 }
 /**
  * DiscoverStatus represents a Discover Step outcome.
