@@ -25,12 +25,7 @@ import (
 )
 
 func TestMatches(t *testing.T) {
-	type TestItem struct {
-		ID   string
-		Name string
-	}
-
-	items := []TestItem{
+	items := []MatchParam{
 		{ID: "1", Name: "apple"},
 		{ID: "2", Name: "banana"},
 		{ID: "3", Name: "cherry"},
@@ -39,21 +34,21 @@ func TestMatches(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		items    []TestItem
+		items    []MatchParam
 		filters  Filters
-		expected []TestItem
+		expected []MatchParam
 	}{
 		{
 			name:     "Filter by ID",
 			items:    items,
 			filters:  Filters{&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "2"}}},
-			expected: []TestItem{{ID: "2", Name: "banana"}},
+			expected: []MatchParam{{ID: "2", Name: "banana"}},
 		},
 		{
 			name:     "Filter by Name",
 			items:    items,
 			filters:  Filters{&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}}},
-			expected: []TestItem{{ID: "1", Name: "apple"}, {ID: "4", Name: "avocado"}},
+			expected: []MatchParam{{ID: "1", Name: "apple"}, {ID: "4", Name: "avocado"}},
 		},
 		{
 			name:     "Exclude All",
@@ -75,7 +70,7 @@ func TestMatches(t *testing.T) {
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "4"}},
 			},
-			expected: []TestItem{
+			expected: []MatchParam{
 				{ID: "1", Name: "apple"},
 				{ID: "2", Name: "banana"},
 				{ID: "4", Name: "avocado"},
@@ -87,7 +82,7 @@ func TestMatches(t *testing.T) {
 			filters: Filters{
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: "2"}},
 			},
-			expected: []TestItem{
+			expected: []MatchParam{
 				{ID: "1", Name: "apple"},
 				{ID: "3", Name: "cherry"},
 				{ID: "4", Name: "avocado"},
@@ -99,7 +94,7 @@ func TestMatches(t *testing.T) {
 			filters: Filters{
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "a*"}},
 			},
-			expected: []TestItem{
+			expected: []MatchParam{
 				{ID: "2", Name: "banana"},
 				{ID: "3", Name: "cherry"},
 			},
@@ -111,7 +106,7 @@ func TestMatches(t *testing.T) {
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "*"}},
 				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: "1"}},
 			},
-			expected: []TestItem{
+			expected: []MatchParam{
 				{ID: "2", Name: "banana"},
 				{ID: "3", Name: "cherry"},
 				{ID: "4", Name: "avocado"},
@@ -125,7 +120,7 @@ func TestMatches(t *testing.T) {
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
 				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "b*"}},
 			},
-			expected: []TestItem{
+			expected: []MatchParam{
 				{ID: "2", Name: "banana"},
 			},
 		},
@@ -133,7 +128,7 @@ func TestMatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var filtered []TestItem
+			var filtered []MatchParam
 			for _, i := range items {
 				if Matches(tt.filters, MatchParam{
 					ID:   i.ID,

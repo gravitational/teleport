@@ -92,7 +92,7 @@ type MatchParam struct {
 // Empty [filters] implies a default match.
 func Matches(filters Filters, param MatchParam) bool {
 	if len(filters) == 0 {
-		// Empty filter is considerd a wildcard match.
+		// Empty filter is considered a wildcard match.
 		return true
 	}
 
