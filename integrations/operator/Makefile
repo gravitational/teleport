@@ -176,7 +176,7 @@ debug-dump-request:
 test: generate $(ENVTEST) ## Run tests.
 test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test:
-	gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json
+	go test ./...
 
 .PHONY: echo-kubebuilder-assets
 echo-kubebuilder-assets:
