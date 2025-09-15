@@ -3837,7 +3837,8 @@ func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc s
 func checkUpdateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, confirm bool) error {
 	managedByStatic := storedRes.Origin() == types.OriginConfigFile
 	if managedByStatic && !confirm {
-		return trace.BadParameter(`The %s resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
+		return trace.BadParameter(`The %s resource is managed by static configuration in your Auth Service teleport.yaml.
+You can either statically set the authentication configuration there, or unset the "auth_service.authentication" field and dynamically manage the config via the "cluster_auth_preference" resource.
 
 If you would still like to proceed, re-run the command with the --confirm flag.`, resDesc)
 	}
