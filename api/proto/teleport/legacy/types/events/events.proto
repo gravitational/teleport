@@ -4824,6 +4824,9 @@ message OneOf {
     events.AutoUpdateAgentRolloutTrigger AutoUpdateAgentRolloutTrigger = 213;
     events.AutoUpdateAgentRolloutForceDone AutoUpdateAgentRolloutForceDone = 214;
     events.AutoUpdateAgentRolloutRollback AutoUpdateAgentRolloutRollback = 215;
+    events.BoundKeypairRecovery BoundKeypairRecovery = 220;
+    events.BoundKeypairRotation BoundKeypairRotation = 221;
+    events.BoundKeypairJoinStateVerificationFailed BoundKeypairJoinStateVerificationFailed = 222;
   }
 }
 
@@ -4957,6 +4960,9 @@ message Identity {
   // BotInstanceID indicates the name of the Machine ID bot instance this
   // identity was issued to, if any.
   string BotInstanceID = 29 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+  // JoinToken is the name of the join token used when a Machine ID bot joined,
+  // if any. It is not set for bots using the `token` join method.
+  string JoinToken = 30 [(gogoproto.jsontag) = "join_token,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -8424,4 +8430,98 @@ message SigstorePolicyDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// BoundKeypairRecovery is emitted when a client performs a self recovery using
+// a bound_keypair joining token. This event is also emitted upon first join.
+message BoundKeypairRecovery {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // TokenName is the name of the provision token used to join.
+  string TokenName = 4 [(gogoproto.jsontag) = "token_name"];
+  // BotName is the name of the bot attempting to join, if any.
+  string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // PublicKey is the public key at the completion of the joining process, in
+  // SSH authorized_keys format. If a keypair rotation occurred, this is the
+  // keypair trusted at the end of the join process.
+  string PublicKey = 6 [(gogoproto.jsontag) = "public_key,omitempty"];
+  // RecoveryCount is the recovery counter value at the time of this recovery.
+  uint32 RecoveryCount = 7 [(gogoproto.jsontag) = "recovery_count"];
+  // RecoveryMode is the bound keypair token's configured recovery mode.
+  string RecoveryMode = 8 [(gogoproto.jsontag) = "recovery_mode"];
+}
+
+// BoundKeypairRotation is emitted when a keypair rotation takes place.
+message BoundKeypairRotation {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // TokenName is the name of the provision token used to join.
+  string TokenName = 4 [(gogoproto.jsontag) = "token_name"];
+  // BotName is the name of the bot attempting to join, if any.
+  string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // PreviousPublicKey is the previous public key in SSH authorized_keys format.
+  // On first join using a registration secret, this value will be empty.
+  string PreviousPublicKey = 6 [(gogoproto.jsontag) = "previous_public_key,omitempty"];
+  // NewPublicKey is the new public key after rotation. If rotation fails, this
+  // value will be empty.
+  string NewPublicKey = 7 [(gogoproto.jsontag) = "new_public_key,omitempty"];
+}
+
+// BoundKeypairJoinStateVerificationFailed is emitted when join state
+// verification fails, potentially indicating a compromised keypair.
+message BoundKeypairJoinStateVerificationFailed {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains information about the failure.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // TokenName is the name of the provision token used to join.
+  string TokenName = 4 [(gogoproto.jsontag) = "token_name"];
+  // BotName is the name of the bot attempting to join, if any.
+  string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
 }

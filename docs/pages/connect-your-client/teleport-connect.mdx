@@ -1,7 +1,7 @@
 ---
 title: Using Teleport Connect
 description: Using Teleport Connect
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -612,7 +612,7 @@ Below is the list of the supported config properties.
 | `keymap.openClusters`         | `Command+E` on macOS `Ctrl+Shift+E` on Windows/Linux                                                             | Shortcut to open the cluster selector.                                                                     |
 | `keymap.openProfiles`         | `Command+I` on macOS `Ctrl+Shift+I` on Windows/Linux                                                             | Shortcut to open the profile selector.                                                                     |
 | `keymap.openSearchBar`        | `Command+K` on macOS `Ctrl+Shift+K` on Windows/Linux                                                             | Shortcut to open the search bar.                                                                           |
-| `headless.skipConfirm`        | `false`                                                                                                              | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
+| `headless.skipConfirm`        | `false`                                                                                                              | Skips the confirmation prompt for Headless Authentication approval and instead prompts for MFA immediately. |
 | `ssh.noResume`                | `false`                                                                                                              | Disables SSH connection resumption.                                                                        |
 | `ssh.forwardAgent`            | `false`                                                                                                              | Enables agent forwarding.                                                                                  |
 | `sshAgent.addKeysToAgent`     | `auto`                                                                                                               | Controls how keys are added to a local SSH agent. "auto" adds the keys only if the agent supports SSH certificates, "no" never attempts to add them, "yes" always attempts to add them, "only" always attempts to add the keys to the agent but it does not save them on disk. |

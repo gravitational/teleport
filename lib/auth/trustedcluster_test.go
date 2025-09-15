@@ -370,7 +370,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 			CAs:   []types.CertAuthority{leafClusterCA},
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "already registered")
+		require.Contains(t, err.Error(), "conflicts with an existing cluster or ca")
 	})
 
 	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {

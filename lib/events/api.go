@@ -897,6 +897,15 @@ const (
 
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
+
+	// BoundKeypairRecovery is emitted when a bound keypair token is used to
+	// perform a recovery.
+	BoundKeypairRecovery = "join_token.bound_keypair.recovery"
+	// BoundKeypairRotation is emitted when a keypair rotation is attempted.
+	BoundKeypairRotation = "join_token.bound_keypair.rotation"
+	// BoundKeypairJoinStateVerificationFailed is emitted when join state
+	// document verification fails.
+	BoundKeypairJoinStateVerificationFailed = "join_token.bound_keypair.join_state_verification_failed"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

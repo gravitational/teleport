@@ -273,12 +273,12 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"must_register_before": {
-									Description: "MustRegisterBefore is an optional time before which registeration via initial join secret must be performed. Attempts to register using an initial join secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place. This value is ignored if `initial_public_key` is set.",
+									Description: "MustRegisterBefore is an optional time before which registration via initial join secret must be performed. Attempts to register using an initial join secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place. This value is ignored if `initial_public_key` is set.",
 									Optional:    true,
 									Type:        github_com_gravitational_teleport_integrations_terraform_tfschema.UseRFC3339Time(),
 								},
 								"registration_secret": {
-									Description: "RegistrationSecret is a secret joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.intitial_join_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.",
+									Description: "RegistrationSecret is a secret joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.registration_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -767,7 +767,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					},
 					"last_recovered_at": {
-						Description: "LastRecoveredAt contains a timestamp of the last successful recovery attempt. Note that normal renewals do not count as a recovery attempt, however onboarding does,  either with a preregistered key or registration secret. This corresponds with the last time `bound_bot_instance_id` was updated.",
+						Description: "LastRecoveredAt contains a timestamp of the last successful recovery attempt. Note that normal renewals with valid client certificates do not count as a recovery attempt, however the initial join during onboarding does. This corresponds with the last time `bound_bot_instance_id` was updated.",
 						Optional:    true,
 						Type:        github_com_gravitational_teleport_integrations_terraform_tfschema.UseRFC3339Time(),
 					},
@@ -782,7 +782,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 					},
 					"registration_secret": {
-						Description: "RegistrationSecret contains a secret value that may be used for public key registration during the initial join process if no public key is preregistered. If `.spec.bound_keypair.onboarding.initial_public_key` is set, †his field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.registration_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.",
+						Description: "RegistrationSecret contains a secret value that may be used for public key registration during the initial join process if no public key is preregistered. If `.spec.bound_keypair.onboarding.initial_public_key` is set, this field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.registration_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.",
 						Optional:    true,
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					},
