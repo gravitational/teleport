@@ -25,8 +25,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/cli"
 )
 
 const (
