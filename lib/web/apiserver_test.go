@@ -1911,9 +1911,7 @@ func TestResizeTerminal(t *testing.T) {
 	eventsChan := make(chan apievents.AuditEvent, 10)
 	isInitialResizeComplete := make(chan struct{})
 	go func() {
-		var (
-			once sync.Once
-		)
+		var once sync.Once
 		for {
 			select {
 			case <-t.Context().Done():
