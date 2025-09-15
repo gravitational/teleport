@@ -23,15 +23,14 @@ consistently enforce policy decisions and MFA requirements for all SSH sessions.
 In the current implementation, authentication and authorization decisions are handled by the Teleport Agent, which has
 the following issues:
 
-1. Per-session MFA is performed separately from session creation, which can introduce security gaps. For example, in
-   [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc), the MFA
-   challenge was not properly tied to the session, allowing an attacker to bypass it if they forged a certificate
-   attesting that they had completed MFA.
+1. Per-session MFA enforcement flow is performed separately from session creation, which can introduce security gaps.
+   For example, in [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc),
+   the MFA policy can be bypassed since an attacker had the ability to forge a certificate attesting that they had
+   completed MFA and there was no proper binding between the certificate and the session.
 1. Higher latency from multiple round trips between the Teleport Agent, Proxy service, and Auth service for
    authentication and policy decisions.
-1. Complexity in managing and auditing access controls, since much of the logic currently resides in client code rather
-   than being enforced server-side. This makes policy updates cumbersome, as changes require updating the Teleport
-   Agent.
+1. Decentralized access control logic in client code makes policy management and auditing more complex, requiring
+   Teleport Agent updates for changes.
 
 By centralizing these responsibilities at the Proxy, the new design directly addresses the above issues:
 
@@ -40,8 +39,8 @@ By centralizing these responsibilities at the Proxy, the new design directly add
    [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc).
 1. Latency is reduced by consolidating authentication and authorization flows at the Proxy, eliminating unnecessary
    communication between Teleport Agents and the Auth service.
-1. Policy enforcement and auditing become simpler and more robust, as access controls are managed server-side and
-   updates no longer require changes to Teleport Agents.
+1. Centralized access control simplifies and strengthens policy enforcement, removing the need to update the Teleport
+   Agent for policy changes.
 
 This centralized approach significantly enhances security, reduces latency, and simplifies management while maintaining
 strict access controls.
@@ -50,13 +49,14 @@ strict access controls.
 
 ### Non-Goals/Limitations
 
-1. SSH session certificate renewal and revocation are not in scope for this proposal. It is assumed that sessions will
-   continue to follow the constraints as defined in [Per-session MFA (RFD 14)](0014-session-2FA.md).
+1. SSH session certificate renewal and revocation are out of scope. It is assumed that sessions will continue to follow
+   the constraints as defined in [Per-session MFA (RFD 14)](0014-session-2FA.md).
 
 ### Overview
 
 All SSH traffic destined for target nodes will be proxied through the Proxy service, which will handle authentication,
-authorization, and session establishment. Direct SSH connections to nodes will no longer be allowed.
+authorization, and session management. Direct SSH connections to nodes will deprecated and removed after the [transition
+period](#backward-compatibility).
 
 The Proxy service will leverage the [Access Control Decision API (RFD
 0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), which
@@ -134,8 +134,8 @@ stream initializes, the server first checks if MFA is required for the session b
 For sessions where MFA is required, the server begins by sending an MFA challenge as the initial message. The client
 must then respond with valid authentication factors before proceeding further. The session can only continue after
 successful MFA verification. If the MFA verification fails, the stream is immediately terminated. Similarly, any
-connectivity issues with the authentication service result in the session being denied. See [RFD
-14](0014-session-2FA.md) for more details on session termination logic.
+connectivity issues with the authentication service result in the session being denied. See
+[Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
 
 In cases where MFA is optional, or after successful MFA verification, the server sends `ClusterDetails` to the client.
 At this point, the client can proceed with their `DialTarget` request, and the server establishes an SSH connection with
@@ -201,18 +201,43 @@ sequenceDiagram
    end
 ```
 
+### Session-Bound Certificates
+
+To ensure that SSH sessions are tied to the authenticated user and their MFA status, the Proxy service will self-issue
+session-bound SSH certificates for each connection to a target node. The certificates will not be stored or exposed
+outside the Proxy service.
+
+These certificates will include metadata linking them to the specific user session, such as the session ID and MFA
+device UUID. This binding ensures that the certificate cannot be reused outside the context of the original session.
+
+Upon dialing to the target node, the Proxy will staple the `Permit` from the Decision API response, will includes the
+SSH certificates, public keys, and other relevant session metadata. The target node will validate the certificate and
+ensure it matches the session context before allowing access.
+
+TODO: Is the `Permit` cryptographically signed? How does the target node validate it and ensure its integrity?
+
 ### Backward Compatibility
 
-The existing `TransportService` and its `ProxySSH` RPC will be deprecated but remain fully supported during a transition
-period lasting at least 2 major releases. During this time, requests using the deprecated RPC will continue to succeed
-as before, ensuring no disruption for existing clients.
+#### Transition Period
 
-To facilitate migration, any client invoking the deprecated `ProxySSH` RPC will receive a warning message indicating
-that `ProxySSH` is deprecated and they will need to upgrade their client in order to continue using SSH features in a
-future release.
+The transition period will last at least 2 major releases to allow clients sufficient time for migration.
+
+#### ProxySSH RPC Deprecation
+
+The `TransportService` and its `ProxySSH` RPC will be deprecated but remain supported during the transition period. To
+facilitate migration, any client invoking the deprecated `ProxySSH` RPC will receive a warning message indicating that
+`ProxySSH` is deprecated and they will need to upgrade their client in order to continue using SSH features in a future
+release.
 
 After the transition period, the deprecated RPC will be removed and clients will be required to use the new
 `TransportServiceV2` RPCs exclusively.
+
+#### Direct Server SSH Access Deprecation
+
+Direct SSH access to nodes will be supported during the transition period but will be removed afterwards. During the
+transition period, any direct SSH connection attempts to nodes will receive a deprecation notice via the SSH banner
+(pre-auth). This notice will inform users that direct SSH access is deprecated and will be removed in a future release,
+advising them to use an updated client that connects via the Proxy.
 
 ### Audit Events
 
@@ -242,22 +267,25 @@ period and while receiving appropriate deprecation notices.
 
 #### Phase 1
 
-1. Create `TransportServiceV2` in `api/proto/teleport/transport/v2/transport_service.proto` and generate the
-   corresponding Go code using `protoc`.
-1. Deprecate `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
+1. Create `TransportServiceV2` in `api/proto/teleport/transport/v2/transport_service.proto`.
+1. Generate `TransportServiceV2` Go code using `protoc`.
 1. Implement `TransportServiceV2` in `lib/srv/transport/transportv2/`.
+1. Deprecate `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
 1. Ensure server can handle clients using the deprecated `TransportService` RPCs, while supporting the new
    `TransportServiceV2` RPCs.
-1. Ensure server/node can bind a SSH certificate to a user session.
+1. Session SSH certificate generation and binding logic in `lib/srv/transport/transportv2/transport_service.go`.
 1. Update client code in `api/client/proxy/client.go` to use `TransportServiceV2`. Client should fallback to
    `TransportService` if `TransportServiceV2` is not available.
 1. Update clients so they handle MFA challenges and responses as a part of the SSH session establishment process.
-1. Remove the ability to establish direct SSH connections to nodes.
+1. Add deprecation notices to SSH banner for clients connecting directly.
+1. Add tests to verify backward compatibility with the deprecated `TransportService` RPCs.
+1. Update documentation to reflect the new architecture and deprecation of direct node access.
 
 #### Phase 2
 
-1. Delete `TransportService`'s `ProxySSH` RPC after the migration to `TransportServiceV2` is complete.
-1. Update test plan to remove tests for the deprecated `TransportService`.
+1. Remove `TransportService`'s `ProxySSH` RPC.
+1. Remove direct SSH connections to nodes.
+1. Update test plan to remove backward compatibility tests for the deprecated `TransportService`.
 
 ## Future Considerations
 
