@@ -119,7 +119,7 @@ export function WorkloadIdentities() {
         prevPageTokens: prevTokens,
       }
     );
-  }, [history, location.pathname, location.search]);
+  }, [history, location.pathname, location.search, prevPageTokens]);
 
   const sortType: SortType = {
     fieldName: sortField,
