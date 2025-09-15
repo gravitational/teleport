@@ -5783,7 +5783,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] failed to write [734] bytes to file [powershell-scripts/domain-controller.ps1] in shared directory [windows-server-2012-shared] on desktop [ec2-54-162-177-255.compute-1.amazonaws.com:3389]
+          User [joe] failed to write [734] bytes to file [powershell-scripts/domain-controller.ps1] in shared directory [windows-server-2012-shared] on desktop [desktop-name]
         </td>
         <td
           style="min-width: 120px;"
@@ -5834,7 +5834,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] wrote [734] bytes to file [powershell-scripts/domain-controller.ps1] in shared directory [windows-server-2012-shared] on desktop [ec2-54-162-177-255.compute-1.amazonaws.com:3389]
+          User [joe] wrote [734] bytes to file [powershell-scripts/domain-controller.ps1] in shared directory [windows-server-2012-shared] on desktop [desktop-name]
         </td>
         <td
           style="min-width: 120px;"
@@ -5885,7 +5885,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] failed to read [734] bytes from file [powershell-scripts/domain-controller.ps1] in shared directory [windows-server-2012-shared] on desktop [ec2-54-162-177-255.compute-1.amazonaws.com:3389]
+          User [joe] failed to read [734] bytes from file [powershell-scripts/domain-controller.ps1] in shared directory [windows-server-2012-shared] on desktop [desktop-name]
         </td>
         <td
           style="min-width: 120px;"
@@ -5936,7 +5936,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] read [734] bytes from file [powershell-scripts/domain-controller.ps1] in shared directory [windows-server-2012-shared] on desktop [ec2-54-162-177-255.compute-1.amazonaws.com:3389]
+          User [joe] read [734] bytes from file [powershell-scripts/domain-controller.ps1] in shared directory [windows-server-2012-shared] on desktop [desktop-name]
         </td>
         <td
           style="min-width: 120px;"
@@ -5987,7 +5987,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] failed to start sharing directory [windows-server-2012-shared] to desktop [ec2-54-162-177-255.compute-1.amazonaws.com:3389]
+          User [joe] failed to start sharing directory [windows-server-2012-shared] to desktop [desktop-name]
         </td>
         <td
           style="min-width: 120px;"
@@ -6038,7 +6038,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] started sharing directory [windows-server-2012-shared] to desktop [ec2-54-162-177-255.compute-1.amazonaws.com:3389]
+          User [joe] started sharing directory [windows-server-2012-shared] to desktop [desktop-name]
         </td>
         <td
           style="min-width: 120px;"
@@ -8857,7 +8857,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] received 512 bytes of clipboard data from desktop [100.104.52.89:3389]
+          User [joe] received 512 bytes of clipboard data from desktop [desktop-name]
         </td>
         <td
           style="min-width: 120px;"
@@ -8911,7 +8911,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] sent 512 bytes of clipboard data to desktop [100.104.52.89:3389]
+          User [joe] sent 512 bytes of clipboard data to desktop [desktop-name]
         </td>
         <td
           style="min-width: 120px;"
