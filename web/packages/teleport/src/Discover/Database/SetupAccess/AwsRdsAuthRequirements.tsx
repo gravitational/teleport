@@ -121,7 +121,7 @@ export function AwsRdsAuthRequirements({
             documentation
           </Link>{' '}
           on how to enable IAM authentication on your{' '}
-          {wantAutoDiscover ? 'databses' : 'database'}.
+          {wantAutoDiscover ? 'databases' : 'database'}.
         </Box>
       )}
 
