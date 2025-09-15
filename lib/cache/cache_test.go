@@ -2275,7 +2275,7 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 			Name: name,
 		},
 		accesslist.Spec{
-			Title:       "title",
+			Title:       "Title" + name,
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{

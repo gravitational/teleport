@@ -20,12 +20,14 @@ package services
 
 import (
 	"context"
+	"encoding/base32"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
+	"golang.org/x/text/cases"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -282,6 +284,46 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 	return &review, nil
 }
 
+// CreateAccessListNextKey creates a pagination token based on the requested sort index name
+func CreateAccessListNextKey(al *accesslist.AccessList, indexName string) (string, error) {
+	switch indexName {
+	case "name":
+		return AccessListNameIndexKey(al), nil
+	case "auditNextDate":
+		return AccessListAuditDateIndexKey(al), nil
+	case "title":
+		return AccessListTitleIndexKey(al), nil
+	default:
+		return "", trace.BadParameter("unsupported sort %s but expected name, title or auditNextDate", indexName)
+	}
+}
+
+// AccessListNameIndexKey returns the resource name returned from GetName().
+func AccessListNameIndexKey(al *accesslist.AccessList) string {
+	return al.GetName()
+}
+
+// AccessListAuditDateIndexKey returns the DateOnly formatted next audit date
+// followed by the resource name for disambiguation.
+func AccessListAuditDateIndexKey(al *accesslist.AccessList) string {
+	if al.Spec.Audit.NextAuditDate.IsZero() {
+		// Use last lexical character to ensure that ACLs without an audit date
+		// appear at the end when sorted. Otherwise we would compare against
+		// `0001-01-01 00:00:00` which would sort first, but actually means
+		// the access list is not eligible for review.
+		return "z/" + al.GetName()
+	}
+	return al.Spec.Audit.NextAuditDate.Format(time.DateOnly) + "/" + al.GetName()
+}
+
+// AccessListTitleIndexKey returns the access list title base32hex encoded
+// followed by the resource name for disambiguation.
+func AccessListTitleIndexKey(al *accesslist.AccessList) string {
+	title := cases.Fold().String(al.Spec.Title)
+	title = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(title))
+	return title + "/" + al.GetName()
+}
+
 // MatchAccessList returns true if the access list matches the given filter criteria.
 // The function applies filters in sequence: owners, then roles, then search.
 // All provided filters must match for the access list to be included.
@@ -293,6 +335,9 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 //
 // All matching is case-insensitive and supports partial matches.
 func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFilter) bool {
+	if req == nil {
+		return true
+	}
 	search := req.GetSearch()
 	owners := req.GetOwners()
 	roles := req.GetRoles()
