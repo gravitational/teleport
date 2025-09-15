@@ -509,6 +509,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case SigstorePolicyDeleteEvent:
 		e = &events.SigstorePolicyDelete{}
 
+	case BoundKeypairRecovery:
+		e = &events.BoundKeypairRecovery{}
+	case BoundKeypairRotation:
+		e = &events.BoundKeypairRotation{}
+	case BoundKeypairJoinStateVerificationFailed:
+		e = &events.BoundKeypairJoinStateVerificationFailed{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}
