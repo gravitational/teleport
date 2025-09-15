@@ -983,14 +983,16 @@ test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit:
 	$(CGOFLAG) GOEXPERIMENT=synctest go test -json -tags "enablesynctest $(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests.xml --jsonfile $(TEST_LOG_DIR)/unit-tests.json --raw-command -- cat
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
 
 # Runs tbot unit tests
 .PHONY: test-go-unit-tbot
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
 test-go-unit-tbot:
 	$(CGOFLAG) go test -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
-		| gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-tbot.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-tbot.json --raw-command -- cat
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
 
 # Make sure untagged touchid code build/tests.
 .PHONY: test-go-touch-id
@@ -999,7 +1001,8 @@ test-go-touch-id: SUBJECT ?= ./lib/auth/touchid/...
 test-go-touch-id:
 ifneq ("$(TOUCHID_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-touchid.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-touchid.json --raw-command -- cat
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
 endif
 
 # Runs benchmarks once to make sure they pass.
@@ -1037,7 +1040,8 @@ test-go-vnet-daemon: SUBJECT ?= ./lib/vnet/daemon/...
 test-go-vnet-daemon:
 ifneq ("$(VNETDAEMON_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-vnet.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-vnet.json --raw-command -- cat
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
 endif
 
 # Runs ci tsh tests
@@ -1046,14 +1050,16 @@ test-go-tsh: FLAGS ?= -race -shuffle on
 test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh/...
 test-go-tsh:
 	$(CGOFLAG_TSH) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-tsh.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-tsh.json --raw-command -- cat
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
 
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 .PHONY: test-go-chaos
 test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go-chaos:
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
-		| gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-chaos.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-chaos.json --raw-command -- cat
+		| tee $(TEST_LOG_DIR)/chaos.json \
+		| gotestsum --raw-command -- cat
 
 #
 # Runs all Go tests except integration, end-to-end, and chaos, called by CI/CD.
@@ -1148,7 +1154,7 @@ test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG) $(BPF_TA
 test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
 test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \
-		go test -count=1 -cover -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		go test -count=1 -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(RENDER_TESTS) $(RENDER_FLAGS)
 
 #

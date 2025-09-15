@@ -248,8 +248,9 @@ func TestDiscoveryServerEKS(t *testing.T) {
 			t.Parallel()
 
 			synctest.Test(t, func(t *testing.T) {
-				ctx, cancel := context.WithCancel(t.Context())
+				ctx := t.Context()
 				fakeConfigProvider := mocks.AWSConfigProvider{
+					AWSConfig: &aws.Config{},
 					OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
 						Integration: awsOIDCIntegration,
 					},
@@ -289,9 +290,6 @@ func TestDiscoveryServerEKS(t *testing.T) {
 
 				// Wait for the discovery server to complete one iteration of discovering resources
 				synctest.Wait()
-
-				// Start server shutdown.
-				cancel()
 
 				// Discovery usage events are reported.
 				require.NotEmpty(t, mockAccessPoint.usageEvents)
