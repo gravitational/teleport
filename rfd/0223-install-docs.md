@@ -99,6 +99,9 @@ instructions for an even larger number of target platforms:
    4. Agent on GCP
    5. Agent on OCI
    6. Agent on Azure
+   7. Agent on Generic Linux
+   8. Agent on MacOS via Connect
+   9. Agent on MacOS via terminal
 3. Client Installation
    1. Human
       1. Linux
