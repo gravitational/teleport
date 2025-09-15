@@ -341,12 +341,13 @@ func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service
 func WaitForDatabaseService(t *testing.T, authServer *auth.Server, hostUUID string) {
 	t.Helper()
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp, err := authServer.ListResources(t.Context(), proto.ListResourcesRequest{
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := authServer.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindDatabaseService,
 		})
-		require.NoError(collect, err)
-		require.Contains(collect, slices.Collect(types.ResourceNames(resp.Resources)), hostUUID)
+		require.NoError(t, err)
+		require.Contains(t, slices.Collect(types.ResourceNames(resp.Resources)), hostUUID)
 	}, 10*time.Second, 200*time.Millisecond, "database service not started")
 }
 
