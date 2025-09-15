@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -331,6 +332,22 @@ func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service
 			require.Fail(t, "database servers not registered after 10s")
 		}
 	}
+}
+
+// WaitForDatabaseService waits until the database service heartbeat appears in
+// Auth. This is useful when the database service only listens for dynamic
+// resources without static databases, which makes WaitForDatabaseServers
+// unreliable for determining readiness.
+func WaitForDatabaseService(t *testing.T, authServer *auth.Server, hostUUID string) {
+	t.Helper()
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp, err := authServer.ListResources(t.Context(), proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+		})
+		require.NoError(collect, err)
+		require.Contains(collect, slices.Collect(types.ResourceNames(resp.Resources)), hostUUID)
+	}, 10*time.Second, 200*time.Millisecond, "database service not started")
 }
 
 // CreatePROXYEnabledListener creates net.Listener that can handle receiving signed PROXY headers
