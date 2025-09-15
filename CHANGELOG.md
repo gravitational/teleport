@@ -1,5 +1,32 @@
 # Changelog
 
+## 18.2.1 (09/12/25)
+
+* Fixed client tools managed updates sequential update. [#59086](https://github.com/gravitational/teleport/pull/59086)
+* Fixed headless login so that it supports both WebAuthn and SSO for MFA. [#59078](https://github.com/gravitational/teleport/pull/59078)
+* When selecting a login for an SSH server, Teleport Connect now shows only logins allowed by RBAC for that specific server rather than showing all logins which the user has access to. [#59067](https://github.com/gravitational/teleport/pull/59067)
+* Terraform Provider is now supported on Windows machines. [#59055](https://github.com/gravitational/teleport/pull/59055)
+* Enabled Oracle Cloud joining in Machine ID's `tbot` client. [#59040](https://github.com/gravitational/teleport/pull/59040)
+* Fixed a bug preventing users to create access lists with empty grants through Terraform. [#59032](https://github.com/gravitational/teleport/pull/59032)
+* Fixed a DynamoDB bug potentially causing event queries to return a different range of events. In the worst case scenario, this bug would block the event-handler. [#59029](https://github.com/gravitational/teleport/pull/59029)
+* Fixed an issue where SSH file copying attempts would be spuriously denied in proxy recording mode. [#59027](https://github.com/gravitational/teleport/pull/59027)
+* Updated Enroll Integration page design. [#58985](https://github.com/gravitational/teleport/pull/58985)
+* Teleport Connect now runs in the background by default on macOS and Windows. On Linux, this behavior can be enabled in the app configuration. [#58923](https://github.com/gravitational/teleport/pull/58923)
+* Added fdpass-teleport binary to install script for Teleport tar downloads. [#58919](https://github.com/gravitational/teleport/pull/58919)
+* Support multiple resource editing in `tctl edit` when editing collections. [#58902](https://github.com/gravitational/teleport/pull/58902)
+* Added support for browser window resizing to the Teleport Web UI database client terminal. [#58900](https://github.com/gravitational/teleport/pull/58900)
+* Fixed a bug that prevented root users from viewing session recordings when they were participants. [#58897](https://github.com/gravitational/teleport/pull/58897)
+* Added ability for user to select whether IC integration creates roles for all possible Account Assignments. [#58861](https://github.com/gravitational/teleport/pull/58861)
+* Updated Go to 1.24.7. [#58835](https://github.com/gravitational/teleport/pull/58835)
+* Populate `user_roles` and `user_traits` fields for SSH audit events. [#58804](https://github.com/gravitational/teleport/pull/58804)
+* Added support for wtmpdb as a user accounting backend to wtmp. [#58777](https://github.com/gravitational/teleport/pull/58777)
+* Prevents an application from being registered if its public address matches a Teleport cluster address. [#58766](https://github.com/gravitational/teleport/pull/58766)
+* Added a preset role `mcp-user` that has access to all MCP servers and their tools. [#58613](https://github.com/gravitational/teleport/pull/58613)
+
+Enterprise:
+* Fixed an issue where sometimes the session summary was marked as a success, even though the summary was empty (this was particularly visible using GPT 5).
+* Updated Enroll Integration page design.
+
 ## 18.2.0 (09/04/25)
 
 ### Encrypted session recordings

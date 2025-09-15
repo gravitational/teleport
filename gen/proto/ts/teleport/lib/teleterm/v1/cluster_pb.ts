@@ -147,12 +147,6 @@ export interface LoggedInUser {
      */
     roles: string[];
     /**
-     * ssh_logins is the user ssh logins
-     *
-     * @generated from protobuf field: repeated string ssh_logins = 3;
-     */
-    sshLogins: string[];
-    /**
      * acl is a user access control list.
      * It is available only after the cluster details are fetched, as it is not stored on disk.
      *
@@ -539,7 +533,6 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         super("teleport.lib.teleterm.v1.LoggedInUser", [
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "ssh_logins", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "acl", kind: "message", T: () => ACL },
             { no: 5, name: "active_requests", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "suggested_reviewers", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
@@ -553,7 +546,6 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.name = "";
         message.roles = [];
-        message.sshLogins = [];
         message.activeRequests = [];
         message.suggestedReviewers = [];
         message.requestableRoles = [];
@@ -574,9 +566,6 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
                     break;
                 case /* repeated string roles */ 2:
                     message.roles.push(reader.string());
-                    break;
-                case /* repeated string ssh_logins */ 3:
-                    message.sshLogins.push(reader.string());
                     break;
                 case /* teleport.lib.teleterm.v1.ACL acl */ 4:
                     message.acl = ACL.internalBinaryRead(reader, reader.uint32(), options, message.acl);
@@ -617,9 +606,6 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         /* repeated string roles = 2; */
         for (let i = 0; i < message.roles.length; i++)
             writer.tag(2, WireType.LengthDelimited).string(message.roles[i]);
-        /* repeated string ssh_logins = 3; */
-        for (let i = 0; i < message.sshLogins.length; i++)
-            writer.tag(3, WireType.LengthDelimited).string(message.sshLogins[i]);
         /* teleport.lib.teleterm.v1.ACL acl = 4; */
         if (message.acl)
             ACL.internalBinaryWrite(message.acl, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
