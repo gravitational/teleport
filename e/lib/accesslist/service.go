@@ -105,9 +105,9 @@ type ServiceConfig struct {
 
 	// Backend is the backend to use.
 	Backend backend.Backend
-	// disableReconciler is a flag to disable the reconciler
-	// for access list ineligibility updates during tests.
-	disableReconciler bool
+	// disableReconcilers is a flag to disable ineligibility and status reconcilers to avoid
+	// extra update events during the tests.
+	disableReconcilers bool
 }
 
 // UsageEventsClient is an interface that allows for submitting usage events to Posthog.
@@ -251,8 +251,9 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 		backend:           cfg.Backend,
 	}
 
-	if !cfg.disableReconciler {
+	if !cfg.disableReconcilers {
 		go s.runAccessListIneligibleReconciler(ctx)
+		go s.runAccessListStatusReconciler(ctx)
 	}
 
 	return s, nil
@@ -2336,12 +2337,51 @@ func (s *Service) runAccessListIneligibleReconciler(ctx context.Context) error {
 			},
 		)
 		if err != nil {
+			s.logger.ErrorContext(ctx, "Error running access list ineligible reconciler", "error", err)
 			select {
 			case <-s.clock.After(30 * time.Second):
 			case <-ctx.Done():
 				return trace.Wrap(err)
 			}
-			s.logger.ErrorContext(ctx, "Error running access list ineligible reconciler", "error", err)
+		}
+	}
+}
+
+func (s *Service) runAccessListStatusReconciler(ctx context.Context) error {
+	const accessListStatusReconciler = "access_list_status_reconciler"
+	for {
+		err := backend.RunWhileLocked(
+			ctx,
+			backend.RunWhileLockedConfig{
+				LockConfiguration: backend.LockConfiguration{
+					LockNameComponents: []string{accessListStatusReconciler},
+					Backend:            s.backend,
+					TTL:                60 * time.Second,
+					RetryInterval:      30 * time.Second,
+				},
+				ReleaseCtxTimeout:   60 * time.Second,
+				RefreshLockInterval: 30 * time.Second,
+			},
+			func(ctx context.Context) error {
+				reconciler, err := newStatusReconciler(statusReconcilerConfig{
+					Logger:      s.logger.With("reconciler", accessListStatusReconciler),
+					Clock:       s.clock,
+					AccessPoint: s.accessLists,
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				reconciler.Run(ctx)
+				return nil
+			},
+		)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Error running access list status reconciler", "error", err)
+			select {
+			case <-s.clock.After(30 * time.Second):
+			case <-ctx.Done():
+				return trace.Wrap(err)
+			}
 		}
 	}
 }

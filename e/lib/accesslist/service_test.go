@@ -840,14 +840,14 @@ type testSvcComponents struct {
 }
 
 type testSvcOptions struct {
-	disabledReconciler bool
+	disabledReconcilers bool
 }
 
 type svcOpts func(*testSvcOptions)
 
-func withDisabledReconciler() svcOpts {
+func withDisabledReconcilers() svcOpts {
 	return func(o *testSvcOptions) {
-		o.disabledReconciler = true
+		o.disabledReconcilers = true
 	}
 }
 
@@ -1049,19 +1049,19 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	svc, err := NewService(
 		ctx,
 		ServiceConfig{
-			Authorizer:        authorizer,
-			AccessLists:       storage,
-			LockGetter:        locks,
-			AccessListReviews: storage,
-			Plugins:           local.NewPluginsService(backend),
-			Emitter:           emitter,
-			UsageEvents:       usageEvents,
-			UsageReporter:     usageReporter,
-			Clock:             clock,
-			Cache:             &clt,
-			AuthServer:        &fakeAuth{},
-			Backend:           backend,
-			disableReconciler: options.disabledReconciler,
+			Authorizer:         authorizer,
+			AccessLists:        storage,
+			LockGetter:         locks,
+			AccessListReviews:  storage,
+			Plugins:            local.NewPluginsService(backend),
+			Emitter:            emitter,
+			UsageEvents:        usageEvents,
+			UsageReporter:      usageReporter,
+			Clock:              clock,
+			Cache:              &clt,
+			AuthServer:         &fakeAuth{},
+			Backend:            backend,
+			disableReconcilers: options.disabledReconcilers,
 		})
 	require.NoError(t, err)
 
@@ -1834,7 +1834,7 @@ func TestService_UpsertAccessListWithMembers_IneligibleStatus(t *testing.T) {
 
 func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	// disable reconciler to avoid extra update events
-	c := initSvc(t, withDisabledReconciler())
+	c := initSvc(t, withDisabledReconcilers())
 
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},

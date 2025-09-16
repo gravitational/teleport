@@ -21,6 +21,9 @@ const (
 	// ComponentOktaUserAssignmentCreator is a user assignment creator component.
 	ComponentOktaUserAssignmentCreator = "okta.user-assignment-creator"
 
+	// ComponentAccessListStatusReconciler is an Access List status reconciler component.
+	ComponentAccessListStatusReconciler = "access-list:status-reconciler"
+
 	// ComponentOktaConnected is a Okta connected component.
 	ComponentOktaConnected = "okta.connected"
 
