@@ -2,11 +2,14 @@ package entraid
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sort"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -19,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -586,6 +590,80 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 	}
 }
 
+func TestUserSync(t *testing.T) {
+	ctx := t.Context()
+	graphClient := newFakeGraphClient()
+	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+
+	t.Run("Create user succeeds", func(t *testing.T) {
+		graphClient.users = []*msgraph.User{
+			entraUser(t, "u1", "alice@example.com"),
+			entraUser(t, "u2", "bob@example.com"),
+		}
+		env.cfg.GraphClient = graphClient
+
+		r, err := NewDirectoryReconciler(env.cfg)
+		require.NoError(t, err)
+		require.NoError(t, r.Reconcile(ctx))
+
+		users, err := listTeleportUsers(ctx, env.cfg.UserSvc)
+		require.NoError(t, err)
+
+		require.Len(t, users, 2)
+	})
+
+	t.Run("User account skipped on sanitization error", func(t *testing.T) {
+		graphClient.users = []*msgraph.User{
+			entraUser(t, "u1", "al'ice@example.com"),
+			entraUser(t, "u2", "bob@example.com"),
+			entraUser(t, "u3", "carol@example.com"),
+		}
+
+		expectedGroups := []*msgraph.Group{
+			entraGroup(t, "g1", "apple"),
+			entraGroup(t, "g2", "banana"),
+		}
+		graphClient.groups = expectedGroups
+
+		graphClient.groupMembers = map[string][]msgraph.GroupMember{
+			"g1": {
+				entraUser(t, "u1", "al'ice@example.com"),
+				entraUser(t, "u2", "bob@example.com"),
+				entraUser(t, "u3", "carol@example.com"),
+			},
+			"g2": {
+				entraUser(t, "u2", "bob@example.com"),
+				entraUser(t, "u1", "al'ice@example.com"),
+				entraUser(t, "u3", "carol@example.com"),
+			},
+		}
+		env.cfg.GraphClient = graphClient
+
+		r, err := NewDirectoryReconciler(env.cfg)
+		require.NoError(t, err)
+		require.NoError(t, r.Reconcile(ctx))
+
+		users, err := listTeleportUsers(ctx, env.cfg.UserSvc)
+		require.NoError(t, err)
+		require.Len(t, users, 2)
+
+		acls, err := listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
+		require.NoError(t, err)
+		require.Len(t, acls, 2)
+
+		expected := convertEntraAccessLists(t.Context(), entraGroupsMap(t, expectedGroups), env.cfg.TenantID, env.cfg.DefaultOwners)
+		require.Empty(t, cmp.Diff(expected, acls, cmpOpts...), "access list(s) doesn't match")
+
+		aclM, err := listTeleportAccessListMembers(ctx, env.cfg.AccessListSvc, slices.Collect(maps.Values(acls)))
+		require.NoError(t, err)
+		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "bob@example.com"))
+		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "carol@example.com"))
+		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "bob@example.com"))
+		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "carol@example.com"))
+	})
+
+}
+
 type directoryReconcilerEnv struct {
 	cfg         DirectoryReconcilerConfig
 	identitySvc *local.IdentityService
@@ -602,14 +680,15 @@ func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, conne
 	})
 
 	clock := clockwork.NewRealClock()
-	backend, err := memory.New(memory.Config{})
+	mem, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	identitySvc, err := local.NewIdentityService(backend)
+	bk := backend.NewSanitizer(mem)
+	identitySvc, err := local.NewIdentityService(bk)
 	require.NoError(t, err)
-	alSvc, err := local.NewAccessListService(backend, clock)
+	alSvc, err := local.NewAccessListService(bk, clock)
 	require.NoError(t, err)
 
-	samlService, err := local.NewIdentityService(backend)
+	samlService, err := local.NewIdentityService(bk)
 	require.NoError(t, err)
 	if connector == nil {
 		ssoConnectorID := "my-sso-connector"
@@ -660,6 +739,12 @@ func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, conne
 	}
 }
 
+var cmpOpts = []cmp.Option{
+	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+	cmpopts.IgnoreFields(accesslist.Status{}, "OwnerOf"),
+	cmpopts.IgnoreFields(accesslist.Status{}, "MemberOf"),
+}
+
 func newSAMLConnector(t *testing.T, connectorID, group1, group2 string) types.SAMLConnector {
 	t.Helper()
 	connector, err := types.NewSAMLConnector(
@@ -696,4 +781,35 @@ func entraUser(t *testing.T, id, mail string) *msgraph.User {
 		UserPrincipalName: to.Ptr(mail),
 		Mail:              to.Ptr(mail),
 	}
+}
+
+func entraGroupsMap(t *testing.T, groups []*msgraph.Group) map[string]*msgraph.Group {
+	t.Helper()
+	result := make(map[string]*msgraph.Group, len(groups))
+	for _, g := range groups {
+		result[*g.ID] = g
+	}
+	return result
+}
+
+func aclIDFromGroupID(t *testing.T, in map[string]*accesslist.AccessList, gid string) string {
+	t.Helper()
+	for _, a := range in {
+		if id, ok := a.Metadata.GetStaticLabels()[types.EntraUniqueIDLabel]; ok {
+			if id == gid {
+				return a.GetName()
+			}
+		}
+	}
+	return ""
+}
+
+func memberExists(t *testing.T, in map[string]*accesslist.AccessListMember, acl, user string) bool {
+	t.Helper()
+	for _, a := range in {
+		if a.Spec.AccessList == acl && a.GetName() == user {
+			return true
+		}
+	}
+	return false
 }

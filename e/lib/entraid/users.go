@@ -15,6 +15,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -168,6 +169,16 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, users
 	}
 
 	samAccountName := in.OnPremisesSAMAccountName
+
+	// Username value is used as a backend key for the user resource.
+	// Entra ID user's username may contain an unsupported character such
+	// as single quote (') and will cause the users reconciler to fail.
+	// Note: This check should ideally be done within the [NewUser]
+	// but may have been avoided for backward compatibility.
+	key := backend.KeyFromString(*username)
+	if !backend.IsKeySafe(key) {
+		return nil, trace.BadParameter("username %q contains unsupported character(s), it should only include alphabets, hyphens, dots, and plus signs", *username)
+	}
 
 	out, err := types.NewUser(*username)
 	labels := map[string]string{
