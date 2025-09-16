@@ -168,7 +168,6 @@ const cfg = {
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
-    manageCluster: '/web/clusters/:clusterId/manage',
 
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
@@ -680,10 +679,6 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
-  },
-
-  getManageClusterRoute(clusterId: string) {
-    return generatePath(cfg.routes.manageCluster, { clusterId });
   },
 
   getUnifiedResourcesRoute(clusterId: string) {
