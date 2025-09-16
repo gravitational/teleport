@@ -221,7 +221,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *t
 	)
 	defer span.End()
 
-	sess, err := ns.nodeClient.Client.NewSessionWithParams(ctx, sessionParams)
+	sess, err := ns.nodeClient.Client.NewSession(ctx, sessionParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

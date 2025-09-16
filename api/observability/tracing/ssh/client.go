@@ -184,14 +184,9 @@ type SessionParams struct {
 	JoinMode types.SessionParticipantMode
 }
 
-// NewSession creates a new SSH session that is passed tracing context
-// so that spans may be correlated properly over the ssh connection.
-func (c *Client) NewSession(ctx context.Context) (*Session, error) {
-	return c.NewSessionWithParams(ctx, nil)
-}
-
-// NewSession opens a new Session for this client with the given (optional) params.
-func (c *Client) NewSessionWithParams(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
+// NewSession creates a new SSH session with the given (optional) params. This session is
+// passed a tracing context so that spans may be correlated properly over the ssh connection.
+func (c *Client) NewSession(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 
 	ctx, span := tracer.Start(

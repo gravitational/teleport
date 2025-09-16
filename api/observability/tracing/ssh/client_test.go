@@ -200,7 +200,7 @@ func TestSetEnvs(t *testing.T) {
 	// create a client and open a session
 	conn, chans, reqs := srv.GetClient(t)
 	client := NewClient(conn, chans, reqs)
-	session, err := client.NewSession(ctx)
+	session, err := client.NewSession(ctx, nil)
 	require.NoError(t, err)
 
 	// the first request shouldn't fall back
@@ -373,7 +373,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 
 	// If the client isn't setup to handle session requests, it should reply false to them.
 	// The client should reply true to a session ping request.
-	_, err = client.NewSession(ctx)
+	_, err = client.NewSession(ctx, nil)
 	require.NoError(t, err)
 	require.False(t, <-clientSessionReply, "Expected the client to reply false to session ping request")
 
@@ -383,12 +383,12 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 		assert.NoError(t, err)
 	})
 	require.NoError(t, err)
-	_, err = client.NewSession(ctx)
+	_, err = client.NewSession(ctx, nil)
 	require.NoError(t, err)
 	require.True(t, <-clientSessionReply, "Expected the client to reply true to session ping request")
 
 	// New Sessions do not reuse previously registered handlers.
-	session, err := client.NewSession(ctx)
+	session, err := client.NewSession(ctx, nil)
 	require.NoError(t, err)
 	require.False(t, <-clientSessionReply, "Expected the client to reply false to session ping request")
 
