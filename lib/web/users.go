@@ -19,10 +19,15 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"image/png"
 	"net/http"
 	"time"
 
+	"github.com/boombuler/barcode"
+	"github.com/boombuler/barcode/qr"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -354,6 +359,41 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	return token.GetName(), nil
+}
+
+func (h *Handler) createMobileDeviceEnrollmentToken(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := clt.CreateMobileDeviceEnrollmentUserToken(r.Context(), &proto.CreateMobileDeviceEnrollmentUserTokenRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: Extract this to a separate package that mirrors shared/deepLinks.ts.
+	deepLink := fmt.Sprintf("teleport://%s@%s/enroll_mobile_device?user_token=%s", token.GetUser(), h.PublicProxyAddr(), token.GetName())
+	qrCode, err := qr.Encode(deepLink, qr.M, qr.Auto)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO: Extract the size to a const.
+	qrCode, err = barcode.Scale(qrCode, 456, 456)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var qrBuf bytes.Buffer
+	if err := png.Encode(&qrBuf, qrCode); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.ResetPasswordToken{
+		TokenID: token.GetName(),
+		Expiry:  token.Expiry(),
+		QRCode:  qrBuf.Bytes(),
+		User:    token.GetUser(),
+	}, nil
 }
 
 type userAPIGetter interface {

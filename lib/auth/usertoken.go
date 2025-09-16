@@ -457,6 +457,43 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 	return convertedToken, nil
 }
 
+// TODO: Comment.
+func (a *Server) CreateMobileDeviceEnrollmentUserToken(ctx context.Context, req *proto.CreateMobileDeviceEnrollmentUserTokenRequest) (*types.UserTokenV3, error) {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: Require MFA when creating the token.
+
+	// TODO: Delete any other token of [authclient.UserTokenTypeEnrollMobileDevice] type?
+	// We probably don't need to delete all existing user tokens here.
+
+	tokenReq := authclient.CreateUserTokenRequest{
+		Name: username,
+		Type: authclient.UserTokenTypeEnrollMobileDevice,
+	}
+	if err := tokenReq.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	newToken, err := a.newUserToken(tokenReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	token, err := a.CreateUserToken(ctx, newToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: Emit audit event.
+
+	convertedToken, ok := token.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected UserToken type %T", token)
+	}
+	return convertedToken, nil
+}
+
 // verifyUserToken verifies that the token is not expired and is of the allowed kinds.
 func (a *Server) verifyUserToken(ctx context.Context, token types.UserToken, allowedKinds ...string) error {
 	if token.Expiry().Before(a.clock.Now().UTC()) {

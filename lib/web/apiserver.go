@@ -833,6 +833,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
+	h.POST("/webapi/users/enroll-mobile-device/token", h.WithAuth(h.createMobileDeviceEnrollmentToken))
 
 	h.POST("/webapi/headless/login", h.WithUnauthenticatedLimiter(h.headlessLogin))
 

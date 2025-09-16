@@ -2081,6 +2081,9 @@ message CreatePrivilegeTokenRequest {
   MFAAuthenticateResponse ExistingMFAResponse = 1 [(gogoproto.jsontag) = "existing_mfa_response,omitempty"];
 }
 
+// TODO: Comment.
+message CreateMobileDeviceEnrollmentUserTokenRequest {}
+
 // CreateRegisterChallengeRequest is a request for creating MFA register challenge for a
 // new MFA device.
 message CreateRegisterChallengeRequest {
@@ -3735,6 +3738,9 @@ service AuthService {
   // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
   // is used to gain access to privileged actions eg: deleting/adding a MFA device.
   rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
+
+  // TODO: Comment
+  rpc CreateMobileDeviceEnrollmentUserToken(CreateMobileDeviceEnrollmentUserTokenRequest) returns (types.UserTokenV3);
 
   // GetInstaller retrieves the installer script resource
   rpc GetInstaller(types.ResourceRequest) returns (types.InstallerV1);

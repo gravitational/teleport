@@ -4270,6 +4270,12 @@ func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	return resp, trace.Wrap(err)
 }
 
+// TODO: Comment.
+func (c *Client) CreateMobileDeviceEnrollmentUserToken(ctx context.Context, req *proto.CreateMobileDeviceEnrollmentUserTokenRequest) (*types.UserTokenV3, error) {
+	resp, err := c.grpc.CreateMobileDeviceEnrollmentUserToken(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
 // CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
 func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
 	resp, err := c.grpc.CreateRegisterChallenge(ctx, in)
