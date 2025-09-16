@@ -896,6 +896,11 @@
       "permanent": true
     },
     {
+      "source": "/kubernetes-ssh/",
+      "destination": "/enroll-resources/kubernetes-access/controls/",
+      "permanent": true
+    },
+    {
       "source": "/machine-id/introduction/",
       "destination": "/machine-workload-identity/machine-id/introduction/",
       "permanent": true
@@ -2493,11 +2498,6 @@
     {
       "source": "/kubernetes-access/manage-access/rbac/",
       "destination": "/enroll-resources/kubernetes-access/controls/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-ssh/",
-      "destination": "/enroll-resources/kubernetes-access/",
       "permanent": true
     },
     {
