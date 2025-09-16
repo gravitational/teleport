@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-  @State private var proxyAddr: String = ""
+  @State private var proxyAddr: String = "cluster.mirrors.link"
   @FocusState private var focused: Bool
 
   var body: some View {
