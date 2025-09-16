@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.28.1"
+      "version": "1.29.0"
     },
     "ansible": {
       "min_version": "2.9.6"
