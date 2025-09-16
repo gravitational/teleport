@@ -176,7 +176,7 @@ debug-dump-request:
 test: generate $(ENVTEST) ## Run tests.
 test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test:
-	go test ./... -coverprofile cover.out
+	go test ./...
 
 .PHONY: echo-kubebuilder-assets
 echo-kubebuilder-assets:
@@ -213,8 +213,7 @@ $(LOCALBIN):
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.16.2
+CONTROLLER_TOOLS_VERSION ?= v0.19.0
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -291,9 +292,9 @@ func TestSkipIdlePeriods(t *testing.T) {
 			clk.Advance(player.MaxIdleTime)
 			select {
 			case evt := <-p.C():
-				assert.Equal(t, int64(i), evt.GetIndex())
+				require.Equal(t, int64(i), evt.GetIndex())
 			default:
-				assert.Fail(t, "expected to receive event after short period, but got nothing")
+				require.Fail(t, "expected to receive event after short period, but got nothing")
 			}
 		}, 3*time.Second, 100*time.Millisecond)
 	}
@@ -391,4 +392,70 @@ func (d *databaseStreamer) sendEvent(ctx context.Context, evts chan apievents.Au
 	case evts <- evt:
 		d.idx++
 	}
+}
+
+// TestInterruptsDelay tests that the player responds to playback
+// controls even when it is waiting to emit an event.
+func TestInterruptsDelay(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p, err := player.New(&player.Config{
+			SessionID: "test-session",
+			Streamer:  &simpleStreamer{count: 3, delay: 5000},
+		})
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		require.NoError(t, p.Play())
+		t.Cleanup(func() { p.Close() })
+
+		synctest.Wait() // player is now waiting to emit event 0
+
+		// emulate the user seeking forward while the player is waiting..
+		start := time.Now()
+		p.SetPos(10_001 * time.Millisecond)
+
+		// expect event 0 and event 1 to be emitted right away
+		evt0 := <-p.C()
+		evt1 := <-p.C()
+		require.Equal(t, int64(0), evt0.GetIndex())
+		require.Equal(t, int64(1), evt1.GetIndex())
+
+		// Time will advance automatically in the synctest bubble.
+		// This assertion checks that the player was unblocked by
+		// the SetPos call and not because enough time elapsed.
+		require.Zero(t, time.Since(start))
+
+		<-p.C()
+
+		// the user seeked to 10.001 seconds, it should take 4.999
+		// seconds to get the third event that arrives at second 15.
+		require.Equal(t, 4999*time.Millisecond, time.Since(start))
+	})
+}
+
+func TestSeekForward(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p, err := player.New(&player.Config{
+			SessionID: "test-session",
+			Streamer:  &simpleStreamer{count: 1, delay: 6000},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { p.Close() })
+		require.NoError(t, p.Play())
+
+		start := time.Now()
+
+		time.Sleep(100 * time.Millisecond)
+		p.SetPos(500 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
+		p.SetPos(5900 * time.Millisecond)
+
+		<-p.C()
+
+		// It should take 300ms for the event to be emitted.
+		// Two 100ms sleeps (200ms), then a seek to 5.900 seconds which
+		// requires another 100ms to wait for the event at 6s.
+		require.Equal(t, 300*time.Millisecond, time.Since(start))
+	})
 }
