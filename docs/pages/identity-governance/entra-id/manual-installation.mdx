@@ -1,9 +1,11 @@
 ---
 title: Configure the Entra ID Integration using Azure Portal
 description: Describes how to manually set up Entra ID for the Teleport Entra ID integration.
-labels:
+tags:
  - how-to
  - identity-governance
+ - azure
+ - privileged-access
 ---
 
 This guide shows manual Entra ID configuration steps to set up Teleport Entra ID integration.
@@ -84,13 +86,14 @@ The following permissions need to be added to the application.
 
 ## Step 5/5. Install the Entra ID plugin
 
-Now run the `tctl plugins install entraid` command.
+Now run the `tctl plugins install entraid` command, including the name of the
+<Var name="Access List owner"/>:
 
 ```code
 $ tctl plugins install entraid \
     --name entra-id-default \
     --auth-connector-name entra-id \
-    --default-owner=<Var name="Access List Owner"/> \
+    --default-owner=<Var name="Access List owner"/> \
     --no-access-graph \
     --manual-setup
 ```

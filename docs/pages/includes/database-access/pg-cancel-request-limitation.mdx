@@ -2,7 +2,7 @@
 ### Unable to cancel a query
 
 If you use a PostgreSQL cli client like `psql`, and you try to cancel a query
-with `ctrl+c`, but it doesn't cancel the query, then you need to connect using a
+with `Ctrl+C`, but it doesn't cancel the query, then you need to connect using a
 tsh local proxy instead.
 When `psql` cancels a query, it establishes a new connection without TLS
 certificates, however Teleport requires TLS certificates not only for
@@ -19,7 +19,7 @@ Otherwise, you need to start a tsh local proxy manually using `tsh proxy db`
 and connect via the local proxy.
 
 If you have already started a long-running query in a `psql` session that you
-cannot cancel with ctrl+c, you can start a new client session to cancel that
+cannot cancel with `Ctrl+C`, you can start a new client session to cancel that
 query manually:
 
 First, find the query's process identifier (PID):

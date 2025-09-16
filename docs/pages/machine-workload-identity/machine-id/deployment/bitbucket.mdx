@@ -1,9 +1,10 @@
 ---
 title: Deploying tbot on Bitbucket Pipelines
 description: How to install and configure Machine ID on Bitbucket Pipelines
-labels:
+tags:
  - how-to
  - mwi
+ - infrastructure-identity
 ---
 
 In this guide, you will configure Machine ID's agent, `tbot`, to run within a
@@ -93,7 +94,7 @@ Let's go over the token resource's fields in more detail:
 - `spec.bitbucket.allow` is used to set rules for what Bitbucket Pipelines runs
    will be able to authenticate by using the token.
 
-Refer to the [token reference](../../../reference/join-methods.mdx#bitbucket-pipelines-bitbucket)
+Refer to the [token reference](../../../reference/deployment/join-methods.mdx#bitbucket-pipelines-bitbucket)
 for a full list of valid fields.
 
 Apply this to your Teleport cluster using `tctl`:
@@ -156,7 +157,7 @@ credentials are needed in multiple steps.
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
   all the available configuration options.
 - For more information about Bitbucket Pipelines itself, read
   [their documentation](https://support.atlassian.com/bitbucket-cloud/docs/get-started-with-bitbucket-pipelines/).

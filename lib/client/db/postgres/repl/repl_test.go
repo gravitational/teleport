@@ -160,7 +160,7 @@ func TestClose(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				var buf []byte
 				_, err := tc.conn.Read(buf[0:])
-				assert.ErrorIs(t, err, io.EOF)
+				require.ErrorIs(t, err, io.EOF)
 			}, 5*time.Second, time.Millisecond)
 
 			if !tt.expectTerminateMessage {
@@ -233,13 +233,9 @@ func writeLine(t *testing.T, c *testCtx, line string) {
 		}
 	}(c.conn)
 
-	// Given that the test connections are piped a problem with the reader side
-	// would lead into blocking writing. To avoid this scenario we're using
-	// the Eventually just to ensure a timeout on writing into the connections.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := c.conn.Write(data)
-		assert.NoError(t, err)
-	}, 5*time.Second, time.Millisecond, "expected to write into the connection successfully")
+	time.Sleep(time.Millisecond)
+	_, err := c.conn.Write(data)
+	assert.NoError(t, err)
 }
 
 // readUntilNextLead reads the contents from the client connection until we
@@ -270,8 +266,8 @@ func readLine(t *testing.T, c *testCtx) string {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var err error
 		n, err = c.conn.Read(buf[0:])
-		assert.NoError(t, err)
-		assert.Greater(t, n, 0)
+		require.NoError(t, err)
+		require.Greater(t, n, 0)
 	}, 5*time.Second, time.Millisecond)
 	return string(buf[:n])
 }

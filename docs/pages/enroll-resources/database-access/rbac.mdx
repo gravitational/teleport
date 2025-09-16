@@ -1,9 +1,10 @@
 ---
 title: Database Access Controls
 description: Role-based access control (RBAC) for Teleport database access.
-labels:
+tags:
  - conceptual
  - zero-trust
+ - privileged-access
 ---
 
 **Database Access Controls** is a Teleport feature that lets you configure
@@ -67,8 +68,8 @@ spec:
     # Note, this is not the same as the "name" field in "db_service", this is
     # the database names within a particular database instance.
     #
-    # Also note, this setting has effect only for PostgreSQL. It does not
-    # currently have any effect on MySQL databases/schemas.
+    # Also note, database names are only enforced for PostgreSQL, MongoDB, and
+    # Cloud Spanner databases.
     db_names: ["main", "metrics", "postgres"]
 ```
 
@@ -114,6 +115,9 @@ contain multiple schemas. In order to change to a different database, a user
 disconnects from the current one and establishes a new connection. During a
 PostgreSQL connection attempt, `db_names` field is checked against the name
 of the logical database that the user is connecting to.
+
+Similar to PostgreSQL, Teleport also enforces `db_names` for MongoDB and Cloud
+Spanner databases.
 
 In MySQL a logical "database" and a "schema" are synonyms for each other, and
 the scope of permissions a user has once connected is determined by the permission

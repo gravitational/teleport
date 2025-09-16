@@ -1,9 +1,10 @@
 ---
 title: CI/CD with Machine & Workload Identity
 description: Configuring CI/CD with Machine & Workload Identity
-labels:
+tags:
  - conceptual
  - mwi
+ - infrastructure-identity
 ---
 
 Teleport Machine & Workload Identity eliminates the need for long-lived static secrets in CI/CD pipelines by issuing short-lived 
@@ -15,37 +16,37 @@ certificates at runtime. Teleport natively integrates with many CI/CD providers 
   tiles={[
     {
       icon: <Icon name="azureDevops" size="xl" />,
-      to: "/machine-workload-identity/machine-id/deployment/azure-devops",
+      to: "/docs/machine-workload-identity/machine-id/deployment/azure-devops",
       name: "Azure DevOps",
     },
     {
       icon: <Icon name="bitbucket" size="xl" />,
-      to: "/machine-workload-identity/machine-id/deployment/bitbucket",
+      to: "/docs/machine-workload-identity/machine-id/deployment/bitbucket",
       name: "BitBucket Pipelines",
     },
     {
       icon: <Icon name="circleci" size="xl" />,
-      to: "/machine-workload-identity/machine-id/deployment/circleci",
+      to: "/docs/machine-workload-identity/machine-id/deployment/circleci",
       name: "CircleCI",
     },
     {
       icon: <Icon name="gitlab" size="xl" />,
-      to: "/machine-workload-identity/machine-id/deployment/gitlab",
+      to: "/docs/machine-workload-identity/machine-id/deployment/gitlab",
       name: "GitLab CI",
     },
     {
       icon: <Icon name="githubActions" size="xl" />,
-      to: "/machine-workload-identity/machine-id/deployment/github-actions",
+      to: "/docs/machine-workload-identity/machine-id/deployment/github-actions",
       name: "GitHub Actions",
     },
     {
       icon: <Icon name="jenkins" size="xl" />,
-      to: "/machine-workload-identity/machine-id/deployment/jenkins",
+      to: "/docs/machine-workload-identity/machine-id/deployment/jenkins",
       name: "Jenkins",
     },
     {
       icon: <Icon name="spacelift" size="xl" />,
-      to: "/zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
+      to: "/docs/zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
       name: "Spacelift",
     }
   ]}
@@ -85,5 +86,5 @@ API endpoints and full audit visibility.
 
 - [Architecture](../reference/architecture/machine-id-architecture.mdx): A technical deep-dive into how Machine ID
   works.
-- [Reference](../reference/machine-id/machine-id.mdx): Complete documentation of available
+- [Reference](../reference/machine-workload-identity/machine-id/machine-id.mdx): Complete documentation of available
   configuration options.

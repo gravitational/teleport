@@ -1,6 +1,9 @@
 ---
 title: Guides for running Teleport using Helm via ArgoCD
 description: How to install and configure Teleport Kubernetes agent using Helm and ArgoCD
+tags:
+ - platform-wide
+ - how-to
 ---
 
 Teleport can provide secure, unified access to your Kubernetes clusters. This
@@ -26,7 +29,7 @@ This guide leverages ArgoCD's native Helm support to deploy the Teleport Agent u
   
 ## Step 1/3. Generate a join token
 
-Teleport agents use a join token to obtain certificates and connect to Teleport. See [joining docs](../../../reference/join-methods.mdx) for more information.
+Teleport agents use a join token to obtain certificates and connect to Teleport. See [joining docs](../../../reference/deployment/join-methods.mdx) for more information.
 The token is only used to join initially, the Teleport Kube agent will store its
 certificates in Kubernetes and won't need a token to join again in the future.
 In this section, we will create a token for the agent to join the Teleport cluster.

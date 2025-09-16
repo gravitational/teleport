@@ -1,9 +1,10 @@
 ---
 title: Session and Identity Locking
 description: How to lock compromised users or agents
-labels:
+tags:
  - how-to
  - identity-governance
+ - resiliency
 ---
 
 System administrators can disable a compromised user or Teleport Agent—or
@@ -26,7 +27,7 @@ A lock can target the following objects or attributes:
 - a Windows desktop by the desktop's name
 - an [Access Request](access-requests/access-requests.mdx) by UUID
 - a bot instance ID (for Machine & Workload Identity bots)
-- a join token name (for Machine & Workload Identity bots using a [delegated join method](../reference/join-methods.mdx#delegated-join-methods))
+- a join token name (for Machine & Workload Identity bots using a [delegated join method](../reference/deployment/join-methods.mdx#delegated-join-methods))
 
 ## How it works
 
@@ -100,7 +101,7 @@ with one of the following options:
   The most appropriate locking target for a Machine & Workload Identity bot
   depends on its join method.
 
-  For [delegated join methods](../reference/join-methods.mdx#secret-vs-delegated),
+  For [delegated join methods](../reference/deployment/join-methods.mdx#secret-vs-delegated),
   it's best to target the specific join token the bot is using to join:
   ```code
   $ tctl lock --join-token=example-token-name
@@ -196,7 +197,7 @@ spec:
 ```
 
 The `kind: lock` resources can also be created and updated using `tctl create`
-as per usual. See the [Admin Guide](../reference/resources.mdx) for more
+as per usual. See the [Admin Guide](../reference/infrastructure-as-code/resources.mdx) for more
 details.
 </details>
 

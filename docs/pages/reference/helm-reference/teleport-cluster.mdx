@@ -2,7 +2,7 @@
 title: teleport-cluster Chart Reference
 sidebar_label: teleport-cluster
 description: Values that can be set using the teleport-cluster Helm chart
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -168,7 +168,7 @@ The merge logic is as follows:
 - values (string, integer, boolean, ...) are replaced
 - fields can be unset by setting them to `null` or `~`
 
-See the [Teleport Configuration Reference](../config.mdx) for the list of supported fields.
+See the [Teleport Configuration Reference](../deployment/config.mdx) for the list of supported fields.
 
 ```yaml
 auth:
@@ -229,7 +229,7 @@ The merge logic is as follows:
 - values (string, integer, boolean, ...) are replaced
 - fields can be unset by setting them to `null` or `~`
 
-See the [Teleport Configuration Reference](../config.mdx) for the list of supported fields.
+See the [Teleport Configuration Reference](../deployment/config.mdx) for the list of supported fields.
 
 ```yaml
 proxy:
@@ -419,7 +419,7 @@ By default no devices are forbidden.
 
 `sessionRecording` controls the `session_recording` field in the `teleport.yaml` configuration.
 It is passed as-is in the configuration.
-For possible values, [see the Teleport Configuration Reference](../../reference/config.mdx).
+For possible values, [see the Teleport Configuration Reference](../deployment/config.mdx).
 
 `values.yaml` example:
 
@@ -1194,7 +1194,7 @@ When this value is set, Teleport will export events to the Athena audit backend.
 To use the Athena audit backend, you must set up the required infrastructure
 (S3 buckets, SQS queue, AthenaDB, IAM roles and permissions, ...).
 
-The requirements are described in [the Athena backend documentation](../backends.mdx#athena)
+The requirements are described in [the Athena backend documentation](../deployment/backends.mdx#athena)
 
 If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
 `aws.auditLogPrimaryBackend` value configures which backend is used for querying.
@@ -1665,7 +1665,7 @@ Possible values are `text` (default) or `json`.
 
 `log.extraFields` sets the fields used in logging for the Teleport process.
 
-See the [Teleport config file reference](../../reference/config.mdx) for more details on possible values for `extra_fields`.
+See the [Teleport config file reference](../deployment/config.mdx) for more details on possible values for `extra_fields`.
 
 `values.yaml` example:
 

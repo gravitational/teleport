@@ -7,6 +7,11 @@ on:
     types:
       - opened
       - synchronize # Run on any diff changes to the PR (e.g. code updates)
+  # merge_group will allow this workflow to be triggered when in merge queue.
+  # The job will end up being skipped due to conditionals below. This will be considered a "Success" 
+  # for the required check as the workflow was triggered but the job was skipped due to conditionals
+  # See: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/collaborating-on-repositories-with-code-quality-features/troubleshooting-required-status-checks#handling-skipped-but-required-checks
+  merge_group:
 # explicitly configure permissions, in case your GITHUB_TOKEN workflow permissions are set to read-only in repository settings
 permissions:
   actions: read

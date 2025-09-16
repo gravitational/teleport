@@ -96,7 +96,7 @@ func TestApplicationPagination(t *testing.T) {
 
 	// Wait for all the applications to be replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.Equal(t, len(expected), p.cache.collections.apps.store.len())
+		require.Equal(t, len(expected), p.cache.collections.apps.store.len())
 	}, 15*time.Second, 100*time.Millisecond)
 
 	out, err := p.cache.GetApps(t.Context())

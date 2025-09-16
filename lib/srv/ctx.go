@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,6 +43,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -239,6 +241,13 @@ type IdentityContext struct {
 	// UnmappedRoles lists the original roles of this Teleport user without
 	// trusted-cluster-related role mapping being applied.
 	UnmappedRoles []string
+
+	// MappedRoles lists the final roles of this Teleport user after
+	// trusted-cluster-related role mapping has been applied.
+	MappedRoles []string
+
+	// Traits are the identity traits derived from the certificate.
+	Traits wrappers.Traits
 
 	// CertValidBefore is set to the expiry time of a certificate, or
 	// empty, if cert does not expire
@@ -730,6 +739,11 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 		return nil
 	}
 
+	// check if proxying permit is defined and authorizes file copying
+	if permit := c.Identity.ProxyingPermit; permit != nil && permit.SSHFileCopy {
+		return nil
+	}
+
 	return trace.Wrap(errRoleFileCopyingNotPermitted)
 }
 
@@ -1111,6 +1125,8 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		BotName:         id.BotName,
 		BotInstanceID:   id.BotInstanceID,
 		UserClusterName: id.OriginClusterName,
+		UserRoles:       slices.Clone(id.MappedRoles),
+		UserTraits:      id.Traits.Clone(),
 	}
 }
 

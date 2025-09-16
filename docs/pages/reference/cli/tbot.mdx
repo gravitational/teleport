@@ -1,7 +1,8 @@
 ---
-title: tbot CLI reference
+title: tbot CLI Reference
+sidebar_label: tbot
 description: Comprehensive reference of subcommands, flags, and arguments for the tbot CLI tool.
-labels:
+tags:
  - reference
  - mwi
 ---
@@ -62,7 +63,7 @@ client, configuring either file or POSIX ACL permissions.
 
 Note that most use cases should instead use tbot's runtime ACL management by
 specifying allowed reader users and groups in the
-[destination configuration](../machine-id/configuration.mdx#directory).
+[destination configuration](../machine-workload-identity/machine-id/configuration.mdx#directory).
 
 ### Flags
 
@@ -567,7 +568,7 @@ command supports these additional flags:
 Issues an X509 workload identity credential using Teleport Workload Identity and
 writes this credential to a specified destination.
 
-See the [configuration reference](../machine-id/configuration.mdx) for further
+See the [configuration reference](../machine-workload-identity/machine-id/configuration.mdx) for further
 information about the workload identity credential output and the YAML
 configuration file format.
 
@@ -590,7 +591,7 @@ command supports these additional flags:
 Issues an X509 workload identity credential, exchanges this for short-lived AWS
 credentials using Roles Anywhere, and writes these to a configured destination.
 
-See the [configuration reference](../machine-id/configuration.mdx) for further
+See the [configuration reference](../machine-workload-identity/machine-id/configuration.mdx) for further
 information about the workload identity credential output and the YAML
 configuration file format.
 
@@ -621,7 +622,7 @@ writes this credential to a specified destination.
 The JWT workload identity credential is compatible with the [SPIFFE JWT SVID
 specification](https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md).
 
-See the [configuration reference](../machine-id/configuration.mdx) for further
+See the [configuration reference](../machine-workload-identity/machine-id/configuration.mdx) for further
 information about the workload identity credential output and the YAML
 configuration file format.
 
@@ -647,7 +648,7 @@ API.
 The configuration for this service can be complex, and therefore, it is
 recommended that you leverage the YAML configuration.
 
-See [Workload Identity API & Workload Attestation](../workload-identity/workload-identity-api-and-workload-attestation.mdx)
+See [Workload Identity API & Workload Attestation](../machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation.mdx)
 for further information about the local workload identity API and the YAML
 configuration.
 
@@ -670,7 +671,7 @@ new Workload Identity configuration experience. You can replace the use of this
 command with the new `tbot start workload-identity-x509` command.
 
 For further information, see [the new Workload Identity configuration experience
-and how to migrate](../workload-identity/configuration-resource-migration.mdx).
+and how to migrate](../machine-workload-identity/workload-identity/configuration-resource-migration.mdx).
 </Admonition>
 
 ### Flags
@@ -751,10 +752,10 @@ To register the keypair with Teleport, include this public key in the token's
 This public key, including the algorithm identifier (`ssh-ed25519`, but may vary
 depending on your cluster configuration) can then be copied into a Bound Keypair
 join token to be used as a
-[preregistered key](../machine-id/bound-keypair/concepts.mdx#onboarding).
+[preregistered key](../machine-workload-identity/machine-id/bound-keypair/concepts.mdx#onboarding).
 
 Note that the Teleport Proxy Service address is required to fetch the currently
-enabled [signature suite](../signature-algorithms.mdx). No authentication takes
+enabled [signature suite](../deployment/signature-algorithms.mdx). No authentication takes
 place at this time.
 
 ## Destination URIs

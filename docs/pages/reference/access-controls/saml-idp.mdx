@@ -1,7 +1,8 @@
 ---
 title: SAML Identity Provider Reference
+sidebar_label: SAML Identity Provider
 description: Reference documentation for the SAML identity provider
-labels:
+tags:
  - conceptual
  - identity-governance
 ---
@@ -102,69 +103,12 @@ The assertions currently provided by Teleport's SAML identity provider are liste
 
 ## RBAC
 
-In role version 7 and below, the following access controls are applied to the `saml_idp_service_provider` resource access: 
+Access to the SAML IdP service provider can be configured by using a Teleport role 
+with an allow/deny rule targeting the `saml_idp_service_provider` resource and label matchers
+matching role `app_labels` with the `saml_idp_service_provider` resource labels. 
 
-- Role option that enables idp: `spec.options.idp.saml.enabled: true/false`.
-- Cluster auth preference that enables idp: `spec.idp.saml.enabled: true/false`.
-- Resource rule `spec.allow/deny.rules.resources.saml_idp_service_provider`. Applicable only to admin actions. 
-  - Allow rule with `read,list` verbs are applied implicitly. 
-  - Deny rule with `read,list` verbs gets precedence over implicit allow. 
-- Per session MFA: `spec.options.require_session_mfa: true/false`.
-
-Teleport role version 8 introduces the following changes:
-- Label matchers based on `app_labels`.
-- Resource rule with verbs targeting `saml_idp_service_provider` is now applicable to both resource access and admin actions. 
-- Device Trust for SAML IdP session.
-
-The role option `spec.options.idp.saml.enabled: true/false` is no longer supported starting role version 8.
-
-Per session MFA is supported in all role versions.
-
-### RBAC precedence
-
-Users can be assigned with both the newer role (version 8) and the older versioned roles (version 7 and below) at the same time.
-If a user is assigned with both role version 7 and 8, deny rules of the version 8 takes precedence.
-
-For example,
-- If role version 7 denies access, access is denied.
-- If role version 7 allows access but role version 8 denies access, access is denied. 
-- If role version 7 allows access and role version 8 also allows access, access is allowed.
-
-The table below shows a few more examples of applicable RBAC, when two roles with version 7 and 8 each are assigned to the user.
-
-| Role v7                                                                    | Role v8                                                    |  Result           |
-|----------------------------------------------------------------------------|------------------------------------------------------------|-------------------|
-| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: false</pre>      | <pre>allow:<br/>  app_labels:<br/>    * : *</pre>          | ❌ no access.      |
-| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>deny:<br/>  app_labels:<br/>     * : *</pre>          | ❌ no access       |  
-| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>allow:<br/>  app_labels:<br/>    * : *<br/>deny:<br/>  rules:<br/>    resources:<br/>    - saml_idp_service_provider<br/>    verbs:<br/>    - read<br/>    - list</pre>          | ❌ no access     | 
-| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>allow:<br/>  app_labels:<br/>    * : *</pre>          | ✅ full access     | 
-| No version 7 role assigned to the user                                     | <pre>allow:<br/>  app_labels:<br/>    * : *</pre>          | ✅ full access     | 
-| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | No version 8 role assigned to the user           | ✅ full access     | 
-
-<Admonition type="important" title="Admin Actions">
- `saml_idp_service_provider` resource does not yet support MFA and Device Trust for admin actions. 
-</Admonition>
-
-## Disabling SAML identity provider at cluster level
-
-To disable access to the identity provider at the cluster level, create
-or update the `cluster_auth_preference` object with the following setting:
-
-```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  ...
-  idp:
-    saml:
-      enabled: false
-  ...
-version: v2
-```
-
-This will disable access to the SAML identity provider for all users regardless
-of their role level permissions.
+See this [RBAC guide](../../identity-governance/idps/saml-idp-rbac.mdx) to learn more on how to 
+manage access to the SAML IdP Service provider resource in Teleport.
 
 ## Troubleshooting
 

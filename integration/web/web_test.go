@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -174,7 +175,8 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 				FQDNHint:    "root-app.root",
 			},
 			expectMFARequired: false,
-		}, {
+		},
+		{
 			name: "root-app-mfa",
 			resolveAppParams: web.ResolveAppParams{
 				AppName:     "root-app-mfa",
@@ -192,7 +194,8 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 				FQDNHint:    "leaf-app.root",
 			},
 			expectMFARequired: false,
-		}, {
+		},
+		{
 			name: "leaf-app-mfa",
 			resolveAppParams: web.ResolveAppParams{
 				AppName:     "leaf-app-mfa",
@@ -317,13 +320,30 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rt, err := rootServer.GetAuthServer().GetTunnelConnections(leafServer.Config.Auth.ClusterName.GetClusterName())
-		assert.NoError(t, err)
-		assert.Len(t, rt, 1)
-	}, time.Second*10, time.Second)
+		require.NoError(t, err)
+		require.Len(t, rt, 1)
+	}, time.Second*10, 200*time.Millisecond)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, rts, 1)
-	}, time.Second*10, time.Second)
+		require.NoError(t, err)
+		require.Len(t, rts, 1)
+	}, time.Second*10, 200*time.Millisecond)
+
+	tsrv, err := rootServer.GetReverseTunnelServer()
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := tsrv.Cluster(ctx, leafServer.Config.Auth.ClusterName.GetClusterName())
+		require.NoError(t, err)
+		require.NotNil(t, rts)
+
+		require.Equal(t, 1, rts.GetTunnelsCount())
+
+		client, err := rts.CachingAccessPoint()
+		require.NoError(t, err)
+		appS, err := client.GetApplicationServers(ctx, defaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, appS, 2)
+	}, time.Second*10, 200*time.Millisecond)
+
 }

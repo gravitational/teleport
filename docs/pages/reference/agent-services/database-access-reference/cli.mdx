@@ -1,7 +1,8 @@
 ---
 title: Database Access CLI Reference
+sidebar_label: Database Access CLI
 description: CLI reference for Teleport database access.
-labels:
+tags:
  - reference
  - zero-trust
 ---
@@ -117,6 +118,7 @@ $ teleport db configure create \
 | `--redshift-discovery` | List of AWS regions in which the agent will discover Redshift instances. |
 | `--redshift-serverless-discovery` | List of AWS regions in which the agent will discover Redshift Serverless instances. |
 | `--elasticache-discovery` | List of AWS regions in which the agent will discover ElastiCache Redis and Valkey clusters. |
+| `elasticache-serverless-discovery` | List of AWS regions in which the agent will discover ElastiCache Serverless Valkey or Redis caches. |
 | `--aws-tags` | (Only for AWS discoveries) Comma-separated list of AWS resource tags to match, for example env=dev,dept=it |
 | `--memorydb-discovery` | List of AWS regions in which the agent will discover MemoryDB clusters. |
 | `--azure-mysql-discovery` | List of Azure regions in which the agent will discover MySQL servers. |
@@ -166,7 +168,7 @@ $ teleport db configure aws print-iam --types redshift-serverless --assumes-role
 
 | Flag | Description |
 | - | - |
-| `-r/--types` | Comma-separated list of database types to include in the policy. Any of `rds`, `rdsproxy`, `redshift`, `redshift-serverless`, `elasticache`, `memorydb`, `keyspace`, `dynamodb`, `opensearch`. |
+| `-r/--types` | Comma-separated list of database types to include in the policy. Any of `rds`, `rdsproxy`, `redshift`, `redshift-serverless`, `elasticache`, `elasticache-serverless`, `memorydb`, `keyspace`, `dynamodb`, `opensearch`. |
 | `--role` | IAM role name to attach policy to. Mutually exclusive with --user. |
 | `--user` | IAM user name to attach policy to. Mutually exclusive with --role. |
 | `--[no-]policy` | Only print an IAM policy document. |
