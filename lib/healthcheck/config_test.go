@@ -84,6 +84,11 @@ func Test_newHealthCheckConfig(t *testing.T) {
 					},
 					Expression: `labels["qux"] == "*"`,
 				},
+				kubernetesLabelMatchers: types.LabelMatchers{
+					Labels: types.Labels{},
+					// TODO(rana):
+					// Expression: `labels["qux"] == "*"`,
+				},
 			},
 		},
 		{
@@ -99,6 +104,11 @@ func Test_newHealthCheckConfig(t *testing.T) {
 				databaseLabelMatchers: types.LabelMatchers{
 					Labels:     types.Labels{},
 					Expression: `labels["*"] == "*"`,
+				},
+				kubernetesLabelMatchers: types.LabelMatchers{
+					Labels: types.Labels{},
+					// TODO(rana):
+					// Expression: `labels["*"] == "*"`,
 				},
 			},
 		},

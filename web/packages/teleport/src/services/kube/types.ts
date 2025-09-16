@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ResourceTargetHealth } from 'shared/components/UnifiedResources';
 import { ResourceLabel } from 'teleport/services/agents';
 
 export interface Kube {
@@ -25,6 +26,18 @@ export interface Kube {
   users?: string[];
   groups?: string[];
   requiresRequest?: boolean;
+  /**
+   * TODO(rana): REVISE COMMENTS
+   * targetHealth describes the health status of a Kubernetes cluster
+   * reported from an agent (db_service) that is proxying this database.
+   *
+   * This field will be empty if the database was not extracted from
+   * a db_server resource. The following endpoints will set this field
+   * since these endpoints query for db_server under the hood and then
+   * extract db from it:
+   * - webapi/sites/:site/resources (unified resources)
+   */
+  targetHealth?: ResourceTargetHealth;
 }
 
 /**
