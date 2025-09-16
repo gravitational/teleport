@@ -32,3 +32,4 @@ shellEmulator: true
 # affect performance outside of docker.
 # https://github.com/gravitational/teleport/issues/46019
 packageImportMethod: clone-or-copy
+minimumReleaseAge: 2880
