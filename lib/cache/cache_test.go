@@ -1111,11 +1111,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
-		assert.Len(t, resources, nodeCount)
+		require.Len(t, resources, nodeCount)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
@@ -1394,18 +1394,18 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 	assertCacheContents := func(expected []T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			out, err := funcs.cacheList(ctx, 0)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// If the cache is expected to be empty, then test explicitly for
 			// *that* rather than do an equality test. An equality test here
 			// would be overly-pedantic about a service returning `nil` rather
 			// than an empty slice.
 			if len(expected) == 0 {
-				assert.Empty(t, out)
+				require.Empty(t, out)
 				return
 			}
 
-			assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+			require.Empty(t, cmp.Diff(expected, out, cmpOpts...))
 		}, 2*time.Second, 10*time.Millisecond)
 	}
 
@@ -2143,8 +2143,8 @@ func TestInvalidDatabases(t *testing.T) {
 				// Wait until the database appear on cache.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbs, err := c.GetDatabases(ctx)
-					assert.NoError(t, err)
-					assert.Len(t, dbs, 1)
+					require.NoError(t, err)
+					require.Len(t, dbs, 1)
 				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
 
 				cacheDB, err := c.GetDatabase(ctx, dbName)
@@ -2280,7 +2280,7 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 			Name: name,
 		},
 		accesslist.Spec{
-			Title:       "title",
+			Title:       "Title" + name,
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -2671,8 +2671,8 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
 		out, err = funcs.cacheList(ctx, defaultTestPageSize)
-		assert.NoError(t, err)
-		assert.Empty(t, out)
+		require.NoError(t, err)
+		require.Empty(t, out)
 	}, time.Second*3, time.Millisecond*100)
 }
 
