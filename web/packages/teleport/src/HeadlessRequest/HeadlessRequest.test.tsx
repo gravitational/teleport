@@ -23,20 +23,29 @@ import { render, screen } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { HeadlessRequest } from 'teleport/HeadlessRequest/HeadlessRequest';
+import { shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
 
-test('ip address should be visible', async () => {
-  jest.spyOn(auth, 'headlessSsoGet').mockImplementation(
-    () =>
-      new Promise(resolve => {
-        resolve({ clientIpAddress: '1.2.3.4' });
-      })
-  );
+const mockGetChallengeResponse = jest.fn();
 
-  const headlessSSOPath = '/web/headless/2a8dcaae-1fa5-533b-aad8-f97420df44de';
-  const mockHistory = createMemoryHistory({
-    initialEntries: [headlessSSOPath],
-  });
+jest.mock('teleport/lib/useMfa', () => ({
+  useMfa: () => ({
+    getChallengeResponse: mockGetChallengeResponse,
+    attempt: { status: '' },
+  }),
+  shouldShowMfaPrompt: jest.fn(),
+}));
+
+function setup({ mfaPrompt = false, path = '/web/headless/123' } = {}) {
+  (shouldShowMfaPrompt as jest.Mock).mockReturnValue(mfaPrompt);
+
+  mockGetChallengeResponse.mockResolvedValue({ webauthn_response: {} });
+
+  jest
+    .spyOn(auth, 'headlessSsoGet')
+    .mockResolvedValue({ clientIpAddress: '1.2.3.4' });
+
+  const mockHistory = createMemoryHistory({ initialEntries: [path] });
 
   render(
     <Router history={mockHistory}>
@@ -45,8 +54,31 @@ test('ip address should be visible', async () => {
       </Route>
     </Router>
   );
+}
 
-  await expect(
-    screen.findByText(/Someone has initiated a command from 1.2.3.4/i)
-  ).resolves.toBeInTheDocument();
+describe('HeadlessRequest', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('shows the headless request approve/reject dialog', async () => {
+    setup({ mfaPrompt: false, path: '/web/headless/abc' });
+
+    await expect(
+      screen.findByText(/Someone has initiated a command from 1.2.3.4/i)
+    ).resolves.toBeInTheDocument();
+
+    expect(
+      await screen.findByRole('button', { name: /Approve/i })
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: /Reject/i })
+    ).toBeInTheDocument();
+  });
+
+  test('shows MFA prompt after user approves the request', async () => {
+    setup({ mfaPrompt: true, path: '/web/headless/abc' });
+
+    expect(await screen.findAllByText(/Verify Your Identity/i)).toHaveLength(2);
+  });
 });

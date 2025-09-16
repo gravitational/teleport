@@ -45,6 +45,7 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
+import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
 import { KindAuthConnectors } from './services/resources';
 
@@ -303,7 +304,8 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
-    ttyDbWsAddr: 'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws',
+    ttyDbWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws?params=:params',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
@@ -680,6 +682,29 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  /**
+   * getIntegrationsEnrollRoute returns a path to the page which lists all integrations.
+   */
+  getIntegrationsEnrollRoute({
+    tags = [],
+    searchFilter = '',
+  }: {
+    tags?: IntegrationTag[];
+    searchFilter?: string;
+  } = {}) {
+    const searchParams = new URLSearchParams();
+    tags.forEach(tag => {
+      searchParams.append('tags', tag);
+    });
+    if (searchFilter) {
+      searchParams.set('search', searchFilter);
+    }
+    const queryString = searchParams.toString();
+    const path = generatePath(cfg.routes.integrationEnroll);
+
+    return queryString ? `${path}?${queryString}` : path;
   },
 
   /**

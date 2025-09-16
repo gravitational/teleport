@@ -65,19 +65,18 @@
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "teleport": {
-      "git": "api/14.0.0-gd1e081e",
       "major_version": "18",
-      "version": "18.2.0",
+      "version": "18.2.1",
       "url": "teleport.example.com",
-      "golang": "1.24.6",
+      "golang": "1.24.7",
       "plugin": {
-        "version": "18.2.0"
+        "version": "18.2.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:18.2.0",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:18.2.0",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:18.2.0",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:18.2.0",
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:18.2.1",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:18.2.1",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:18.2.1",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:18.2.1",
       "teleport_install_script_url": "https://cdn.teleport.dev/install.sh"
     },
     "terraform": {
@@ -211,6 +210,11 @@
       "permanent": true
     },
     {
+      "source": "/kubernetes-ssh/",
+      "destination": "/enroll-resources/kubernetes-access/controls/",
+      "permanent": true
+    },
+    {
       "source": "/machine-id/introduction/",
       "destination": "/machine-workload-identity/machine-id/introduction/",
       "permanent": true
@@ -223,6 +227,11 @@
     {
       "source": "/machine-id/reference/v16-upgrade-guide/",
       "destination": "/reference/machine-id/v16-upgrade-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
       "permanent": true
     },
     {
@@ -482,7 +491,7 @@
     },
     {
       "source": "/enroll-resources/machine-id/getting-started/",
-      "destination": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
       "permanent": true
     },
     {
