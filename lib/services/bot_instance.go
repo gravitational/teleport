@@ -18,6 +18,8 @@ package services
 
 import (
 	"context"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -78,4 +80,45 @@ func MarshalBotInstance(object *machineidv1.BotInstance, opts ...MarshalOption) 
 // UnmarshalBotInstance unmarshals the BotInstance object from a JSON byte array.
 func UnmarshalBotInstance(data []byte, opts ...MarshalOption) (*machineidv1.BotInstance, error) {
 	return UnmarshalProtoResource[*machineidv1.BotInstance](data, opts...)
+}
+
+func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
+	if botName != "" && b.Spec.BotName != botName {
+		return false
+	}
+
+	if search == "" {
+		return true
+	}
+
+	latestHeartbeats := b.GetStatus().GetLatestHeartbeats()
+	heartbeat := b.Status.InitialHeartbeat // Use initial heartbeat as a fallback
+	if len(latestHeartbeats) > 0 {
+		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+	}
+
+	values := []string{
+		b.Spec.BotName,
+		b.Spec.InstanceId,
+	}
+
+	if heartbeat != nil {
+		values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
+	}
+
+	return slices.ContainsFunc(values, func(val string) bool {
+		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
+	})
+}
+
+// PickBotInstanceRecentHeartbeat returns the most recent heartbeat for the
+// given bot instance. The initial heartbeat is returned as a fallback if no
+// latest heartbeats exist.
+func PickBotInstanceRecentHeartbeat(botInstance *machineidv1.BotInstance) *machineidv1.BotInstanceStatusHeartbeat {
+	heartbeat := botInstance.GetStatus().GetInitialHeartbeat()
+	latestHeartbeats := botInstance.GetStatus().GetLatestHeartbeats()
+	if len(latestHeartbeats) > 0 {
+		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+	}
+	return heartbeat
 }

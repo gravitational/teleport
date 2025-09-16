@@ -234,10 +234,12 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 		botName           string
 		instanceId        string
 		recordedAtSeconds int64
+		version           string
+		hostname          string
 	}{
-		{"bot-1", "instance-1", 2},
-		{"bot-1", "instance-3", 1},
-		{"bot-2", "instance-2", 3},
+		{"bot-1", "instance-1", 2, "3.0.0", "hostname-2"},
+		{"bot-1", "instance-3", 1, "2.0.0", "hostname-3"},
+		{"bot-2", "instance-2", 3, "1.0.0", "hostname-1"},
 	}
 
 	for _, b := range items {
@@ -255,6 +257,8 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 						RecordedAt: &timestamppb.Timestamp{
 							Seconds: b.recordedAtSeconds,
 						},
+						Version:  b.version,
+						Hostname: b.hostname,
 					},
 				},
 			},
@@ -271,46 +275,110 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 		require.Len(t, results, 3)
 	}, 10*time.Second, 100*time.Millisecond)
 
-	// sort ascending by active_at_latest
-	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
-		Field:  "active_at_latest",
-		IsDesc: false,
+	t.Run("sort ascending by active_at_latest", func(t *testing.T) {
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+			Field:  "active_at_latest",
+			IsDesc: false,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		require.Equal(t, "instance-3", results[0].GetMetadata().GetName())
+		require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
+		require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
 	})
-	require.NoError(t, err)
-	require.Len(t, results, 3)
-	require.Equal(t, "instance-3", results[0].GetMetadata().GetName())
-	require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
-	require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
 
-	// sort descending by active_at_latest
-	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
-		Field:  "active_at_latest",
-		IsDesc: true,
+	t.Run("sort descending by active_at_latest", func(t *testing.T) {
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+			Field:  "active_at_latest",
+			IsDesc: true,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
+		require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
+		require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
 	})
-	require.NoError(t, err)
-	require.Len(t, results, 3)
-	require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
-	require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
-	require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
 
-	// sort ascending by bot_name
-	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", nil) // empty sort should default to `bot_name:asc`
-	require.NoError(t, err)
-	require.Len(t, results, 3)
-	require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
-	require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
-	require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
-
-	// sort descending by bot_name
-	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
-		Field:  "bot_name",
-		IsDesc: true,
+	t.Run("sort ascending by bot_name", func(t *testing.T) {
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil) // empty sort should default to `bot_name:asc`
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
+		require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
+		require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
 	})
-	require.NoError(t, err)
-	require.Len(t, results, 3)
-	require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
-	require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
-	require.Equal(t, "instance-1", results[2].GetMetadata().GetName())
+
+	t.Run("sort descending by bot_name", func(t *testing.T) {
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+			Field:  "bot_name",
+			IsDesc: true,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
+		require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
+		require.Equal(t, "instance-1", results[2].GetMetadata().GetName())
+	})
+
+	t.Run("sort ascending by version", func(t *testing.T) {
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+			Field:  "version_latest",
+			IsDesc: false,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
+		require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
+		require.Equal(t, "instance-1", results[2].GetMetadata().GetName())
+	})
+
+	t.Run("sort ascending by version", func(t *testing.T) {
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+			Field:  "version_latest",
+			IsDesc: true,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
+		require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
+		require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
+	})
+
+	t.Run("sort descending by version", func(t *testing.T) {
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+			Field:  "version_latest",
+			IsDesc: false,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
+		require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
+		require.Equal(t, "instance-1", results[2].GetMetadata().GetName())
+	})
+
+	t.Run("sort ascending by hostname", func(t *testing.T) {
+		results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+			SortField: "host_name_latest",
+			SortDesc:  false,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
+		require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
+		require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
+	})
+
+	t.Run("sort descending by hostname", func(t *testing.T) {
+		results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+			SortField: "host_name_latest",
+			SortDesc:  true,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		require.Equal(t, "instance-3", results[0].GetMetadata().GetName())
+		require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
+		require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
+	})
 }
 
 // TestBotInstanceCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.
@@ -367,5 +435,107 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Equal(t, "unsupported sort, only bot_name:asc is supported, but got \"active_at_latest\" (desc = false)", err.Error())
+}
 
+func TestKeyForVersionIndex(t *testing.T) {
+	t.Parallel()
+
+	tcs := []struct {
+		name      string
+		mutatorFn func(*machineidv1.BotInstance)
+		key       string
+	}{
+		{
+			name:      "zero heartbeats",
+			mutatorFn: func(b *machineidv1.BotInstance) {},
+			key:       "000000.000000.000000/bot-instance-1",
+		},
+		{
+			name: "invalid version",
+			mutatorFn: func(b *machineidv1.BotInstance) {
+				b.Status = &machineidv1.BotInstanceStatus{
+					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+						Version: "a.b.c",
+					},
+				}
+			},
+			key: "000000.000000.000000/bot-instance-1",
+		},
+		{
+			name: "initial heartbeat",
+			mutatorFn: func(b *machineidv1.BotInstance) {
+				b.Status = &machineidv1.BotInstanceStatus{
+					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+						Version: "1.0.0",
+					},
+				}
+			},
+			key: "000001.000000.000000/bot-instance-1",
+		},
+		{
+			name: "latest heartbeat",
+			mutatorFn: func(b *machineidv1.BotInstance) {
+				b.Status = &machineidv1.BotInstanceStatus{
+					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
+						{
+							Version: "1.0.0",
+						},
+					},
+				}
+			},
+			key: "000001.000000.000000/bot-instance-1",
+		},
+		{
+			name: "with release",
+			mutatorFn: func(b *machineidv1.BotInstance) {
+				b.Status = &machineidv1.BotInstanceStatus{
+					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+						Version: "1.0.0-dev",
+					},
+				}
+			},
+			key: "000001.000000.000000-dev/bot-instance-1",
+		},
+		{
+			name: "with build",
+			mutatorFn: func(b *machineidv1.BotInstance) {
+				b.Status = &machineidv1.BotInstanceStatus{
+					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+						Version: "1.0.0+build1",
+					},
+				}
+			},
+			key: "000001.000000.000000+build1/bot-instance-1",
+		},
+		{
+			name: "with release and build",
+			mutatorFn: func(b *machineidv1.BotInstance) {
+				b.Status = &machineidv1.BotInstanceStatus{
+					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+						Version: "1.0.0-dev+build1",
+					},
+				}
+			},
+			key: "000001.000000.000000-dev+build1/bot-instance-1",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			instance := &machineidv1.BotInstance{
+				Kind:    types.KindBotInstance,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "bot-instance-1",
+				},
+				Spec:   &machineidv1.BotInstanceSpec{},
+				Status: &machineidv1.BotInstanceStatus{},
+			}
+			tc.mutatorFn(instance)
+
+			versionKey := keyForVersionIndex(instance)
+
+			assert.Equal(t, tc.key, versionKey)
+		})
+	}
 }

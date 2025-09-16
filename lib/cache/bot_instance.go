@@ -18,10 +18,10 @@ package cache
 
 import (
 	"context"
-	"slices"
-	"strings"
+	"fmt"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
@@ -38,34 +38,9 @@ type botInstanceIndex string
 const (
 	botInstanceNameIndex     botInstanceIndex = "name"
 	botInstanceActiveAtIndex botInstanceIndex = "active_at_latest"
+	botInstanceVersionIndex  botInstanceIndex = "version_latest"
+	botInstanceHostnameIndex botInstanceIndex = "host_name_latest"
 )
-
-func keyForNameIndex(botInstance *machineidv1.BotInstance) string {
-	return makeNameIndexKey(
-		botInstance.GetSpec().GetBotName(),
-		botInstance.GetMetadata().GetName(),
-	)
-}
-
-func makeNameIndexKey(botName string, instanceID string) string {
-	return botName + "/" + instanceID
-}
-
-func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
-	var recordedAt time.Time
-
-	initialHeartbeatTime := botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt()
-	if initialHeartbeatTime != nil {
-		recordedAt = initialHeartbeatTime.AsTime()
-	}
-
-	latestHeartbeats := botInstance.GetStatus().GetLatestHeartbeats()
-	if len(latestHeartbeats) > 0 {
-		recordedAt = latestHeartbeats[len(latestHeartbeats)-1].GetRecordedAt().AsTime()
-	}
-
-	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
-}
 
 func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) (*collection[*machineidv1.BotInstance, botInstanceIndex], error) {
 	if upstream == nil {
@@ -81,6 +56,10 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 				botInstanceNameIndex: keyForNameIndex,
 				// Index on a combination of most recent heartbeat time and instance name
 				botInstanceActiveAtIndex: keyForActiveAtIndex,
+				// Index on a combination of most recent heartbeat version and instance name
+				botInstanceVersionIndex: keyForVersionIndex,
+				// Index on a combination of most recent heartbeat hostname and instance name
+				botInstanceHostnameIndex: keyForHostnameIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
@@ -119,20 +98,24 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 
 	index := botInstanceNameIndex
 	keyFn := keyForNameIndex
-	var isDesc bool
-	if sort != nil {
-		isDesc = sort.IsDesc
-
-		switch sort.Field {
-		case "bot_name":
-			index = botInstanceNameIndex
-			keyFn = keyForNameIndex
-		case "active_at_latest":
-			index = botInstanceActiveAtIndex
-			keyFn = keyForActiveAtIndex
-		default:
-			return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name or active_at_latest", sort.Field)
-		}
+	isDesc := options.GetSortDesc()
+	switch options.GetSortField() {
+	case "bot_name":
+		index = botInstanceNameIndex
+		keyFn = keyForNameIndex
+	case "active_at_latest":
+		index = botInstanceActiveAtIndex
+		keyFn = keyForActiveAtIndex
+	case "version_latest":
+		index = botInstanceVersionIndex
+		keyFn = keyForVersionIndex
+	case "host_name_latest":
+		index = botInstanceHostnameIndex
+		keyFn = keyForHostnameIndex
+	case "":
+		// default ordering as defined above
+	default:
+		return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name or active_at_latest", options.GetSortField())
 	}
 
 	lister := genericLister[*machineidv1.BotInstance, botInstanceIndex]{
@@ -145,7 +128,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, sort)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
-			return matchBotInstance(b, botName, search)
+			return services.MatchBotInstance(b, botName, search)
 		},
 		nextToken: func(b *machineidv1.BotInstance) string {
 			return keyFn(b)
@@ -158,33 +141,50 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 	return out, next, trace.Wrap(err)
 }
 
-func matchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
-	// If updating this, ensure it's consistent with the upstream search logic in `lib/services/local/bot_instance.go`.
+func keyForNameIndex(botInstance *machineidv1.BotInstance) string {
+	return makeNameIndexKey(
+		botInstance.GetSpec().GetBotName(),
+		botInstance.GetMetadata().GetName(),
+	)
+}
 
-	if botName != "" && b.Spec.BotName != botName {
-		return false
+func makeNameIndexKey(botName string, instanceID string) string {
+	return botName + "/" + instanceID
+}
+
+func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
+	heartbeat := services.PickBotInstanceRecentHeartbeat(botInstance)
+	recordedAt := heartbeat.GetRecordedAt().AsTime()
+	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
+}
+
+func keyForVersionIndex(botInstance *machineidv1.BotInstance) string {
+	version := "000000.000000.000000"
+	heartbeat := services.PickBotInstanceRecentHeartbeat(botInstance)
+	if heartbeat == nil {
+		return version + "/" + botInstance.GetMetadata().GetName()
 	}
 
-	if search == "" {
-		return true
+	sv, err := semver.NewVersion(heartbeat.GetVersion())
+	if err != nil {
+		return version + "/" + botInstance.GetMetadata().GetName()
 	}
 
-	latestHeartbeats := b.GetStatus().GetLatestHeartbeats()
-	heartbeat := b.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-	if len(latestHeartbeats) > 0 {
-		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+	version = fmt.Sprintf("%06d.%06d.%06d", sv.Major, sv.Minor, sv.Patch)
+	if sv.PreRelease != "" {
+		version = version + "-" + string(sv.PreRelease)
 	}
-
-	values := []string{
-		b.Spec.BotName,
-		b.Spec.InstanceId,
+	if sv.Metadata != "" {
+		version = version + "+" + sv.Metadata
 	}
+	return version + "/" + botInstance.GetMetadata().GetName()
+}
 
+func keyForHostnameIndex(botInstance *machineidv1.BotInstance) string {
+	hostname := "~"
+	heartbeat := services.PickBotInstanceRecentHeartbeat(botInstance)
 	if heartbeat != nil {
-		values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
+		hostname = heartbeat.GetHostname()
 	}
-
-	return slices.ContainsFunc(values, func(val string) bool {
-		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
-	})
+	return hostname + "/" + botInstance.GetMetadata().GetName()
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	tslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -423,10 +424,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 	}
 
 	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
-		latestHeartbeats := instance.GetStatus().GetLatestHeartbeats()
-		heartbeat := instance.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-		if len(latestHeartbeats) > 0 {
-			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+		heartbeat := services.PickBotInstanceRecentHeartbeat(instance)
 		}
 
 		uiInstance := BotInstance{
