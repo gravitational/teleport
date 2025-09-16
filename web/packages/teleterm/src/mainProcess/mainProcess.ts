@@ -48,7 +48,11 @@ import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
-import { AppUpdater, AppUpdaterStorage } from 'teleterm/services/appUpdater';
+import {
+  AppUpdater,
+  AppUpdaterStorage,
+  TELEPORT_TOOLS_VERSION_ENV_VAR,
+} from 'teleterm/services/appUpdater';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import {
@@ -170,7 +174,8 @@ export default class MainProcess {
         this.windowsManager
           .getWindow()
           .webContents.send(RendererIpc.AppUpdateEvent, event);
-      }
+      },
+      process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
     );
   }
 
