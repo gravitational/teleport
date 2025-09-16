@@ -1215,6 +1215,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
+						types.NewRule(types.KindJWT, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),

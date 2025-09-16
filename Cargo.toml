@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["lib/srv/desktop/rdp/rdpclient", "web/packages/shared/libs/ironrdp"]
+members = ["lib/srv/desktop/rdp/pam-jwt", "lib/srv/desktop/rdp/rdpclient", "web/packages/shared/libs/ironrdp"]
 
 [workspace.package]
 edition = "2021"

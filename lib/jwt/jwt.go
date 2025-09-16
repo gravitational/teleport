@@ -685,10 +685,10 @@ type Claims struct {
 	Username string `json:"username"`
 
 	// Roles returns the list of roles assigned to the user within Teleport.
-	Roles []string `json:"roles"`
+	Roles []string `json:"roles,omitempty"`
 
 	// Traits returns the traits assigned to the user within Teleport.
-	Traits wrappers.Traits `json:"traits"`
+	Traits wrappers.Traits `json:"traits,omitempty"`
 }
 
 // IDToken allows introspecting claims from an OpenID Connect

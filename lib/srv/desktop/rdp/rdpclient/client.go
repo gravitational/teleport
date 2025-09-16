@@ -354,8 +354,6 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 	key_der, err := utils.UnsafeSliceData(keyDER)
 	if err != nil {
 		return trace.Wrap(err)
-	} else if key_der == nil {
-		return trace.BadParameter("user key was nil")
 	}
 
 	hostID, err := uuid.Parse(c.cfg.HostID)

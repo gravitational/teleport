@@ -84,6 +84,9 @@ pub unsafe fn from_c_string(s: *const c_char) -> String {
 ///
 /// See https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html
 pub unsafe fn from_go_array<T: Clone>(data: *const T, len: u32) -> Vec<T> {
+    if data.is_null() || len == 0 {
+        return Vec::new();
+    }
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.

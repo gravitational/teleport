@@ -10,7 +10,7 @@
     "directory": "packages/shared"
   },
   "scripts": {
-    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && RUST_MIN_STACK=16777216 wasm-pack build ./libs/ironrdp --target web"
+    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && RUSTFLAGS='--cfg getrandom_backend=\"wasm_js\"' RUST_MIN_STACK=16777216 wasm-pack build ./libs/ironrdp --target web"
   },
   "dependencies": {
     "@gravitational/design": "workspace:*",
@@ -20,7 +20,7 @@
     "highlight-words-core": "^1.2.3",
     "semver": "^7.7.2"
   },
-  "devDependencies" : {
+  "devDependencies": {
     "@types/semver": "^7.7.0"
   }
 }

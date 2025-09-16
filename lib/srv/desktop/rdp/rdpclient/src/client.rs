@@ -1380,10 +1380,12 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         enable_server_pointer: true,
         timezone_info: TimezoneInfo::default(),
         enable_credssp: params.ad && params.nla,
-        credentials: if params.username == "newuser" {
+        credentials: if params.key_der.is_empty() {
+            let string = String::from_utf8(params.cert_der.clone()).unwrap_or("".to_string());
+            info!("Password: {}", string);
             Credentials::UsernamePassword {
                 username: params.username.clone(),
-                password: "pass".to_string(),
+                password: string,
             }
         } else {
             Credentials::SmartCard {

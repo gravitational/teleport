@@ -893,6 +893,22 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	s.record(ctx, recorder, startEvent)
 	s.emit(ctx, startEvent)
 
+	os, _ := desktop.GetLabel(types.DiscoveryLabelWindowsOS)
+	if strings.Contains(strings.ToLower(os), "linux") {
+		token, err := s.cfg.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
+			Username: windowsUser,
+			Roles:    nil,
+			Traits:   nil,
+			Expires:  time.Now().Add(windowsUserCertTTL),
+			URI:      "x",
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certDER = []byte(token[strings.Index(token, ".")+1:])
+		keyDER = nil
+	}
+
 	err = rdpc.Run(ctx, certDER, keyDER)
 
 	// ctx may have been canceled, so emit with a separate context

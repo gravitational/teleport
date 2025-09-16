@@ -1,0 +1,19 @@
+[package]
+name = "pam-jwt"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "pam_jwt"
+crate-type = ["cdylib"]
+
+[dependencies]
+pam-bindings = "0.1.1"
+reqwest = { version = "0.12.23", features = ["blocking", "json"] }
+jsonwebtoken = { version = "9.3.1", default-features = false }
+serde_json = "1.0.145"
+base64 = "0.22.1"
+serde = { version = "1.0.224", features = ["derive"] }
+
+[dev-dependencies]
+httpmock = "0.7.0"

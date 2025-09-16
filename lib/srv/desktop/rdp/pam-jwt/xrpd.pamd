@@ -1,0 +1,6 @@
+auth sufficient pam_jwt.so url=https://host.docker.internal:3080 insecure_skip_verify=true
+
+@include common-auth
+@include common-account
+@include common-session
+@include common-password
