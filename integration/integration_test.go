@@ -7870,7 +7870,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 
 	peerSSH := peerNodeClient.Client
-	peerSess, err := peerSSH.NewSession(ctx)
+	peerSess, err := peerSSH.NewSession(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, peerSess.Close())
@@ -7926,7 +7926,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		ProxyPublicAddr: modTC.WebProxyAddr,
 	}
 
-	modSess, err := modNodeCli.Client.NewSession(ctx)
+	modSess, err := modNodeCli.Client.NewSession(ctx, nil)
 	require.NoError(t, err)
 	err = modSess.Setenv(ctx, sshutils.SessionEnvVar, sessTracker.GetSessionID())
 	require.NoError(t, err)
@@ -7970,7 +7970,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	// Test that only operations needed to complete the download
 	// are allowed
-	transferSess, err := peerSSH.NewSession(ctx)
+	transferSess, err := peerSSH.NewSession(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		isNilOrEOFErr(t, transferSess.Close())
@@ -8032,7 +8032,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	sshRquestIgnoringKeepalives(t, modSSHReqs)
 
 	isNilOrEOFErr(t, transferSess.Close())
-	transferSess, err = peerSSH.NewSession(ctx)
+	transferSess, err = peerSSH.NewSession(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, transferSess.Close())

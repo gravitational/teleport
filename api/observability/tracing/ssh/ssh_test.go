@@ -332,7 +332,7 @@ func TestClient(t *testing.T) {
 			default:
 			}
 
-			session, err := client.NewSession(ctx)
+			session, err := client.NewSession(ctx, nil)
 			require.NoError(t, err)
 			require.NotNil(t, session)
 

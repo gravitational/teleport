@@ -1350,7 +1350,7 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 		}
 		t.Cleanup(func() { client.Close() })
 
-		sess, err := client.NewSession(ctx)
+		sess, err := client.NewSession(ctx, nil)
 		if err != nil {
 			t.Logf("failed to dial test ssh server: %s", err)
 			close(sessCh)
