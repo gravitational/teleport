@@ -1,6 +1,6 @@
 ---
 authors: Marco Dinis (marco.dinis@goteleport.com)
-state: implemented
+state: implemented (v18.2.1)
 ---
 
 # RFD 0204 - AWS CLI Access with IAM Roles Anywhere
