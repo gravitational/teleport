@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/url"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -78,7 +77,6 @@ type ProxyService struct {
 
 	cache               *utils.FnCache
 	proxyAddr           string
-	proxyUrl            *url.URL
 	alpnUpgradeRequired bool
 }
 
@@ -87,7 +85,6 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	defer span.End()
 
 	l := s.cfg.Listener
-
 	if l == nil {
 		s.log.DebugContext(
 			ctx, "Opening listener for application proxy",
@@ -113,16 +110,55 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	s.cache = fnCache
 
-	// lp.Start will block and continues to block until lp.Close() is called.
-	// Despite taking a context, it will not exit until the first connection is
-	// made after the context is canceled.
+	// Ping the Teleport Proxy
+	proxyPing, err := s.proxyPinger.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err, "pinging upstream proxy")
+	}
+
+	// Retrieve the Proxy Address to use for the upstream request
+	proxyAddr, err := proxyPing.ProxyWebAddr()
+	if err != nil {
+		return trace.Wrap(err, "determining proxy address from ping response")
+	}
+	s.proxyAddr = proxyAddr
+
+	// Check if ALPN upgrade will be required to pass client certificate to the
+	// proxy.
+	s.alpnUpgradeRequired, err = s.alpnUpgradeCache.IsUpgradeRequired(
+		ctx, proxyAddr, s.connCfg.Insecure,
+	)
+	if err != nil {
+		return trace.Wrap(err, "testing if ALPN connection upgrade is required")
+	}
+
+	httpSrv := http.Server{
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+		BaseContext: func(net.Listener) context.Context {
+			// Use the main context which controls the service being stopped as
+			// the base context for all incoming requests.
+			return ctx
+		},
+	}
+	httpSrv.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		err := s.handleProxyRequest(w, req)
+		if err != nil {
+			trace.WriteError(w, err)
+			s.log.Error("Encountered an error while proxying request", "error", err)
+			return
+		}
+	})
+	s.log.InfoContext(ctx, "Finished initializing")
+
 	var errCh = make(chan error, 1)
 	go func() {
 		s.log.DebugContext(ctx, "Starting proxy request handler goroutine")
-		errCh <- s.startProxy(ctx)
+		errCh <- httpSrv.Serve(l)
 	}()
 	s.log.InfoContext(
 		ctx, "Listening for proxy connections",
@@ -132,7 +168,7 @@ func (s *ProxyService) Run(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-		return nil
+		return trace.Wrap(httpSrv.Close(), "closing http server")
 	case err := <-errCh:
 		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		return trace.Wrap(err, "local proxy failed")
@@ -192,76 +228,21 @@ func (s *ProxyService) issueCert(
 	return routedIdent.TLSCert, app, nil
 }
 
-func (s *ProxyService) startProxy(ctx context.Context) error {
-	// Ping the Teleport Proxy
-	proxyPing, err := s.proxyPinger.Ping(ctx)
-	if err != nil {
-		return trace.Wrap(err, "pinging upstream proxy")
-	}
-
-	// Retrieve the Proxy Address to use for the Application Request
-	proxyAddr, err := proxyPing.ProxyWebAddr()
-	if err != nil {
-		return trace.Wrap(err, "determining proxy address from ping response")
-	}
-	s.proxyAddr = proxyAddr
-
-	// Build the proxy url to use in the http Client.
-	proxyUrl, err := url.Parse("https://" + proxyAddr)
-	if err != nil {
-		return trace.Wrap(err, "parsing proxy URL")
-	}
-	s.proxyUrl = proxyUrl
-
-	// Check if ALPN upgrade will be required to pass client certificate to the
-	// proxy.
-	s.alpnUpgradeRequired, err = s.alpnUpgradeCache.IsUpgradeRequired(
-		ctx, proxyAddr, s.connCfg.Insecure,
-	)
-	if err != nil {
-		return trace.Wrap(err, "testing if ALPN connection upgrade is required")
-	}
-
-	// This router expects the requests to come in via the style "GET <fqdn>:<port>/"
-	// It doesn't really consider the CONNECT method, but it should work nonetheless.
-	proxyHttpServer := http.Server{
-		Addr:              s.cfg.Listen,
-		ReadTimeout:       apidefaults.DefaultIOTimeout,
-		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
-		IdleTimeout:       apidefaults.DefaultIdleTimeout,
-		BaseContext: func(net.Listener) context.Context {
-			// Use the main context which controls the service being stopped as
-			// the base context for all incoming requests.
-			return ctx
-		},
-	}
-	proxyHttpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		err := s.handleProxyRequest(w, req)
-		if err != nil {
-			s.handleProxyError(w, err)
-			return
-		}
-	})
-
-	err = proxyHttpServer.ListenAndServe()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *ProxyService) handleProxyError(w http.ResponseWriter, err error) {
-	trace.WriteError(w, err)
-	s.log.Error("Encountered an error while proxying request", "error", err)
-}
-
+// handleProxyRequest handles incoming HTTP requests to the server.
+//
+// This roughly implements HTTP proxying as defined within RFC2616.
+// On receiving a HTTP request, we determine the upstream target application
+// from the Host header, and issue a certificate for that application. The proxy
+// then makes the upstream request to the Teleport Proxy for that application.
+//
+// It does not support HTTP "tunnelling" as defined by RFC2616 via the CONNECT
+// method. CONNECT requests are rejected with a 501 Not Implemented response.
 func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Request) error {
 	ctx := req.Context()
 	s.log.DebugContext(
 		ctx, "Received request to proxy",
 		"url", req.URL.String(),
+		"host", req.Host,
 		"method", req.Method,
 		"remote_addr", req.RemoteAddr,
 	)
@@ -273,8 +254,10 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		return trace.NotImplemented("proxy does not support CONNECT method")
 	}
 
-	// Resolve Application Name via either URL or Host Header
-	appName := cmp.Or(req.URL.Host, req.Header.Get("Host"))
+	// net/http implements RFC7230 5.3 correctly, and will prefer the host
+	// specified within an absolute-form request-target over the Host header
+	// when setting req.Host - which means we can safely use req.Host here.
+	appName := req.Host
 
 	var appCert *tls.Certificate
 	var err error
