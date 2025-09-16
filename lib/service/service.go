@@ -717,7 +717,7 @@ func nextProcessID() int32 {
 	return atomic.AddInt32(&processID, 1)
 }
 
-// GetReverseTunnelServer returns the process' reverse tunnel server
+// GetReverseTunnelServer returns the process's reverse tunnel server
 // or an error if it is not configured.
 // Reverse tunnel server is used by proxies to accept incoming
 // reverse tunnels from nodes/clusters.
