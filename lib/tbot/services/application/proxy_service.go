@@ -16,6 +16,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 
 	"github.com/gravitational/trace"
 
@@ -36,6 +37,7 @@ func ProxyServiceBuilder(
 	cfg *ProxyServiceConfig,
 	connCfg connection.Config,
 	defaultCredentialLifetime bot.CredentialLifetime,
+	alpnUpgradeCache *internal.ALPNUpgradeCache,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -51,6 +53,7 @@ func ProxyServiceBuilder(
 			cfg:                       cfg,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			alpnUpgradeCache:          alpnUpgradeCache,
 		}
 
 		svc.log = deps.LoggerForService(svc)
@@ -71,10 +74,12 @@ type ProxyService struct {
 	statusReporter            readyz.Reporter
 	identityGenerator         *identity.Generator
 	clientBuilder             *client.Builder
+	alpnUpgradeCache          *internal.ALPNUpgradeCache
 
-	cache     *utils.FnCache
-	proxyAddr string
-	proxyUrl  *url.URL
+	cache               *utils.FnCache
+	proxyAddr           string
+	proxyUrl            *url.URL
+	alpnUpgradeRequired bool
 }
 
 func (s *ProxyService) Run(ctx context.Context) error {
@@ -204,12 +209,18 @@ func (s *ProxyService) startProxy(ctx context.Context) error {
 	// Build the proxy url to use in the http Client.
 	proxyUrl, err := url.Parse("https://" + proxyAddr)
 	if err != nil {
-		return err
+		return trace.Wrap(err, "parsing proxy URL")
 	}
 	s.proxyUrl = proxyUrl
 
-	// TODO: Check if ALPN Upgrade is required - if so, implement it here or
-	// throw an error for this MVP.
+	// Check if ALPN upgrade will be required to pass client certificate to the
+	// proxy.
+	s.alpnUpgradeRequired, err = s.alpnUpgradeCache.IsUpgradeRequired(
+		ctx, proxyAddr, s.connCfg.Insecure,
+	)
+	if err != nil {
+		return trace.Wrap(err, "testing if ALPN connection upgrade is required")
+	}
 
 	// This router expects the requests to come in via the style "GET <fqdn>:<port>/"
 	// It doesn't really consider the CONNECT method, but it should work nonetheless.
@@ -281,13 +292,24 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 
 	// TODO(noah): We could cache the httpClient itself for each upstream, this
 	// would potentially allow performance improvements by caching connections.
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				Certificates:       []tls.Certificate{*appCert},
-				InsecureSkipVerify: s.botClient.Config().InsecureSkipVerify,
-			},
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			Certificates:       []tls.Certificate{*appCert},
+			InsecureSkipVerify: s.botClient.Config().InsecureSkipVerify,
 		},
+	}
+	// Inject the ALPN upgrade dialer if required.
+	if s.alpnUpgradeRequired {
+		transport.DialContext = apiclient.NewALPNDialer(apiclient.ALPNDialerConfig{
+			ALPNConnUpgradeRequired: true,
+			TLSConfig: &tls.Config{
+				InsecureSkipVerify: s.botClient.Config().InsecureSkipVerify,
+				NextProtos:         []string{string(common.ProtocolHTTP)},
+			},
+		}).DialContext
+	}
+	httpClient := &http.Client{
+		Transport: transport,
 	}
 
 	// Build the Application Request
