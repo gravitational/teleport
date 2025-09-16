@@ -966,6 +966,7 @@
     "timechart",
     "timedatectl",
     "timekey",
+    "timesearch",
     "tlscacerts",
     "tlscert",
     "tlsexistingcasecretname",
