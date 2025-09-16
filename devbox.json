@@ -14,7 +14,6 @@
     "yamllint@latest",
     "zlib@latest",
     "rustup@latest",
-    "wasm-pack@latest",
     "wasm-bindgen-cli@latest",
     "pkg-config@latest",
 
