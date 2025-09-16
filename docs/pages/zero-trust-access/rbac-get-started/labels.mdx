@@ -4,6 +4,7 @@ description: How to assign static and command-based dynamic labels to Teleport r
 tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 Teleport allows you to add arbitrary key-value pairs to applications, servers,
@@ -377,7 +378,7 @@ To update resource-based labels, recreate the `server_info` resource with update
 
 After you have labeled your resources, you can use the labels when running
 `tsh` and `tctl` commands to filter the resources that the commands return.
-For more information, see [Resource filtering](../../reference/predicate-language.mdx).
+For more information, see [Resource filtering](../../reference/access-controls/predicate-language.mdx).
 
 You can also use labels to limit the access that users in different roles have to
 

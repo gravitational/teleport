@@ -312,8 +312,8 @@ func TestAutoScaling(t *testing.T) {
 	// Check auto scaling values match.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := getAutoScaling(context.Background(), applicationautoscaling.NewFromConfig(awsConfig), b.Config.TableName)
-		assert.NoError(t, err)
-		assert.Equal(t, expected, resp)
+		require.NoError(t, err)
+		require.Equal(t, expected, resp)
 	}, 10*time.Second, 500*time.Millisecond)
 }
 

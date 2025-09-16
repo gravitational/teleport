@@ -1696,8 +1696,8 @@ func TestGetSender(t *testing.T) {
 	// Validate that once healthy the sender is provided.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		s, ok = handle.GetSender()
-		assert.True(t, ok)
-		assert.NotNil(t, s)
+		require.True(t, ok)
+		require.NotNil(t, s)
 	}, 10*time.Second, 100*time.Millisecond)
 }
 

@@ -278,8 +278,8 @@ func TestAppCommands(t *testing.T) {
 									resp, err := testDummyAppConn(fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
 									require.NoError(t, err)
 									resp.Body.Close()
-									assert.Equal(t, http.StatusOK, resp.StatusCode)
-									assert.Equal(t, app.name, resp.Header.Get("Server"))
+									require.Equal(t, http.StatusOK, resp.StatusCode)
+									require.Equal(t, app.name, resp.Header.Get("Server"))
 								}, 5*time.Second, 50*time.Millisecond)
 
 								// Verify that the app.session.start event was emitted.
@@ -293,10 +293,10 @@ func TestAppCommands(t *testing.T) {
 											Order:      types.EventOrderDescending,
 											EventTypes: []string{events.AppSessionStartEvent},
 										})
-										assert.NoError(t, err)
+										require.NoError(t, err)
 
 										for _, e := range es {
-											assert.Equal(t, e.(*apievents.AppSessionStart).AppName, app.name)
+											require.Equal(t, e.(*apievents.AppSessionStart).AppName, app.name)
 											return
 										}
 										t.Errorf("failed to find AppSessionStartCode event (0/%d events matched)", len(es))
