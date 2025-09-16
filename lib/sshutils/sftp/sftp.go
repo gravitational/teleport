@@ -218,20 +218,20 @@ type HTTPTransferRequest struct {
 
 // CreateHTTPUploadRequest returns a FileTransferRequest ready to upload a file from
 // a HTTP request over SFTP.
-func CreateHTTPUploadRequest(req HTTPTransferRequest) (FileTransferRequest, error) {
+func CreateHTTPUploadRequest(req HTTPTransferRequest) (*FileTransferRequest, error) {
 	if err := req.checkDefaults(); err != nil {
-		return FileTransferRequest{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if req.HTTPRequest == nil {
-		return FileTransferRequest{}, trace.BadParameter("HTTP request is empty")
+		return nil, trace.BadParameter("HTTP request is empty")
 	}
 
 	contentLength := req.HTTPRequest.Header.Get("Content-Length")
 	fileSize, err := strconv.ParseInt(contentLength, 10, 0)
 	if err != nil {
-		return FileTransferRequest{}, trace.Errorf("failed to parse Content-Length header: %w", err)
+		return nil, trace.Errorf("failed to parse Content-Length header: %w", err)
 	}
-	return FileTransferRequest{
+	return &FileTransferRequest{
 		Sources: Sources{
 			Login: req.Src.Login,
 			Addr:  req.Src.Addr,
@@ -246,15 +246,15 @@ func CreateHTTPUploadRequest(req HTTPTransferRequest) (FileTransferRequest, erro
 
 // CreateHTTPDownloadRequest returns a FileTransferRequest ready to download a file
 // from over SFTP and write it to a HTTP response.
-func CreateHTTPDownloadRequest(req HTTPTransferRequest) (FileTransferRequest, error) {
+func CreateHTTPDownloadRequest(req HTTPTransferRequest) (*FileTransferRequest, error) {
 	if err := req.checkDefaults(); err != nil {
-		return FileTransferRequest{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if req.HTTPResponse == nil {
-		return FileTransferRequest{}, trace.BadParameter("HTTP response is empty")
+		return nil, trace.BadParameter("HTTP response is empty")
 	}
 
-	return FileTransferRequest{
+	return &FileTransferRequest{
 		Sources: Sources{
 			Login: req.Src.Login,
 			Addr:  req.Src.Addr,
@@ -278,7 +278,7 @@ func (h HTTPTransferRequest) checkDefaults() error {
 
 // TransferFiles transfers files from the configured source paths to the
 // configured destination path over SFTP or HTTP depending on the Config.
-func TransferFiles(ctx context.Context, req FileTransferRequest) error {
+func TransferFiles(ctx context.Context, req *FileTransferRequest) error {
 	if err := req.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -397,7 +397,7 @@ func homeDirPrefixLen(path string) (int, bool) {
 }
 
 // transfer performs file transfers
-func transfer(ctx context.Context, req FileTransferRequest) error {
+func transfer(ctx context.Context, req *FileTransferRequest) error {
 	// get info of source files and ensure appropriate options were passed
 	matchedPaths := make([]string, 0, len(req.Sources.Paths))
 	fileInfos := make([]os.FileInfo, 0, len(req.Sources.Paths))
@@ -494,7 +494,7 @@ func transfer(ctx context.Context, req FileTransferRequest) error {
 }
 
 // transferDir transfers a directory
-func transferDir(ctx context.Context, req FileTransferRequest, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+func transferDir(ctx context.Context, req *FileTransferRequest, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	req.Log.DebugContext(ctx, "transferring contents of directory",
 		"source_fs", req.srcFS.Type(),
 		"source_path", srcPath,
@@ -543,7 +543,7 @@ func transferDir(ctx context.Context, req FileTransferRequest, dstPath, srcPath 
 }
 
 // transferFile transfers a file
-func transferFile(ctx context.Context, req FileTransferRequest, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+func transferFile(ctx context.Context, req *FileTransferRequest, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	req.Log.DebugContext(ctx, "transferring file",
 		"source_fs", req.srcFS.Type(),
 		"source_file", srcPath,

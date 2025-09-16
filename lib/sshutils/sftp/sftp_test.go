@@ -58,14 +58,14 @@ func TestTransferFiles(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		req             FileTransferRequest
+		req             *FileTransferRequest
 		globbedSrcPaths []string
 		files           []string
 		errCheck        require.ErrorAssertionFunc
 	}{
 		{
 			name: "one file",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{"file"},
 				},
@@ -80,7 +80,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "one file to dir",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{"file"},
 				},
@@ -96,7 +96,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "one dir",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{"src/"},
 				},
@@ -112,7 +112,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "two files dst doesn't exist",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{
 						"src/file1",
@@ -131,7 +131,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "two files dst does exist",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{
 						"src/file1",
@@ -151,7 +151,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "nested dirs",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{"s"},
 				},
@@ -173,7 +173,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "globbed files dst doesn't exist",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{"glob*"},
 				},
@@ -196,7 +196,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "globbed files dst does exist",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{"glob*"},
 				},
@@ -220,7 +220,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "multiple glob patterns",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{
 						"glob*",
@@ -251,7 +251,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "multiple glob patterns with normal path",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{
 						"glob*",
@@ -284,8 +284,40 @@ func TestTransferFiles(t *testing.T) {
 			},
 		},
 		{
+			name: "recursive glob pattern",
+			req: &FileTransferRequest{
+				Sources: Sources{
+					Paths: []string{"glob*"},
+				},
+				Destination: Target{
+					Path: "dst/",
+				},
+				Recursive:     true,
+				PreserveAttrs: true,
+			},
+			globbedSrcPaths: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+				"globfile",
+			},
+			files: []string{
+				"globS/",
+				"globS/file",
+				"globA/",
+				"globA/file",
+				"globT/",
+				"globT/file",
+				"globB/",
+				"globB/file",
+				"globfile",
+				"dst/",
+			},
+		},
+		{
 			name: "recursive glob pattern with normal path",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{
 						"glob*",
@@ -322,7 +354,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "multiple src dst not dir",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{
 						"uno",
@@ -346,7 +378,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "multiple matches from src dst not dir",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{"glob*"},
 				},
@@ -366,7 +398,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "src dir with recursive not passed",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{"src/"},
 				},
@@ -384,7 +416,7 @@ func TestTransferFiles(t *testing.T) {
 		},
 		{
 			name: "non-existent src file",
-			req: FileTransferRequest{
+			req: &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{"idontexist"},
 				},
@@ -491,7 +523,7 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	require.NoError(t, err)
 
 	dstPath := filepath.Join(tempDir, "dst")
-	req := FileTransferRequest{
+	req := &FileTransferRequest{
 		Sources: Sources{
 			Paths: []string{linkPath},
 		},
