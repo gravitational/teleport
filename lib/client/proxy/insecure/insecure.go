@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -85,8 +86,8 @@ func NewConnection(
 	conn, err := grpc.Dial(
 		params.ProxyServer,
 		grpc.WithContextDialer(client.GRPCContextDialer(dialer)),
-		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
-		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+		grpc.WithChainUnaryInterceptor(metadata.UnaryClientInterceptor, interceptors.GRPCClientUnaryErrorInterceptor),
+		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, interceptors.GRPCClientStreamErrorInterceptor),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
 	return conn, trace.Wrap(err)
