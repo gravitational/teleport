@@ -60,6 +60,8 @@ const (
 	// teleportToolsDirsEnv overrides Teleport tools directory for saving updated
 	// versions.
 	teleportToolsDirsEnv = "TELEPORT_TOOLS_DIR"
+	// teleportToolsPathReExecEnv is env used for passing original execution path to re-executed version.
+	teleportToolsPathReExecEnv = "TELEPORT_TOOLS_PATH_REEXEC"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -418,9 +420,11 @@ func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) 
 	}
 
 	env := filterEnvs(os.Environ(), []string{
+		teleportToolsPathReExecEnv,
 		teleportToolsVersionReExecEnv,
 		teleportToolsDirsEnv,
 	})
+	env = append(env, fmt.Sprintf("%s=%s", teleportToolsPathReExecEnv, executablePath))
 	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
 	env = append(env, fmt.Sprintf("%s=%s", teleportToolsDirsEnv, u.toolsDir))
 	// To prevent re-execution loop we have to disable update logic for re-execution,
