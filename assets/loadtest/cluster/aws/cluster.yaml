@@ -3,7 +3,7 @@ kind: ClusterConfig
 metadata:
   name: luke
   region: us-west-2
-  version: "1.33"
+  version: "1.29"
   tags:
     teleport.dev/creator: "lukasz.okraszewski@goteleport.com"
 

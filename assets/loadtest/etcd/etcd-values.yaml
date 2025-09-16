@@ -7,11 +7,11 @@ persistence:
 
 resources:
   limits:
-    cpu: 4
-    memory: 6Gi
+    cpu: 6
+    memory: 10Gi
   requests:
-    cpu: 2
-    memory: 2Gi
+    cpu: 3
+    memory: 5Gi
 
 replicaCount: 5
 
@@ -24,11 +24,13 @@ args:
 image:
   repository: bitnamilegacy/etcd
 
+# Each item will be written every ~3min, @600k items -> 3.333k writes/s
 
-autoCompactionMode: periodic
-autoCompactionRetention: 1h
+# 600k items * 2kib * 5 => 6gig
+autoCompactionMode: revision
+autoCompactionRetention: "5"
 
 defrag:
   enabled: true
   cronjob:
-    schedule: "0 */2 * * *"
+    schedule: "*/15 * * * *"
