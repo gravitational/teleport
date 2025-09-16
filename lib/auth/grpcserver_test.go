@@ -5516,7 +5516,7 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.EqualValues(t, currentAcceptedTotal+N, getAcceptedTotal())
+		require.EqualValues(t, currentAcceptedTotal+N, getAcceptedTotal())
 	}, time.Second, 100*time.Millisecond)
 
 	ac := proto.NewAuthServiceClient(clt.APIClient.GetConnection())

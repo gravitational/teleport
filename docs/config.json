@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.1.4",
+      "version": "18.1.8",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -227,6 +227,11 @@
     {
       "source": "/machine-id/reference/v16-upgrade-guide/",
       "destination": "/reference/machine-workload-identity/machine-id/v16-upgrade-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
       "permanent": true
     },
     {
@@ -656,7 +661,7 @@
     },
     {
       "source": "/enroll-resources/machine-id/getting-started/",
-      "destination": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
       "permanent": true
     },
     {
