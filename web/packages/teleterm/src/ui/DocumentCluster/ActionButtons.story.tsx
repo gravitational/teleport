@@ -150,7 +150,6 @@ function Buttons(props: StoryProps) {
 }
 
 const testCluster = makeRootCluster();
-testCluster.loggedInUser.sshLogins = ['ec2-user'];
 
 function prepareAppContext(appContext: MockAppContext): void {
   appContext.workspacesService.setState(d => {
