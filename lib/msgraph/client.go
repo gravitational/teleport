@@ -58,6 +58,9 @@ var scopes = []string{"https://graph.microsoft.com/.default"}
 // AzureTokenProvider defines a method to get an authorization token from the Entra STS.
 // Concrete implementations of this are defined by [github.com/Azure/azure-sdk-for-go/sdk/azidentity].
 type AzureTokenProvider interface {
+	// GetToken requests an access token from Microsoft Entra ID. Token providers from azidentity
+	// return cached tokens whenever possible and are safe for concurrent use.
+	// https://github.com/Azure/azure-sdk-for-go/blob/sdk/azidentity/v1.11.0/sdk/azidentity/TOKEN_CACHING.MD
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
 }
 
