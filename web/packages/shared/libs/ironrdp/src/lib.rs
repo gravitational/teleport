@@ -73,6 +73,11 @@ pub fn init_wasm_log(log_level: &str) {
 pub struct BitmapFrame {
     top: u16,
     left: u16,
+
+    dirty_x: u16,
+    dirty_y: u16,
+    dirty_width: u16,
+    dirty_height: u16,
     image_data: ImageData,
 }
 
@@ -89,6 +94,26 @@ impl BitmapFrame {
     }
 
     #[wasm_bindgen(getter)]
+    pub fn dirty_x(&self) -> u16 {
+        self.dirty_x
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn dirty_y(&self) -> u16 {
+        self.dirty_y
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn dirty_width(&self) -> u16 {
+        self.dirty_width
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn dirty_height(&self) -> u16 {
+        self.dirty_height
+    }
+
+    #[wasm_bindgen(getter)]
     pub fn image_data(&self) -> ImageData {
         self.image_data.clone() // TODO(isaiah): can we remove this clone?
     }
@@ -96,7 +121,7 @@ impl BitmapFrame {
 
 fn create_image_data_from_image_and_region(
     image_data: &[u8],
-    image_location: InclusiveRectangle,
+    image_location: &InclusiveRectangle,
 ) -> Result<ImageData, JsValue> {
     ImageData::new_with_u8_clamped_array_and_sh(
         Clamped(image_data),
@@ -204,9 +229,7 @@ impl FastPathProcessor {
             match output {
                 ActiveStageOutput::GraphicsUpdate(updated_region) => {
                     // Apply the updated region to the canvas.
-                    let (image_location, image_data) =
-                        extract_partial_image(&self.image, updated_region);
-                    self.apply_image_to_canvas(image_data, image_location, cb_context, draw_cb)?;
+                    self.apply_image_to_canvas(self.image.data(), updated_region, cb_context, draw_cb, self.image.width(), self.image.height())?;
                 }
                 ActiveStageOutput::ResponseFrame(frame) => {
                     // Send the response frame back to the server.
@@ -220,7 +243,7 @@ impl FastPathProcessor {
                     let data = &pointer.bitmap_data;
                     let image_data = create_image_data_from_image_and_region(
                         data,
-                        InclusiveRectangle {
+                        &InclusiveRectangle {
                             left: 0,
                             top: 0,
                             right: pointer.width - 1,
@@ -280,18 +303,28 @@ impl FastPathProcessor {
 
     fn apply_image_to_canvas(
         &self,
-        image_data: Vec<u8>,
+        image_data: &[u8],
         image_location: InclusiveRectangle,
         cb_context: &JsValue,
         callback: &js_sys::Function,
+        image_width: u16,
+        image_height: u16,
     ) -> Result<(), JsValue> {
-        let top = image_location.top;
-        let left = image_location.left;
+        let image_data = create_image_data_from_image_and_region(&image_data,
+             &InclusiveRectangle {
+                left: 0,
+                top: 0,
+                right: image_width - 1,
+                bottom: image_height - 1,
+            })?;
 
-        let image_data = create_image_data_from_image_and_region(&image_data, image_location)?;
         let bitmap_frame = BitmapFrame {
-            top,
-            left,
+            top: 0,
+            left: 0,
+            dirty_x: image_location.left,
+            dirty_y: image_location.top,
+            dirty_width: image_location.width(),
+            dirty_height: image_location.height(),
             image_data,
         };
 
@@ -301,87 +334,4 @@ impl FastPathProcessor {
         let _ret = callback.call1(cb_context, bitmap_frame)?;
         Ok(())
     }
-}
-
-/// Taken from https://github.com/Devolutions/IronRDP/blob/35839459aa58c5c42cd686b39b63a7944285c0de/crates/ironrdp-web/src/image.rs#L6
-pub fn extract_partial_image(
-    image: &DecodedImage,
-    region: InclusiveRectangle,
-) -> (InclusiveRectangle, Vec<u8>) {
-    // PERF: needs actual benchmark to find a better heuristic
-    if region.height() > 64 || region.width() > 512 {
-        extract_whole_rows(image, region)
-    } else {
-        extract_smallest_rectangle(image, region)
-    }
-}
-
-/// Faster for low-height and smaller images
-///
-/// https://github.com/Devolutions/IronRDP/blob/35839459aa58c5c42cd686b39b63a7944285c0de/crates/ironrdp-web/src/image.rs#L16
-fn extract_smallest_rectangle(
-    image: &DecodedImage,
-    region: InclusiveRectangle,
-) -> (InclusiveRectangle, Vec<u8>) {
-    let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
-
-    let image_width = usize::from(image.width());
-    let image_stride = image_width * pixel_size;
-
-    let region_top = usize::from(region.top);
-    let region_left = usize::from(region.left);
-    let region_width = usize::from(region.width());
-    let region_height = usize::from(region.height());
-    let region_stride = region_width * pixel_size;
-
-    let dst_buf_size = region_width * region_height * pixel_size;
-    let mut dst = vec![0; dst_buf_size];
-
-    let src = image.data();
-
-    for row in 0..region_height {
-        let src_begin = image_stride * (region_top + row) + region_left * pixel_size;
-        let src_end = src_begin + region_stride;
-        let src_slice = &src[src_begin..src_end];
-
-        let target_begin = region_stride * row;
-        let target_end = target_begin + region_stride;
-        let target_slice = &mut dst[target_begin..target_end];
-
-        target_slice.copy_from_slice(src_slice);
-    }
-
-    (region, dst)
-}
-
-/// Faster for high-height and bigger images
-///
-/// https://github.com/Devolutions/IronRDP/blob/35839459aa58c5c42cd686b39b63a7944285c0de/crates/ironrdp-web/src/image.rs#L49
-fn extract_whole_rows(
-    image: &DecodedImage,
-    region: InclusiveRectangle,
-) -> (InclusiveRectangle, Vec<u8>) {
-    let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
-
-    let image_width = usize::from(image.width());
-    let image_stride = image_width * pixel_size;
-
-    let region_top = usize::from(region.top);
-    let region_bottom = usize::from(region.bottom);
-
-    let src = image.data();
-
-    let src_begin = region_top * image_stride;
-    let src_end = (region_bottom + 1) * image_stride;
-
-    let dst = src[src_begin..src_end].to_vec();
-
-    let wider_region = InclusiveRectangle {
-        left: 0,
-        top: region.top,
-        right: image.width() - 1,
-        bottom: region.bottom,
-    };
-
-    (wider_region, dst)
 }
