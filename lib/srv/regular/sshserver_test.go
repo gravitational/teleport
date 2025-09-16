@@ -330,7 +330,7 @@ func TestTerminalSizeRequest(t *testing.T) {
 	})
 
 	t.Run("Active session", func(t *testing.T) {
-		se, err := f.ssh.clt.NewSession(ctx)
+		se, err := f.ssh.clt.NewSession(ctx, nil)
 		require.NoError(t, err)
 		defer se.Close()
 
@@ -492,7 +492,7 @@ func TestSessionAuditLog(t *testing.T) {
 	}
 
 	// Start a new session
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 
 	// start interactive SSH session (new shell):
@@ -714,7 +714,7 @@ func TestInactivityTimeout(t *testing.T) {
 		// If all goes well, the client will be closed by the time cleanup happens,
 		// so change the assertion on closing the client to expect it to fail
 		f.ssh.assertCltClose = require.Error
-		se, err := f.ssh.clt.NewSession(context.Background())
+		se, err := f.ssh.clt.NewSession(context.Background(), nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, err) })
 		waitForTimeout(t, f, se)
@@ -726,7 +726,7 @@ func TestInactivityTimeout(t *testing.T) {
 		// If all goes well, the client will be closed by the time cleanup happens,
 		// so change the assertion on closing the client to expect it to fail
 		f.ssh.assertCltClose = require.Error
-		se, err := f.ssh.clt.NewSession(context.Background())
+		se, err := f.ssh.clt.NewSession(context.Background(), nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, err) })
 
@@ -763,7 +763,7 @@ func TestLockInForce(t *testing.T) {
 	// so change the assertion on closing the client to expect it to fail.
 	f.ssh.assertCltClose = require.Error
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 
 	stderr, err := se.StderrPipe()
@@ -827,7 +827,7 @@ func TestLockInForce(t *testing.T) {
 		// an error on this second attempt.
 		require.Error(t, newClient.Close())
 	})
-	_, err = newClient.NewSession(ctx)
+	_, err = newClient.NewSession(ctx, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), lockInForceMsg)
 
@@ -836,7 +836,7 @@ func TestLockInForce(t *testing.T) {
 	newClient2, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, newClient2.Close()) })
-	_, err = newClient2.NewSession(ctx)
+	_, err = newClient2.NewSession(ctx, nil)
 	require.NoError(t, err)
 }
 
@@ -1147,7 +1147,7 @@ func TestAgentForwardPermission(t *testing.T) {
 	require.NoError(t, err)
 	defer clientConn.Close()
 
-	se, err := clientConn.NewSession(ctx)
+	se, err := clientConn.NewSession(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
@@ -1186,12 +1186,12 @@ func TestMaxSessions(t *testing.T) {
 	defer clientConn.Close()
 
 	for range maxSessions {
-		se, err := clientConn.NewSession(ctx)
+		se, err := clientConn.NewSession(ctx, nil)
 		require.NoError(t, err)
 		defer se.Close()
 	}
 
-	_, err = clientConn.NewSession(ctx)
+	_, err = clientConn.NewSession(ctx, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "too many session channels")
 
@@ -1216,7 +1216,7 @@ func TestExecLongCommand(t *testing.T) {
 	echoPath, err := exec.LookPath("echo")
 	require.NoError(t, err)
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -1232,7 +1232,7 @@ func TestOpenExecSessionSetsSession(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -1258,7 +1258,7 @@ func TestAgentForward(t *testing.T) {
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
@@ -1402,7 +1402,7 @@ func TestX11Forward(t *testing.T) {
 // echoing XServer requests received back to the client. Returns the Display opened on the
 // session, which is set in $DISPLAY.
 func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11.Display {
-	se, err := clt.NewSession(context.Background())
+	se, err := clt.NewSession(context.Background(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
@@ -1623,7 +1623,7 @@ func TestInvalidSessionID(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
-	session, err := f.ssh.clt.NewSession(ctx)
+	session, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 
 	err = session.Setenv(ctx, sshutils.SessionEnvVar, "foo")
@@ -1661,7 +1661,7 @@ func TestSessionHijack(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	se, err := client.NewSession(ctx)
+	se, err := client.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -1689,7 +1689,7 @@ func TestSessionHijack(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	se2, err := client2.NewSession(ctx)
+	se2, err := client2.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se2.Close()
 
@@ -1709,7 +1709,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	require.NoError(t, err)
 	defer client.Close()
 
-	se, err := client.NewSession(ctx)
+	se, err := client.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -1752,7 +1752,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	require.NoError(t, err)
 	defer client2.Close()
 
-	se2, err := client2.NewSession(ctx)
+	se2, err := client2.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se2.Close()
 
@@ -2030,7 +2030,7 @@ func TestPTY(t *testing.T) {
 
 	f := newFixtureWithoutDiskBasedLogging(t)
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -2049,7 +2049,7 @@ func TestEnv(t *testing.T) {
 
 	f := newFixtureWithoutDiskBasedLogging(t)
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -2067,7 +2067,7 @@ func TestEnvs(t *testing.T) {
 
 	f := newFixtureWithoutDiskBasedLogging(t)
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -2094,7 +2094,7 @@ func TestUnknownRequest(t *testing.T) {
 
 	f := newFixtureWithoutDiskBasedLogging(t)
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -2145,7 +2145,7 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, clt)
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	require.NoError(t, se.Shell(ctx))
 	require.NoError(t, clt.Close())
@@ -2234,7 +2234,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, clt0)
 
-	se0, err := clt0.NewSession(ctx)
+	se0, err := clt0.NewSession(ctx, nil)
 	require.NoError(t, err)
 	require.NoError(t, se0.Shell(ctx))
 
@@ -2242,7 +2242,7 @@ func TestLimiter(t *testing.T) {
 	clt, err := tracessh.Dial(ctx, "tcp", srv.Addr(), config)
 	require.NoError(t, err)
 	require.NotNil(t, clt)
-	se, err := clt.NewSession(ctx)
+	se, err := clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	require.NoError(t, se.Shell(ctx))
 
@@ -2261,7 +2261,7 @@ func TestLimiter(t *testing.T) {
 	clt, err = tracessh.Dial(ctx, "tcp", srv.Addr(), config)
 	require.NoError(t, err)
 	require.NotNil(t, clt)
-	se, err = clt.NewSession(ctx)
+	se, err = clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	require.NoError(t, se.Shell(ctx))
 
@@ -2281,7 +2281,7 @@ func TestLimiter(t *testing.T) {
 	clt, err = tracessh.Dial(ctx, "tcp", srv.Addr(), config)
 	require.NoError(t, err)
 	require.NotNil(t, clt)
-	_, err = clt.NewSession(ctx)
+	_, err = clt.NewSession(ctx, nil)
 	require.Error(t, err)
 
 	clt.Close()
@@ -2612,7 +2612,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 	getNonProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
 		return func() *tracessh.Session {
-			se, err := f.ssh.clt.NewSession(context.Background())
+			se, err := f.ssh.clt.NewSession(context.Background(), nil)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = se.Close() })
 			return se
@@ -2722,7 +2722,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = client.Close() })
 
-			se, err := client.NewSession(ctx)
+			se, err := client.NewSession(ctx, nil)
 			require.NoError(t, err)
 
 			return se
@@ -2841,7 +2841,7 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NoError(t, err)
 	clt := tracessh.NewClient(cltConn, chs, reqs)
 
-	sess, err := clt.NewSession(ctx)
+	sess, err := clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 
 	// register X11 channel handler before requesting forwarding to avoid races
@@ -2990,7 +2990,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	se, err := client.NewSession(ctx)
+	se, err := client.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -3034,7 +3034,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	require.NoError(t, err)
 	defer client2.Close()
 
-	se2, err := client2.NewSession(ctx)
+	se2, err := client2.NewSession(ctx, nil)
 	require.NoError(t, err)
 	defer se2.Close()
 
@@ -3051,7 +3051,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
