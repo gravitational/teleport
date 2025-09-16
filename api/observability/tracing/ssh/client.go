@@ -163,13 +163,8 @@ func (c *Client) OpenChannel(
 	}, reqs, err
 }
 
-// NewSession opens a new Session for this client.
-func (c *Client) NewSession(ctx context.Context) (*Session, error) {
-	return c.NewSessionWithParams(ctx, nil)
-}
-
 // NewSession opens a new Session for this client with the given (optional) params.
-func (c *Client) NewSessionWithParams(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
+func (c *Client) NewSession(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start(
 		ctx,
