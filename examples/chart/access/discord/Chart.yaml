@@ -1,4 +1,4 @@
-.version: &version "18.2.1"
+.version: &version "18.2.2-dev.winterrprovider.1"
 
 apiVersion: v2
 name: teleport-plugin-discord
