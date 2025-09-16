@@ -336,12 +336,16 @@ export class TdpClient extends EventEmitter<EventMap> {
       `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`
     );
 
-    this.fastPathProcessor = new FastPathProcessor(
-      spec.width,
-      spec.height,
-      ioChannelId,
-      userChannelId
-    );
+    if (this.fastPathProcessor === undefined) {
+      this.fastPathProcessor = new FastPathProcessor(
+        spec.width,
+        spec.height,
+        ioChannelId,
+        userChannelId
+      );
+    } else {
+      this.fastPathProcessor.resize(spec.width, spec.height);
+    }
   }
 
   // processMessage should be await-ed when called,
