@@ -1059,7 +1059,11 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
+		// Ensure that the leaf apps appear in both the root and leaf clusters
+		// before continuing on. This should guarantee that apps will be reachable
+		// via the root or leaf cluster at this point.
 		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, configs[i].Apps.Apps)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.leafAppClusterName, configs[i].Apps.Apps)
 	}
 
 	return servers
