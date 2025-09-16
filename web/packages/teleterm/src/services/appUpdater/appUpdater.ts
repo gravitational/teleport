@@ -19,7 +19,6 @@
 import { rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import process from 'process';
 
 import { app } from 'electron';
 import {
@@ -52,7 +51,7 @@ import {
   ClientToolsVersionGetter,
 } from './clientToolsUpdateProvider';
 
-const TELEPORT_TOOLS_VERSION_ENV_VAR = 'TELEPORT_TOOLS_VERSION';
+export const TELEPORT_TOOLS_VERSION_ENV_VAR = 'TELEPORT_TOOLS_VERSION';
 
 export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
@@ -69,6 +68,7 @@ export class AppUpdater {
     private readonly getClusterVersions: () => Promise<GetClusterVersionsResponse>,
     readonly getDownloadBaseUrl: () => Promise<string>,
     private readonly emit: (event: AppUpdateEvent) => void,
+    private versionEnvVar: string,
     /** Allows overring autoUpdater in tests. */
     private nativeUpdater: NativeUpdater = autoUpdater
   ) {
@@ -324,11 +324,10 @@ export class AppUpdater {
   }
 
   private async refreshAutoUpdatesStatus(): Promise<void> {
-    const versionEnvVar = process.env[TELEPORT_TOOLS_VERSION_ENV_VAR];
     const { managingClusterUri } = this.storage.get();
 
     this.autoUpdatesStatus = await resolveAutoUpdatesStatus({
-      versionEnvVar,
+      versionEnvVar: this.versionEnvVar,
       managingClusterUri,
       getClusterVersions: this.getClusterVersions,
     });
