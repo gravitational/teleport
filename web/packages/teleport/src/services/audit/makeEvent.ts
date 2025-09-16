@@ -2149,6 +2149,31 @@ export const formatters: Formatters = {
       return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
     },
   },
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: {
+    type: 'join_token.bound_keypair.recovery',
+    desc: 'Bound Keypair Recovery',
+    format: ({ token_name, success, error, recovery_count }) => {
+      return success
+        ? `Bound Keypair token [${token_name}] was successfully used in a recovery attempt. New counter value: ${recovery_count}`
+        : `Bound Keypair token [${token_name}] was used to attempt a recovery and failed: ${error}`;
+    },
+  },
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: {
+    type: 'join_token.bound_keypair.rotation',
+    desc: 'Bound Keypair Rotation',
+    format: ({ token_name, success, error }) => {
+      return success
+        ? `Bound Keypair token [${token_name}] successfully rotated its public key during a join attempt`
+        : `Bound Keypair token [${token_name}] failed to rotate its public key during a join attempt: ${error}`;
+    },
+  },
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: {
+    type: 'join_token.bound_keypair.join_state_verification_failed',
+    desc: 'Bound Keypair Join Verification Failed',
+    format: ({ token_name, error }) => {
+      return `Bound keypair token [${token_name}] failed to verify a join attempt: ${error}`;
+    },
+  },
 };
 
 const unknownFormatter = {

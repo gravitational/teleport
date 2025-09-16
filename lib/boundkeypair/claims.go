@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,23 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tctl
+package boundkeypair
 
-import (
-	"context"
-
-	"github.com/gravitational/teleport/integration/autoupdate/tools/updater"
-	"github.com/gravitational/teleport/lib/modules"
-	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
-	tctl "github.com/gravitational/teleport/tool/tctl/common"
-)
-
-func Main() {
-	ctx, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
-	defer cancel()
-
-	modules.SetInsecureTestMode(true)
-	modules.SetModules(&updater.TestModules{})
-
-	tctl.Run(ctx, tctl.Commands())
+// Claims contains extended claims resulting from bound keypair joining
+type Claims struct {
+	// PublicKey is the verified public key trusted at the end of the joining
+	// process.
+	PublicKey string `json:"public_key"`
+	// RecoveryCount is the recovery counter value at the end of the joining
+	// process.
+	RecoveryCount uint32 `json:"recovery_count"`
+	// RecoveryMode is the recovery mode as configured at the time of the join
+	// attempt.
+	RecoveryMode RecoveryMode `json:"recovery_mode"`
 }
