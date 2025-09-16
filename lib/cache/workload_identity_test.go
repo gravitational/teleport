@@ -131,12 +131,12 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 6)
-		assert.Equal(t, "/test/spiffe/1", results[0].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/1", results[1].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/2", results[2].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/2", results[3].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/3", results[4].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/3", results[5].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/Test/spiffe/1", results[0].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/test/spiffe/1", results[1].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/Test/spiffe/2", results[2].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/test/spiffe/2", results[3].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/Test/spiffe/3", results[4].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/test/spiffe/3", results[5].GetSpec().GetSpiffe().GetId())
 	})
 
 	t.Run("sort descending by spiffe_id", func(t *testing.T) {
@@ -146,24 +146,24 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 6)
-		assert.Equal(t, "/Test/spiffe/3", results[0].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/3", results[1].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/2", results[2].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/2", results[3].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/1", results[4].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/1", results[5].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/test/spiffe/3", results[0].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/Test/spiffe/3", results[1].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/test/spiffe/2", results[2].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/Test/spiffe/2", results[3].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/test/spiffe/1", results[4].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/Test/spiffe/1", results[5].GetSpec().GetSpiffe().GetId())
 	})
 
 	t.Run("sort ascending by name", func(t *testing.T) {
 		results, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", nil) // empty sort should default to `name:asc`
 		require.NoError(t, err)
 		require.Len(t, results, 6)
-		assert.Equal(t, "test-workload-identity-1", results[0].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-2", results[1].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-3", results[2].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-4", results[3].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-5", results[4].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-6", results[5].GetMetadata().GetName())
+		assert.Equal(t, "Test-workload-identity-4", results[0].GetMetadata().GetName())
+		assert.Equal(t, "Test-workload-identity-5", results[1].GetMetadata().GetName())
+		assert.Equal(t, "Test-workload-identity-6", results[2].GetMetadata().GetName())
+		assert.Equal(t, "test-workload-identity-1", results[3].GetMetadata().GetName())
+		assert.Equal(t, "test-workload-identity-2", results[4].GetMetadata().GetName())
+		assert.Equal(t, "test-workload-identity-3", results[5].GetMetadata().GetName())
 	})
 
 	t.Run("sort descending by name", func(t *testing.T) {
@@ -173,12 +173,12 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 6)
-		assert.Equal(t, "Test-workload-identity-6", results[0].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-5", results[1].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-4", results[2].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-3", results[3].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-2", results[4].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-1", results[5].GetMetadata().GetName())
+		assert.Equal(t, "test-workload-identity-3", results[0].GetMetadata().GetName())
+		assert.Equal(t, "test-workload-identity-2", results[1].GetMetadata().GetName())
+		assert.Equal(t, "test-workload-identity-1", results[2].GetMetadata().GetName())
+		assert.Equal(t, "Test-workload-identity-6", results[3].GetMetadata().GetName())
+		assert.Equal(t, "Test-workload-identity-5", results[4].GetMetadata().GetName())
+		assert.Equal(t, "Test-workload-identity-4", results[5].GetMetadata().GetName())
 	})
 }
 
@@ -277,4 +277,61 @@ func TestWorkloadIdentityCacheSearchFilter(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 5)
+}
+
+// TestWorkloadIdentityCaseSensitiveName tests that workload identity name index keys remain case sensitive.
+func TestWorkloadIdentityCaseSensitiveName(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, func(cfg Config) Config {
+		return ForAuth(cfg)
+	})
+	t.Cleanup(p.Close)
+
+	{
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+			Kind:    types.KindWorkloadIdentity,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "TEST-WORKLOAD-IDENTITY-1",
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: "/test/spiffe/1",
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	{
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+			Kind:    types.KindWorkloadIdentity,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "test-workload-identity-1",
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: "/test/spiffe/1",
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// Let the cache catch up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			SortField: "name",
+			SortDesc:  true,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+
+		require.Equal(t, results[0].Metadata.Name, "test-workload-identity-1")
+		require.Equal(t, results[1].Metadata.Name, "TEST-WORKLOAD-IDENTITY-1")
+	}, 10*time.Second, 100*time.Millisecond)
 }

@@ -132,8 +132,7 @@ func (c *Cache) GetWorkloadIdentity(ctx context.Context, name string) (*workload
 }
 
 func keyForWorkloadIdentityNameIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
-	// Sort case-insensitively to keep Test1 and test1 together
-	return cases.Fold().String(r.GetMetadata().GetName())
+	return r.GetMetadata().GetName()
 }
 
 func keyForWorkloadIdentitySpiffeIDIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
