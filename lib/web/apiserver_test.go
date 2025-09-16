@@ -512,8 +512,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Expired sessions are purged immediately
 	var sessionLingeringThreshold time.Duration
-	fs, err := NewDebugFileSystem(false)
-	require.NoError(t, err)
 
 	features := *modules.GetModules().Features().ToProto() // safe to dereference because ToProto creates a struct and return a pointer to it
 	if cfg.ClusterFeatures != nil {
@@ -539,7 +537,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Context:                         s.ctx,
 		HostUUID:                        proxyID,
 		Emitter:                         s.proxyClient,
-		StaticFS:                        fs,
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings: &ProxySettings{
 			ServiceConfig: servicecfg.MakeDefaultConfig(),
@@ -8600,9 +8597,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 
-	fs, err := NewDebugFileSystem(false)
-	require.NoError(t, err)
-
 	authID := state.IdentityID{
 		Role:     types.RoleProxy,
 		HostUUID: proxyID,
@@ -8622,7 +8616,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Context:          ctx,
 		HostUUID:         proxyID,
 		Emitter:          client,
-		StaticFS:         fs,
 		ProxySettings: &ProxySettings{
 			ServiceConfig: servicecfg.MakeDefaultConfig(),
 			ProxySSHAddr:  "127.0.0.1",
