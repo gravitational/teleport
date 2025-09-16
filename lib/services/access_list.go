@@ -300,7 +300,7 @@ func AccessListNameIndexKey(al *accesslist.AccessList) string {
 // AccessListAuditDateIndexKey returns the DateOnly formatted next audit date
 // followed by the resource name for disambiguation.
 func AccessListAuditDateIndexKey(al *accesslist.AccessList) string {
-	if al.Spec.Audit.NextAuditDate.IsZero() {
+	if !al.IsReviewable() || al.Spec.Audit.NextAuditDate.IsZero() {
 		// Use last lexical character to ensure that ACLs without an audit date
 		// appear at the end when sorted. Otherwise we would compare against
 		// `0001-01-01 00:00:00` which would sort first, but actually means
