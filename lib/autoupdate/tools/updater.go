@@ -420,13 +420,16 @@ func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) 
 	}
 
 	env := filterEnvs(os.Environ(), []string{
-		teleportToolsPathReExecEnv,
 		teleportToolsVersionReExecEnv,
 		teleportToolsDirsEnv,
 	})
-	env = append(env, fmt.Sprintf("%s=%s", teleportToolsPathReExecEnv, executablePath))
-	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
-	env = append(env, fmt.Sprintf("%s=%s", teleportToolsDirsEnv, u.toolsDir))
+	env = append(env, teleportToolsVersionReExecEnv+"="+u.localVersion)
+	env = append(env, teleportToolsDirsEnv+"="+u.toolsDir)
+	// If tsh or tctl has already been re-executed with the original path,
+	// we need to pass that path to the next re-execution.
+	if GetReExecPath() == "" {
+		env = append(env, teleportToolsPathReExecEnv+"="+executablePath)
+	}
 	// To prevent re-execution loop we have to disable update logic for re-execution,
 	// by unsetting current tools version env variable and setting it to "off"
 	// if same version is requested to be re-executed.
