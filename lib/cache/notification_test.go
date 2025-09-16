@@ -33,7 +33,7 @@ func TestUserNotifications(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*notificationsv1.Notification]{
+	testResources153(t, p, testFuncs[*notificationsv1.Notification]{
 		newResource: func(name string) (*notificationsv1.Notification, error) {
 			return newUserNotification(t, name), nil
 		},
@@ -45,12 +45,12 @@ func TestUserNotifications(t *testing.T) {
 			items, _, err := p.notifications.ListUserNotifications(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*notificationsv1.Notification, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*notificationsv1.Notification, error) {
 			items, _, err := p.cache.ListUserNotifications(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		deleteAll: p.notifications.DeleteAllUserNotifications,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestGlobalNotifications tests that CRUD operations on global notification resources are
@@ -61,7 +61,7 @@ func TestGlobalNotifications(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*notificationsv1.GlobalNotification]{
+	testResources153(t, p, testFuncs[*notificationsv1.GlobalNotification]{
 		newResource: func(name string) (*notificationsv1.GlobalNotification, error) {
 			return newGlobalNotification(t, name), nil
 		},
@@ -73,10 +73,10 @@ func TestGlobalNotifications(t *testing.T) {
 			items, _, err := p.notifications.ListGlobalNotifications(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*notificationsv1.GlobalNotification, error) {
 			items, _, err := p.cache.ListGlobalNotifications(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		deleteAll: p.notifications.DeleteAllGlobalNotifications,
-	})
+	}, withSkipPaginationTest())
 }

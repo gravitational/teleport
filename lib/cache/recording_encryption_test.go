@@ -48,7 +48,7 @@ func TestRecordingEncryption(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*recordingencryptionv1.RecordingEncryption]{
+	testResources153(t, p, testFuncs[*recordingencryptionv1.RecordingEncryption]{
 		newResource: func(name string) (*recordingencryptionv1.RecordingEncryption, error) {
 			return newRecordingEncryption(), nil
 		},
@@ -67,7 +67,7 @@ func TestRecordingEncryption(t *testing.T) {
 			}
 			return []*recordingencryptionv1.RecordingEncryption{item}, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*recordingencryptionv1.RecordingEncryption, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*recordingencryptionv1.RecordingEncryption, error) {
 			item, err := p.cache.GetRecordingEncryption(ctx)
 			if trace.IsNotFound(err) {
 				return []*recordingencryptionv1.RecordingEncryption{}, nil
@@ -77,5 +77,5 @@ func TestRecordingEncryption(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(p.recordingEncryption.DeleteRecordingEncryption(ctx))
 		},
-	})
+	}, withSkipPaginationTest())
 }
