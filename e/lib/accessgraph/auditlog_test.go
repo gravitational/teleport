@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 package accessgraph
 
 import (
@@ -146,8 +144,8 @@ func Test_AuditLogExport_Search_Backfill(t *testing.T) {
 		searchEventRequest(batches[1].events, "b", ""),
 	}
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		server := newTAGServerMock(t, newConfigAndState(), 2, cancel) // cancel context after 2 requests
 		go server.AuditLogStream(serverStream)
@@ -177,8 +175,8 @@ func Test_AuditLogExport_Search_OneWait(t *testing.T) {
 		searchEventRequest(batches[3].events, "c", ""),
 	}
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		server := newTAGServerMock(t, newConfigAndState(), len(batches), cancel) // cancel context after 4 requests
 		go server.AuditLogStream(serverStream)
@@ -213,8 +211,8 @@ func Test_AuditLogExport_Search_TwoWaitNoneEmpty(t *testing.T) {
 		searchEventRequest(batches[4].events, "c", ""),
 	}
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		server := newTAGServerMock(t, newConfigAndState(), len(batches), cancel) // cancel context after 5 requests
 		go server.AuditLogStream(serverStream)
@@ -252,8 +250,8 @@ func Test_AuditLogExport_Search_TwoWaitOneEmpty(t *testing.T) {
 		searchEventRequest(batches[3].events[1:], "b", ""),
 		searchEventRequest(batches[4].events, "c", ""),
 	}
-	synctest.Run(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		server := newTAGServerMock(t, newConfigAndState(), len(batches)-1, cancel) // cancel context after 4 requests
 		go server.AuditLogStream(serverStream)
@@ -296,8 +294,8 @@ func Test_AuditLogExport_Search_WithResume(t *testing.T) {
 	configAndState := newConfigAndState()
 	searchState := &accessgraphv1.AuditLogStreamResponse_SearchResumeState{SearchResumeState: searchResumeState("X", "0")}
 	configAndState[1] = &accessgraphv1.AuditLogStreamResponse{State: searchState}
-	synctest.Run(func() { // use synctest for time.Now() fixture
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) { // use synctest for time.Now() fixture
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		server := newTAGServerMock(t, configAndState, len(batches), cancel)
 		go server.AuditLogStream(serverStream)
@@ -442,8 +440,8 @@ func Test_AuditLogExport_Bulk_Backfill(t *testing.T) {
 		bulkEventRequest(events6, day2, "chunk6", "", true),
 	}
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		server := newTAGServerMock(t, newConfigAndState(), len(want), cancel) // cancel context after wanted number of requests
 		go server.AuditLogStream(serverStream)
@@ -483,8 +481,8 @@ func Test_AuditLogExport_Bulk_BackfillManyDates(t *testing.T) {
 		bulkEventRequest(events6, start.AddDate(0, 0, 6), "chunk6", "", true),
 	}
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		server := newTAGServerMock(t, newConfigAndState(), len(want), cancel) // cancel context after wanted number of requests
 		go server.AuditLogStream(serverStream)
@@ -511,8 +509,8 @@ func Test_AuditLogExport_Bulk_SyncActiveDates(t *testing.T) {
 		bulkSync(synctestStart),
 	}
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		// cancel context after 2 requests; second request must be a bulk state sync
 		server := newTAGServerMock(t, newConfigAndState(), 2, cancel)
@@ -541,8 +539,8 @@ func Test_AuditLogExport_Bulk_SlowChunks(t *testing.T) {
 		bulkEventRequest(events1[2:], testStartDate, "chunk1", "", true),    // cursor=2 completed=true
 	}
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		// cancel context after 2 requests; second request must be a bulk state sync
 		server := newTAGServerMock(t, newConfigAndState(), 3, cancel)
@@ -574,8 +572,8 @@ func Test_AuditLogExport_Bulk_ManySlowChunks(t *testing.T) {
 		eventsMock.addChunk(testStartDate, fmt.Sprintf("chunk%d", i), 10)
 	}
 
-	synctest.Run(func() {
-		ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)
 		// cancel context after 2 requests; second request must be a bulk state sync
 		server := newTAGServerMock(t, newConfigAndState(), 1000, cancel)
@@ -675,7 +673,7 @@ func (b *bulkEventsMock) ExportUnstructuredEvents(ctx context.Context, req *audi
 	if b.delay <= 0 {
 		return stream.Slice(chunk)
 	}
-	return slowStream(chunk, b.delay)
+	return slowStream(ctx, chunk, b.delay)
 }
 
 func (b *bulkEventsMock) Close() error {
@@ -683,6 +681,7 @@ func (b *bulkEventsMock) Close() error {
 }
 
 type slowSlice[T any] struct {
+	ctx   context.Context
 	items []T
 	idx   int
 
@@ -692,7 +691,11 @@ type slowSlice[T any] struct {
 func (s *slowSlice[T]) Next() bool {
 	s.idx++
 	if s.idx > 0 && s.idx < len(s.items) { // don't sleep for fist item or when done
-		time.Sleep(s.delay)
+		select {
+		case <-time.After(s.delay):
+		case <-s.ctx.Done():
+			return false
+		}
 	}
 	return s.idx < len(s.items)
 }
@@ -705,8 +708,9 @@ func (s *slowSlice[T]) Done() error {
 	return nil
 }
 
-func slowStream[T any](items []T, delay time.Duration) stream.Stream[T] {
+func slowStream[T any](ctx context.Context, items []T, delay time.Duration) stream.Stream[T] {
 	return &slowSlice[T]{
+		ctx:   ctx,
 		delay: delay,
 		items: items,
 		idx:   -1,

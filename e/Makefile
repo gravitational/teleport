@@ -563,7 +563,7 @@ test-go-all:
 #
 test-go:
 ifneq ("$(SUBJECT)", "")
-	GOEXPERIMENT=synctest gotestsum -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
+	gotestsum -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
 endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource

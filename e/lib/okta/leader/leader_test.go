@@ -1,9 +1,6 @@
-//go:build go1.24 && enablesynctest
-
 package leader
 
 import (
-	"context"
 	"slices"
 	"strconv"
 	"testing"
@@ -20,7 +17,7 @@ import (
 )
 
 func TestBecomeLeader(t *testing.T) {
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		clock := clockwork.NewRealClock()
 		backend, err := memory.New(memory.Config{
 			Clock: clock,
@@ -40,7 +37,7 @@ func TestBecomeLeader(t *testing.T) {
 		semaphoreName := uuid.NewString()
 		semaphoreKind := "service"
 
-		ctx := context.Background()
+		ctx := t.Context()
 		for i := range numServices {
 			item, err := New(Config{
 				SemaphoreName: semaphoreName,
