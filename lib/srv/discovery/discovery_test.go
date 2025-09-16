@@ -1914,15 +1914,16 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	tcs := []struct {
-		name                        string
-		existingDatabases           []types.Database
-		integrationsOnlyCredentials bool
-		awsMatchers                 []types.AWSMatcher
-		azureMatchers               []types.AzureMatcher
-		expectDatabases             []types.Database
-		discoveryConfigs            func(*testing.T) []*discoveryconfig.DiscoveryConfig
-		discoveryConfigStatusCheck  func(*testing.T, discoveryconfig.Status)
-		wantEvents                  int
+		name                                   string
+		existingDatabases                      []types.Database
+		integrationsOnlyCredentials            bool
+		awsMatchers                            []types.AWSMatcher
+		azureMatchers                          []types.AzureMatcher
+		expectDatabases                        []types.Database
+		discoveryConfigs                       func(*testing.T) []*discoveryconfig.DiscoveryConfig
+		discoveryConfigStatusCheck             func(*assert.CollectT, discoveryconfig.Status)
+		discoveryConfigStatusExpectedResources int
+		wantEvents                             int
 	}{
 		{
 			name: "discover AWS database",
@@ -2119,8 +2120,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 				})
 				return []*discoveryconfig.DiscoveryConfig{dc1}
 			},
-			wantEvents: 1,
-			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+			wantEvents:                             1,
+			discoveryConfigStatusExpectedResources: 1,
+			discoveryConfigStatusCheck: func(t *assert.CollectT, s discoveryconfig.Status) {
 				require.Equal(t, uint64(1), s.DiscoveredResources)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Enrolled)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Found)
@@ -2152,9 +2154,10 @@ func TestDiscoveryDatabase(t *testing.T) {
 				})
 				return []*discoveryconfig.DiscoveryConfig{dc1}
 			},
-			expectDatabases: []types.Database{},
-			wantEvents:      0,
-			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+			expectDatabases:                        []types.Database{},
+			wantEvents:                             0,
+			discoveryConfigStatusExpectedResources: 1,
+			discoveryConfigStatusCheck: func(t *assert.CollectT, s discoveryconfig.Status) {
 				require.Equal(t, uint64(1), s.DiscoveredResources)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsEks.Found)
 				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.Enrolled)
@@ -2262,10 +2265,13 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}
 
 			if tc.discoveryConfigStatusCheck != nil {
-				dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
-				require.NoError(t, err)
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
+					require.NoError(t, err)
+					require.Equal(t, tc.discoveryConfigStatusExpectedResources, int(dc.Status.DiscoveredResources))
 
-				tc.discoveryConfigStatusCheck(t, dc.Status)
+					tc.discoveryConfigStatusCheck(t, dc.Status)
+				}, 10*time.Second, 100*time.Millisecond)
 			}
 		})
 	}
