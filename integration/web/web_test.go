@@ -103,6 +103,7 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 	leafAuth := leafServer.GetAuthServer()
 
 	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer,
+		2,
 		types.RoleMapping{
 			Remote: "app-access",
 			Local:  []string{"app-access"},
@@ -143,7 +144,8 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 				FQDNHint:    "root-app.root",
 			},
 			expectMFARequired: false,
-		}, {
+		},
+		{
 			name: "root-app-mfa",
 			resolveAppParams: web.ResolveAppParams{
 				AppName:     "root-app-mfa",
@@ -161,7 +163,8 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 				FQDNHint:    "leaf-app.root",
 			},
 			expectMFARequired: false,
-		}, {
+		},
+		{
 			name: "leaf-app-mfa",
 			resolveAppParams: web.ResolveAppParams{
 				AppName:     "leaf-app-mfa",
