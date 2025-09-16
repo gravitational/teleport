@@ -520,11 +520,12 @@ func TestCreateAccessListNextKey(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name        string
-		indexName   string
-		expected    string
-		expectError bool
-		withNoAudit bool
+		name          string
+		indexName     string
+		expected      string
+		expectError   bool
+		withNoAudit   bool
+		notReviewable bool
 	}{
 		{
 			name:      "name index",
@@ -543,6 +544,12 @@ func TestCreateAccessListNextKey(t *testing.T) {
 			withNoAudit: true,
 		},
 		{
+			name:          "auditNextDate non-reviewable",
+			indexName:     "auditNextDate",
+			expected:      "z/test-access-list",
+			notReviewable: true,
+		},
+		{
 			name:      "title index",
 			indexName: "title",
 			expected:  "F9IN0Q3PE8/test-access-list",
@@ -558,6 +565,9 @@ func TestCreateAccessListNextKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.withNoAudit {
 				al.Spec.Audit.NextAuditDate = time.Time{}
+			}
+			if tt.notReviewable {
+				al.Spec.Type = accesslist.Static
 			}
 			result, err := CreateAccessListNextKey(al, tt.indexName)
 			if tt.expectError {
