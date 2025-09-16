@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev"
+.version: &version "19.0.0-dev.gzdunek.27"
 
 apiVersion: v2
 name: teleport-plugin-msteams
