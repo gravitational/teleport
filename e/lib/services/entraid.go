@@ -55,14 +55,6 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		return trace.BadParameter("failed to acquire AccessGraphPlugin credentials from Auth")
 	}
 
-	if err != nil {
-		// Update plugin status if the service is running as a plugin.
-		if statusSink != nil {
-			statusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
-		}
-
-		return trace.Wrap(err)
-	}
 	var credential msgraph.AzureTokenProvider
 	// Construct MS Graph Client
 	if usesSystemCredentials(spec) {
@@ -154,6 +146,12 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		HostID:                  conn.HostUUID(),
 	})
 	if err != nil {
+		if statusSink != nil {
+			statusSink.Emit(ctx, &types.PluginStatusV1{
+				Code:         types.PluginStatusCode_OTHER_ERROR,
+				LastRawError: err.Error(),
+			})
+		}
 		return trace.Wrap(err)
 	}
 
