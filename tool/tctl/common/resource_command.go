@@ -54,6 +54,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -73,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -194,6 +196,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferenceModel:                     rc.createInferenceModel,
 		types.KindInferenceSecret:                    rc.createInferenceSecret,
 		types.KindInferencePolicy:                    rc.createInferencePolicy,
+		scopedaccess.KindScopedRole:                  rc.createScopedRole,
+		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -222,6 +226,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
 		types.KindInferenceModel:                     rc.updateInferenceModel,
 		types.KindInferencePolicy:                    rc.updateInferencePolicy,
+		scopedaccess.KindScopedRole:                  rc.updateScopedRole,
+		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
 	}
 	rc.config = config
 
@@ -1237,6 +1243,82 @@ func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.
 	return nil
 }
 
+func (rc *ResourceCommand) createScopedRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	if rc.IsForced() {
+		return trace.BadParameter("scoped role creation does not support --force")
+	}
+
+	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRole](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: r,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(
+		rc.Stdout,
+		scopedaccess.KindScopedRole+" %q has been created\n",
+		r.GetMetadata().GetName(),
+	)
+
+	return nil
+}
+
+func (rc *ResourceCommand) updateScopedRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRole](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.ScopedAccessServiceClient().UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
+		Role: r,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(
+		rc.Stdout,
+		scopedaccess.KindScopedRole+" %q has been updated\n",
+		r.GetMetadata().GetName(),
+	)
+
+	return nil
+}
+
+func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	if rc.IsForced() {
+		return trace.BadParameter("scoped role assignment creation does not support --force")
+	}
+
+	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: r,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(
+		rc.Stdout,
+		scopedaccess.KindScopedRoleAssignment+" %q has been created\n",
+		rsp.GetAssignment().GetMetadata().GetName(), // must extract from rsp since assignment names are generated server-side
+	)
+
+	return nil
+}
+
+func (rc *ResourceCommand) updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	return trace.NotImplemented("scoped_role_assignment resources do not support updates")
+}
+
 func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.SigstorePolicy](raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -2234,6 +2316,28 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		fmt.Fprintf(
 			rc.Stdout,
 			types.KindWorkloadIdentityX509IssuerOverride+" %q has been deleted\n",
+			rc.ref.Name,
+		)
+	case scopedaccess.KindScopedRole:
+		if _, err := client.ScopedAccessServiceClient().DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
+			Name: rc.ref.Name,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(
+			rc.Stdout,
+			scopedaccess.KindScopedRole+" %q has been deleted\n",
+			rc.ref.Name,
+		)
+	case scopedaccess.KindScopedRoleAssignment:
+		if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+			Name: rc.ref.Name,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(
+			rc.Stdout,
+			scopedaccess.KindScopedRoleAssignment+" %q has been deleted\n",
 			rc.ref.Name,
 		)
 	case types.KindSigstorePolicy:
@@ -3594,6 +3698,64 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	case types.KindInferencePolicy:
 		policies, err := rc.getInferencePolicies(ctx, client)
 		return policies, trace.Wrap(err)
+	case scopedaccess.KindScopedRole:
+		if rc.ref.Name != "" {
+			rsp, err := client.ScopedAccessServiceClient().GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+				Name: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &scopedRoleCollection{items: []*scopedaccessv1.ScopedRole{rsp.Role}}, nil
+		}
+
+		var items []*scopedaccessv1.ScopedRole
+		var cursor string
+		for {
+			rsp, err := client.ScopedAccessServiceClient().ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{
+				PageToken: cursor,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			items = append(items, rsp.Roles...)
+			cursor = rsp.NextPageToken
+			if cursor == "" {
+				break
+			}
+		}
+		return &scopedRoleCollection{items: items}, nil
+	case scopedaccess.KindScopedRoleAssignment:
+		if rc.ref.Name != "" {
+			rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+				Name: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &scopedRoleAssignmentCollection{items: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
+		}
+
+		var items []*scopedaccessv1.ScopedRoleAssignment
+		var cursor string
+		for {
+			rsp, err := client.ScopedAccessServiceClient().ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{
+				PageToken: cursor,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			items = append(items, rsp.Assignments...)
+			cursor = rsp.NextPageToken
+			if cursor == "" {
+				break
+			}
+		}
+		return &scopedRoleAssignmentCollection{items: items}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

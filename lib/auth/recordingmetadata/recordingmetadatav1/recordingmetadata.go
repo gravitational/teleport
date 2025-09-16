@@ -135,6 +135,8 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 		sampler.add(&state, start)
 	}
 
+	var hasSeenPrintEvent bool
+
 loop:
 	for {
 		select {
@@ -156,6 +158,14 @@ loop:
 					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
 
+				// if we haven't seen a print event yet, update the starting size to the latest resize
+				// this handles cases where the initial terminal size is not 80x24 and is resized immediately
+				// before any output is printed
+				if !hasSeenPrintEvent {
+					metadata.StartCols = int32(size.W)
+					metadata.StartRows = int32(size.H)
+				}
+
 				metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
 					StartOffset: durationpb.New(e.Time.Sub(startTime)),
 					Event: &pb.SessionRecordingEvent_Resize{
@@ -173,7 +183,9 @@ loop:
 					addInactivityEvent(lastActivityTime, e.Time)
 				}
 
-				recordThumbnail(e.EndTime)
+				if sampler.shouldCapture(e.Time) {
+					recordThumbnail(e.Time)
+				}
 
 			case *apievents.SessionJoin:
 				activeUsers[e.User] = e.Time.Sub(startTime)
@@ -194,6 +206,11 @@ loop:
 				}
 
 			case *apievents.SessionPrint:
+				// mark that we've seen the first print event so we don't update the starting size anymore
+				if !hasSeenPrintEvent {
+					hasSeenPrintEvent = true
+				}
+
 				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
 					addInactivityEvent(lastActivityTime, e.Time)
 				}
@@ -217,6 +234,10 @@ loop:
 					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
 
+				// store the initial terminal size, this is typically 80:24 and is resized immediately
+				metadata.StartCols = int32(size.W)
+				metadata.StartRows = int32(size.H)
+
 				metadata.ClusterName = e.ClusterName
 				metadata.User = e.User
 
@@ -229,9 +250,6 @@ loop:
 					metadata.ResourceName = e.KubernetesCluster
 					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
 				}
-
-				metadata.StartCols = int32(size.W)
-				metadata.StartRows = int32(size.H)
 
 				vt.Resize(size.W, size.H)
 			}

@@ -213,6 +213,7 @@ type AWSResource struct {
 	//	*AWSResource_Rds
 	//	*AWSResource_SamlProvider
 	//	*AWSResource_OidcProvider
+	//	*AWSResource_KmsKey
 	Resource      isAWSResource_Resource `protobuf_oneof:"resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -435,6 +436,15 @@ func (x *AWSResource) GetOidcProvider() *AWSOIDCProviderV1 {
 	return nil
 }
 
+func (x *AWSResource) GetKmsKey() *AWSKMSKeyV1 {
+	if x != nil {
+		if x, ok := x.Resource.(*AWSResource_KmsKey); ok {
+			return x.KmsKey
+		}
+	}
+	return nil
+}
+
 type isAWSResource_Resource interface {
 	isAWSResource_Resource()
 }
@@ -542,6 +552,11 @@ type AWSResource_OidcProvider struct {
 	OidcProvider *AWSOIDCProviderV1 `protobuf:"bytes,20,opt,name=oidc_provider,json=oidcProvider,proto3,oneof"`
 }
 
+type AWSResource_KmsKey struct {
+	// kms_key is an AWS KMS key.
+	KmsKey *AWSKMSKeyV1 `protobuf:"bytes,21,opt,name=kms_key,json=kmsKey,proto3,oneof"`
+}
+
 func (*AWSResource_User) isAWSResource_Resource() {}
 
 func (*AWSResource_Group) isAWSResource_Resource() {}
@@ -581,6 +596,8 @@ func (*AWSResource_Rds) isAWSResource_Resource() {}
 func (*AWSResource_SamlProvider) isAWSResource_Resource() {}
 
 func (*AWSResource_OidcProvider) isAWSResource_Resource() {}
+
+func (*AWSResource_KmsKey) isAWSResource_Resource() {}
 
 // AWSUserInlinePolicyV1 is a policy that is inlined to an AWS user.
 type AWSUserInlinePolicyV1 struct {
@@ -3243,13 +3260,144 @@ func (x *AWSOIDCProviderV1) GetLastSyncTime() *timestamppb.Timestamp {
 	return nil
 }
 
+// AWSKMSKeyV1 defines the KMS key details.
+type AWSKMSKeyV1 struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// arn is the key ARN.
+	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
+	// created_at is the time when the key was created.
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// tags is the list of tags that are attached to the key.
+	Tags []*AWSTag `protobuf:"bytes,3,rep,name=tags,proto3" json:"tags,omitempty"`
+	// account_id is the ID of the AWS account that the key belongs to.
+	AccountId string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	// last_sync_time is the time when the resource was last synced.
+	LastSyncTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	// aliases is the list of aliases that are attached to the key.
+	// they are prefixed with "alias/", for example "alias/my-key-alias".
+	Aliases []string `protobuf:"bytes,6,rep,name=aliases,proto3" json:"aliases,omitempty"`
+	// policy_document is the JSON document that defines the Key Policy. Every KMS
+	// key must have exactly one key policy.
+	PolicyDocument []byte `protobuf:"bytes,7,opt,name=policy_document,json=policyDocument,proto3" json:"policy_document,omitempty"`
+	// region is the AWS region that the key belongs to. For multi-region keys,
+	// this is the region where the current key, primary or replica, is located.
+	Region string `protobuf:"bytes,8,opt,name=region,proto3" json:"region,omitempty"`
+	// multi_region_key_type is the type of the multi-region key.
+	// It is set to "PRIMARY", "REPLICA" or left empty for single region keys.
+	MultiRegionKeyType string `protobuf:"bytes,9,opt,name=multi_region_key_type,json=multiRegionKeyType,proto3" json:"multi_region_key_type,omitempty"`
+	// hsm_cluster_id is the ID of the HSM cluster that the key belongs to, if any.
+	HsmClusterId  string `protobuf:"bytes,10,opt,name=hsm_cluster_id,json=hsmClusterId,proto3" json:"hsm_cluster_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AWSKMSKeyV1) Reset() {
+	*x = AWSKMSKeyV1{}
+	mi := &file_accessgraph_v1alpha_aws_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AWSKMSKeyV1) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AWSKMSKeyV1) ProtoMessage() {}
+
+func (x *AWSKMSKeyV1) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1alpha_aws_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AWSKMSKeyV1.ProtoReflect.Descriptor instead.
+func (*AWSKMSKeyV1) Descriptor() ([]byte, []int) {
+	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *AWSKMSKeyV1) GetArn() string {
+	if x != nil {
+		return x.Arn
+	}
+	return ""
+}
+
+func (x *AWSKMSKeyV1) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *AWSKMSKeyV1) GetTags() []*AWSTag {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *AWSKMSKeyV1) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *AWSKMSKeyV1) GetLastSyncTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSyncTime
+	}
+	return nil
+}
+
+func (x *AWSKMSKeyV1) GetAliases() []string {
+	if x != nil {
+		return x.Aliases
+	}
+	return nil
+}
+
+func (x *AWSKMSKeyV1) GetPolicyDocument() []byte {
+	if x != nil {
+		return x.PolicyDocument
+	}
+	return nil
+}
+
+func (x *AWSKMSKeyV1) GetRegion() string {
+	if x != nil {
+		return x.Region
+	}
+	return ""
+}
+
+func (x *AWSKMSKeyV1) GetMultiRegionKeyType() string {
+	if x != nil {
+		return x.MultiRegionKeyType
+	}
+	return ""
+}
+
+func (x *AWSKMSKeyV1) GetHsmClusterId() string {
+	if x != nil {
+		return x.HsmClusterId
+	}
+	return ""
+}
+
 var File_accessgraph_v1alpha_aws_proto protoreflect.FileDescriptor
 
 const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\n" +
 	"\x1daccessgraph/v1alpha/aws.proto\x12\x13accessgraph.v1alpha\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/wrappers.proto\"Q\n" +
 	"\x0fAWSResourceList\x12>\n" +
-	"\tresources\x18\x01 \x03(\v2 .accessgraph.v1alpha.AWSResourceR\tresources\"\xf4\f\n" +
+	"\tresources\x18\x01 \x03(\v2 .accessgraph.v1alpha.AWSResourceR\tresources\"\xb1\r\n" +
 	"\vAWSResource\x124\n" +
 	"\x04user\x18\x01 \x01(\v2\x1e.accessgraph.v1alpha.AWSUserV1H\x00R\x04user\x127\n" +
 	"\x05group\x18\x02 \x01(\v2\x1f.accessgraph.v1alpha.AWSGroupV1H\x00R\x05group\x12Z\n" +
@@ -3273,7 +3421,8 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\x1deks_cluster_associated_policy\x18\x11 \x01(\v23.accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1H\x00R\x1aeksClusterAssociatedPolicy\x129\n" +
 	"\x03rds\x18\x12 \x01(\v2%.accessgraph.v1alpha.AWSRDSDatabaseV1H\x00R\x03rds\x12M\n" +
 	"\rsaml_provider\x18\x13 \x01(\v2&.accessgraph.v1alpha.AWSSAMLProviderV1H\x00R\fsamlProvider\x12M\n" +
-	"\roidc_provider\x18\x14 \x01(\v2&.accessgraph.v1alpha.AWSOIDCProviderV1H\x00R\foidcProviderB\n" +
+	"\roidc_provider\x18\x14 \x01(\v2&.accessgraph.v1alpha.AWSOIDCProviderV1H\x00R\foidcProvider\x12;\n" +
+	"\akms_key\x18\x15 \x01(\v2 .accessgraph.v1alpha.AWSKMSKeyV1H\x00R\x06kmsKeyB\n" +
 	"\n" +
 	"\bresource\"\x86\x02\n" +
 	"\x15AWSUserInlinePolicyV1\x12\x1f\n" +
@@ -3533,7 +3682,21 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"client_ids\x18\x05 \x03(\tR\tclientIds\x12 \n" +
 	"\vthumbprints\x18\x06 \x03(\tR\vthumbprints\x12\x10\n" +
 	"\x03url\x18\a \x01(\tR\x03url\x12@\n" +
-	"\x0elast_sync_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime*\x90\x01\n" +
+	"\x0elast_sync_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xa0\x03\n" +
+	"\vAWSKMSKeyV1\x12\x10\n" +
+	"\x03arn\x18\x01 \x01(\tR\x03arn\x129\n" +
+	"\n" +
+	"created_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12/\n" +
+	"\x04tags\x18\x03 \x03(\v2\x1b.accessgraph.v1alpha.AWSTagR\x04tags\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x04 \x01(\tR\taccountId\x12@\n" +
+	"\x0elast_sync_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\x12\x18\n" +
+	"\aaliases\x18\x06 \x03(\tR\aaliases\x12'\n" +
+	"\x0fpolicy_document\x18\a \x01(\fR\x0epolicyDocument\x12\x16\n" +
+	"\x06region\x18\b \x01(\tR\x06region\x121\n" +
+	"\x15multi_region_key_type\x18\t \x01(\tR\x12multiRegionKeyType\x12$\n" +
+	"\x0ehsm_cluster_id\x18\n" +
+	" \x01(\tR\fhsmClusterId*\x90\x01\n" +
 	"\x1cUsersPermissionsBoundaryType\x12/\n" +
 	"+USERS_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED\x10\x00\x12?\n" +
 	";USERS_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY\x10\x01*\x8d\x01\n" +
@@ -3554,7 +3717,7 @@ func file_accessgraph_v1alpha_aws_proto_rawDescGZIP() []byte {
 }
 
 var file_accessgraph_v1alpha_aws_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_accessgraph_v1alpha_aws_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_accessgraph_v1alpha_aws_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_accessgraph_v1alpha_aws_proto_goTypes = []any{
 	(UsersPermissionsBoundaryType)(0),      // 0: accessgraph.v1alpha.UsersPermissionsBoundaryType
 	(RolePermissionsBoundaryType)(0),       // 1: accessgraph.v1alpha.RolePermissionsBoundaryType
@@ -3589,113 +3752,118 @@ var file_accessgraph_v1alpha_aws_proto_goTypes = []any{
 	(*AWSRDSEngineV1)(nil),                 // 30: accessgraph.v1alpha.AWSRDSEngineV1
 	(*AWSSAMLProviderV1)(nil),              // 31: accessgraph.v1alpha.AWSSAMLProviderV1
 	(*AWSOIDCProviderV1)(nil),              // 32: accessgraph.v1alpha.AWSOIDCProviderV1
-	(*timestamppb.Timestamp)(nil),          // 33: google.protobuf.Timestamp
-	(*wrapperspb.StringValue)(nil),         // 34: google.protobuf.StringValue
-	(*durationpb.Duration)(nil),            // 35: google.protobuf.Duration
+	(*AWSKMSKeyV1)(nil),                    // 33: accessgraph.v1alpha.AWSKMSKeyV1
+	(*timestamppb.Timestamp)(nil),          // 34: google.protobuf.Timestamp
+	(*wrapperspb.StringValue)(nil),         // 35: google.protobuf.StringValue
+	(*durationpb.Duration)(nil),            // 36: google.protobuf.Duration
 }
 var file_accessgraph_v1alpha_aws_proto_depIdxs = []int32{
-	3,  // 0: accessgraph.v1alpha.AWSResourceList.resources:type_name -> accessgraph.v1alpha.AWSResource
-	8,  // 1: accessgraph.v1alpha.AWSResource.user:type_name -> accessgraph.v1alpha.AWSUserV1
-	6,  // 2: accessgraph.v1alpha.AWSResource.group:type_name -> accessgraph.v1alpha.AWSGroupV1
-	4,  // 3: accessgraph.v1alpha.AWSResource.user_inline_policy:type_name -> accessgraph.v1alpha.AWSUserInlinePolicyV1
-	7,  // 4: accessgraph.v1alpha.AWSResource.user_groups:type_name -> accessgraph.v1alpha.AWSUserGroupsV1
-	11, // 5: accessgraph.v1alpha.AWSResource.instance:type_name -> accessgraph.v1alpha.AWSInstanceV1
-	5,  // 6: accessgraph.v1alpha.AWSResource.policy:type_name -> accessgraph.v1alpha.AWSPolicyV1
-	12, // 7: accessgraph.v1alpha.AWSResource.user_attached_policies:type_name -> accessgraph.v1alpha.AWSUserAttachedPolicies
-	14, // 8: accessgraph.v1alpha.AWSResource.group_attached_policies:type_name -> accessgraph.v1alpha.AWSGroupAttachedPolicies
-	15, // 9: accessgraph.v1alpha.AWSResource.group_inline_policy:type_name -> accessgraph.v1alpha.AWSGroupInlinePolicyV1
-	16, // 10: accessgraph.v1alpha.AWSResource.s3_bucket:type_name -> accessgraph.v1alpha.AWSS3BucketV1
-	19, // 11: accessgraph.v1alpha.AWSResource.role:type_name -> accessgraph.v1alpha.AWSRoleV1
-	22, // 12: accessgraph.v1alpha.AWSResource.role_inline_policy:type_name -> accessgraph.v1alpha.AWSRoleInlinePolicyV1
-	23, // 13: accessgraph.v1alpha.AWSResource.role_attached_policies:type_name -> accessgraph.v1alpha.AWSRoleAttachedPolicies
-	24, // 14: accessgraph.v1alpha.AWSResource.instance_profile:type_name -> accessgraph.v1alpha.AWSInstanceProfileV1
-	25, // 15: accessgraph.v1alpha.AWSResource.eks_cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
-	26, // 16: accessgraph.v1alpha.AWSResource.eks_cluster_access_entry:type_name -> accessgraph.v1alpha.AWSEKSClusterAccessEntryV1
-	27, // 17: accessgraph.v1alpha.AWSResource.eks_cluster_associated_policy:type_name -> accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1
-	29, // 18: accessgraph.v1alpha.AWSResource.rds:type_name -> accessgraph.v1alpha.AWSRDSDatabaseV1
-	31, // 19: accessgraph.v1alpha.AWSResource.saml_provider:type_name -> accessgraph.v1alpha.AWSSAMLProviderV1
-	32, // 20: accessgraph.v1alpha.AWSResource.oidc_provider:type_name -> accessgraph.v1alpha.AWSOIDCProviderV1
-	8,  // 21: accessgraph.v1alpha.AWSUserInlinePolicyV1.user:type_name -> accessgraph.v1alpha.AWSUserV1
-	33, // 22: accessgraph.v1alpha.AWSUserInlinePolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 23: accessgraph.v1alpha.AWSPolicyV1.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 24: accessgraph.v1alpha.AWSPolicyV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 25: accessgraph.v1alpha.AWSPolicyV1.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 26: accessgraph.v1alpha.AWSPolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 27: accessgraph.v1alpha.AWSGroupV1.created_at:type_name -> google.protobuf.Timestamp
-	33, // 28: accessgraph.v1alpha.AWSGroupV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	8,  // 29: accessgraph.v1alpha.AWSUserGroupsV1.user:type_name -> accessgraph.v1alpha.AWSUserV1
-	6,  // 30: accessgraph.v1alpha.AWSUserGroupsV1.groups:type_name -> accessgraph.v1alpha.AWSGroupV1
-	33, // 31: accessgraph.v1alpha.AWSUserGroupsV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 32: accessgraph.v1alpha.AWSUserV1.created_at:type_name -> google.protobuf.Timestamp
-	33, // 33: accessgraph.v1alpha.AWSUserV1.password_last_used:type_name -> google.protobuf.Timestamp
-	10, // 34: accessgraph.v1alpha.AWSUserV1.permissions_boundary:type_name -> accessgraph.v1alpha.UsersPermissionsBoundaryV1
-	9,  // 35: accessgraph.v1alpha.AWSUserV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 36: accessgraph.v1alpha.AWSUserV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	34, // 37: accessgraph.v1alpha.AWSTag.value:type_name -> google.protobuf.StringValue
-	0,  // 38: accessgraph.v1alpha.UsersPermissionsBoundaryV1.permissions_boundary_type:type_name -> accessgraph.v1alpha.UsersPermissionsBoundaryType
-	33, // 39: accessgraph.v1alpha.AWSInstanceV1.launch_time:type_name -> google.protobuf.Timestamp
-	9,  // 40: accessgraph.v1alpha.AWSInstanceV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	34, // 41: accessgraph.v1alpha.AWSInstanceV1.iam_instance_profile_arn:type_name -> google.protobuf.StringValue
-	34, // 42: accessgraph.v1alpha.AWSInstanceV1.launch_key_name:type_name -> google.protobuf.StringValue
-	33, // 43: accessgraph.v1alpha.AWSInstanceV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	8,  // 44: accessgraph.v1alpha.AWSUserAttachedPolicies.user:type_name -> accessgraph.v1alpha.AWSUserV1
-	13, // 45: accessgraph.v1alpha.AWSUserAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
-	33, // 46: accessgraph.v1alpha.AWSUserAttachedPolicies.last_sync_time:type_name -> google.protobuf.Timestamp
-	6,  // 47: accessgraph.v1alpha.AWSGroupAttachedPolicies.group:type_name -> accessgraph.v1alpha.AWSGroupV1
-	13, // 48: accessgraph.v1alpha.AWSGroupAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
-	33, // 49: accessgraph.v1alpha.AWSGroupAttachedPolicies.last_sync_time:type_name -> google.protobuf.Timestamp
-	6,  // 50: accessgraph.v1alpha.AWSGroupInlinePolicyV1.group:type_name -> accessgraph.v1alpha.AWSGroupV1
-	33, // 51: accessgraph.v1alpha.AWSGroupInlinePolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	17, // 52: accessgraph.v1alpha.AWSS3BucketV1.acls:type_name -> accessgraph.v1alpha.AWSS3BucketACL
-	9,  // 53: accessgraph.v1alpha.AWSS3BucketV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 54: accessgraph.v1alpha.AWSS3BucketV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	18, // 55: accessgraph.v1alpha.AWSS3BucketACL.grantee:type_name -> accessgraph.v1alpha.AWSS3BucketACLGrantee
-	33, // 56: accessgraph.v1alpha.AWSRoleV1.created_at:type_name -> google.protobuf.Timestamp
-	35, // 57: accessgraph.v1alpha.AWSRoleV1.max_session_duration:type_name -> google.protobuf.Duration
-	20, // 58: accessgraph.v1alpha.AWSRoleV1.permissions_boundary:type_name -> accessgraph.v1alpha.RolePermissionsBoundaryV1
-	9,  // 59: accessgraph.v1alpha.AWSRoleV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	21, // 60: accessgraph.v1alpha.AWSRoleV1.role_last_used:type_name -> accessgraph.v1alpha.RoleLastUsedV1
-	33, // 61: accessgraph.v1alpha.AWSRoleV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	1,  // 62: accessgraph.v1alpha.RolePermissionsBoundaryV1.permissions_boundary_type:type_name -> accessgraph.v1alpha.RolePermissionsBoundaryType
-	33, // 63: accessgraph.v1alpha.RoleLastUsedV1.last_used_date:type_name -> google.protobuf.Timestamp
-	19, // 64: accessgraph.v1alpha.AWSRoleInlinePolicyV1.aws_role:type_name -> accessgraph.v1alpha.AWSRoleV1
-	33, // 65: accessgraph.v1alpha.AWSRoleInlinePolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	13, // 66: accessgraph.v1alpha.AWSRoleAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
-	19, // 67: accessgraph.v1alpha.AWSRoleAttachedPolicies.aws_role:type_name -> accessgraph.v1alpha.AWSRoleV1
-	33, // 68: accessgraph.v1alpha.AWSRoleAttachedPolicies.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 69: accessgraph.v1alpha.AWSInstanceProfileV1.created_at:type_name -> google.protobuf.Timestamp
-	19, // 70: accessgraph.v1alpha.AWSInstanceProfileV1.roles:type_name -> accessgraph.v1alpha.AWSRoleV1
-	9,  // 71: accessgraph.v1alpha.AWSInstanceProfileV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 72: accessgraph.v1alpha.AWSInstanceProfileV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 73: accessgraph.v1alpha.AWSEKSClusterV1.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 74: accessgraph.v1alpha.AWSEKSClusterV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 75: accessgraph.v1alpha.AWSEKSClusterV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	25, // 76: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
-	33, // 77: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.created_at:type_name -> google.protobuf.Timestamp
-	33, // 78: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.modified_at:type_name -> google.protobuf.Timestamp
-	9,  // 79: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 80: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	25, // 81: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
-	28, // 82: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.scope:type_name -> accessgraph.v1alpha.AWSEKSAccessScopeV1
-	33, // 83: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.associated_at:type_name -> google.protobuf.Timestamp
-	33, // 84: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.modified_at:type_name -> google.protobuf.Timestamp
-	33, // 85: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	30, // 86: accessgraph.v1alpha.AWSRDSDatabaseV1.engine_details:type_name -> accessgraph.v1alpha.AWSRDSEngineV1
-	33, // 87: accessgraph.v1alpha.AWSRDSDatabaseV1.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 88: accessgraph.v1alpha.AWSRDSDatabaseV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 89: accessgraph.v1alpha.AWSRDSDatabaseV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 90: accessgraph.v1alpha.AWSSAMLProviderV1.created_at:type_name -> google.protobuf.Timestamp
-	33, // 91: accessgraph.v1alpha.AWSSAMLProviderV1.valid_until:type_name -> google.protobuf.Timestamp
-	9,  // 92: accessgraph.v1alpha.AWSSAMLProviderV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 93: accessgraph.v1alpha.AWSSAMLProviderV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 94: accessgraph.v1alpha.AWSOIDCProviderV1.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 95: accessgraph.v1alpha.AWSOIDCProviderV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 96: accessgraph.v1alpha.AWSOIDCProviderV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	97, // [97:97] is the sub-list for method output_type
-	97, // [97:97] is the sub-list for method input_type
-	97, // [97:97] is the sub-list for extension type_name
-	97, // [97:97] is the sub-list for extension extendee
-	0,  // [0:97] is the sub-list for field type_name
+	3,   // 0: accessgraph.v1alpha.AWSResourceList.resources:type_name -> accessgraph.v1alpha.AWSResource
+	8,   // 1: accessgraph.v1alpha.AWSResource.user:type_name -> accessgraph.v1alpha.AWSUserV1
+	6,   // 2: accessgraph.v1alpha.AWSResource.group:type_name -> accessgraph.v1alpha.AWSGroupV1
+	4,   // 3: accessgraph.v1alpha.AWSResource.user_inline_policy:type_name -> accessgraph.v1alpha.AWSUserInlinePolicyV1
+	7,   // 4: accessgraph.v1alpha.AWSResource.user_groups:type_name -> accessgraph.v1alpha.AWSUserGroupsV1
+	11,  // 5: accessgraph.v1alpha.AWSResource.instance:type_name -> accessgraph.v1alpha.AWSInstanceV1
+	5,   // 6: accessgraph.v1alpha.AWSResource.policy:type_name -> accessgraph.v1alpha.AWSPolicyV1
+	12,  // 7: accessgraph.v1alpha.AWSResource.user_attached_policies:type_name -> accessgraph.v1alpha.AWSUserAttachedPolicies
+	14,  // 8: accessgraph.v1alpha.AWSResource.group_attached_policies:type_name -> accessgraph.v1alpha.AWSGroupAttachedPolicies
+	15,  // 9: accessgraph.v1alpha.AWSResource.group_inline_policy:type_name -> accessgraph.v1alpha.AWSGroupInlinePolicyV1
+	16,  // 10: accessgraph.v1alpha.AWSResource.s3_bucket:type_name -> accessgraph.v1alpha.AWSS3BucketV1
+	19,  // 11: accessgraph.v1alpha.AWSResource.role:type_name -> accessgraph.v1alpha.AWSRoleV1
+	22,  // 12: accessgraph.v1alpha.AWSResource.role_inline_policy:type_name -> accessgraph.v1alpha.AWSRoleInlinePolicyV1
+	23,  // 13: accessgraph.v1alpha.AWSResource.role_attached_policies:type_name -> accessgraph.v1alpha.AWSRoleAttachedPolicies
+	24,  // 14: accessgraph.v1alpha.AWSResource.instance_profile:type_name -> accessgraph.v1alpha.AWSInstanceProfileV1
+	25,  // 15: accessgraph.v1alpha.AWSResource.eks_cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
+	26,  // 16: accessgraph.v1alpha.AWSResource.eks_cluster_access_entry:type_name -> accessgraph.v1alpha.AWSEKSClusterAccessEntryV1
+	27,  // 17: accessgraph.v1alpha.AWSResource.eks_cluster_associated_policy:type_name -> accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1
+	29,  // 18: accessgraph.v1alpha.AWSResource.rds:type_name -> accessgraph.v1alpha.AWSRDSDatabaseV1
+	31,  // 19: accessgraph.v1alpha.AWSResource.saml_provider:type_name -> accessgraph.v1alpha.AWSSAMLProviderV1
+	32,  // 20: accessgraph.v1alpha.AWSResource.oidc_provider:type_name -> accessgraph.v1alpha.AWSOIDCProviderV1
+	33,  // 21: accessgraph.v1alpha.AWSResource.kms_key:type_name -> accessgraph.v1alpha.AWSKMSKeyV1
+	8,   // 22: accessgraph.v1alpha.AWSUserInlinePolicyV1.user:type_name -> accessgraph.v1alpha.AWSUserV1
+	34,  // 23: accessgraph.v1alpha.AWSUserInlinePolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	34,  // 24: accessgraph.v1alpha.AWSPolicyV1.created_at:type_name -> google.protobuf.Timestamp
+	9,   // 25: accessgraph.v1alpha.AWSPolicyV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 26: accessgraph.v1alpha.AWSPolicyV1.updated_at:type_name -> google.protobuf.Timestamp
+	34,  // 27: accessgraph.v1alpha.AWSPolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	34,  // 28: accessgraph.v1alpha.AWSGroupV1.created_at:type_name -> google.protobuf.Timestamp
+	34,  // 29: accessgraph.v1alpha.AWSGroupV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	8,   // 30: accessgraph.v1alpha.AWSUserGroupsV1.user:type_name -> accessgraph.v1alpha.AWSUserV1
+	6,   // 31: accessgraph.v1alpha.AWSUserGroupsV1.groups:type_name -> accessgraph.v1alpha.AWSGroupV1
+	34,  // 32: accessgraph.v1alpha.AWSUserGroupsV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	34,  // 33: accessgraph.v1alpha.AWSUserV1.created_at:type_name -> google.protobuf.Timestamp
+	34,  // 34: accessgraph.v1alpha.AWSUserV1.password_last_used:type_name -> google.protobuf.Timestamp
+	10,  // 35: accessgraph.v1alpha.AWSUserV1.permissions_boundary:type_name -> accessgraph.v1alpha.UsersPermissionsBoundaryV1
+	9,   // 36: accessgraph.v1alpha.AWSUserV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 37: accessgraph.v1alpha.AWSUserV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	35,  // 38: accessgraph.v1alpha.AWSTag.value:type_name -> google.protobuf.StringValue
+	0,   // 39: accessgraph.v1alpha.UsersPermissionsBoundaryV1.permissions_boundary_type:type_name -> accessgraph.v1alpha.UsersPermissionsBoundaryType
+	34,  // 40: accessgraph.v1alpha.AWSInstanceV1.launch_time:type_name -> google.protobuf.Timestamp
+	9,   // 41: accessgraph.v1alpha.AWSInstanceV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	35,  // 42: accessgraph.v1alpha.AWSInstanceV1.iam_instance_profile_arn:type_name -> google.protobuf.StringValue
+	35,  // 43: accessgraph.v1alpha.AWSInstanceV1.launch_key_name:type_name -> google.protobuf.StringValue
+	34,  // 44: accessgraph.v1alpha.AWSInstanceV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	8,   // 45: accessgraph.v1alpha.AWSUserAttachedPolicies.user:type_name -> accessgraph.v1alpha.AWSUserV1
+	13,  // 46: accessgraph.v1alpha.AWSUserAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
+	34,  // 47: accessgraph.v1alpha.AWSUserAttachedPolicies.last_sync_time:type_name -> google.protobuf.Timestamp
+	6,   // 48: accessgraph.v1alpha.AWSGroupAttachedPolicies.group:type_name -> accessgraph.v1alpha.AWSGroupV1
+	13,  // 49: accessgraph.v1alpha.AWSGroupAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
+	34,  // 50: accessgraph.v1alpha.AWSGroupAttachedPolicies.last_sync_time:type_name -> google.protobuf.Timestamp
+	6,   // 51: accessgraph.v1alpha.AWSGroupInlinePolicyV1.group:type_name -> accessgraph.v1alpha.AWSGroupV1
+	34,  // 52: accessgraph.v1alpha.AWSGroupInlinePolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	17,  // 53: accessgraph.v1alpha.AWSS3BucketV1.acls:type_name -> accessgraph.v1alpha.AWSS3BucketACL
+	9,   // 54: accessgraph.v1alpha.AWSS3BucketV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 55: accessgraph.v1alpha.AWSS3BucketV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	18,  // 56: accessgraph.v1alpha.AWSS3BucketACL.grantee:type_name -> accessgraph.v1alpha.AWSS3BucketACLGrantee
+	34,  // 57: accessgraph.v1alpha.AWSRoleV1.created_at:type_name -> google.protobuf.Timestamp
+	36,  // 58: accessgraph.v1alpha.AWSRoleV1.max_session_duration:type_name -> google.protobuf.Duration
+	20,  // 59: accessgraph.v1alpha.AWSRoleV1.permissions_boundary:type_name -> accessgraph.v1alpha.RolePermissionsBoundaryV1
+	9,   // 60: accessgraph.v1alpha.AWSRoleV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	21,  // 61: accessgraph.v1alpha.AWSRoleV1.role_last_used:type_name -> accessgraph.v1alpha.RoleLastUsedV1
+	34,  // 62: accessgraph.v1alpha.AWSRoleV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	1,   // 63: accessgraph.v1alpha.RolePermissionsBoundaryV1.permissions_boundary_type:type_name -> accessgraph.v1alpha.RolePermissionsBoundaryType
+	34,  // 64: accessgraph.v1alpha.RoleLastUsedV1.last_used_date:type_name -> google.protobuf.Timestamp
+	19,  // 65: accessgraph.v1alpha.AWSRoleInlinePolicyV1.aws_role:type_name -> accessgraph.v1alpha.AWSRoleV1
+	34,  // 66: accessgraph.v1alpha.AWSRoleInlinePolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	13,  // 67: accessgraph.v1alpha.AWSRoleAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
+	19,  // 68: accessgraph.v1alpha.AWSRoleAttachedPolicies.aws_role:type_name -> accessgraph.v1alpha.AWSRoleV1
+	34,  // 69: accessgraph.v1alpha.AWSRoleAttachedPolicies.last_sync_time:type_name -> google.protobuf.Timestamp
+	34,  // 70: accessgraph.v1alpha.AWSInstanceProfileV1.created_at:type_name -> google.protobuf.Timestamp
+	19,  // 71: accessgraph.v1alpha.AWSInstanceProfileV1.roles:type_name -> accessgraph.v1alpha.AWSRoleV1
+	9,   // 72: accessgraph.v1alpha.AWSInstanceProfileV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 73: accessgraph.v1alpha.AWSInstanceProfileV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	34,  // 74: accessgraph.v1alpha.AWSEKSClusterV1.created_at:type_name -> google.protobuf.Timestamp
+	9,   // 75: accessgraph.v1alpha.AWSEKSClusterV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 76: accessgraph.v1alpha.AWSEKSClusterV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	25,  // 77: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
+	34,  // 78: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.created_at:type_name -> google.protobuf.Timestamp
+	34,  // 79: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.modified_at:type_name -> google.protobuf.Timestamp
+	9,   // 80: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 81: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	25,  // 82: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
+	28,  // 83: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.scope:type_name -> accessgraph.v1alpha.AWSEKSAccessScopeV1
+	34,  // 84: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.associated_at:type_name -> google.protobuf.Timestamp
+	34,  // 85: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.modified_at:type_name -> google.protobuf.Timestamp
+	34,  // 86: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	30,  // 87: accessgraph.v1alpha.AWSRDSDatabaseV1.engine_details:type_name -> accessgraph.v1alpha.AWSRDSEngineV1
+	34,  // 88: accessgraph.v1alpha.AWSRDSDatabaseV1.created_at:type_name -> google.protobuf.Timestamp
+	9,   // 89: accessgraph.v1alpha.AWSRDSDatabaseV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 90: accessgraph.v1alpha.AWSRDSDatabaseV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	34,  // 91: accessgraph.v1alpha.AWSSAMLProviderV1.created_at:type_name -> google.protobuf.Timestamp
+	34,  // 92: accessgraph.v1alpha.AWSSAMLProviderV1.valid_until:type_name -> google.protobuf.Timestamp
+	9,   // 93: accessgraph.v1alpha.AWSSAMLProviderV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 94: accessgraph.v1alpha.AWSSAMLProviderV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	34,  // 95: accessgraph.v1alpha.AWSOIDCProviderV1.created_at:type_name -> google.protobuf.Timestamp
+	9,   // 96: accessgraph.v1alpha.AWSOIDCProviderV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 97: accessgraph.v1alpha.AWSOIDCProviderV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	34,  // 98: accessgraph.v1alpha.AWSKMSKeyV1.created_at:type_name -> google.protobuf.Timestamp
+	9,   // 99: accessgraph.v1alpha.AWSKMSKeyV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34,  // 100: accessgraph.v1alpha.AWSKMSKeyV1.last_sync_time:type_name -> google.protobuf.Timestamp
+	101, // [101:101] is the sub-list for method output_type
+	101, // [101:101] is the sub-list for method input_type
+	101, // [101:101] is the sub-list for extension type_name
+	101, // [101:101] is the sub-list for extension extendee
+	0,   // [0:101] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1alpha_aws_proto_init() }
@@ -3724,6 +3892,7 @@ func file_accessgraph_v1alpha_aws_proto_init() {
 		(*AWSResource_Rds)(nil),
 		(*AWSResource_SamlProvider)(nil),
 		(*AWSResource_OidcProvider)(nil),
+		(*AWSResource_KmsKey)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3731,7 +3900,7 @@ func file_accessgraph_v1alpha_aws_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_aws_proto_rawDesc), len(file_accessgraph_v1alpha_aws_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   31,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

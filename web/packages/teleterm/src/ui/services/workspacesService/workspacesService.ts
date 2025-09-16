@@ -650,20 +650,20 @@ export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferenc
 const unifiedResourcePreferencesSchema = z
   .object({
     defaultTab: z
-      .nativeEnum(DefaultTab)
+      .enum(DefaultTab)
       .default(getDefaultUnifiedResourcePreferences().defaultTab),
     viewMode: z
-      .nativeEnum(ViewMode)
+      .enum(ViewMode)
       .default(getDefaultUnifiedResourcePreferences().viewMode),
     labelsViewMode: z
-      .nativeEnum(LabelsViewMode)
+      .enum(LabelsViewMode)
       .default(getDefaultUnifiedResourcePreferences().labelsViewMode),
     availableResourceMode: z
-      .nativeEnum(AvailableResourceMode)
+      .enum(AvailableResourceMode)
       .default(getDefaultUnifiedResourcePreferences().availableResourceMode),
   })
   // Assign the default values if undefined is passed.
-  .default({});
+  .prefault({});
 
 // Because we don't have `strictNullChecks` enabled, zod infers
 // all properties as optional.

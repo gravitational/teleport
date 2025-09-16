@@ -25,11 +25,11 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	scopespb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache"
-	sr "github.com/gravitational/teleport/lib/scopes/roles"
 )
 
 const (
@@ -39,26 +39,42 @@ const (
 
 // AssignmentCache is a cache for scoped role assignments.
 type AssignmentCache struct {
-	cache *cache.Cache[*accessv1.ScopedRoleAssignment, string]
+	cache *cache.Cache[*scopedaccessv1.ScopedRoleAssignment, string]
 }
 
 // NewAssignmentCache creates a new assignment cache instance.
 func NewAssignmentCache() *AssignmentCache {
 	return &AssignmentCache{
-		cache: cache.Must(cache.Config[*accessv1.ScopedRoleAssignment, string]{
-			Scope: func(assignment *accessv1.ScopedRoleAssignment) string {
+		cache: cache.Must(cache.Config[*scopedaccessv1.ScopedRoleAssignment, string]{
+			Scope: func(assignment *scopedaccessv1.ScopedRoleAssignment) string {
 				return assignment.GetScope()
 			},
-			Key: func(assignment *accessv1.ScopedRoleAssignment) string {
+			Key: func(assignment *scopedaccessv1.ScopedRoleAssignment) string {
 				return assignment.GetMetadata().GetName()
 			},
-			Clone: proto.CloneOf[*accessv1.ScopedRoleAssignment],
+			Clone: proto.CloneOf[*scopedaccessv1.ScopedRoleAssignment],
 		}),
 	}
 }
 
+// GetScopedRoleAssignment gets an assignment by name.
+func (c *AssignmentCache) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.GetScopedRoleAssignmentRequest) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("missing scoped role assignment name in get request")
+	}
+
+	assignment, ok := c.cache.Get(req.GetName())
+	if !ok {
+		return nil, trace.NotFound("scoped role assignment %q not found", req.GetName())
+	}
+
+	return &scopedaccessv1.GetScopedRoleAssignmentResponse{
+		Assignment: assignment,
+	}, nil
+}
+
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
-func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *accessv1.ListScopedRoleAssignmentsRequest) (*accessv1.ListScopedRoleAssignmentsResponse, error) {
+func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
 	pageSize := int(req.GetPageSize())
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
@@ -71,13 +87,13 @@ func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *ac
 		return nil, trace.BadParameter("cannot filter by both resource scope and assigned scope simultaneously")
 	}
 
-	filter := func(assignment *accessv1.ScopedRoleAssignment) bool {
+	filter := func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
 		if req.GetUser() != "" && assignment.GetSpec().GetUser() != req.GetUser() {
 			return false
 		}
 
 		if req.GetRole() != "" {
-			if !slices.ContainsFunc(assignment.GetSpec().Assignments, func(a *accessv1.Assignment) bool { return a.GetRole() == req.GetRole() }) {
+			if !slices.ContainsFunc(assignment.GetSpec().Assignments, func(a *scopedaccessv1.Assignment) bool { return a.GetRole() == req.GetRole() }) {
 				// if the assignment does not have the requested role, skip it
 				return false
 			}
@@ -101,9 +117,9 @@ func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *ac
 	if req.GetResourceScope() != nil {
 		// a resource-scope based filter has been provided
 		switch req.GetResourceScope().GetMode() {
-		case scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
+		case scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
 			getter = c.cache.ResourcesSubjectToPolicyScope
-		case scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
+		case scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
 			getter = c.cache.PoliciesApplicableToResourceScope
 		default:
 			return nil, trace.BadParameter("unsupported or unspecified scoping mode %q in scoped role assignment resource scope filter", req.GetResourceScope().GetMode())
@@ -120,7 +136,7 @@ func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *ac
 		return nil, trace.NotImplemented("assigned scope filtering for scoped role assignments is not yet supported")
 	}
 
-	var out []*accessv1.ScopedRoleAssignment
+	var out []*scopedaccessv1.ScopedRoleAssignment
 	var nextCursor cache.Cursor[string]
 Outer:
 	for scope := range getter(scope, c.cache.WithFilter(filter), c.cache.WithCursor(cursor)) {
@@ -144,15 +160,15 @@ Outer:
 		}
 	}
 
-	return &accessv1.ListScopedRoleAssignmentsResponse{
+	return &scopedaccessv1.ListScopedRoleAssignmentsResponse{
 		Assignments:   out,
 		NextPageToken: nextPageToken,
 	}, nil
 }
 
 // Put adds a new assignment to the cache. It will overwrite any existing assignment with the same name.
-func (c *AssignmentCache) Put(assignment *accessv1.ScopedRoleAssignment) error {
-	if err := sr.WeakValidateAssignment(assignment); err != nil {
+func (c *AssignmentCache) Put(assignment *scopedaccessv1.ScopedRoleAssignment) error {
+	if err := scopedaccess.WeakValidateAssignment(assignment); err != nil {
 		return trace.Wrap(err)
 	}
 

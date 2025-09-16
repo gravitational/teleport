@@ -765,7 +765,10 @@ func TestRootStaticHostUsers(t *testing.T) {
 	nodeCfg.SSH.Labels = map[string]string{
 		"foo": "bar",
 	}
-	_, err = instance.StartNode(nodeCfg)
+	nodeProcess, err := instance.StartNode(nodeCfg)
+	require.NoError(t, err)
+
+	nodeUUID, err := nodeProcess.WaitForHostID(t.Context())
 	require.NoError(t, err)
 
 	instance.WaitForNodeCount(context.Background(), helpers.Site, 2)
@@ -843,14 +846,14 @@ func TestRootStaticHostUsers(t *testing.T) {
 	t.Cleanup(func() { cleanupUsersAndGroups([]string{goodLogin, nonMatchingLogin, conflictingLogin}, groups) })
 
 	// Test that a node picks up new host users from the cache.
-	testStaticHostUsers(t, nodeCfg.HostUUID, goodLogin, goodLoginWithShell, nonMatchingLogin, conflictingLogin, groups)
+	testStaticHostUsers(t, nodeUUID, goodLogin, goodLoginWithShell, nonMatchingLogin, conflictingLogin, groups)
 	cleanupUsersAndGroups([]string{goodLogin, nonMatchingLogin, conflictingLogin}, groups)
 
 	require.NoError(t, instance.StopNodes())
 	_, err = instance.StartNode(nodeCfg)
 	require.NoError(t, err)
 	// Test that a new node picks up existing host users on startup.
-	testStaticHostUsers(t, nodeCfg.HostUUID, goodLogin, goodLoginWithShell, nonMatchingLogin, conflictingLogin, groups)
+	testStaticHostUsers(t, nodeUUID, goodLogin, goodLoginWithShell, nonMatchingLogin, conflictingLogin, groups)
 
 	// Check that a deleted resource doesn't affect the host user.
 	require.NoError(t, clt.DeleteStaticHostUser(context.Background(), goodLogin))
@@ -861,7 +864,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 	require.Never(t, func() bool {
 		_, lookupErr = user.Lookup(goodLogin)
 		_, homeDirErr = os.Stat("/home/" + goodLogin)
-		_, sudoerErr = os.Stat(sudoersPath(goodLogin, nodeCfg.HostUUID))
+		_, sudoerErr = os.Stat(sudoersPath(goodLogin, nodeUUID))
 		return lookupErr != nil || homeDirErr != nil || sudoerErr != nil
 	}, 5*time.Second, time.Second,
 		"lookup err: %v\nhome dir err: %v\nsudoer err: %v\n",

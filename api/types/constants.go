@@ -1224,6 +1224,9 @@ const (
 
 	// GitHubOrgLabel is the label for GitHub organization.
 	GitHubOrgLabel = TeleportInternalLabelPrefix + "github-org"
+
+	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
+	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
 )
 
 const (

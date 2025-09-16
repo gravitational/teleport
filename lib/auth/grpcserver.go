@@ -70,6 +70,8 @@ import (
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	recordingmetadatav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -109,6 +111,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata/recordingmetadatav1"
+	scopedaccess "github.com/gravitational/teleport/lib/auth/scopes/access"
+	scopedjoining "github.com/gravitational/teleport/lib/auth/scopes/joining"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
@@ -5670,6 +5674,25 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		server,
 		stableUNIXUsersServiceServer,
 	)
+
+	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
+		Authorizer: cfg.Authorizer,
+		Reader:     cfg.AuthServer.scopedAccessCache,
+		Writer:     cfg.AuthServer.scopedAccessBackend,
+		Logger:     logger,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating scoped access control service")
+	}
+	scopedaccessv1.RegisterScopedAccessServiceServer(server, scopedAccessControl)
+
+	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating scoped provisioning service")
+	}
+	scopedjoiningv1.RegisterScopedJoiningServiceServer(server, scopedJoining)
 
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,

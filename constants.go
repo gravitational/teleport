@@ -461,6 +461,9 @@ const (
 )
 
 const (
+	// CertExtensionScopePin is used to pin a certificate to a specific scope and
+	// set of scoped roles.
+	CertExtensionScopePin = "scope-pin@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -756,6 +759,10 @@ const (
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
+
+	// PresetMCPUserRoleName is a name of a preset role that allows
+	// accessing MCP servers.
+	PresetMCPUserRoleName = "mcp-user"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
