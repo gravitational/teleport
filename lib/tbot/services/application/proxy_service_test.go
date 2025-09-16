@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -160,6 +161,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 		AddressKind: connection.AddressKindProxy,
 		Insecure:    true,
 	}
+	alpnUpgradeCache := internal.NewALPNUpgradeCache(log)
 	b, err := bot.New(bot.Config{
 		Connection: connCfg,
 		Logger:     log,
@@ -169,6 +171,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 				proxyServiceConfig,
 				connCfg,
 				bot.DefaultCredentialLifetime,
+				alpnUpgradeCache,
 			),
 		},
 	})
