@@ -174,14 +174,16 @@ sequenceDiagram
    Proxy->>Client: ClusterDetails
    Client->>Proxy: TargetHost (dial_target)
 
-   Proxy->>Auth: Generate SSH Certificate
-   Auth->>Proxy: SSH Certificate
-
-   Proxy->>Node: DialRequest (Permit and SSH Certificate)
+   Proxy->>Node: DialRequest (Permit)
    Node->>Proxy: DialResponse
 
+   Client->>Proxy: Establish SSH connection
    Proxy->>Node: Establish SSH connection
-   Note over Proxy,Node: Using SSH Certificate and Permit
+   alt New Client
+      Note over Proxy,Node: Permit only (no SSH certificate required)
+   else Legacy Client
+      Note over Proxy,Node: Permit and SSH certificate
+   end
    break SSH Connection Failure
       Proxy->>Client: SSH Connection Failure
       Note over Client,Proxy: Session terminated
@@ -203,10 +205,11 @@ sequenceDiagram
    end
 ```
 
-### Session-Bound Certificates
+### SSH Certificate
 
-The Proxy is issued a SSH certificate by the Auth service after successful client authentication and authorization. The
-certificate is kept in-memory and not exposed to the client.
+SSH certificates are not required in the new design except for backwards compatibility with legacy clients. They were
+previously used to convey session metadata and enforce MFA at the Teleport Agent. With the new architecture, the Proxy
+handles these responsibilities directly.
 
 ### Session Enforcement at the Control Plane
 
@@ -216,9 +219,9 @@ The implementation of this RFD will leverage work done in the [Relocate Phase of
 
 The reverse tunnel and proxy peering protocols will have been updated to include the `Permit` from the Decision API
 response, which includes relevant session metadata, to be forwarded from Proxy to agent as part of an incoming dial. The
-target agent will parse the permit and validate the certificate and ensure it matches the session context before
-allowing access to the underlying resource (i.e., access-control decisions will be made at the control plane before
-establishing the connection).
+target agent will parse the permit and validate the session context before allowing access to the underlying resource
+(i.e., access-control decisions will be made at the control plane before establishing the connection). For backward
+compatibility, if an older client is detected, the agent will also validate the SSH certificate as before.
 
 ### Backward Compatibility
 
@@ -275,7 +278,7 @@ period and while receiving appropriate deprecation notices.
    0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md) refactor
    and relocate implementation
 
-#### Phase 1 (Teleport version 19.x - 21.x)
+#### Phase 1
 
 1. Create `TransportServiceV2` in `api/proto/teleport/transport/v2/transport_service.proto`.
 1. Generate `TransportServiceV2` Go code using `protoc`.
@@ -283,19 +286,20 @@ period and while receiving appropriate deprecation notices.
 1. Deprecate `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
 1. Ensure server can handle clients using the deprecated `TransportService` RPCs, while supporting the new
    `TransportServiceV2` RPCs.
-1. Session SSH certificate generation and binding logic in `lib/srv/transport/transportv2/transport_service.go`.
-1. Update client code in `api/client/proxy/client.go` to use `TransportServiceV2`. Client should fallback to
+1. Update client/tsh code in `api/client/proxy/client.go` to use `TransportServiceV2`. Client should fallback to
    `TransportService` if `TransportServiceV2` is not available.
 1. Update clients so they handle MFA challenges and responses as a part of the SSH session establishment process.
 1. Add deprecation notices to SSH banner for clients connecting directly.
 1. Add tests to verify backward compatibility with the deprecated `TransportService` RPCs.
 1. Update documentation to reflect the new architecture and deprecation of direct node access.
 
-#### Phase 2 (Teleport version 22.x+)
+#### Phase 2
 
 1. Remove `TransportService`'s `ProxySSH` RPC.
 1. Remove direct SSH connections to nodes.
-1. Update test plan to remove backward compatibility tests for the deprecated `TransportService`.
+1. Remove SSH certificate verification logic from the agent, as it is no longer required.
+1. Update test plan to remove backward compatibility tests for the deprecated `TransportService` and SSH certificate
+   handling.
 
 ## Future Considerations
 
