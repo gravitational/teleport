@@ -127,22 +127,6 @@ message ProxySSHWithMFAResponse {
 }
 ```
 
-The `DialRequest` message will be updated to include a new field called `Permit`, which contains the serialized
-`SSHAccessPermit` that authorized the connection. See [Session-Bound Certificates](#session-bound-certificates) for more
-details.
-
-```proto
-// api/proto/teleport/legacy/client/proto/proxyservice.proto
-
-// DialRequest contains details for connecting to a node.
-message DialRequest {
-  // ... existing fields ...
-
-  // Permit is the serialized SSHAccessPermit that authorized this connection.
-  bytes permit = 5;
-}
-```
-
 #### ProxySSHWithMFA RPC
 
 The `ProxySSHWithMFA` RPC establishes a bidirectional stream for SSH session establishment with integrated MFA. When the
@@ -192,10 +176,12 @@ sequenceDiagram
 
    Proxy->>Auth: Generate SSH Certificate
    Auth->>Proxy: SSH Certificate
-   Proxy->>Proxy: Bind SSH Certificate to Session
+
+   Proxy->>Node: DialRequest (Permit and SSH Certificate)
+   Node->>Proxy: DialResponse
 
    Proxy->>Node: Establish SSH connection
-   Note over Proxy,Node: Using SSH Certificate
+   Note over Proxy,Node: Using SSH Certificate and Permit
    break SSH Connection Failure
       Proxy->>Client: SSH Connection Failure
       Note over Client,Proxy: Session terminated
@@ -217,18 +203,22 @@ sequenceDiagram
    end
 ```
 
-#### Session-Bound Certificates
+### Session-Bound Certificates
 
-The Proxy issues a session-bound SSH certificate per connection after successful authentication and authorization.
-Certificates are kept in-memory in the Proxy (not stored or exposed elsewhere).
+The Proxy is issued a SSH certificate by the Auth service after successful client authentication and authorization. The
+certificate is kept in-memory and not exposed to the client.
 
-Per the [Relocate Phase of the Access Control Decision API (RFD
-0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md#relocate-phase),
-the reverse tunnel and proxy peering protocols will be updated to include the `Permit` from the Decision API response,
-which includes relevant session metadata, to be forwarded from Proxy to agent as part of an incoming dial. The target
-agent will parse the permit and validate the certificate and ensure it matches the session context before allowing
-access to the underlying resource (i.e., access-control decisions will be made at the control plane before establishing
-the connection).
+### Session Enforcement at the Control Plane
+
+The implementation of this RFD will leverage work done in the [Relocate Phase of the Access Control Decision API (RFD
+0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md#relocate-phase)
+(see [dependencies](#dependencies)).
+
+The reverse tunnel and proxy peering protocols will have been updated to include the `Permit` from the Decision API
+response, which includes relevant session metadata, to be forwarded from Proxy to agent as part of an incoming dial. The
+target agent will parse the permit and validate the certificate and ensure it matches the session context before
+allowing access to the underlying resource (i.e., access-control decisions will be made at the control plane before
+establishing the connection).
 
 ### Backward Compatibility
 
@@ -279,7 +269,13 @@ period and while receiving appropriate deprecation notices.
 
 ### Implementation
 
-#### Phase 1
+#### Dependencies
+
+1. [Access Control Decision API (RFD
+   0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md) refactor
+   and relocate implementation
+
+#### Phase 1 (Teleport version 19.x - 21.x)
 
 1. Create `TransportServiceV2` in `api/proto/teleport/transport/v2/transport_service.proto`.
 1. Generate `TransportServiceV2` Go code using `protoc`.
@@ -295,7 +291,7 @@ period and while receiving appropriate deprecation notices.
 1. Add tests to verify backward compatibility with the deprecated `TransportService` RPCs.
 1. Update documentation to reflect the new architecture and deprecation of direct node access.
 
-#### Phase 2
+#### Phase 2 (Teleport version 22.x+)
 
 1. Remove `TransportService`'s `ProxySSH` RPC.
 1. Remove direct SSH connections to nodes.
