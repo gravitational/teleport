@@ -20,6 +20,7 @@ export const baseServerKeywords = ['server', 'node', 'ssh'];
 export const awsKeywords = ['aws', 'amazon', 'amazon web services'];
 export const kubeKeywords = ['kubernetes', 'k8s', 'kubes', 'cluster'];
 export const selfHostedKeywords = ['self hosted', 'self-hosted'];
+export const mcpKeywords = ['mcp', 'model context protocol', 'mcp server'];
 
 export const baseDatabaseKeywords = ['db', 'database', 'databases'];
 export const awsDatabaseKeywords = [...baseDatabaseKeywords, ...awsKeywords];

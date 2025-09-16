@@ -147,6 +147,10 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
 
   DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
+
+  DISCOVER_RESOURCE_MCP_STDIO = 42;
+  DISCOVER_RESOURCE_MCP_SSE = 43;
+  DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP = 44;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.

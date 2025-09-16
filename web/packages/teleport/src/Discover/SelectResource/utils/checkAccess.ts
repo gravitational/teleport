@@ -44,6 +44,8 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
       // This is probably already true since without this permission the user wouldn't be able to
       // add any other resource, but let's just leave it for completeness sake.
       return acl.tokens.create;
+    case ResourceKind.MCP:
+      return acl.appServers.read && acl.appServers.list;
     default:
       return false;
   }
