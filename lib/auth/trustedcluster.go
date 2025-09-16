@@ -160,7 +160,10 @@ func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedClust
 	}
 
 	// Force name to the name of the trusted cluster.
-	tc.SetName(remoteCAs[0].GetClusterName())
+	if actualName := remoteCAs[0].GetClusterName(); actualName != tc.GetName() {
+		a.logger.WarnContext(ctx, "trusted cluster resource name did not match root cluster name. resource will be renamed. this will become an error in future versions, please update your configuration to match the root cluster name", "resource_name", tc.GetName(), "root_cluster_name", actualName)
+		tc.SetName(actualName)
+	}
 
 	// perform some configuration on the remote CAs
 	configureCAsForTrustedCluster(tc, remoteCAs)
@@ -618,7 +621,10 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	_, err = a.CreateRemoteClusterInternal(ctx, remoteCluster, []types.CertAuthority{remoteCA})
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
-			return nil, trace.AlreadyExists("leaf cluster %q or a cert authority with the same name is already registered with this root cluster, if you are attempting to re-join try removing the existing "+types.KindRemoteCluster+" resource from the root cluster first", remoteClusterName)
+			// note that we deliberately suppress the AlreadyExists error here as this situation
+			// requires admin intervention and the direct caller is prevented by the trusted cluster
+			// security model from taking any corrective action.
+			return nil, trace.Errorf("leaf cluster name %q conflicts with an existing cluster or ca registered with root cluster %q, if re-joining remove the existing "+types.KindRemoteCluster+" resource from the root, if attempting to update check that the name of your resource matches the root cluster name", remoteClusterName, domainName)
 		}
 		return nil, trace.Wrap(err)
 	}

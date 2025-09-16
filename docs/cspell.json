@@ -303,6 +303,7 @@
     "allkeys",
     "allowdeny",
     "allowedlogins",
+    "alloydb",
     "anonymization",
     "anotheruser",
     "apikey",
@@ -343,6 +344,7 @@
     "awsic",
     "awskms",
     "awsoidc",
+    "awsra",
     "awsuser",
     "azblob",
     "azidentity",
@@ -690,6 +692,7 @@
     "mongodbatlas",
     "mongosh",
     "mpghq",
+    "mpstat",
     "msapi",
     "msclmd",
     "mspan",
@@ -904,12 +907,14 @@
     "semodule",
     "sendall",
     "seqno",
+    "serverlesscache",
     "serviceaccount",
     "serviceaccountname",
     "serviceaccounts",
     "serviceacct",
     "servicecfg",
     "serviceid",
+    "serviceusage",
     "sess",
     "session",
     "sestatus",
@@ -984,6 +989,8 @@
     "teleportinfra",
     "teleportmwi",
     "teleportopensshserverv",
+    "teleportprovisiontoken",
+    "teleportprovisiontokenv2",
     "teleportproxy",
     "teleportrolesv",
     "teleportrolev",
@@ -1000,6 +1007,7 @@
     "timechart",
     "timedatectl",
     "timekey",
+    "timesearch",
     "tlogs",
     "tlscacerts",
     "tlscert",
@@ -1096,10 +1104,12 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
+  "flagWords": [
+    "hte"
+  ],
   "ignorePaths": [
-    "**/reference/terraform-provider/**",
-    "**/reference/operator-resources/**",
+    "**/reference/infrastructure-as-code/terraform-provider/**",
+    "**/reference/infrastructure-as-code/operator-resources/**",
     "**/includes/reference/code-blocks-no-cspell/**"
   ]
 }

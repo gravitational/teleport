@@ -1280,7 +1280,8 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		ClusterName: s.clusterName,
 		Login:       windowsUser,
 		Participants: []types.Participant{{
-			User: id.Username,
+			User:    id.Username,
+			Cluster: id.OriginClusterName,
 		}},
 		HostUser: id.Username,
 		Created:  s.cfg.Clock.Now(),

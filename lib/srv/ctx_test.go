@@ -31,6 +31,7 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -45,6 +46,7 @@ func TestCheckSFTPAllowed(t *testing.T) {
 		name                 string
 		nodeAllowFileCopying bool
 		permit               *decisionpb.SSHAccessPermit
+		proxyingPermit       *proxyingPermit
 		sessionPolicies      []*types.SessionRequirePolicy
 		expectedErr          error
 	}{
@@ -77,6 +79,22 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			nodeAllowFileCopying: true,
 			permit: &decisionpb.SSHAccessPermit{
 				SshFileCopy: true,
+			},
+			expectedErr: nil,
+		},
+		{
+			name:                 "proxying role disallowed",
+			nodeAllowFileCopying: true,
+			proxyingPermit: &proxyingPermit{
+				SSHFileCopy: false,
+			},
+			expectedErr: errRoleFileCopyingNotPermitted,
+		},
+		{
+			name:                 "proxying role allowed",
+			nodeAllowFileCopying: true,
+			proxyingPermit: &proxyingPermit{
+				SSHFileCopy: true,
 			},
 			expectedErr: nil,
 		},
@@ -124,6 +142,7 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			)
 
 			ctx.Identity.AccessPermit = tt.permit
+			ctx.Identity.ProxyingPermit = tt.proxyingPermit
 
 			err := ctx.CheckSFTPAllowed(nil)
 			if tt.expectedErr == nil {
@@ -148,6 +167,11 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Impersonator:   "llama",
 				Login:          "alpaca1",
 				ActiveRequests: []string{"access-req1", "access-req2"},
+				MappedRoles:    []string{"role1", "role2"},
+				Traits: wrappers.Traits{
+					"trait1": []string{"value1", "value2"},
+					"trait2": []string{"value3"},
+				},
 			},
 			want: apievents.UserMetadata{
 				User:           "alpaca",
@@ -155,6 +179,11 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Impersonator:   "llama",
 				AccessRequests: []string{"access-req1", "access-req2"},
 				UserKind:       apievents.UserKind_USER_KIND_HUMAN,
+				UserRoles:      []string{"role1", "role2"},
+				UserTraits: wrappers.Traits{
+					"trait1": []string{"value1", "value2"},
+					"trait2": []string{"value3"},
+				},
 			},
 		},
 		{

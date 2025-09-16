@@ -625,7 +625,6 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 	p := &TeleportProcess{
 		Config: &servicecfg.Config{
 			Hostname:    "global-hostname",
-			HostUUID:    "global-uuid",
 			AdvertiseIP: "1.2.3.4",
 			Proxy: servicecfg.ProxyConfig{
 				PublicAddrs:         utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
@@ -769,7 +768,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.role.String(), func(t *testing.T) {
-			principals, dns, err := p.getAdditionalPrincipals(tt.role)
+			principals, dns, err := p.getAdditionalPrincipals(tt.role, "global-uuid")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(principals, tt.wantPrincipals))
 			require.Empty(t, cmp.Diff(dns, tt.wantDNS, cmpopts.EquateEmpty()))

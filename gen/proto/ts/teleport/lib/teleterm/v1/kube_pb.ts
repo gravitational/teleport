@@ -30,6 +30,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { TargetHealth } from "./target_health_pb";
 import { Label } from "./label_pb";
 /**
  * Kube describes connected Kubernetes cluster
@@ -55,6 +56,12 @@ export interface Kube {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Label labels = 3;
      */
     labels: Label[];
+    /**
+     * target_health is the health of the kube cluster
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.TargetHealth target_health = 4;
+     */
+    targetHealth?: TargetHealth;
 }
 /**
  * KubeResource describes a kube_cluster's subresource eg: pods, namespaces, etc.
@@ -108,7 +115,8 @@ class Kube$Type extends MessageType<Kube> {
         super("teleport.lib.teleterm.v1.Kube", [
             { no: 1, name: "uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label }
+            { no: 3, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
+            { no: 4, name: "target_health", kind: "message", T: () => TargetHealth }
         ]);
     }
     create(value?: PartialMessage<Kube>): Kube {
@@ -134,6 +142,9 @@ class Kube$Type extends MessageType<Kube> {
                 case /* repeated teleport.lib.teleterm.v1.Label labels */ 3:
                     message.labels.push(Label.internalBinaryRead(reader, reader.uint32(), options));
                     break;
+                case /* teleport.lib.teleterm.v1.TargetHealth target_health */ 4:
+                    message.targetHealth = TargetHealth.internalBinaryRead(reader, reader.uint32(), options, message.targetHealth);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -155,6 +166,9 @@ class Kube$Type extends MessageType<Kube> {
         /* repeated teleport.lib.teleterm.v1.Label labels = 3; */
         for (let i = 0; i < message.labels.length; i++)
             Label.internalBinaryWrite(message.labels[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.TargetHealth target_health = 4; */
+        if (message.targetHealth)
+            TargetHealth.internalBinaryWrite(message.targetHealth, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -1,7 +1,8 @@
 ---
 title: Kubernetes Application Discovery Reference
+sidebar_label: Kubernetes Application Discovery
 description: This guide is a comprehensive reference of configuration options for automatically enrolling Kubernetes applications with Teleport.
-labels:
+tags:
  - reference
  - zero-trust
 ---
@@ -71,7 +72,7 @@ app_service:
 
 Label `teleport.dev/kubernetes-cluster` should match value of `discovery_group` field in the Discovery Service config.
 
-For more information you can take a look at [`discovery_service`](../../config.mdx) and [`app_service`](../../config.mdx) configuration references.
+For more information you can take a look at [`discovery_service`](../../deployment/config.mdx) and [`app_service`](../../deployment/config.mdx) configuration references.
 
 ## Annotations
 
@@ -104,6 +105,10 @@ Controls resulting app name. If present it will override default app name patter
 `$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. If multiple ports are exposed, resulting apps will have port names added
 as a suffix to the annotation value, as `$APP_NAME-$PORT1_NAME`, `$APP_NAME-$PORT2_NAME` etc, where `$APP_NAME` is the name
 set by the annotation.
+
+### `teleport.dev/description`
+
+Overrides the default description of the discovered app.
 
 ### `teleport.dev/insecure-skip-verify`
 

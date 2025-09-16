@@ -180,7 +180,7 @@ func TestAccessGraphSettings(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*clusterconfigv1.AccessGraphSettings]{
+	testResources153(t, p, testFuncs[*clusterconfigv1.AccessGraphSettings]{
 		newResource: func(name string) (*clusterconfigv1.AccessGraphSettings, error) {
 			return newAccessGraphSettings(t), nil
 		},
@@ -195,7 +195,7 @@ func TestAccessGraphSettings(t *testing.T) {
 			}
 			return []*clusterconfigv1.AccessGraphSettings{item}, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*clusterconfigv1.AccessGraphSettings, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*clusterconfigv1.AccessGraphSettings, error) {
 			item, err := p.cache.GetAccessGraphSettings(ctx)
 			if trace.IsNotFound(err) {
 				return []*clusterconfigv1.AccessGraphSettings{}, nil
@@ -205,5 +205,5 @@ func TestAccessGraphSettings(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(p.clusterConfigS.DeleteAccessGraphSettings(ctx))
 		},
-	})
+	}, withSkipPaginationTest())
 }

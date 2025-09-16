@@ -566,7 +566,14 @@ func toCtxTracker(t types.SessionTracker) ctxTracker {
 		participants := s.GetParticipants()
 		names := make([]string, len(participants))
 		for i, participant := range participants {
-			names[i] = participant.User
+			// Participant for RBAC must be represented as `remote-{user}-{cluster}`.
+			// if they belong to a different cluster. This is because the user
+			// is also named like that when they authenticate.
+			names[i] = UsernameForCluster(UsernameForClusterConfig{
+				User:              participant.User,
+				OriginClusterName: participant.Cluster,
+				LocalClusterName:  s.GetClusterName(),
+			})
 		}
 
 		return names

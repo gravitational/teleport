@@ -1225,16 +1225,10 @@ type Cache interface {
 	// CountAccessListMembers will count all access list members.
 	CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member list.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// ListAllAccessListMembers returns a paginated list of all members of all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member record.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 
 	// ListAccessListReviews will list access list reviews for a particular access list.

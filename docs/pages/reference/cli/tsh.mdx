@@ -1,7 +1,8 @@
 ---
 title: tsh CLI reference
+sidebar_label: tsh
 description: Comprehensive reference of subcommands, flags, and arguments for the tsh CLI tool.
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -17,18 +18,18 @@ Environment variables configure your tsh client and can help you avoid using fla
 | Environment Variable | Description | Example Value |
 | - | - | - |
 | TELEPORT_AUTH | Any defined [authentication connector](../access-controls/authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | okta |
-| TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
 | TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
 | TELEPORT_LOGIN_BROWSER | Set to `none` to stop the system default browser from opening for SSO logins. If the value is not `none`, `tsh` will open the system default browser. | none |
 | TELEPORT_PROXY | Address of the Teleport proxy server | cluster.example.com:3080 |
+| TELEPORT_HEADLESS | Use headless authentication | true, false, 1, 0 |
 | TELEPORT_HOME | Home location for tsh configuration and data | /directory |
 | TELEPORT_USER | A Teleport user name | alice |
 | TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
 | TELEPORT_GLOBAL_TSH_CONFIG | Override location of global `tsh` config file from default `/etc/tsh.yaml` | /opt/teleport/tsh.yaml |
-| TELEPORT_HEADLESS | Use headless authentication | true, false, 1, 0 |
+| TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | auto, cross-platform, platform, otp, sso |
 | TELEPORT_IDENTITY_FILE | File path to identity file | /opt/identity |
 
 ## tsh global flags
@@ -43,11 +44,11 @@ Environment variables configure your tsh client and can help you avoid using fla
 | `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format. `oldssh` supports older versions of OpenSSH servers that do not allow for custom metadata, which is how Teleport encodes a user's roles in their SSH certificate. |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
 | `--auth` | `local` | Any defined [authentication connector](../access-controls/authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
-| `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
+| `--mfa-mode` | auto | `auto`, `cross-platform`, `platform`, `otp`, or `sso` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
-| `--headless` | none | none | Use Headless WebAuthn for authentication |
+| `--headless` | none | none | Use Headless Authentication |
 | `--mlock` | `auto` | `auto`, `off`, `best_effort`, `strict` | Lock process memory to protect client secrets stored in memory from being swapped to disk. |
 
 ## tsh apps ls
@@ -898,7 +899,7 @@ $ tsh recordings ls --last=6h0m0s
 >
 
 Recorded sessions are linked from the audit events to session recordings files
-in their [storage backend](../../reference/backends.mdx).
+in their [storage backend](../deployment/backends.mdx).
 The following error can occur if a session recording file is not available or
 when employing multiple auth servers with directory storage backend for recorded
 sessions. When using a directory storage backend for audit logs and recorded sessions,
@@ -1022,7 +1023,7 @@ $ tsh request search [<flags>]
 | `--kube-kind` | none | string | Plural name of the kube resource (required when --kind is `kube_resource`) |
 | `--kube-api-group` | none | string | API group of the kube resource (required when --kind is `kube_resource` depending on the resource) |
 | `--search` | none | Comma-separated strings | List of comma-separated search keywords or phrases enclosed in single quotes |
-| `--query` | none | String | Query by [predicate language](../predicate-language.mdx#resource-filtering) enclosed in single quotes |
+| `--query` | none | String | Query by [predicate language](../access-controls/predicate-language.mdx#resource-filtering) enclosed in single quotes |
 | `--labels` | none | Comma-separated strings | List of comma-separated labels to filter by labels (e.g. `key=value1,key2=value2`) |
 
 ## tsh request show

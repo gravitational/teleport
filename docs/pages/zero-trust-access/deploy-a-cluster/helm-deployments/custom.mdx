@@ -1,13 +1,13 @@
 ---
 title: Running Teleport with a Custom Configuration using Helm
 description: Install and configure a Teleport cluster with a custom configuration using Helm
-labels:
+tags:
  - how-to
  - platform-wide
 ---
 
 In this guide, we'll explain how to set up a Teleport cluster in Kubernetes
-with custom [`teleport.yaml`](../../../reference/config.mdx) config file elements
+with custom [`teleport.yaml`](../../../reference/deployment/config.mdx) config file elements
 using Teleport Helm charts.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
@@ -60,14 +60,14 @@ Setting `publicAddr` is the same as setting `proxy.teleportConfig.proxy_service.
 When using `scratch` or `standalone` mode, you **must** use highly-available
 storage (e.g. etcd, DynamoDB, or Firestore) for multiple replicas to be supported.
 
-[Information on supported Teleport storage backends](../../../reference/backends.mdx)
+[Information on supported Teleport storage backends](../../../reference/deployment/backends.mdx)
 
 Manually configuring NFS-based storage or `ReadWriteMany` volume claims is **NOT**
 supported for an HA deployment and will result in errors.
 </Admonition>
 
 Write the following `my-values.yaml` file, and adapt the teleport configuration as needed.
-You can find all possible configuration fields in the [Teleport Config Reference](../../../reference/config.mdx).
+You can find all possible configuration fields in the [Teleport Config Reference](../../../reference/deployment/config.mdx).
 
 ```yaml
 chartMode: standalone

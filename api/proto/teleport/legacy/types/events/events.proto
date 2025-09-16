@@ -572,6 +572,8 @@ message DesktopClipboardReceive {
   string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
   // Length is the number of bytes of data received from the remote clipboard.
   int32 Length = 6 [(gogoproto.jsontag) = "length"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 7 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DesktopClipboardSend is emitted when clipboard data is
@@ -605,6 +607,8 @@ message DesktopClipboardSend {
   string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
   // Length is the number of bytes of data sent.
   int32 Length = 6 [(gogoproto.jsontag) = "length"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 7 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DesktopSharedDirectoryStart is emitted when Teleport
@@ -646,6 +650,8 @@ message DesktopSharedDirectoryStart {
   string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
   // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
   uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 9 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DesktopSharedDirectoryRead is emitted when Teleport
@@ -694,6 +700,8 @@ message DesktopSharedDirectoryRead {
   uint32 Length = 10 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were read from.
   uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 12 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DesktopSharedDirectoryWrite is emitted when Teleport
@@ -742,6 +750,8 @@ message DesktopSharedDirectoryWrite {
   uint32 Length = 10 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were written to.
   uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  // DesktopName is the name of the desktop resource.
+  string DesktopName = 12 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // SessionReject event happens when a user hits a session control restriction.
@@ -5011,6 +5021,28 @@ message Identity {
   // JoinToken is the name of the join token used when a Machine ID bot joined,
   // if any. It is not set for bots using the `token` join method.
   string JoinToken = 30 [(gogoproto.jsontag) = "join_token,omitempty"];
+  // ScopePin pins a certificate to a specific scope and set of scoped roles.
+  ScopePin ScopePin = 31 [(gogoproto.jsontag) = "scope_pin,omitempty"];
+}
+
+// ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
+// information for access-control evaluation at that scope.
+message ScopePin {
+  // Scope is the target scope that this pin is associated with. This is the scope that the certificate/identity is
+  // pinned to. Any resources in parent/orthogonal scopes are not necessarily subject to the privileges/policies
+  // conveyed by this pin.
+  string Scope = 1 [(gogoproto.jsontag) = "scope"];
+
+  // Assignments encodes the scoped role assignments relevant to access-control decisions about the pinned identity. This may
+  // include assignments to parents of the pinned scope as well as assignments to equivalent/child scopes. Effectively, this
+  // means all assignments that are not orthogonal to the pinned scope.
+  map<string, ScopePinnedAssignments> Assignments = 2 [(gogoproto.jsontag) = "assignments"];
+}
+
+// ScopePinnedAssignments is a collection of scoped role assignments that are relevant to the pinned identity at the target scope.
+message ScopePinnedAssignments {
+  // Roles is a list of scoped roles that are assigned to the pinned identity at the target scope.
+  repeated string Roles = 1 [(gogoproto.jsontag) = "roles"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.

@@ -58,7 +58,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
 
-	testResources153(t, fixturePack, testFuncs153[*provisioningv1.PrincipalState]{
+	testResources153(t, fixturePack, testFuncs[*provisioningv1.PrincipalState]{
 		newResource: func(s string) (*provisioningv1.PrincipalState, error) {
 			return newProvisioningPrincipalState(s), nil
 		},
@@ -80,7 +80,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteAllProvisioningStates(ctx))
 		},
-		cacheList: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
+		cacheList: func(ctx context.Context, _ int) ([]*provisioningv1.PrincipalState, error) {
 			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListProvisioningStatesForAllDownstreams2))
 		},
 		cacheGet: func(ctx context.Context, id string) (*provisioningv1.PrincipalState, error) {
@@ -88,5 +88,5 @@ func TestProvisioningPrincipalState(t *testing.T) {
 				ctx, testDownstreamID, services.ProvisioningStateID(id))
 			return r, trace.Wrap(err)
 		},
-	})
+	}, withSkipPaginationTest())
 }

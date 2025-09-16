@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -103,6 +104,174 @@ func TestFileLogPagination(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, eventArr, 1)
 	require.Empty(t, checkpoint)
+}
+
+func TestFileLogCheckpoint(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	testRotationPeriod := time.Hour * 24
+	// Test setup: Create a test file log
+	log, err := NewFileLog(FileLogConfig{
+		Dir:            t.TempDir(),
+		RotationPeriod: testRotationPeriod,
+		Clock:          clock,
+	})
+	require.NoError(t, err)
+
+	// Test setup: Crafting fixtures.
+	// Truncating by an hour to avoid an awkward low probability case when the
+	// time is a minute away from EOD and adding a few seconds to events causes
+	// a day change and a flaky test.
+	startupTime := clock.Now().UTC().Truncate(time.Hour)
+
+	// The timeframe is 24 hours to match FileLog rotation and the event exporter's default
+	// Adding a 2 minutes offset to be sure we are always strictly between the
+	// time frame boundaries.
+	beforeTimeFrame := startupTime.Add(testRotationPeriod).Add(time.Minute * 2)
+	inTimeFrame := beforeTimeFrame.Add(testRotationPeriod)
+	afterTimeFrame := inTimeFrame.Add(testRotationPeriod)
+
+	from := inTimeFrame.Truncate(testRotationPeriod)
+	to := from.Add(testRotationPeriod)
+
+	eventsBeforeTimeFrame := []events.AuditEvent{
+		&events.Exec{Metadata: events.Metadata{Time: beforeTimeFrame, ID: uuid.NewString()}},
+	}
+
+	eventsInTimeFrame := []events.AuditEvent{
+		&events.Exec{Metadata: events.Metadata{Time: inTimeFrame.Add(time.Second), ID: uuid.NewString()}},
+		&events.Exec{Metadata: events.Metadata{Time: inTimeFrame.Add(2 * time.Second), ID: uuid.NewString()}},
+		&events.Exec{Metadata: events.Metadata{Time: inTimeFrame.Add(3 * time.Second), ID: uuid.NewString()}},
+	}
+
+	eventsAfterTimeFrame := []events.AuditEvent{
+		&events.Exec{Metadata: events.Metadata{Time: afterTimeFrame, ID: uuid.NewString()}},
+	}
+
+	// Test setup: Loading fixtures.
+
+	// set the clock to beforeTimeFrame
+	clock.Advance(testRotationPeriod)
+	for _, event := range eventsBeforeTimeFrame {
+		require.NoError(t, log.EmitAuditEvent(t.Context(), event))
+	}
+
+	// set the clock to inTimeFrame
+	clock.Advance(testRotationPeriod)
+	for _, event := range eventsInTimeFrame {
+		require.NoError(t, log.EmitAuditEvent(t.Context(), event))
+	}
+
+	// set the clock to afterTimeFrame
+	clock.Advance(testRotationPeriod)
+	for _, event := range eventsAfterTimeFrame {
+		require.NoError(t, log.EmitAuditEvent(t.Context(), event))
+	}
+
+	tests := []struct {
+		name           string
+		checkpoint     string
+		expectedEvents []events.AuditEvent
+		eventOrder     types.EventOrder
+	}{
+		{
+			name:           "no checkpoint (asc)",
+			checkpoint:     "",
+			eventOrder:     types.EventOrderAscending,
+			expectedEvents: eventsInTimeFrame,
+		},
+		{
+			name:           "no checkpoint (desc)",
+			checkpoint:     "",
+			eventOrder:     types.EventOrderDescending,
+			expectedEvents: eventsInTimeFrame,
+		},
+		{
+			name:       "checkpoint in range (asc)",
+			checkpoint: fmt.Sprintf("%s/%d", eventsInTimeFrame[0].GetID(), inTimeFrame.UnixNano()),
+			eventOrder: types.EventOrderAscending,
+			// first event should be skipped because of the checkpoint
+			expectedEvents: eventsInTimeFrame[1:],
+		},
+		{
+			name:       "checkpoint in range (desc)",
+			checkpoint: fmt.Sprintf("%s/%d", eventsInTimeFrame[2].GetID(), inTimeFrame.UnixNano()),
+			eventOrder: types.EventOrderDescending,
+			// last event should be skipped because of the checkpoint
+			expectedEvents: eventsInTimeFrame[:2],
+		},
+		{
+			name:       "checkpoint legacy format (asc)",
+			checkpoint: eventsInTimeFrame[0].GetID(),
+			eventOrder: types.EventOrderAscending,
+			// first event should be skipped because of the checkpoint
+			expectedEvents: eventsInTimeFrame[1:],
+		},
+		{
+			name:       "checkpoint legacy format (desc)",
+			checkpoint: eventsInTimeFrame[2].GetID(),
+			eventOrder: types.EventOrderDescending,
+			// last event should be skipped because of the checkpoint
+			expectedEvents: eventsInTimeFrame[:2],
+		},
+		{
+			name:           "checkpoint before range (asc)",
+			eventOrder:     types.EventOrderAscending,
+			checkpoint:     fmt.Sprintf("%s/%d", eventsBeforeTimeFrame[0].GetID(), beforeTimeFrame.UnixNano()),
+			expectedEvents: eventsInTimeFrame,
+		},
+		{
+			name:           "checkpoint after range (asc)",
+			eventOrder:     types.EventOrderAscending,
+			checkpoint:     fmt.Sprintf("%s/%d", eventsAfterTimeFrame[0].GetID(), afterTimeFrame.UnixNano()),
+			expectedEvents: nil,
+		},
+		{
+			name:           "checkpoint before range (desc)",
+			eventOrder:     types.EventOrderDescending,
+			checkpoint:     fmt.Sprintf("%s/%d", eventsBeforeTimeFrame[0].GetID(), beforeTimeFrame.UnixNano()),
+			expectedEvents: nil,
+		},
+		{
+			name:           "checkpoint after range (desc)",
+			eventOrder:     types.EventOrderDescending,
+			checkpoint:     fmt.Sprintf("%s/%d", eventsAfterTimeFrame[0].GetID(), afterTimeFrame.UnixNano()),
+			expectedEvents: eventsInTimeFrame,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test execution: querying all events until we get an empty response
+			remainingEvents := true
+			checkpoint := tt.checkpoint
+			var evts []events.AuditEvent
+			for remainingEvents {
+				e, c, err := log.SearchEvents(t.Context(), SearchEventsRequest{
+					From:     from,
+					To:       to,
+					Limit:    1,
+					Order:    tt.eventOrder,
+					StartKey: checkpoint,
+				})
+				require.NoError(t, err)
+				remainingEvents = c != ""
+				evts = append(evts, e...)
+				checkpoint = c
+			}
+
+			// Test validation: check if the checkpoint and event match the expected result
+			expectedEventIDs := make(map[string]struct{}, len(tt.expectedEvents))
+			for _, e := range tt.expectedEvents {
+				expectedEventIDs[e.GetID()] = struct{}{}
+			}
+
+			gotEventIDs := make(map[string]struct{}, len(evts))
+			for _, e := range evts {
+				gotEventIDs[e.GetID()] = struct{}{}
+			}
+			require.Equal(t, expectedEventIDs, gotEventIDs)
+		})
+	}
 }
 
 func TestSearchSessionEvents(t *testing.T) {

@@ -19,7 +19,6 @@ package cache
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -101,13 +100,6 @@ func TestPluginStaticCredentials(t *testing.T) {
 					return out, nil
 				},
 				cacheGet: cacheGet.fn,
-				changeResource: func(cred types.PluginStaticCredentials) {
-					// types.PluginStaticCredentials does not support Expires. Let's
-					// use labels.
-					labels := cred.GetStaticLabels()
-					labels["now"] = time.Now().String()
-					cred.SetStaticLabels(labels)
-				},
 			})
 		})
 	}
