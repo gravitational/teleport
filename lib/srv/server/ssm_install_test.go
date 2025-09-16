@@ -44,10 +44,17 @@ type mockSSMClient struct {
 
 const docWithoutSSHDConfigPathParam = "ssmdocument-without-sshdConfigPath-param"
 
+const docWithoutEnvParam = "ssmdocument-without-env-param"
+
 func (sm *mockSSMClient) SendCommand(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 	if _, hasExtraParam := input.Parameters["sshdConfigPath"]; hasExtraParam && aws.ToString(input.DocumentName) == docWithoutSSHDConfigPathParam {
 		return nil, fmt.Errorf("InvalidParameters: document %s does not support parameters", docWithoutSSHDConfigPathParam)
 	}
+
+	if _, hasExtraParam := input.Parameters["env"]; hasExtraParam && aws.ToString(input.DocumentName) == docWithoutEnvParam {
+		return nil, fmt.Errorf("InvalidParameters: document %s does not support parameters", docWithoutEnvParam)
+	}
+
 	return sm.commandOutput, nil
 }
 
@@ -95,6 +102,7 @@ func TestSSMInstaller(t *testing.T) {
 		client                *mockSSMClient
 		req                   SSMRunRequest
 		expectedInstallations []*SSMInstallationResult
+		expectedRunErrCheck   require.ErrorAssertionFunc
 		name                  string
 	}{
 		{
@@ -193,6 +201,38 @@ func TestSSMInstaller(t *testing.T) {
 				IssueType:       "ec2-ssm-script-failure",
 				SSMDocumentName: "ssmdocument-without-sshdConfigPath-param",
 			}},
+		},
+		{
+			name: "params do not include env",
+			req: SSMRunRequest{
+				Instances: []EC2Instance{
+					{InstanceID: "instance-id-1"},
+				},
+				DocumentName: docWithoutEnvParam,
+				Params:       map[string]string{"env": "FOO=bar BAZ=qux"},
+				Region:       "eu-central-1",
+				AccountID:    "account-id",
+			},
+			client: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+					"downloadContent": {
+						Status:       ssmtypes.CommandInvocationStatusSuccess,
+						ResponseCode: 0,
+					},
+					"runShellScript": {
+						Status:       ssmtypes.CommandInvocationStatusSuccess,
+						ResponseCode: 0,
+					},
+				},
+			},
+			expectedRunErrCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "update the document")
+			},
 		},
 		{
 			name: "ssm run failed in download content",
@@ -524,7 +564,11 @@ func TestSSMInstaller(t *testing.T) {
 			require.NoError(t, err)
 
 			err = inst.Run(ctx, tc.req)
-			require.NoError(t, err)
+			if tc.expectedRunErrCheck != nil {
+				tc.expectedRunErrCheck(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 
 			require.ElementsMatch(t, tc.expectedInstallations, installationResultsCollector.installations)
 		})
