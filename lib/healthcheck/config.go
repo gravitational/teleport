@@ -48,9 +48,6 @@ type healthCheckConfig struct {
 func newHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) *healthCheckConfig {
 	spec := cfg.GetSpec()
 	match := spec.GetMatch()
-	// TODO(rana): Reconsider protocol selection design.
-	// What happens if both db & kube matchers are present?
-	// Determine whether protocol is specified, and when both matchers present.
 
 	return &healthCheckConfig{
 		name:               cfg.GetMetadata().GetName(),
@@ -60,8 +57,6 @@ func newHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) *healthChe
 		unhealthyThreshold: cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
 		// we only support plain TCP health checks currently, but eventually we
 		// may add support for other protocols such as TLS or HTTP
-		// TODO(rana): RE-DESIGN PROTOCOL SPECIFICATION/SELECTION
-		// protocol:                types.TargetHealthProtocolHTTP,
 		protocol:                types.TargetHealthProtocolTCP,
 		databaseLabelMatchers:   newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
 		kubernetesLabelMatchers: newLabelMatchers(match.GetKubernetesLabelsExpression(), match.GetKubernetesLabels()),
