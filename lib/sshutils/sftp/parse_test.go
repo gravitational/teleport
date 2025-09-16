@@ -221,14 +221,14 @@ var parseTestCases = []struct {
 		name: "missing path",
 		in:   "user@server",
 		errCheck: func(t require.TestingT, err error, i ...any) {
-			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [user@]host:[path]", i[0]))
+			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [[user@]host:]path", i[0]))
 		},
 	},
 	{
 		name: "missing host",
 		in:   "user@:/foo",
 		errCheck: func(t require.TestingT, err error, i ...any) {
-			require.EqualError(t, err, fmt.Sprintf("%q is missing a host, use form [user@]host:[path]", i[0]))
+			require.EqualError(t, err, fmt.Sprintf("%q is missing a host, use form [[user@]host:]path", i[0]))
 		},
 	},
 	{
@@ -249,7 +249,7 @@ var parseTestCases = []struct {
 		name: "missing path with IPv6 addr",
 		in:   "[user]@[::1]",
 		errCheck: func(t require.TestingT, err error, i ...any) {
-			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [user@]host:[path]", i[0]))
+			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [[user@]host:]path", i[0]))
 		},
 	},
 }
